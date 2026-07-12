@@ -150,6 +150,7 @@ class TestEngine(private val context: Context) {
         }
 
         val collectors = mutableListOf<Job>()
+        var radioShareJob: Job? = null
         var status = "completed"
         var reportStatus: String? = null
         var aqs: AqsScorer.AqsResult? = null
@@ -171,7 +172,12 @@ class TestEngine(private val context: Context) {
                 }
             }
             collectors += launch { radio.events.collect { envBuf.add(it) } }
-            val radioFlow = radio.start(this)
+            // C07 联调修复（生命周期，不改测量语义）：shareIn 的共享协程随 scope 存活，
+            // 直接挂在 channelFlow scope 会使 run flow 永不完成（collect 端挂死）——
+            // 放进可显式取消的子 SupervisorJob，finally 统一收尸。
+            val shareJob = kotlinx.coroutines.SupervisorJob(coroutineContext[Job])
+            radioShareJob = shareJob
+            val radioFlow = radio.start(kotlinx.coroutines.CoroutineScope(coroutineContext + shareJob))
             collectors += launch { radioFlow.collect { radioBuf.add(it) } }
 
             // ---------------- 场景循环（快测 1 遍 / 取证 3 遍拉丁方轮转） ----------------
@@ -317,6 +323,8 @@ class TestEngine(private val context: Context) {
             log("REPORT http=${resp.httpCode ?: "null"} bytes=$bodyBytes error=${resp.error ?: "none"}")
 
             persistRun(db, runEntity.copy(reportStatus = reportStatus))
+            // C07 导出源：上报体原样存档（与上报严格同构，导出禁止事后重算）
+            persistReportBody(db, runId, body)
             log(
                 "DB_WRITE run_id=$runId scenarios=${scenarioReports.size} " +
                     "env_events_pending=${envBuf.size} radio_samples_pending=${radioBuf.size}"
@@ -336,6 +344,7 @@ class TestEngine(private val context: Context) {
             log("RUN_END run_id=$runId status=error")
         } finally {
             collectors.forEach { it.cancel() }
+            radioShareJob?.cancel() // C07：shareIn 共享协程收尸，run flow 才能正常完成
             pathWatch.stop()
             envMonitors.stop()
             // 残余 env/radio 缓冲落库（NonCancellable：外部取消也不丢已采数据）
@@ -435,6 +444,15 @@ class TestEngine(private val context: Context) {
         return out
     }
 
+    private suspend fun persistReportBody(db: AnebDatabase, runId: String, body: String) {
+        withContext(NonCancellable) {
+            runCatching { db.reportBodyDao().insert(com.aneb.probe.data.ReportBodyEntity(runId, body)) }
+                .onFailure {
+                    Log.e(LOG_TAG, "DB_WRITE_FAILED table=report_body reason=${it.toString().replace(' ', '_')}")
+                }
+        }
+    }
+
     private suspend fun persistRun(db: AnebDatabase, run: TestRun) {
         withContext(NonCancellable) {
             runCatching { db.testRunDao().insert(run) }.onFailure {
@@ -519,6 +537,21 @@ class TestEngine(private val context: Context) {
             u2Grade = KpiGrading.grade("U2", kpi.u2ToolLoopP95Ms.value),
             seqGapCount = kpi.seqGapCount,
             seqDupCount = kpi.seqDupCount,
+            // C07：per-KPI lowConfidence 持久化（结果页/导出标注用，KPI 文档 5.4）
+            lowConfidenceKpis = listOf(
+                "T1" to kpi.t1TtftMs,
+                "T2" to kpi.t2ItlP95Ms,
+                "T2_incl_coalesced" to kpi.t2ItlP95InclCoalescedMs,
+                "T3" to kpi.t3StallRate,
+                "T3_incl_resume" to kpi.t3StallRateInclResume,
+                "T4" to kpi.t4SevereStallRate,
+                "T5" to kpi.t5ResumeP95Ms,
+                "N1" to kpi.n1RttP50Ms,
+                "N2" to kpi.n2JitterMs,
+                "U1" to kpi.u1GoodputMbps,
+                "U1_excl_slow_start" to kpi.u1GoodputExclSlowStartMbps,
+                "U2" to kpi.u2ToolLoopP95Ms,
+            ).filter { it.second.lowConfidence }.joinToString(",") { it.first },
             offsetStartUs = track.start?.offsetUs,
             offsetStartErrUs = track.start?.errUs,
             offsetEndUs = track.end?.offsetUs,

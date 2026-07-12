@@ -13,10 +13,12 @@ import androidx.room.RoomDatabase
         EchoSampleEntity::class,
         EnvEventEntity::class,
         RadioSampleEntity::class,
+        ReportBodyEntity::class,
     ],
     // v3：P1-C05/C06 接线——TestRun 扩 run 级字段；新增 scenario_result / echo_sample；
     // token_event 增 scenarioKey/streamIndex 维度
-    version = 3,
+    // v4：P1-C07——scenario_result 增 lowConfidenceKpis；新增 report_body（导出 JSON 源）
+    version = 4,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -26,6 +28,7 @@ abstract class AnebDatabase : RoomDatabase() {
     abstract fun echoSampleDao(): EchoSampleDao
     abstract fun envEventDao(): EnvEventDao
     abstract fun radioSampleDao(): RadioSampleDao
+    abstract fun reportBodyDao(): ReportBodyDao
 
     companion object {
         @Volatile

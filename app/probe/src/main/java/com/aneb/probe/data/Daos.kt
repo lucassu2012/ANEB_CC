@@ -11,6 +11,18 @@ interface TestRunDao {
 
     @Query("SELECT * FROM test_run ORDER BY startedAtEpochMs DESC")
     suspend fun all(): List<TestRun>
+
+    @Query("SELECT * FROM test_run WHERE runId = :runId")
+    suspend fun byId(runId: String): TestRun?
+}
+
+@Dao
+interface ReportBodyDao {
+    @Insert
+    suspend fun insert(body: ReportBodyEntity)
+
+    @Query("SELECT * FROM report_body WHERE runId = :runId")
+    suspend fun forRun(runId: String): ReportBodyEntity?
 }
 
 @Dao

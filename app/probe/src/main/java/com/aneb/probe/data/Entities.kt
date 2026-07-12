@@ -104,6 +104,12 @@ data class ScenarioResultEntity(
     val u2ToolLoopP95Ms: Double?, val u2Grade: String?,
     val seqGapCount: Int,
     val seqDupCount: Int,
+    /**
+     * 低置信 KPI 清单（逗号分隔 KPI id，如 "T2,U1_excl_slow_start"；空串=无）。
+     * C07：结果页/导出必须能标注 per-KPI lowConfidence（KPI 文档 5.4 展示边界），
+     * KpiValue.lowConfidence 在此持久化；缺省 ""（旧行为不变）。
+     */
+    val lowConfidenceKpis: String = "",
     // ---- 双 clock_sync / skew（C06/R-22） ----
     val offsetStartUs: Long?,
     val offsetStartErrUs: Long?,
@@ -122,6 +128,17 @@ data class ScenarioResultEntity(
     // ---- 解析自监控（P0-C12） ----
     val parseDurUsTotal: Long?,
     val perEventParseUs: Double?,
+)
+
+/**
+ * 上报体原样存档（C07 导出）：run 结束时构造的 /results JSON 原文。
+ * 导出 JSON 直接复用该存档（与上报体严格同构，单一事实来源，禁止事后重算产生口径漂移）。
+ * 未走到上报构造（guard_rejected / bind_failed / error 早退）的 run 无该行。
+ */
+@Entity(tableName = "report_body")
+data class ReportBodyEntity(
+    @PrimaryKey val runId: String,
+    val body: String,
 )
 
 /**
