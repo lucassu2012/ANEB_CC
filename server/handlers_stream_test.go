@@ -29,6 +29,7 @@ type summaryData struct {
 	TimerLateUs   []int64 `json:"timer_late_us"`
 	FlushBlockUs  []int64 `json:"flush_block_us"`
 	CarryoverUs   []int64 `json:"carryover_us"`
+	InjectApplied string  `json:"inject_applied"` // 仅注入流携带
 }
 
 // sseFrame 是按 \n\n 切分出的一帧。
@@ -266,6 +267,152 @@ func TestStreamBurstRejectsRateTpsOverride(t *testing.T) {
 	frames := fetchStream(t, srv.URL+"/api/v1/stream?profile=bursty")
 	if len(frames) != 5+2 {
 		t.Fatalf("got %d frames, want 7", len(frames))
+	}
+}
+
+// 故障注入钩子（P0-C13 前置）：flag 关闭时带 inject 参数必须 403，
+// 正常流（无 inject 参数）不受影响。
+func TestStreamInjectRequiresFlag(t *testing.T) {
+	a := &app{profiles: map[string]*Profile{}, dataDir: t.TempDir()} // allowInject 默认 false
+	srv := httptest.NewServer(a.routes())
+	defer srv.Close()
+
+	for _, spec := range []string{"truncate:2", "malformed:2", "dupseq:2"} {
+		resp, err := http.Get(srv.URL + "/api/v1/stream?tokens=5&rate_tps=2000&inject=" + spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("inject=%s without -allow-inject: status %d, want 403", spec, resp.StatusCode)
+		}
+	}
+
+	// 无 inject 参数的正常流不受 flag 缺席影响。
+	frames := fetchStream(t, srv.URL+"/api/v1/stream?tokens=5&rate_tps=2000")
+	if len(frames) != 5+2 {
+		t.Fatalf("normal stream got %d frames, want 7", len(frames))
+	}
+	var sum summaryData
+	if err := json.Unmarshal([]byte(frames[len(frames)-1].data), &sum); err != nil {
+		t.Fatal(err)
+	}
+	if sum.InjectApplied != "" {
+		t.Fatalf("normal stream summary carries inject_applied = %q", sum.InjectApplied)
+	}
+}
+
+// truncate:N——发送 N 个 event 后直接关流：prelude + N token，无 summary。
+func TestStreamInjectTruncate(t *testing.T) {
+	a := &app{profiles: map[string]*Profile{}, dataDir: t.TempDir(), allowInject: true}
+	srv := httptest.NewServer(a.routes())
+	defer srv.Close()
+
+	frames := fetchStream(t, srv.URL+"/api/v1/stream?tokens=8&rate_tps=2000&inject=truncate:3")
+	if len(frames) != 1+3 {
+		t.Fatalf("got %d frames, want 4 (prelude + 3 tokens, stream cut)", len(frames))
+	}
+	for i := 0; i < 3; i++ {
+		f := frames[1+i]
+		if f.event != "token" {
+			t.Fatalf("frame %d event = %q, want token (and no summary)", 1+i, f.event)
+		}
+		var td tokenData
+		if err := json.Unmarshal([]byte(f.data), &td); err != nil {
+			t.Fatalf("token %d data JSON: %v", i, err)
+		}
+		if td.Seq != i {
+			t.Fatalf("seq = %d at position %d", td.Seq, i)
+		}
+	}
+}
+
+// malformed:N——第 N 个 event 的 data JSON 被截断半个 payload，其余 event
+// 与 summary 完好，summary 如实记录 inject_applied。
+func TestStreamInjectMalformed(t *testing.T) {
+	a := &app{profiles: map[string]*Profile{}, dataDir: t.TempDir(), allowInject: true}
+	srv := httptest.NewServer(a.routes())
+	defer srv.Close()
+
+	const n = 5
+	frames := fetchStream(t, srv.URL+"/api/v1/stream?tokens=5&rate_tps=2000&inject=malformed:3")
+	if len(frames) != n+2 {
+		t.Fatalf("got %d frames, want %d", len(frames), n+2)
+	}
+	for i := 0; i < n; i++ {
+		f := frames[1+i]
+		if f.event != "token" {
+			t.Fatalf("frame %d event = %q, want token", 1+i, f.event)
+		}
+		var td tokenData
+		err := json.Unmarshal([]byte(f.data), &td)
+		if i == 2 { // 第 3 个 event（1-based N=3）
+			if err == nil {
+				t.Fatalf("event 3 data unexpectedly parses as JSON: %q", f.data)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("event %d (should be intact) data JSON: %v (%q)", i+1, err, f.data)
+		}
+		if td.Seq != i {
+			t.Fatalf("seq = %d at position %d", td.Seq, i)
+		}
+	}
+	var sum summaryData
+	if err := json.Unmarshal([]byte(frames[n+1].data), &sum); err != nil {
+		t.Fatalf("summary JSON: %v", err)
+	}
+	if sum.InjectApplied != "malformed:3" {
+		t.Fatalf("inject_applied = %q, want malformed:3", sum.InjectApplied)
+	}
+}
+
+// dupseq:N——第 N 个 event 的 seq 重复上一个，其余连续；summary 如实记录。
+func TestStreamInjectDupseq(t *testing.T) {
+	a := &app{profiles: map[string]*Profile{}, dataDir: t.TempDir(), allowInject: true}
+	srv := httptest.NewServer(a.routes())
+	defer srv.Close()
+
+	const n = 5
+	frames := fetchStream(t, srv.URL+"/api/v1/stream?tokens=5&rate_tps=2000&inject=dupseq:3")
+	if len(frames) != n+2 {
+		t.Fatalf("got %d frames, want %d", len(frames), n+2)
+	}
+	wantSeq := []int{0, 1, 1, 3, 4} // 第 3 个 event（0-based 2）重复 seq=1
+	for i := 0; i < n; i++ {
+		var td tokenData
+		if err := json.Unmarshal([]byte(frames[1+i].data), &td); err != nil {
+			t.Fatalf("token %d data JSON: %v", i, err)
+		}
+		if td.Seq != wantSeq[i] {
+			t.Fatalf("position %d seq = %d, want %d", i, td.Seq, wantSeq[i])
+		}
+	}
+	var sum summaryData
+	if err := json.Unmarshal([]byte(frames[n+1].data), &sum); err != nil {
+		t.Fatalf("summary JSON: %v", err)
+	}
+	if sum.InjectApplied != "dupseq:3" {
+		t.Fatalf("inject_applied = %q, want dupseq:3", sum.InjectApplied)
+	}
+}
+
+// 非法 inject 语法即使开了 flag 也是 400（dupseq:1 无前驱、未知类型、缺 N）。
+func TestStreamInjectBadSyntax(t *testing.T) {
+	a := &app{profiles: map[string]*Profile{}, dataDir: t.TempDir(), allowInject: true}
+	srv := httptest.NewServer(a.routes())
+	defer srv.Close()
+
+	for _, spec := range []string{"dupseq:1", "explode:3", "truncate", "truncate:0", "truncate:x"} {
+		resp, err := http.Get(srv.URL + "/api/v1/stream?tokens=5&rate_tps=2000&inject=" + spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("inject=%s: status %d, want 400", spec, resp.StatusCode)
+		}
 	}
 }
 

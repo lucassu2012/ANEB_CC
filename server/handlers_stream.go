@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -43,6 +44,17 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	params, err := a.streamParamsFromRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	inj, err := parseInject(r.URL.Query().Get("inject"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if inj != nil && !a.allowInject {
+		// 未开 -allow-inject 一律 403：注入流不是测量数据，生产/取证部署
+		// 绝不允许被 URL 参数悄悄触发。
+		http.Error(w, "fault injection disabled (server not started with -allow-inject)", http.StatusForbidden)
 		return
 	}
 	flusher, ok := w.(http.Flusher)
@@ -132,16 +144,35 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 		b64n := base64.StdEncoding.EncodedLen(size)
 		base64.StdEncoding.Encode(payloadB64[:b64n], payloadRaw[:size])
 
+		// 故障注入（仅 -allow-inject 时 inj 非 nil；inj.n 为 1-based 事件号）：
+		//   dupseq:N    第 N 个 event 的 seq 重复上一个（客户端 seq join 必须
+		//               检出重号，禁数组位置配对，R-08）；
+		//   malformed:N 第 N 个 event 的 data JSON 被截断半个 payload——SSE
+		//               帧仍以 \n\n 完整收尾，坏的只是 JSON（客户端必须跳过
+		//               并计 gap，绝不静默错位）；
+		//   truncate:N  发出 N 个 event 后直接关流（无 summary，客户端收到
+		//               EOF，必须判会话中断而非把最后间隔计入 ITL，R-08/§4.9）。
+		seqVal := int64(i)
+		if inj != nil && inj.kind == injectDupseq && i+1 == inj.n {
+			seqVal = int64(i - 1) // parseInject 保证 dupseq 的 n >= 2
+		}
+
 		buf = buf[:0]
 		buf = append(buf, "event: token\ndata: {\"seq\":"...)
-		buf = strconv.AppendInt(buf, int64(i), 10)
+		buf = strconv.AppendInt(buf, seqVal, 10)
 		buf = append(buf, `,"sched_us":`...)
 		buf = strconv.AppendInt(buf, schedAbsUs, 10)
 		buf = append(buf, `,"pre_flush_us":`...)
 		buf = strconv.AppendInt(buf, nowMicros(), 10) // 写入前时刻
 		buf = append(buf, `,"payload":"`...)
-		buf = append(buf, payloadB64[:b64n]...)
-		buf = append(buf, "\"}\n\n"...)
+		if inj != nil && inj.kind == injectMalformed && i+1 == inj.n {
+			// 只给半个 payload，且不写收尾的 `"}`——data 行 JSON 必然非法。
+			buf = append(buf, payloadB64[:b64n/2]...)
+			buf = append(buf, "\n\n"...)
+		} else {
+			buf = append(buf, payloadB64[:b64n]...)
+			buf = append(buf, "\"}\n\n"...)
+		}
 
 		if _, err := w.Write(buf); err != nil {
 			return // 客户端断开
@@ -150,6 +181,10 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 		flushBlockUs[i] = time.Since(flushStart).Microseconds() // R-06：回压证据，与调度误差分开
 		flushReturnUs[i] = nowMicros()                          // R-17：语义固定为 Flush() 返回之后
+
+		if inj != nil && inj.kind == injectTruncate && i+1 == inj.n {
+			return // truncate:N——第 N 个 event 之后直接关流，summary 不发
+		}
 	}
 
 	// summary event：四个逐 seq 数组分开返回（carryover_us 语义见顶部注释：
@@ -163,6 +198,12 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	buf = appendInt64Array(buf, `,"timer_late_us":`, timerLateUs)
 	buf = appendInt64Array(buf, `,"flush_block_us":`, flushBlockUs)
 	buf = appendInt64Array(buf, `,"carryover_us":`, carryoverUs)
+	if inj != nil {
+		// 如实记录注入（truncate 到不了这里）：任何带 inject_applied 的
+		// summary 都不是测量数据，客户端/离线分析据此剔除。
+		buf = append(buf, `,"inject_applied":`...)
+		buf = strconv.AppendQuote(buf, inj.String())
+	}
 	buf = append(buf, "}\n\n"...)
 	if _, err := w.Write(buf); err != nil {
 		return
@@ -243,6 +284,48 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 type errBadParam string
 
 func (e errBadParam) Error() string { return string(e) }
+
+// 故障注入类型（P0-C13 前置；语义见 handleStream 循环内注释）。
+const (
+	injectTruncate  = "truncate"
+	injectMalformed = "malformed"
+	injectDupseq    = "dupseq"
+)
+
+// injectSpec 描述一次 /stream 故障注入：kind + 1-based 事件号 n。
+type injectSpec struct {
+	kind string
+	n    int
+}
+
+func (s *injectSpec) String() string {
+	return s.kind + ":" + strconv.Itoa(s.n)
+}
+
+// parseInject 解析 &inject=kind:N。空串返回 (nil, nil)。注意本函数只管
+// 语法合法性，权限（-allow-inject）由调用方把关。
+func parseInject(raw string) (*injectSpec, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	kind, ns, ok := strings.Cut(raw, ":")
+	if !ok {
+		return nil, errBadParam("invalid inject (want kind:N): " + raw)
+	}
+	switch kind {
+	case injectTruncate, injectMalformed, injectDupseq:
+	default:
+		return nil, errBadParam("invalid inject kind: " + kind)
+	}
+	n, err := strconv.Atoi(ns)
+	if err != nil || n < 1 {
+		return nil, errBadParam("invalid inject event number: " + ns)
+	}
+	if kind == injectDupseq && n < 2 {
+		return nil, errBadParam("inject dupseq needs N >= 2 (event 1 has no predecessor)")
+	}
+	return &injectSpec{kind: kind, n: n}, nil
+}
 
 // fillPayload 用确定性伪随机字节填充 payload（内容仅需非空且确定性，
 // 大小序列的确定性由 tokengen 保证；base64 编码后不可能与 \n\n 冲突）。

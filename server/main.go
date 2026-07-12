@@ -13,11 +13,15 @@ import (
 
 const serverVersion = "aneb-server/0.1.0"
 
-// app 汇集全部 handler 依赖（profile 表、数据目录）。
+// app 汇集全部 handler 依赖（profile 表、数据目录、故障注入开关）。
 type app struct {
-	profiles  map[string]*Profile
-	dataDir   string
-	resultsMu sync.Mutex
+	profiles map[string]*Profile
+	dataDir  string
+	// allowInject 放行 /stream 的 &inject= 故障注入钩子（P0-C13 前置：
+	// 客户端 seq join/截断/畸形 event 健壮性验收需要服务端可控注入）。
+	// 默认 false；生产/取证部署绝不开启——注入流不是测量数据。
+	allowInject bool
+	resultsMu   sync.Mutex
 }
 
 // routes 构建完整 handler 树（含 X-Aneb-Server 版本头中间件）。
@@ -29,6 +33,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/v1/upload", a.handleUpload)
 	mux.HandleFunc("/api/v1/toolloop", a.handleToolLoop)
 	mux.HandleFunc("/api/v1/results", a.handleResults)
+	mux.HandleFunc("/api/v1/serverinfo", a.handleServerInfo)
 	return withServerHeader(mux)
 }
 
@@ -49,6 +54,8 @@ func main() {
 	dataDir := flag.String("data", "./data", "data directory (results JSONL)")
 	tlsCert := flag.String("tls-cert", "", "TLS certificate file (optional)")
 	tlsKey := flag.String("tls-key", "", "TLS key file (optional)")
+	allowInject := flag.Bool("allow-inject", false,
+		"enable /stream fault-injection hooks (&inject=...) — test rigs only, NEVER in production")
 	flag.Parse()
 
 	profiles, err := loadProfiles(*profilesDir)
@@ -59,7 +66,10 @@ func main() {
 		log.Printf("profile loaded: %s v%s (%d phases)", id, p.Version, len(p.Phases))
 	}
 
-	a := &app{profiles: profiles, dataDir: *dataDir}
+	a := &app{profiles: profiles, dataDir: *dataDir, allowInject: *allowInject}
+	if *allowInject {
+		log.Printf("WARNING: -allow-inject enabled — /stream accepts fault injection, runs are NOT evidential")
+	}
 
 	// 超时策略：
 	//   - ReadHeaderTimeout 防 slowloris（只限制读请求头，不影响 SSE 响应体流式写出）；
