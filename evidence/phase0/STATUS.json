@@ -1,0 +1,22 @@
+{
+  "phase": "phase0",
+  "updated": "2026-07-12",
+  "legend": "PASS / FAIL / NOT_EXECUTED / BLOCKED_EXTERNAL — 缺工具链/设备/节点绝不折算成 PASS",
+  "checks": [
+    { "check_id": "P0-C01-supply-chain-pin", "state": "PASS", "command": "人工核查 app/gradle/libs.versions.toml（全精确版本）+ gradle-wrapper.properties（distributionSha256Sum 经 WebFetch 实取 544c35d6...）+ server/go.mod（纯标准库）", "evidence_files": ["../../app/gradle/libs.versions.toml", "../../app/gradle/wrapper/gradle-wrapper.properties", "../../server/go.mod"], "date": "2026-07-12", "note": "gradle-wrapper.jar 无法离线生成，见 P0-C08" },
+    { "check_id": "P0-C02-server-vet", "state": "PASS", "command": "go vet ./...", "evidence_files": ["verify_all_20260712-103217.log"], "date": "2026-07-12" },
+    { "check_id": "P0-C03-server-build", "state": "PASS", "command": "go build ./...", "evidence_files": ["verify_all_20260712-103217.log"], "date": "2026-07-12" },
+    { "check_id": "P0-C04-server-test", "state": "PASS", "command": "go test -count=1 ./... (20/20，含并发/逐帧Flush时序/burst拒绝覆盖)", "evidence_files": ["verify_all_20260712-103217.log"], "date": "2026-07-12" },
+    { "check_id": "P0-C05-profiles-valid", "state": "PASS", "command": "verify_all.ps1 profiles-valid (3 profiles v0.2.0)", "evidence_files": ["verify_all_20260712-103217.log"], "date": "2026-07-12" },
+    { "check_id": "P0-C06-server-smoke-mainpath", "state": "PASS", "command": "本机实跑 aneb-server + curl 冒烟 6 端点：profiles/echo/stream(prelude+5token+summary四数组)/toolloop(50ms精确)/results(JSONL落盘+拒收非JSON)", "evidence_files": ["smoke_server_20260712.log"], "date": "2026-07-12", "note": "成功主路径服务端侧证据；顺带验证 profiles 目录缺失时启动 fail-closed" },
+    { "check_id": "P0-C07-review-closure", "state": "PASS", "command": "ecc:go-reviewer(9条全修) + ecc:kotlin-reviewer(8条修7，validity enum 按设计留阶段1)，修复后回归 20/20", "evidence_files": [], "date": "2026-07-12" },
+    { "check_id": "P0-C08-app-assembleDebug", "state": "NOT_EXECUTED", "command": "gradlew :probe:assembleDebug", "evidence_files": ["verify_all_20260712-103217.log"], "date": "2026-07-12", "note": "本机缺 JDK/Android SDK/gradle-wrapper.jar；装好 Android Studio 后运行 gradle wrapper --gradle-version 8.7 补 jar 再执行" },
+    { "check_id": "P0-C09-app-run-s1-e2e", "state": "NOT_EXECUTED", "command": "模拟器/真机跑 S1 打印全部时间戳", "evidence_files": [], "date": "2026-07-12", "note": "依赖 P0-C08" },
+    { "check_id": "P0-C10-itl-alignment-wifi", "state": "NOT_EXECUTED", "command": "验收①：同 WiFi 连测 10 次，ITL 对齐差 P95<10ms", "evidence_files": [], "date": "2026-07-12", "note": "依赖 P0-C09" },
+    { "check_id": "P0-C11-tcpdump-srvts-alignment", "state": "NOT_EXECUTED", "command": "验收②：tcpdump 时戳 vs srv_ts 逐 event P95<2ms（均匀流+burst 各一组）", "evidence_files": [], "date": "2026-07-12", "note": "需 Linux 环境（E-01 云 VM 或 WSL2）" },
+    { "check_id": "P0-C12-loopback-parse-overhead", "state": "NOT_EXECUTED", "command": "验收③：环回 profile，客户端解析层耗时 P99<1ms", "evidence_files": [], "date": "2026-07-12", "note": "依赖 P0-C09" },
+    { "check_id": "P0-C13-malformed-event-adversarial", "state": "NOT_EXECUTED", "command": "验收④：服务端注入畸形/截断 event，客户端计 gap 或判 invalid（客户端已实现 parseErrors/gap/truncatedEarly 路径，待联调触发）", "evidence_files": [], "date": "2026-07-12", "note": "依赖 P0-C09；服务端注入钩子待加" },
+    { "check_id": "P0-C14-u1-vs-iperf3", "state": "NOT_EXECUTED", "command": "验收⑤：U1(2xx口径) vs iperf3 偏差<20%", "evidence_files": [], "date": "2026-07-12", "note": "依赖 P0-C09" },
+    { "check_id": "P0-C15-wallclock-step-immunity", "state": "NOT_EXECUTED", "command": "验收⑥：人工制造服务端墙钟步进，验证 srv_ts 单调锚点免疫（实现已用 time.Since(procStart)，待实验证明）", "evidence_files": [], "date": "2026-07-12", "note": "可在 E-01 VM 上 date -s 实验" }
+  ]
+}
