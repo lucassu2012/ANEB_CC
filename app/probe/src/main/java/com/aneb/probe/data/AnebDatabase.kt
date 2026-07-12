@@ -15,12 +15,14 @@ import androidx.room.RoomDatabase
         RadioSampleEntity::class,
         ReportBodyEntity::class,
         ContinuityResultEntity::class,
+        ApiProbeResultEntity::class,
     ],
     // v3：P1-C05/C06 接线——TestRun 扩 run 级字段；新增 scenario_result / echo_sample；
     // token_event 增 scenarioKey/streamIndex 维度
     // v4：P1-C07——scenario_result 增 lowConfidenceKpis；新增 report_body（导出 JSON 源）
     // v5：阶段 2 C 组——新增 continuity_result（连续性实验汇总，additive）
-    version = 5,
+    // v6：阶段 2 合并——新增 api_probe_result（真实 API 探针，claim scope 独立不进 AQS）
+    version = 6,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -32,6 +34,7 @@ abstract class AnebDatabase : RoomDatabase() {
     abstract fun radioSampleDao(): RadioSampleDao
     abstract fun reportBodyDao(): ReportBodyDao
     abstract fun continuityResultDao(): ContinuityResultDao
+    abstract fun apiProbeResultDao(): ApiProbeResultDao
 
     companion object {
         @Volatile

@@ -72,6 +72,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
+    // 阶段 2 API 探针：key 存 EncryptedSharedPreferences（初始化失败退私有明文 prefs，
+    // 见 ApiKeyStore KDoc 取舍说明）
+    implementation(libs.androidx.security.crypto)
+
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)

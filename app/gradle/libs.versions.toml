@@ -16,6 +16,9 @@ room = "2.6.1"
 kotlinxSerializationJson = "1.7.3"
 kotlinxCoroutines = "1.8.1"
 junit = "4.13.2"
+# 阶段 2 API 探针：key 存储（EncryptedSharedPreferences）。1.1.0-alpha06 为该库最新
+# 发布线（1.0.0 stable 依赖过旧 Tink 且缺 MasterKey API）；精确钉死，禁动态版本。
+securityCrypto = "1.1.0-alpha06"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -39,6 +42,8 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 
 junit = { module = "junit:junit", version.ref = "junit" }
+
+androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
