@@ -1,0 +1,16 @@
+# Android
+app/build/
+app/.gradle/
+app/local.properties
+app/.idea/
+*.apk
+*.aab
+
+# Go
+server/aneb-server
+server/aneb-server.exe
+server/data/
+
+# misc
+.DS_Store
+Thumbs.db
