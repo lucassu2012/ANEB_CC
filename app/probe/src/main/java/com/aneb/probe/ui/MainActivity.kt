@@ -46,6 +46,7 @@ import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
+import com.aneb.probe.engine.ContinuityRunner
 import com.aneb.probe.engine.TestEngine
 import com.aneb.probe.radio.RadioCollector
 import kotlinx.coroutines.CancellationException
@@ -69,6 +70,7 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
 
     private lateinit var engine: TestEngine
+    private lateinit var continuityRunner: ContinuityRunner
     private lateinit var radioCollector: RadioCollector
     private lateinit var db: AnebDatabase
 
@@ -77,6 +79,11 @@ class MainActivity : ComponentActivity() {
     private var intentMode: TestEngine.Mode = TestEngine.Mode.QUICK
     private var intentTransport: TestEngine.TransportMode = TestEngine.TransportMode.AUTO
     private var intentInject: String? = null
+
+    /** 阶段 2：--es mode continuity → 连续性实验模式（C1/C2/C3），与场景 run 分流 */
+    private var intentContinuity: Boolean = false
+    private var intentCTokens: Int = ContinuityRunner.DEFAULT_TOKENS
+    private var intentC3IdleS: List<Int> = ContinuityRunner.DEFAULT_C3_IDLE_S
 
     private val radioPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
@@ -96,6 +103,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         engine = TestEngine(applicationContext)
+        continuityRunner = ContinuityRunner(applicationContext)
         radioCollector = RadioCollector(this)
         db = AnebDatabase.get(applicationContext)
         intentServer = intent?.getStringExtra("server")
@@ -104,6 +112,14 @@ class MainActivity : ComponentActivity() {
             "forensic" -> TestEngine.Mode.FORENSIC
             else -> TestEngine.Mode.QUICK // autorun intent 默认快测
         }
+        // 阶段 2：--es mode continuity → 连续性实验（C1/C2/C3）；可选 --ei c_tokens、
+        // --es c3_idle "60,180,300"（秒）调实验参数（联调可观测性，不改测量语义）
+        intentContinuity = intent?.getStringExtra("mode")?.lowercase() == "continuity"
+        intentCTokens = intent?.getIntExtra("c_tokens", ContinuityRunner.DEFAULT_TOKENS)
+            ?.takeIf { it > 0 } ?: ContinuityRunner.DEFAULT_TOKENS
+        intentC3IdleS = intent?.getStringExtra("c3_idle")
+            ?.split(',')?.mapNotNull { it.trim().toIntOrNull()?.takeIf { v -> v > 0 } }
+            ?.takeIf { it.isNotEmpty() } ?: ContinuityRunner.DEFAULT_C3_IDLE_S
         intentTransport = when (intent?.getStringExtra("transport")?.lowercase()) {
             "wifi" -> TestEngine.TransportMode.WIFI
             "cellular" -> TestEngine.TransportMode.CELLULAR
@@ -310,6 +326,32 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // 阶段 2 连续性实验（C1/C2/C3）：独立引擎与日志 KEY（CONTINUITY_*），
+        // 不复用场景 run 的状态机；结束不跳结果页（结果在 Room continuity_result + logcat）
+        fun startContinuityRun() {
+            if (running) return
+            onRunningChange(true)
+            addLog(">>> CONTINUITY transport=${transport.name.lowercase()} -> $serverUrl")
+            lifecycleScope.launch {
+                try {
+                    continuityRunner.run(
+                        ContinuityRunner.Config(
+                            serverBase = serverUrl,
+                            transport = transport,
+                            tokens = intentCTokens,
+                            c3IdleSeconds = intentC3IdleS,
+                        )
+                    ).collect { line -> addLog(line) }
+                } catch (e: CancellationException) {
+                    throw e // 不吞取消（fail-closed §4.6/§4.7）
+                } catch (e: Exception) {
+                    addLog("CONTINUITY_FAILED error=$e")
+                } finally {
+                    onRunningChange(false)
+                }
+            }
+        }
+
         LaunchedEffect(logs.size) {
             if (logs.isNotEmpty()) listState.animateScrollToItem(logs.size - 1)
         }
@@ -317,7 +359,7 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             if (intentAutorun) {
                 intentAutorun = false
-                startRun(fromAutorun = true)
+                if (intentContinuity) startContinuityRun() else startRun(fromAutorun = true)
             }
         }
 
@@ -367,6 +409,10 @@ class MainActivity : ComponentActivity() {
                     },
                 ) {
                     Text("Net: ${transport.name}")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(enabled = !running, onClick = { startContinuityRun() }) {
+                    Text("Continuity")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedButton(onClick = { onRadioSnapshot { line -> addLog(line) } }) {

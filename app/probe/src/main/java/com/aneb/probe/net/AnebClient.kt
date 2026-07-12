@@ -15,6 +15,7 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.BufferedSink
+import okio.ByteString.Companion.encodeUtf8
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
@@ -207,6 +208,119 @@ class AnebClient(bound: BoundNetwork? = null) {
             StreamResult(
                 requestStartNanos, null, 0, 0, null, null, e.toString(),
                 timingFactory.recordFor(call), truncatedEarly = false,
+            )
+        }
+    }
+
+    // ------------------------------------------- continuity stream（阶段 2 C 组）
+
+    /**
+     * 连续性实验专用流结果（阶段 2 C 组；additive——不改 [stream] 既有测量语义）。
+     * 与 [stream] 的关键差异：**中断容忍**——传输层异常（IOException/流截断）时已收
+     * token 的计数与到达时间戳全部保留（C1/C2 的测量对象正是中断本身），并在检出
+     * 中断的当下打戳 [errorNanos]（C2 恢复计时的起点）。
+     *
+     * 时间戳全部为 SystemClock.elapsedRealtimeNanos（单调时间轴，读线程就地打戳）。
+     */
+    data class ContinuityStreamResult(
+        val startNanos: Long,
+        /** 首个 token event 到达时刻；一个 token 都没收到记 null（R-10） */
+        val firstTokenNanos: Long?,
+        /** 最后一个 SSE event 到达时刻（中断兜底锚点）；无 event 记 null */
+        val lastEventNanos: Long?,
+        val tokenCount: Int,
+        val maxSeq: Long?,
+        /** 收到 summary event（服务端正常收尾标志） */
+        val sawSummary: Boolean,
+        val httpCode: Int?,
+        val error: String?,
+        /** 传输错误检出时刻；无错误记 null */
+        val errorNanos: Long?,
+        val timing: TimingRecord?,
+    ) {
+        /** 流干净收尾：无传输错误且收到 summary；否则即"异常断开/截断"（C1 证据） */
+        val completed: Boolean get() = error == null && sawSummary
+
+        /** 本请求是否新建连接（EventListener 有 connectStart 打点即新建）；无计时记录 null */
+        val connectionWasNew: Boolean? get() = timing?.let { it.connectStartNs != null }
+    }
+
+    /**
+     * 连续性长流（C1/C2）：增量读 SSE，逐 event 打戳，只做轻量解析（token 计数 /
+     * seq 提取 / summary 检测——恢复时间是秒级量，正则开销可忽略）。
+     */
+    suspend fun continuityStream(url: String): ContinuityStreamResult {
+        val call = client.newCall(
+            Request.Builder().url(url).header("Accept", "text/event-stream").get().build()
+        )
+        val startNanos = SystemClock.elapsedRealtimeNanos()
+        return try {
+            executeCancellable(call) { resp ->
+                if (!resp.isSuccessful) {
+                    ContinuityStreamResult(
+                        startNanos, null, null, 0, null, sawSummary = false,
+                        httpCode = resp.code, error = "http ${resp.code}",
+                        errorNanos = SystemClock.elapsedRealtimeNanos(),
+                        timing = timingFactory.recordFor(call),
+                    )
+                } else {
+                    val source = checkNotNull(resp.body) { "empty body for 2xx" }.source()
+                    var firstTokenNanos: Long? = null
+                    var lastEventNanos: Long? = null
+                    var tokenCount = 0
+                    var maxSeq: Long? = null
+                    var sawSummary = false
+                    var error: String? = null
+                    var errorNanos: Long? = null
+                    val acc = okio.Buffer()
+                    val readBuf = okio.Buffer()
+                    try {
+                        while (true) {
+                            val n = source.read(readBuf, 8192L)
+                            if (n == -1L) break
+                            val arrival = SystemClock.elapsedRealtimeNanos()
+                            acc.writeAll(readBuf)
+                            while (true) {
+                                val boundary = acc.indexOf(SSE_EVENT_DELIMITER)
+                                if (boundary == -1L) break
+                                val eventText = acc.readByteArray(boundary).toString(Charsets.UTF_8)
+                                acc.skip(SSE_EVENT_DELIMITER.size.toLong())
+                                if (eventText.isEmpty()) continue
+                                lastEventNanos = arrival
+                                when {
+                                    eventText.startsWith("event: summary") -> sawSummary = true
+                                    eventText.startsWith("event: token") -> {
+                                        tokenCount++
+                                        if (firstTokenNanos == null) firstTokenNanos = arrival
+                                        SEQ_REGEX.find(eventText)?.groupValues?.get(1)
+                                            ?.toLongOrNull()?.let { s ->
+                                                if (maxSeq == null || s > maxSeq!!) maxSeq = s
+                                            }
+                                    }
+                                    // prelude 注释帧等：连续性实验不做 KPI 级解析，跳过
+                                }
+                            }
+                        }
+                    } catch (e: IOException) {
+                        // 中断容忍：部分数据保留 + 中断时刻就地打戳（C2 恢复计时起点）
+                        error = e.toString()
+                        errorNanos = SystemClock.elapsedRealtimeNanos()
+                    }
+                    ContinuityStreamResult(
+                        startNanos, firstTokenNanos, lastEventNanos, tokenCount, maxSeq,
+                        sawSummary, resp.code, error, errorNanos, timingFactory.recordFor(call),
+                    )
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e // 不吞取消（fail-closed §4.6/§4.7）
+        } catch (e: Exception) {
+            // 建连级失败（连接拒绝/无网等）：错误时刻同样打戳
+            ContinuityStreamResult(
+                startNanos, null, null, 0, null, sawSummary = false,
+                httpCode = null, error = e.toString(),
+                errorNanos = SystemClock.elapsedRealtimeNanos(),
+                timing = timingFactory.recordFor(call),
             )
         }
     }
@@ -416,4 +530,10 @@ class AnebClient(bound: BoundNetwork? = null) {
         }
 
     private fun nowUs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000L
+
+    private companion object {
+        /** 服务端固定 "\n\n" 分隔（与 SseReader 同一 wire 约定） */
+        private val SSE_EVENT_DELIMITER = "\n\n".encodeUtf8()
+        private val SEQ_REGEX = Regex("\"seq\"\\s*:\\s*(\\d+)")
+    }
 }

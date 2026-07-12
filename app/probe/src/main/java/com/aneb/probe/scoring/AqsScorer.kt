@@ -37,6 +37,13 @@ import kotlin.math.min
 object AqsScorer {
 
     const val AQS_VERSION: String = "aqs-v0.1"
+
+    /**
+     * 阶段 2 版本（KPI 文档 5.4：阶段二引入 C 组后，v0.1 权重 ×0.8，C 组占 20%
+     * = C1 10% + C2 10%）。仅当调用方提供连续性数据（[ContinuityKpi]）时可选出分；
+     * 无 C 数据一律走 v0.1 默认（additive，不改 v0.1 语义）。
+     */
+    const val AQS_VERSION_V02: String = "aqs-v0.2"
     const val KPI_SET_VERSION: String = KpiCalculator.KPI_SET_VERSION
 
     /** T4 一票否决线（比率），KPI 文档 5.4 */
@@ -55,6 +62,13 @@ object AqsScorer {
         "N1" to 0.10,
         "N2" to 0.10,
     )
+
+    /**
+     * v0.2 权重表（合计 1.0）：v0.1 各项 ×0.8 + C1 10% + C2 10%（KPI 文档 5.4 阶段二条款）。
+     * 由 v0.1 表推导（单一事实来源，防两表手工漂移）。
+     */
+    val WEIGHTS_V02: Map<String, Double> =
+        WEIGHTS.mapValues { it.value * 0.8 } + mapOf("C1" to 0.10, "C2" to 0.10)
 
     /**
      * 单调锚点表：(KPI 值, 分数) 对，按值升序。端点外 clamp。
@@ -92,6 +106,14 @@ object AqsScorer {
     // 高者优（U1，Mbps）：0→0，可/差=1→55，良/可=5→70，优/良=20→85，100→100
     internal val U1_ANCHORS = AnchorMap(listOf(0.0 to 0.0, 1.0 to 55.0, 5.0 to 70.0, 20.0 to 85.0, 100.0 to 100.0))
 
+    // ---- C 组门限锚点（agent-qoe-kpi v0.2 / KPI 文档 5.2；补全锚点规则同 v0.1）----
+    // C1 会话中断率（ratio，低者优）：0.5% / 2% / 5%，差档下锚 3×0.05=0.15
+    internal val C1_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 0.005 to 85.0, 0.02 to 70.0, 0.05 to 55.0, 0.15 to 0.0))
+
+    // C2 切换恢复时间（ms，低者优）：1s / 3s / 10s，差档下锚 3×10000=30000；
+    // "失败"（恢复不成功）按 R-10 记 null → v0.2 不可计算（KPI_MISSING:C2），绝不以封顶值顶替
+    internal val C2_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 1000.0 to 85.0, 3000.0 to 70.0, 10000.0 to 55.0, 30000.0 to 0.0))
+
     /**
      * AQS 评分结果。
      *
@@ -111,10 +133,49 @@ object AqsScorer {
         val notComputableReason: String?,
     )
 
-    fun score(kpi: KpiResult): AqsResult {
+    /**
+     * C 组（连续性）评分输入（阶段 2 连续性实验产出，aqs v0.2 专用）。
+     * 失败语义与 [KpiValue] 一致：无有效样本/恢复失败一律 value=null（R-10），
+     * v0.2 对 null 的处理与 T/U/N 组相同——不可计算（KPI_MISSING），绝不以 0 顶替。
+     *
+     * @param c1SessionDropRate 会话中断率（ratio：异常断开次数/流式段总数，跨段聚合）
+     * @param c2RecoveryMs 切换恢复时间（ms：中断时刻→重连流首 token 到达；多样本取中位数）
+     */
+    data class ContinuityKpi(
+        val c1SessionDropRate: KpiValue,
+        val c2RecoveryMs: KpiValue,
+    )
+
+    fun score(kpi: KpiResult): AqsResult =
+        scoreWith(kpi, extraInputs = emptyMap(), version = AQS_VERSION)
+
+    /**
+     * aqs v0.2 出分入口（additive）：仅当 [continuity] 非 null 时按 v0.2 权重
+     * （v0.1×0.8 + C1 10% + C2 10%）计算并标注版本号 [AQS_VERSION_V02]；
+     * continuity=null 时语义与 [score] (v0.1) 完全一致——无连续性数据的 run
+     * 保持 v0.1 默认（KPI 文档 5.4 阶段二条款）。
+     */
+    fun score(kpi: KpiResult, continuity: ContinuityKpi?): AqsResult {
+        if (continuity == null) return score(kpi)
+        return scoreWith(
+            kpi,
+            extraInputs = mapOf(
+                "C1" to continuity.c1SessionDropRate,
+                "C2" to continuity.c2RecoveryMs,
+            ),
+            version = AQS_VERSION_V02,
+        )
+    }
+
+    private fun scoreWith(
+        kpi: KpiResult,
+        extraInputs: Map<String, KpiValue>,
+        version: String,
+    ): AqsResult {
+        val weights = if (version == AQS_VERSION_V02) WEIGHTS_V02 else WEIGHTS
         if (kpi.validity == Validity.INVALID) {
             return AqsResult(
-                aqsVersion = AQS_VERSION,
+                aqsVersion = version,
                 kpiSetVersion = KPI_SET_VERSION,
                 score = null,
                 subScores = emptyMap(),
@@ -133,12 +194,12 @@ object AqsScorer {
             "U2" to kpi.u2ToolLoopP95Ms,
             "N1" to kpi.n1RttP50Ms,
             "N2" to kpi.n2JitterMs,
-        )
+        ) + extraInputs
         val missing = inputs.filterValues { it.value == null }.keys.sorted()
         if (missing.isNotEmpty()) {
             // 任一权重项缺失 → AQS 不可计算（R-10：绝不以 0 分顶替失败样本）
             return AqsResult(
-                aqsVersion = AQS_VERSION,
+                aqsVersion = version,
                 kpiSetVersion = KPI_SET_VERSION,
                 score = null,
                 subScores = emptyMap(),
@@ -156,9 +217,11 @@ object AqsScorer {
             "U2" to U2_ANCHORS,
             "N1" to N1_ANCHORS,
             "N2" to N2_ANCHORS,
+            "C1" to C1_ANCHORS,
+            "C2" to C2_ANCHORS,
         )
         val subScores = inputs.mapValues { (id, v) -> anchorMaps.getValue(id).score(v.value!!) }
-        var total = subScores.entries.sumOf { (id, s) -> s * WEIGHTS.getValue(id) }
+        var total = subScores.entries.sumOf { (id, s) -> s * weights.getValue(id) }
 
         // T4 一票否决：>1% 时封顶 54（T4 缺失时不触发否决，但 T4 属流式场景必备诊断项）
         val t4 = kpi.t4SevereStallRate.value
@@ -169,7 +232,7 @@ object AqsScorer {
             inputs.values.any { it.lowConfidence }
 
         return AqsResult(
-            aqsVersion = AQS_VERSION,
+            aqsVersion = version,
             kpiSetVersion = KPI_SET_VERSION,
             score = total,
             subScores = subScores,

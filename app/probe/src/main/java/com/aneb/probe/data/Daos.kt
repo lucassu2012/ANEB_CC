@@ -58,6 +58,18 @@ interface EchoSampleDao {
 }
 
 @Dao
+interface ContinuityResultDao {
+    @Insert
+    suspend fun insert(result: ContinuityResultEntity)
+
+    @Query("SELECT * FROM continuity_result WHERE runId = :runId")
+    suspend fun forRun(runId: String): ContinuityResultEntity?
+
+    @Query("SELECT * FROM continuity_result ORDER BY startedAtEpochMs DESC")
+    suspend fun all(): List<ContinuityResultEntity>
+}
+
+@Dao
 interface EnvEventDao {
     /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
     @Insert
