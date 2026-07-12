@@ -50,6 +50,7 @@ import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
+import com.aneb.probe.engine.AbRunner
 import com.aneb.probe.engine.ContinuityRunner
 import com.aneb.probe.engine.TestEngine
 import com.aneb.probe.radio.RadioCollector
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var engine: TestEngine
     private lateinit var continuityRunner: ContinuityRunner
+    private lateinit var abRunner: AbRunner
     private lateinit var radioCollector: RadioCollector
     private lateinit var db: AnebDatabase
 
@@ -88,6 +90,11 @@ class MainActivity : ComponentActivity() {
     private var intentContinuity: Boolean = false
     private var intentCTokens: Int = ContinuityRunner.DEFAULT_TOKENS
     private var intentC3IdleS: List<Int> = ContinuityRunner.DEFAULT_C3_IDLE_S
+
+    /** 阶段 2 P2-C05：--es mode ab → Cronet TCP vs QUIC(h3) A/B（独立入口） */
+    private var intentAb: Boolean = false
+    private var intentAbPairs: Int = AbRunner.DEFAULT_PAIRS
+    private var intentAbNetlog: Boolean = false
 
     private val radioPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
@@ -111,6 +118,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         engine = TestEngine(applicationContext)
         continuityRunner = ContinuityRunner(applicationContext)
+        abRunner = AbRunner(applicationContext)
         radioCollector = RadioCollector(this)
         db = AnebDatabase.get(applicationContext)
         intentServer = intent?.getStringExtra("server")
@@ -127,6 +135,12 @@ class MainActivity : ComponentActivity() {
         intentC3IdleS = intent?.getStringExtra("c3_idle")
             ?.split(',')?.mapNotNull { it.trim().toIntOrNull()?.takeIf { v -> v > 0 } }
             ?.takeIf { it.isNotEmpty() } ?: ContinuityRunner.DEFAULT_C3_IDLE_S
+        // 阶段 2 P2-C05：--es mode ab → Cronet A/B（可选 --ei ab_pairs 调每组样本数）
+        intentAb = intent?.getStringExtra("mode")?.lowercase() == "ab"
+        intentAbPairs = intent?.getIntExtra("ab_pairs", AbRunner.DEFAULT_PAIRS)
+            ?.takeIf { it > 0 } ?: AbRunner.DEFAULT_PAIRS
+        // NetLog 仅 debug 生效（诊断 h3 协商失败归因；日志体积大，默认关）
+        intentAbNetlog = BuildConfig.DEBUG && intent?.getBooleanExtra("ab_netlog", false) == true
         intentTransport = when (intent?.getStringExtra("transport")?.lowercase()) {
             "wifi" -> TestEngine.TransportMode.WIFI
             "cellular" -> TestEngine.TransportMode.CELLULAR
@@ -510,6 +524,31 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // 阶段 2 P2-C05：Cronet TCP vs QUIC(h3) A/B（独立入口与日志 KEY AB_*，
+        // 不动 TestEngine 场景状态机；结果在 Room ab_result + logcat）
+        fun startAbRun() {
+            if (running) return
+            onRunningChange(true)
+            addLog(">>> AB pairs=$intentAbPairs -> $serverUrl")
+            lifecycleScope.launch {
+                try {
+                    abRunner.run(
+                        AbRunner.Config(
+                            serverBase = serverUrl,
+                            pairs = intentAbPairs,
+                            netlog = intentAbNetlog,
+                        )
+                    ).collect { line -> addLog(line) }
+                } catch (e: CancellationException) {
+                    throw e // 不吞取消（fail-closed §4.6/§4.7）
+                } catch (e: Exception) {
+                    addLog("AB_FAILED error=$e")
+                } finally {
+                    onRunningChange(false)
+                }
+            }
+        }
+
         LaunchedEffect(logs.size) {
             if (logs.isNotEmpty()) listState.animateScrollToItem(logs.size - 1)
         }
@@ -517,7 +556,11 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             if (intentAutorun) {
                 intentAutorun = false
-                if (intentContinuity) startContinuityRun() else startRun(fromAutorun = true)
+                when {
+                    intentAb -> startAbRun()
+                    intentContinuity -> startContinuityRun()
+                    else -> startRun(fromAutorun = true)
+                }
             }
         }
 
@@ -571,6 +614,11 @@ class MainActivity : ComponentActivity() {
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedButton(enabled = !running, onClick = { startContinuityRun() }) {
                     Text("Continuity")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // P2-C05：Cronet TCP vs QUIC(h3) A/B（server 需 https 双栈）
+                OutlinedButton(enabled = !running, onClick = { startAbRun() }) {
+                    Text("AB h3")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedButton(onClick = { onRadioSnapshot { line -> addLog(line) } }) {

@@ -83,6 +83,58 @@ class RawSseStream(
 )
 
 /**
+ * SSE 边界扫描器（P2-C05 抽出，[SseReader.readRaw] 与 Cronet 路径共用同一份
+ * `\n\n` 切边界逻辑与 sameReadBatch 语义——"一次读一次戳"，同一次 read 切出的
+ * 第 2..n 个 event 标 sameReadBatch=true，R-04）。
+ *
+ * 有状态、非线程安全：一次流一个实例，读循环单线程内调用（OkHttp 读线程或
+ * Cronet callback executor 单线程）。
+ */
+class SseBoundaryScanner {
+    private val acc = Buffer()
+    private val events = ArrayList<RawSseEvent>(1024)
+    private var readCount = 0
+    private var totalBytes = 0L
+
+    /**
+     * 交付一次 read 的字节（[chunk] 会被整体读空）。[arrivalNanos] 为该次 read
+     * 返回时刻的打戳——本方法内不打戳，戳由调用方在读返回处就地打（R-04）。
+     */
+    fun onRead(chunk: Buffer, byteCount: Long, arrivalNanos: Long) {
+        readCount++
+        totalBytes += byteCount
+        acc.writeAll(chunk)
+
+        var eventsInThisRead = 0
+        while (true) {
+            val boundary = acc.indexOf(EVENT_DELIMITER)
+            if (boundary == -1L) break
+            val eventBytes = acc.readByteArray(boundary)
+            acc.skip(EVENT_DELIMITER.size.toLong())
+            if (eventBytes.isEmpty()) continue
+            events.add(
+                RawSseEvent(
+                    bytes = eventBytes,
+                    arrivalNanos = arrivalNanos,
+                    // 同一 read 内第 2..n 个 event：到达间隔是伪 0（R-04）
+                    sameReadBatch = eventsInThisRead > 0,
+                )
+            )
+            eventsInThisRead++
+        }
+    }
+
+    /** 流结束（EOF/错误检出）时收口；[eofNanos] 为 EOF 打戳时刻（P0-C12 边界）。 */
+    fun finish(eofNanos: Long): RawSseStream =
+        RawSseStream(events, readCount, totalBytes, truncatedTail = acc.size > 0L, eofNanos = eofNanos)
+
+    private companion object {
+        /** 服务端固定 "\n\n" 分隔（与 SseReader 同一 wire 约定；"\r\n\r\n" 兼容留 TODO） */
+        private val EVENT_DELIMITER = "\n\n".encodeUtf8()
+    }
+}
+
+/**
  * SSE 读取器（R-04 核心）。
  *
  * 读循环规则：
@@ -116,55 +168,34 @@ class SseReader(
      * 切边界 → 存原始字节，绝不解析。语义与原 readStream 读循环完全一致。
      */
     fun readRaw(source: BufferedSource): RawSseStream {
-        // 预分配（S1 默认 600 token + prelude + summary，留裕量）
-        val rawEvents = ArrayList<RawSseEvent>(1024)
-        val acc = Buffer()
+        // 切边界/打戳语义收敛在 SseBoundaryScanner（P2-C05：Cronet 路径共用同一实现）
+        val scanner = SseBoundaryScanner()
         val readBuf = Buffer()
-        var readCount = 0
-        var totalBytes = 0L
 
         // ---- 读循环：read → 打戳 → 切边界 → 存原始字节，别的都不做 ----
         while (true) {
             val n = source.read(readBuf, READ_CHUNK_BYTES)
             if (n == -1L) break
-            val arrivalNanos = SystemClock.elapsedRealtimeNanos()
-            readCount++
-            totalBytes += n
-            acc.writeAll(readBuf)
-
-            var eventsInThisRead = 0
-            while (true) {
-                val boundary = acc.indexOf(EVENT_DELIMITER)
-                if (boundary == -1L) break
-                val eventBytes = acc.readByteArray(boundary)
-                acc.skip(EVENT_DELIMITER.size.toLong())
-                if (eventBytes.isEmpty()) continue
-                rawEvents.add(
-                    RawSseEvent(
-                        bytes = eventBytes,
-                        arrivalNanos = arrivalNanos,
-                        // 同一 read 内第 2..n 个 event：到达间隔是伪 0（R-04）
-                        sameReadBatch = eventsInThisRead > 0,
-                    )
-                )
-                eventsInThisRead++
-            }
+            // 一次 read 返回打一次戳（R-04），戳在读线程就地打
+            scanner.onRead(readBuf, n, SystemClock.elapsedRealtimeNanos())
         }
-        val truncatedTail = acc.size > 0L
         // P0-C12：EOF 打戳——解析阶段与读循环的时间边界
-        val eofNanos = SystemClock.elapsedRealtimeNanos()
-        return RawSseStream(rawEvents, readCount, totalBytes, truncatedTail, eofNanos)
+        return scanner.finish(SystemClock.elapsedRealtimeNanos())
     }
 
-    fun readStream(source: BufferedSource): SseStreamResult {
-        val raw = readRaw(source)
+    fun readStream(source: BufferedSource): SseStreamResult = parseRaw(readRaw(source))
+
+    /**
+     * 解析阶段（流已读完后执行；P2-C05 抽出为公共入口，Cronet 路径复用同一解析器）。
+     * TODO 阶段1 移出读线程。
+     */
+    fun parseRaw(raw: RawSseStream): SseStreamResult {
         val rawEvents = raw.events
         val readCount = raw.readCount
         val totalBytes = raw.totalBytes
         val truncatedTail = raw.truncatedTail
         val eofNanos = raw.eofNanos
 
-        // ---- 解析阶段（流已读完；TODO 阶段1 移出读线程）----
         var prelude: SsePrelude? = null
         var summaryRaw: String? = null
         var parseErrors = 0
@@ -238,8 +269,5 @@ class SseReader(
 
     companion object {
         private const val READ_CHUNK_BYTES = 8192L
-
-        // 阶段 0 服务端固定 "\n\n" 分隔；"\r\n\r\n" 兼容留 TODO 阶段1
-        private val EVENT_DELIMITER = "\n\n".encodeUtf8()
     }
 }

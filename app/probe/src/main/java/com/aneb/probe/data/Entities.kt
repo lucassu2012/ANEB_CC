@@ -268,6 +268,59 @@ data class ApiProbeResultEntity(
 )
 
 // ---------------------------------------------------------------------------
+// 阶段 2 P2-C05：Cronet TCP(TLS) vs QUIC(h3) 背靠背 A/B（D-17/D-19）
+// ---------------------------------------------------------------------------
+
+/**
+ * A/B 逐样本结果（v7 新增表，additive）。一行＝一次 Cronet 流样本。
+ *
+ * - [stack] 恒 "cronet"：两栈计时钩子粒度不同，与 OkHttp 场景 run 数据**不可互比**
+ *   （A/B 结论只在 Cronet 栈内得出）；claim scope 仍为 probe_node 口径。
+ * - [bin] 分箱（红队"QUIC 启用 ≠ 协商 h3"）：A 组恒 tcp；B 组逐样本按
+ *   [negotiatedProtocol] 判定——h3 计 quic，非 h3 计 fallback（**不进对比**）。
+ * - 数值字段可空：失败/不可算记 null，禁 0/哨兵值（R-10）。
+ * - [sampleIndex] 为 run 内全局执行序（ABAB 交替顺序证据）。
+ */
+@Entity(
+    tableName = "ab_result",
+    indices = [Index("runId")],
+)
+data class AbResultEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val runId: String,
+    val startedAtEpochMs: Long,
+    val serverBase: String,
+    /** 恒 cronet */
+    val stack: String,
+    /** 恒 application_end_to_end_to_probe_node（同场景 run 口径） */
+    val claimScope: String,
+    val profileId: String,
+    /** profile 内第几个 token_stream phase（0 起） */
+    val phaseIndex: Int,
+    /** run 内全局执行序（0 起，ABAB 交替证据） */
+    val sampleIndex: Int,
+    /** a（disableQuic）/ b（enableQuic+hint） */
+    val groupLabel: String,
+    /** tcp / quic / fallback（分箱结果，见类 KDoc） */
+    val bin: String,
+    /** 逐样本协商协议（h3 判定唯一依据）；未拿到响应头 null */
+    val negotiatedProtocol: String?,
+    val httpCode: Int?,
+    val error: String?,
+    // ---- 每样本 KPI（Cronet 栈内口径） ----
+    val ttftMs: Double?,
+    val itlP50Ms: Double?,
+    val itlP95Ms: Double?,
+    val itlSampleCount: Int,
+    val stallCount: Int?,
+    val stallRate: Double?,
+    val gapCount: Int,
+    val dupCount: Int,
+    val tokenEventCount: Int,
+    val truncatedEarly: Boolean,
+)
+
+// ---------------------------------------------------------------------------
 // 环境事件时间轴（设计文档 §7 EnvEvent：设备侧冻结 vs 链路缓冲归因的关键证据）
 // ---------------------------------------------------------------------------
 

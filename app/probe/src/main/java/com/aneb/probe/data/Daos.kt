@@ -82,6 +82,19 @@ interface ApiProbeResultDao {
 }
 
 @Dao
+interface AbResultDao {
+    /** run 结束一次性批量写入（读循环内禁逐条写，R-16） */
+    @Insert
+    suspend fun insertAll(results: List<AbResultEntity>)
+
+    @Query("SELECT * FROM ab_result WHERE runId = :runId ORDER BY sampleIndex")
+    suspend fun forRun(runId: String): List<AbResultEntity>
+
+    @Query("SELECT * FROM ab_result ORDER BY startedAtEpochMs DESC, sampleIndex")
+    suspend fun all(): List<AbResultEntity>
+}
+
+@Dao
 interface EnvEventDao {
     /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
     @Insert
