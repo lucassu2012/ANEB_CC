@@ -22,6 +22,7 @@
 | D-14 | 2026-07-12 | 参考项目做法与本项目冲突处不照搬，逐条记录于下方"否决记录" | 制度对齐分析 conflicts 清单 |
 | D-15 | 2026-07-12 | E-01 部署**不修改 chrony**（偏离设计文档 §6"禁 makestep"条款）：共用生产服务器不动全局时钟纪律；srv_ts 单调锚点（R-24）已免疫墙钟步进，chrony 现状 RMS offset 86µs 质量足够；chronyc tracking 快照将随运行元数据存档。P0-C15 步进实验改在本机 WSL2/一次性环境执行 | E-01 为共用服务器（另一项目 mongod/node 在跑）；evidence/phase0/server_provision_20260712.log |
 | D-16 | 2026-07-12 | 本机/客户端测量**必须显式绕开系统代理并检测代理存在**：首次公网基线被本机代理（127.0.0.1:33210/7897）静默劫持，RTT p50 从 28.1ms 放大到 1519.7ms（54 倍）而流节奏无异常——单看 pacing 无法发现路径被劫持。PC 侧探针一律 UseProxy=false + 记录代理检测结果；Android NetGuard 的 VPN/代理硬拒测（R-03）优先级提升 | evidence/phase0/first_internet_baseline_20260712.log |
+| D-17 | 2026-07-13 | 引入本项目**首个第三方 Go 依赖** `github.com/quic-go/quic-go` **v0.60.0**（钉死精确版本入 go.mod/go.sum，go 指令随之升 1.25.0，与部署工具链 go1.26 兼容）——专项用于阶段 2 HTTP/3：`-h3` 同端口 UDP 并行 http3.Server 复用同一路由树，**fail-closed**（无 -tls-cert/-tls-key 时 -h3 拒绝启动，h3 为 TLS-only）；TCP 侧加 Alt-Svc 广告。协商证据两侧留痕：所有响应带 `X-Aneb-Proto`（服务端视角 r.Proto + via=tcp/h3-server 处理栈标记），/serverinfo 增 `h3_enabled`——**QUIC 启用 ≠ 协商 h3**（红队项），A/B 分组以逐样本协商记录为准。"无外部依赖"原则（§6）就此收窄为"标准库 + quic-go 专项"，与 D-10 阶段二规划一致 | 设计文档 §6/§8 阶段 2；D-10；supply-chain：版本钉死 + go.sum 校验 |
 
 ## 否决记录（评估后明确不采纳）
 
