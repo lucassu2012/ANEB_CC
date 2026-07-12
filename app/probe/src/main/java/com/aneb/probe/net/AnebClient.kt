@@ -21,17 +21,18 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * ANEB 仿真服务器客户端（阶段 0）。
+ * ANEB 仿真服务器客户端（阶段 1 接线）。
  *
  * OkHttp 配置依据设计文档 §5：
  *  - retryOnConnectionFailure(false)：重试会掩盖网络问题；
  *  - connectTimeout 10s / readTimeout 30s；
- *  - eventListenerFactory 注入 [TimingEventListener]（回调线程就地打戳）。
- *
- * TODO(阶段1)：NetGuard 网络绑定（requestNetwork + socketFactory + Dns=network::getAllByName，
- * R-01）、fail-closed 就绪守卫。（每场景禁连接池复用已由 [evictConnections] 落地。）
+ *  - eventListenerFactory 注入 [TimingEventListener]（回调线程就地打戳）；
+ *  - `proxy(Proxy.NO_PROXY)`：测量流量必须直连（D-16 红线）——即使系统留有
+ *    代理配置也绝不让测量请求走代理（NetGuard 已在测前硬拒代理，这里是第二道闸）；
+ *  - [bound] 非 null 时同时绑定 socketFactory 与 Dns（R-01：否则域名解析仍走默认
+ *    网络 DNS，解析与承载路径分裂）。AUTO 模式传 null＝不绑定仅监控。
  */
-class AnebClient {
+class AnebClient(bound: BoundNetwork? = null) {
 
     private val timingFactory = TimingEventListener.Factory()
     private val json = Json { ignoreUnknownKeys = true }
@@ -42,6 +43,13 @@ class AnebClient {
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .eventListenerFactory(timingFactory)
+        .proxy(java.net.Proxy.NO_PROXY) // D-16：测量流量直连，禁走系统代理
+        .apply {
+            if (bound != null) {
+                socketFactory(bound.socketFactory)
+                dns(bound.dns)
+            }
+        }
         .build()
 
     /**
@@ -58,6 +66,8 @@ class AnebClient {
     private data class EchoWire(
         @SerialName("t1_us") val t1Us: Long,
         @SerialName("t2_us") val t2Us: Long,
+        /** 服务端观察到的客户端源 IP:port（路径对账，R-01/R-31） */
+        val observed: String? = null,
     )
 
     /**
@@ -76,6 +86,8 @@ class AnebClient {
         val httpCode: Int?,
         val error: String?,
         val timing: TimingRecord?,
+        /** 服务端观察到的客户端源 IP:port（每场景网络快照的路径对账字段，R-01/R-31） */
+        val observed: String? = null,
     )
 
     suspend fun echo(url: String): EchoResult {
@@ -97,7 +109,10 @@ class AnebClient {
                     )
                     val offsetUs = ((wire.t1Us - t0Us) + (wire.t2Us - t3Us)) / 2
                     val rttUs = (t3Us - t0Us) - (wire.t2Us - wire.t1Us)
-                    EchoResult(t0Us, wire.t1Us, wire.t2Us, t3Us, offsetUs, rttUs, resp.code, null, timing)
+                    EchoResult(
+                        t0Us, wire.t1Us, wire.t2Us, t3Us, offsetUs, rttUs,
+                        resp.code, null, timing, observed = wire.observed,
+                    )
                 }
             }
         } catch (e: CancellationException) {
@@ -133,10 +148,12 @@ class AnebClient {
     )
 
     /**
-     * @param expectedTokens 调用方（TestEngine）期望的 token 总数（profile 的 tokens 参数），
+     * 通用 SSE 流阶段执行（S1/S2/S3 的 token_stream phase 共用）。
+     *
+     * @param expectedTokens 调用方（ScenarioRunner）期望的 token 总数（profile 的 tokens 参数），
      *        用于尾部截断检测；seq 从 0 起，完整流应收到 seq ∈ [0, expectedTokens)。
      */
-    suspend fun runS1Stream(url: String, expectedTokens: Int): StreamResult {
+    suspend fun stream(url: String, expectedTokens: Int): StreamResult {
         val call = client.newCall(
             Request.Builder().url(url).header("Accept", "text/event-stream").get().build()
         )
@@ -200,6 +217,19 @@ class AnebClient {
     data class ChunkStamp(val index: Int, val bytes: Int, val wroteAtNanos: Long)
 
     /**
+     * /upload 响应体（服务端视角的权威逐块到达序列，R-07）。
+     * chunk_us 供慢启动爬坡估计（U1 剔慢启动并列口径）。
+     */
+    @Serializable
+    data class UploadServerView(
+        val bytes: Long = -1,
+        @SerialName("recv_start_us") val recvStartUs: Long = -1,
+        @SerialName("recv_end_us") val recvEndUs: Long = -1,
+        @SerialName("chunk_us") val chunkUs: List<Long> = emptyList(),
+        val observed: String? = null,
+    )
+
+    /**
      * 上行突发结果。U1 计时终点＝收到 2xx 响应头（服务端已读完 body，R-07）：
      * 权威终点取 timing.responseHeadersStartNs；responseNanos 为响应头回调打戳的兜底值。
      */
@@ -211,6 +241,8 @@ class AnebClient {
         val httpCode: Int?,
         val error: String?,
         val timing: TimingRecord?,
+        /** 服务端视角逐块到达序列；解析失败/非 2xx 记 null（R-10） */
+        val serverView: UploadServerView? = null,
     )
 
     suspend fun uploadBurst(url: String, payload: ByteArray, chunkBytes: Int = 2048): UploadResult {
@@ -239,15 +271,110 @@ class AnebClient {
                 // 打戳点＝收到响应头回调（与原 execute() 返回点同语义）
                 val responseNanos = SystemClock.elapsedRealtimeNanos()
                 val timing = timingFactory.recordFor(call)
-                resp.body?.string() // 排空（服务端返回其视角的逐块到达序列，阶段 0 不解析）
+                val bodyText = resp.body?.string() // 排空 + 解析服务端视角逐块到达序列（R-07 权威序列）
+                val serverView = if (resp.isSuccessful && bodyText != null) {
+                    try {
+                        json.decodeFromString(UploadServerView.serializer(), bodyText)
+                    } catch (e: Exception) {
+                        null // 解析失败：serverView=null，慢启动口径退化为 null（R-10）
+                    }
+                } else {
+                    null
+                }
                 val error = if (resp.isSuccessful) null else "http ${resp.code}"
-                UploadResult(startNanos, responseNanos, stamps, payload.size, resp.code, error, timing)
+                UploadResult(
+                    startNanos, responseNanos, stamps, payload.size, resp.code, error, timing,
+                    serverView = serverView,
+                )
             }
         } catch (e: CancellationException) {
             throw e // 不吞取消（fail-closed §4.6/§4.7）
         } catch (e: Exception) {
             UploadResult(startNanos, null, stamps, payload.size, null, e.toString(), timingFactory.recordFor(call))
         }
+    }
+
+    // -------------------------------------------------------------- toolloop
+
+    /**
+     * 一轮工具循环结果（U2）。端到端终点＝下行 body 读完（2KB 全收到）。
+     * trecv/tsend 来自响应头 X-Aneb-Trecv-Us / X-Aneb-Tsend-Us（服务端单调锚点 us）；
+     * 实际 serverProc = tsend − trecv（比名义 200ms 更准，供 U2 剥离）。
+     */
+    data class ToolLoopResult(
+        val startNanos: Long,
+        /** 下行 body 读完时刻；失败记 null（R-10） */
+        val bodyEndNanos: Long?,
+        val downBytes: Long?,
+        val trecvUs: Long?,
+        val tsendUs: Long?,
+        val httpCode: Int?,
+        val error: String?,
+        val timing: TimingRecord?,
+    )
+
+    suspend fun toolLoop(url: String, upBytes: Int): ToolLoopResult {
+        val payload = ByteArray(upBytes) { 'T'.code.toByte() }
+        val call = client.newCall(
+            Request.Builder().url(url)
+                .post(payload.toRequestBody("application/octet-stream".toMediaType()))
+                .build()
+        )
+        val startNanos = SystemClock.elapsedRealtimeNanos()
+        return try {
+            executeCancellable(call) { resp ->
+                val timing = timingFactory.recordFor(call)
+                if (!resp.isSuccessful) {
+                    resp.body?.string()
+                    ToolLoopResult(startNanos, null, null, null, null, resp.code, "http ${resp.code}", timing)
+                } else {
+                    val body = checkNotNull(resp.body) { "empty body for 2xx" }.bytes()
+                    val bodyEndNanos = SystemClock.elapsedRealtimeNanos() // 端到端终点＝body 读完
+                    val trecv = resp.header("X-Aneb-Trecv-Us")?.toLongOrNull()
+                    val tsend = resp.header("X-Aneb-Tsend-Us")?.toLongOrNull()
+                    ToolLoopResult(
+                        startNanos, bodyEndNanos, body.size.toLong(), trecv, tsend,
+                        resp.code, null, timing,
+                    )
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e // 不吞取消（fail-closed §4.6/§4.7）
+        } catch (e: Exception) {
+            ToolLoopResult(startNanos, null, null, null, null, null, e.toString(), timingFactory.recordFor(call))
+        }
+    }
+
+    // -------------------------------------------- profiles / results（控制面）
+
+    /** 控制面简单响应（profiles 拉取 / results 上报共用）。 */
+    data class HttpTextResult(val httpCode: Int?, val body: String?, val error: String?)
+
+    /** GET /api/v1/profiles（P1 范围 1：拉不到用打包内置 assets 副本并告警） */
+    suspend fun fetchProfiles(url: String): HttpTextResult =
+        simpleCall(client.newCall(Request.Builder().url(url).get().build()))
+
+    /** POST /api/v1/results（P1 范围 8：400 时 body 含 errors 清单，调用方打日志） */
+    suspend fun postResults(url: String, jsonBody: String): HttpTextResult =
+        simpleCall(
+            client.newCall(
+                Request.Builder().url(url)
+                    .post(jsonBody.toRequestBody("application/json".toMediaType()))
+                    .build()
+            )
+        )
+
+    private suspend fun simpleCall(call: Call): HttpTextResult = try {
+        executeCancellable(call) { resp ->
+            val body = resp.body?.string()
+            HttpTextResult(resp.code, body, if (resp.isSuccessful) null else "http ${resp.code}")
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        HttpTextResult(null, null, e.toString())
+    } finally {
+        timingFactory.recordFor(call) // 控制面不计时，但必须取走记录防泄漏
     }
 
     // ------------------------------------------------- cancellable execution

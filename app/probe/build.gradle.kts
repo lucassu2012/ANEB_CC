@@ -43,6 +43,16 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG 门控注入透传（P1 范围 9：--es inject 仅 debug 生效）
+        buildConfig = true
+    }
+
+    sourceSets {
+        getByName("main") {
+            // 打包内置 profiles 副本（P1 范围 1：/api/v1/profiles 拉取失败时的兜底）。
+            // 直接指向仓库共享目录，单一事实来源，防内置副本与服务端版本静默漂移。
+            assets.srcDirs("../../profiles")
+        }
     }
 }
 

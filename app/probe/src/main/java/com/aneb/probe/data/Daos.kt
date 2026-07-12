@@ -27,6 +27,25 @@ interface TokenEventDao {
 }
 
 @Dao
+interface ScenarioResultDao {
+    @Insert
+    suspend fun insert(result: ScenarioResultEntity): Long
+
+    @Query("SELECT * FROM scenario_result WHERE runId = :runId ORDER BY orderIndex")
+    suspend fun forRun(runId: String): List<ScenarioResultEntity>
+}
+
+@Dao
+interface EchoSampleDao {
+    /** clock_sync phase 结束后批量落库（R-16：循环内禁逐条写） */
+    @Insert
+    suspend fun insertAll(samples: List<EchoSampleEntity>)
+
+    @Query("SELECT * FROM echo_sample WHERE runId = :runId ORDER BY id")
+    suspend fun forRun(runId: String): List<EchoSampleEntity>
+}
+
+@Dao
 interface EnvEventDao {
     /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
     @Insert

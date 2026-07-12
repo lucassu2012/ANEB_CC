@@ -47,7 +47,17 @@ data class SseStreamResult(
     val parseErrors: Int,
     /** EOF 时累积缓冲仍有残留 => 尾部截断 event */
     val truncatedTail: Boolean,
-)
+    /** 流 EOF 时刻（elapsedRealtimeNanos）——解析阶段起点打戳（P0-C12） */
+    val eofNanos: Long,
+    /** 解析完成时刻（elapsedRealtimeNanos）（P0-C12） */
+    val parseEndNanos: Long,
+) {
+    /** 解析阶段总耗时（us）＝ parseEnd − EOF（P0-C12：解析开销不得混入 ITL 的证据） */
+    val parseDurUs: Long get() = (parseEndNanos - eofNanos) / 1_000L
+
+    /** 每 event 平均解析耗时（us）＝ parseDurUs / 事件数；无事件记 null（R-10） */
+    val perEventParseUs: Double? get() = if (events.isEmpty()) null else parseDurUs.toDouble() / events.size
+}
 
 /**
  * SSE 读取器（R-04 核心）。
@@ -120,6 +130,8 @@ class SseReader(
             }
         }
         val truncatedTail = acc.size > 0L
+        // P0-C12：EOF 打戳——解析阶段（下方）与读循环（上方）的时间边界
+        val eofNanos = SystemClock.elapsedRealtimeNanos()
 
         // ---- 解析阶段（流已读完；TODO 阶段1 移出读线程）----
         var prelude: SsePrelude? = null
@@ -169,6 +181,9 @@ class SseReader(
             }
         }
 
+        // P0-C12：解析完成打戳；parseDurUs/perEventParseUs 由 SseStreamResult 派生输出
+        val parseEndNanos = SystemClock.elapsedRealtimeNanos()
+
         return SseStreamResult(
             prelude = prelude,
             events = events,
@@ -177,6 +192,8 @@ class SseReader(
             totalBytes = totalBytes,
             parseErrors = parseErrors,
             truncatedTail = truncatedTail,
+            eofNanos = eofNanos,
+            parseEndNanos = parseEndNanos,
         )
     }
 

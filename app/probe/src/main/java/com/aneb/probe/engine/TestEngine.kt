@@ -1,161 +1,705 @@
 package com.aneb.probe.engine
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.os.SystemClock
+import androidx.room.withTransaction
+import com.aneb.probe.data.AnebDatabase
+import com.aneb.probe.data.EchoSampleEntity
+import com.aneb.probe.data.EnvEvent
+import com.aneb.probe.data.EnvEventType
+import com.aneb.probe.data.ScenarioResultEntity
+import com.aneb.probe.data.TestRun
+import com.aneb.probe.data.TokenEventEntity
 import com.aneb.probe.net.AnebClient
+import com.aneb.probe.net.BoundNetwork
+import com.aneb.probe.net.GuardException
+import com.aneb.probe.net.NetGuard
+import com.aneb.probe.net.PathMonitor
+import com.aneb.probe.radio.RadioCollector
+import com.aneb.probe.radio.RadioSample
+import com.aneb.probe.scoring.AqsScorer
+import com.aneb.probe.scoring.InvalidReason
+import com.aneb.probe.scoring.KpiCalculator
+import com.aneb.probe.scoring.KpiResult
+import com.aneb.probe.scoring.KpiValue
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
-import kotlin.random.Random
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.security.SecureRandom
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 阶段 0 场景执行器：跑一次 S1（clock_sync → upload_burst 2KB → token_stream）并把
- * 全部时间戳/统计以 Flow<String> 日志形式吐给 UI。
+ * 阶段 1 统一接线（P1-C05+C06）：profile 驱动三场景 × 快测/取证双模式 ×
+ * 守卫全程监控 × KPI/AQS × Room 全量落库 × 结果上报。
  *
- * TODO(阶段1)：改为读 profiles/ JSON 的通用 PhaseRunner 状态机；三态 Gate 有效性守卫接线；
- * ITL 改在服务端节奏剥离后的残差域计算（R-09）；结果落 Room + 上报。
+ * 日志合同：所有汇总行 `KEY key=value ...`（无引号、值内无空格），供模拟器自动化验收
+ * 提取。KEY 全集：RUN_START / GUARD_OK / GUARD_REJECT / NET_BIND / NET_BIND_FAIL /
+ * PROFILES / PROFILE_WARN / ORDER / SCENARIO_START / CLOCK_SYNC / SKEW / THINK_PAUSE /
+ * UPLOAD / STREAM / PARSE / TOOLLOOP / SCENARIO_ABORT / SCENARIO_INVALID / SCENARIO_KPI /
+ * PHASE_SKIP / RUN_ABORT / RUN_FAILED / AQS_INPUT_MAP / AQS / DB_WRITE / REPORT /
+ * REPORT_CONTRACT_ERRORS / REPORT_SIZE_WARN / RUN_END。
  */
-class TestEngine(private val client: AnebClient) {
+class TestEngine(private val context: Context) {
 
-    /**
-     * @param serverBase 形如 http://10.0.2.2:8443
-     * @param tokens     600 为 s1_chat v0.2.0 全量；100 用于快验
-     */
-    fun runS1(serverBase: String, tokens: Int = 600): Flow<String> = flow {
-        val base = serverBase.trim().trimEnd('/')
-        // 设计文档 §5：每场景新建连接——运行开始先清空连接池，避免复用上一次运行遗留的
-        // TCP/TLS 连接使本次 TTFT/T1 系统性偏低（阶段0验收①"连测 10 次"可比性）。
-        client.evictConnections()
-        emit("=== S1 run start | profile=s1_chat tokens=$tokens server=$base ===")
+    enum class Mode { QUICK, FORENSIC }
 
-        // ---------------- phase 1: clock_sync（echo x20，前 3 个 warmup 丢弃，R-23 去相关间隔） ----------------
-        emit("[clock_sync] echo x$ECHO_SAMPLES (first $ECHO_WARMUP = warmup, discarded; interval 100-300ms random)")
-        val samples = ArrayList<AnebClient.EchoResult>(ECHO_SAMPLES)
-        for (i in 0 until ECHO_SAMPLES) {
-            val r = client.echo("$base/api/v1/echo")
-            val tag = if (i < ECHO_WARMUP) "warmup" else "sample"
-            if (r.error != null) {
-                emit("  echo[$i] $tag FAILED: ${r.error} (rtt=null offset=null)") // R-10: null 不记 0
-            } else {
-                emit("  echo[$i] $tag t0=${r.t0Us}us t1=${r.t1Us} t2=${r.t2Us} t3=${r.t3Us} rtt=${r.rttUs}us offset=${r.offsetUs}us")
-                if (i >= ECHO_WARMUP) samples.add(r)
-            }
-            delay(Random.nextLong(100L, 301L))
-        }
-        val best = samples.filter { it.rttUs != null }.minByOrNull { it.rttUs!! }
-        val offsetUs: Long?
-        val offsetErrUs: Long?
-        if (best != null) {
-            offsetUs = best.offsetUs
-            offsetErrUs = best.rttUs!! / 2
-            emit("[clock_sync] Cristian min-RTT sample: offset=${offsetUs}us +/- ${offsetErrUs}us (RTT/2), valid=${samples.size}/${ECHO_SAMPLES - ECHO_WARMUP}")
-        } else {
-            offsetUs = null
-            offsetErrUs = null
-            emit("[clock_sync] no valid sample -> offset=null (scenario would be invalid)")
-        }
+    /** transport 策略（P1 范围 3）：AUTO=不绑定仅监控（模拟器用 AUTO） */
+    enum class TransportMode { AUTO, WIFI, CELLULAR }
 
-        // ---------------- phase 2: upload_burst 2KB（s1_chat: bytes=2048 chunk_kb=2） ----------------
-        emit("[upload_burst] POST ${UPLOAD_BYTES}B chunk=${UPLOAD_CHUNK}B")
-        val up = client.uploadBurst("$base/api/v1/upload?run=phase0", ByteArray(UPLOAD_BYTES) { 'A'.code.toByte() }, UPLOAD_CHUNK)
-        if (up.error != null) {
-            emit("  upload FAILED: ${up.error} (u1=null)")
-        } else {
-            up.chunkStamps.forEach { c ->
-                emit("  chunk[${c.index}] ${c.bytes}B wroteAt=+%.2fms (claim: written-to-local-stack, R-07)"
-                    .format((c.wroteAtNanos - up.startNanos) / 1e6))
-            }
-            val endNs = up.timing?.responseHeadersStartNs ?: up.responseNanos
-            val durMs = endNs?.let { (it - up.startNanos) / 1e6 }
-            emit("  upload endpoint=2xx-response-headers dur=${durMs?.let { "%.2fms".format(it) } ?: "null"} http=${up.httpCode}")
-            up.timing?.let { emit("  ${it.summarize()}") }
-        }
+    data class RunConfig(
+        val serverBase: String,
+        val mode: Mode = Mode.QUICK,
+        val transport: TransportMode = TransportMode.AUTO,
+        /** /stream 故障注入透传（C09 前置）；调用方（UI）必须用 BuildConfig.DEBUG 门控 */
+        val inject: String? = null,
+    )
 
-        // ---------------- phase 3: token_stream ----------------
-        emit("[token_stream] GET /api/v1/stream?profile=s1_chat&tokens=$tokens")
-        val s = client.runS1Stream(
-            "$base/api/v1/stream?profile=s1_chat&run=phase0&tokens=$tokens",
-            expectedTokens = tokens, // R-08：尾部截断检测基准（干净结束但总量不足也计 gap）
+    fun run(config: RunConfig): Flow<String> = channelFlow {
+        val log: suspend (String) -> Unit = { send(it) }
+        val db = AnebDatabase.get(context)
+        val runId = newRunId()
+        val startedAtEpochMs = System.currentTimeMillis()
+        val base = config.serverBase.trim().trimEnd('/')
+        val modeStr = config.mode.name.lowercase()
+        val transportStr = config.transport.name.lowercase()
+        log(
+            "RUN_START run_id=$runId mode=$modeStr transport=$transportStr server=$base " +
+                "inject=${config.inject ?: "none"}"
         )
-        if (s.error != null || s.stream == null) {
-            emit("  stream FAILED: ${s.error} (TTFT/ITL=null)") // R-10
-            emit("=== S1 run ABORTED ===")
-            return@flow
+
+        // ---------------- 守卫硬拒测（R-03：VPN/代理） ----------------
+        val guard = NetGuard.guardCheck(context)
+        val guardMeta = guard.metadata.entries.joinToString(";") { "${it.key}=${it.value}" }
+        if (!guard.ok) {
+            log("GUARD_REJECT reasons=${guard.reasons.joinToString(",")}")
+            persistRun(
+                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                    .copy(status = "guard_rejected:${guard.reasons.joinToString(",")}"),
+            )
+            log("RUN_END run_id=$runId status=guard_rejected")
+            return@channelFlow
         }
-        val st = s.stream
-        s.timing?.let { emit("  ${it.summarize()}") }
-        st.prelude?.let {
-            emit("  prelude arrival=+%.2fms raw=%s".format((it.arrivalNanos - s.requestStartNanos) / 1e6, it.raw))
-        } ?: emit("  prelude missing (T1 无法剥离服务端 dwell，R-20)")
-        emit("  events=${st.events.size} reads=${st.readCount} bytes=${st.totalBytes} parseErrors=${st.parseErrors} truncatedTail=${st.truncatedTail}")
+        log("GUARD_OK metadata=${guardMeta.replace(' ', '_')}")
 
-        // TTFT：请求头发出完成 → 首 token 所在 read 到达
-        val ordered = st.events.sortedBy { it.seq }
-        val ttftOriginNs = s.timing?.requestHeadersEndNs ?: s.requestStartNanos
-        val first = ordered.firstOrNull()
-        val ttftMs = first?.let { (it.arrivalNanos - ttftOriginNs) / 1e6 }
-
-        // ITL：相邻（按 seq 排序）到达间隔；后一 event 为 sameReadBatch 的间隔是伪 0，剔除（R-04）
-        val intervalsNs = ArrayList<Long>(ordered.size)
-        var coalesced = 0
-        for (k in 1 until ordered.size) {
-            if (ordered[k].sameReadBatch) {
-                coalesced++
-                continue
+        // ---------------- 网络绑定（transport 策略，R-01） ----------------
+        val bound: BoundNetwork? = try {
+            when (config.transport) {
+                TransportMode.AUTO -> null
+                TransportMode.WIFI -> NetGuard.acquireNetwork(context, NetworkCapabilities.TRANSPORT_WIFI)
+                TransportMode.CELLULAR -> NetGuard.acquireNetwork(context, NetworkCapabilities.TRANSPORT_CELLULAR)
             }
-            intervalsNs.add(ordered[k].arrivalNanos - ordered[k - 1].arrivalNanos)
+        } catch (e: GuardException) {
+            log("NET_BIND_FAIL transport=$transportStr error=${e.message?.replace(' ', '_')}")
+            persistRun(
+                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                    .copy(status = "bind_failed"),
+            )
+            log("RUN_END run_id=$runId status=bind_failed")
+            return@channelFlow
         }
-        intervalsNs.sort()
-        val itlMedianMs = percentile(intervalsNs, 0.50)?.div(1e6)
-        val itlP95Ms = percentile(intervalsNs, 0.95)?.div(1e6)
-        // 阶段 0 简化：stall 用原始到达间隔 >200ms 计数。
-        // TODO(阶段1/R-09)：T2/T3/T4 一律改为 seq 对齐的网络贡献残差（到达间隔 − sched_us 发出间隔）。
-        val stallCount = intervalsNs.count { it > STALL_THRESHOLD_NS }
+        bound?.let { log("NET_BIND transport=$transportStr snapshot=${it.snapshot.capabilities.replace(' ', '_')}") }
 
-        // 对齐残差（P0-C10 验收口径）：对每对相邻（seq 排序）token，
-        // |客户端到达间隔 − 服务端发出间隔（preFlushUs 差）|，单位 us。
-        // 剔除：后一 event 为 sameReadBatch（到达间隔是内存读出伪 0，R-04）；
-        //       任一端 preFlushUs 缺失（-1，R-10 缺数据即剔除不记 0）。
-        val alignResidualsUs = ArrayList<Long>(ordered.size)
-        for (k in 1 until ordered.size) {
-            val cur = ordered[k]
-            val prev = ordered[k - 1]
-            if (cur.sameReadBatch) continue
-            if (cur.preFlushUs < 0 || prev.preFlushUs < 0) continue
-            val clientIntervalUs = (cur.arrivalNanos - prev.arrivalNanos) / 1_000L
-            val serverIntervalUs = cur.preFlushUs - prev.preFlushUs
-            alignResidualsUs.add(kotlin.math.abs(clientIntervalUs - serverIntervalUs))
+        val client = AnebClient(bound)
+
+        // ---------------- profiles（服务端拉取，assets 兜底） ----------------
+        val loaded = try {
+            ProfileRepository(context).load(client, base)
+        } catch (e: Exception) {
+            log("RUN_FAILED run_id=$runId error=profiles_unavailable:${e.javaClass.simpleName}")
+            bound?.release()
+            persistRun(
+                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                    .copy(status = "profiles_unavailable"),
+            )
+            log("RUN_END run_id=$runId status=profiles_unavailable")
+            return@channelFlow
         }
-        alignResidualsUs.sort()
-        val alignResidualP50Us = percentile(alignResidualsUs, 0.50)
-        val alignResidualP95Us = percentile(alignResidualsUs, 0.95)
+        val profileVersions = ProfileParser.versionString(loaded.profiles)
+        log("PROFILES source=${loaded.source} versions=$profileVersions")
+        loaded.warnings.forEach { log("PROFILE_WARN ${it.replace(' ', '_')}") }
 
-        val gapLimit = (tokens * GAP_INVALID_RATIO).toInt().coerceAtLeast(1)
-        val gapVerdict = if (s.gapCount > gapLimit) "INVALID (gap>${GAP_INVALID_RATIO * 100}% of tokens, R-08 fail-closed)" else "ok"
+        // ---------------- 全程监控（R-01/R-12/R-16 + RadioCollector 1Hz） ----------------
+        val envBuf = ConcurrentLinkedQueue<EnvEvent>()
+        val radioBuf = ConcurrentLinkedQueue<RadioSample>()
+        val invalidReason = AtomicReference<String?>(null)
+        val currentScenario = AtomicReference<Job?>(null)
+        fun invalidate(reason: String) {
+            if (invalidReason.compareAndSet(null, reason)) {
+                currentScenario.get()?.cancel(CancellationException("invalidated:$reason"))
+            }
+        }
 
-        emit("--- S1 summary ---")
-        emit("  TTFT           = ${ttftMs?.let { "%.2f ms".format(it) } ?: "null"} (origin=requestHeadersEnd)")
-        emit("  ITL median     = ${itlMedianMs?.let { "%.2f ms".format(it) } ?: "null"}  P95 = ${itlP95Ms?.let { "%.2f ms".format(it) } ?: "null"}  (n=${intervalsNs.size}, coalesced excluded=$coalesced)")
-        emit("  alignResidualP95Us = ${alignResidualP95Us?.let { "%.0f".format(it) } ?: "null"}  P50 = ${alignResidualP50Us?.let { "%.0f".format(it) } ?: "null"}  (n=${alignResidualsUs.size}, |arrivalΔ−preFlushΔ| us, sameReadBatch/preFlush 缺失剔除)")
-        emit("  stalls(>200ms) = $stallCount   [阶段0原始间隔口径，阶段1改残差域 R-09]")
-        emit("  seq gaps       = ${s.gapCount} dup=${s.duplicateCount} maxSeq=${s.maxSeq} truncatedEarly=${s.truncatedEarly} -> $gapVerdict")
-        emit("  clock offset   = ${offsetUs?.let { "${it}us" } ?: "null"} +/- ${offsetErrUs?.let { "${it}us" } ?: "null"} (RTT/2)")
-        emit("=== S1 run complete ===")
-    }.flowOn(Dispatchers.IO)
+        val envMonitors = EnvMonitors(context)
+        val radio = RadioCollector(context)
+        val pathWatch: PathWatch = if (bound != null) {
+            BoundPathWatch(context, bound, envBuf::add, ::invalidate)
+        } else {
+            DefaultNetWatch(context, envBuf::add, ::invalidate) // AUTO：不绑定仅监控默认网
+        }
 
-    /** sorted 必须已升序。空列表返回 null（R-10：缺数据即 null）。 */
-    private fun percentile(sorted: List<Long>, p: Double): Double? {
-        if (sorted.isEmpty()) return null
-        val idx = ((sorted.size - 1) * p).toInt()
-        return sorted[idx].toDouble()
+        val collectors = mutableListOf<Job>()
+        var status = "completed"
+        var reportStatus: String? = null
+        var aqs: AqsScorer.AqsResult? = null
+        val orderRecord = ArrayList<String>()
+        val scenarioReports = ArrayList<Pair<ScenarioResultEntity, ItlHistogram>>()
+
+        try {
+            envMonitors.start()
+            pathWatch.start()
+            collectors += launch {
+                envMonitors.events.collect { ev ->
+                    envBuf.add(ev)
+                    // §4.6：测中 Doze/省电状态变化 → invalid（初始状态行除外）
+                    if ((ev.type == EnvEventType.POWER_SAVE || ev.type == EnvEventType.DOZE) &&
+                        !ev.detail.startsWith("initial")
+                    ) {
+                        invalidate("power_state_changed:${ev.type.name.lowercase()}")
+                    }
+                }
+            }
+            collectors += launch { radio.events.collect { envBuf.add(it) } }
+            val radioFlow = radio.start(this)
+            collectors += launch { radioFlow.collect { radioBuf.add(it) } }
+
+            // ---------------- 场景循环（快测 1 遍 / 取证 3 遍拉丁方轮转） ----------------
+            val ids = ProfileParser.REQUIRED_IDS
+            val rounds = when (config.mode) {
+                Mode.QUICK -> LatinSquare.quickOrder(ids.size)
+                Mode.FORENSIC -> LatinSquare.orders(ids.size)
+            }
+            val runner = ScenarioRunner(client)
+            val kpiByScenario = LinkedHashMap<String, MutableList<KpiResult>>()
+            var orderIndex = 0
+
+            runLoop@ for ((round, order) in rounds.withIndex()) {
+                orderRecord.add(order.joinToString(",") { ids[it] })
+                log("ORDER round=$round order=${order.joinToString(",") { ids[it] }}")
+                for (pos in order) {
+                    val profile = loaded.profiles.getValue(ids[pos])
+                    val scenarioKey = "${profile.profileId}#$round"
+                    log("SCENARIO_START scenario=$scenarioKey round=$round order_index=$orderIndex")
+                    val outcome = ScenarioRunner.ScenarioOutcome(profile, scenarioKey)
+                    val netSnap = bound?.snapshot ?: autoNetSnapshot(context)
+                    var engineError: String? = null
+
+                    // 场景跑在子 Job 内：守卫 invalidate → cancel 该 Job（中止场景、
+                    // executeCancellable 链取消 in-flight 请求），run 主协程继续善后。
+                    // LAZY 注册→检查→start 的无竞态协议见 ScenarioGate KDoc（评审发现 3）
+                    val job = ScenarioGate.launchGuarded(this, invalidReason, currentScenario) {
+                        try {
+                            runner.run(base, runId, outcome, config.inject, log)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            engineError = e.toString()
+                        }
+                    }
+                    job.join()
+                    currentScenario.set(null)
+
+                    val invalidated = invalidReason.get()
+                    val external = mutableListOf<InvalidReason>()
+                    if (invalidated != null) {
+                        external += when {
+                            invalidated.startsWith("power_state_changed") -> InvalidReason.GUARD_FAILED
+                            // 监控器自身故障 ≠ 路径真的变了：分流成 MONITOR_FAILURE（评审发现 5）
+                            invalidated == "connectivity_manager_unavailable" ||
+                                invalidated == "path_monitor_registration_failed" -> InvalidReason.MONITOR_FAILURE
+                            else -> InvalidReason.PATH_CHANGED
+                        }
+                        log("SCENARIO_INVALID scenario=$scenarioKey reason=$invalidated")
+                    }
+                    if (engineError != null) {
+                        external += InvalidReason.ENGINE_ERROR
+                        log("SCENARIO_INVALID scenario=$scenarioKey reason=engine_error:${engineError!!.replace(' ', '_')}")
+                    }
+
+                    // ---- KPI（seq join / null 语义 / 三态 Gate 全在 KpiCalculator） ----
+                    val input = ScenarioKpi.buildKpiInput(outcome, external)
+                    val kpi = KpiCalculator.calculate(input)
+                    kpiByScenario.getOrPut(profile.profileId) { mutableListOf() }.add(kpi)
+
+                    // ---- skew（C06/R-22：双 clock_sync 线性插值轨迹 + 漂移率入库） ----
+                    val track = outcome.offsetTrack()
+                    log(
+                        "SKEW scenario=$scenarioKey " +
+                            "start_offset_us=${track.start?.offsetUs ?: "null"} " +
+                            "end_offset_us=${track.end?.offsetUs ?: "null"} " +
+                            "drift_ppm=${track.driftPpm?.let { "%.2f".format(it) } ?: "null"} " +
+                            "offset_suspect=${track.offsetSuspect}"
+                    )
+
+                    val entity = buildScenarioEntity(
+                        runId, profile, round, orderIndex, outcome, kpi, track, netSnap,
+                    )
+                    val hist = ItlHistogram.of(
+                        ScenarioKpi.correctedItlSamplesMs(input.tokenSamples, input.pauseSeqs)
+                    )
+                    scenarioReports.add(entity to hist)
+
+                    // ---- Room 批量事务落库（R-16：phase/场景结束后统一写） ----
+                    persistScenario(db, runId, outcome, entity, envBuf, radioBuf)
+                    log(
+                        "SCENARIO_KPI scenario=$scenarioKey validity=${kpi.validity} " +
+                            "reasons=${kpi.invalidReasons.joinToString(",").ifEmpty { "none" }} " +
+                            "t1_ms=${fmt(kpi.t1TtftMs)} t2_ms=${fmt(kpi.t2ItlP95Ms)} " +
+                            "t2_incl_ms=${fmt(kpi.t2ItlP95InclCoalescedMs)} t3=${fmt(kpi.t3StallRate)} " +
+                            "t3_incl=${fmt(kpi.t3StallRateInclResume)} t4=${fmt(kpi.t4SevereStallRate)} " +
+                            "t5_ms=${fmt(kpi.t5ResumeP95Ms)} n1_ms=${fmt(kpi.n1RttP50Ms)} " +
+                            "n2_ms=${fmt(kpi.n2JitterMs)} u1_mbps=${fmt(kpi.u1GoodputMbps)} " +
+                            "u1_excl_mbps=${fmt(kpi.u1GoodputExclSlowStartMbps)} u2_ms=${fmt(kpi.u2ToolLoopP95Ms)} " +
+                            "gaps=${kpi.seqGapCount} dup=${kpi.seqDupCount}"
+                    )
+
+                    orderIndex++
+                    if (invalidated != null) {
+                        // 守卫失效为 run 级一次性状态（首事件获胜）：后续场景环境已不可证，
+                        // fail-closed 中止整个 run（当前场景已记 INVALID+原因码入库）
+                        status = "aborted:$invalidated"
+                        log("RUN_ABORT run_id=$runId reason=$invalidated remaining_skipped=true")
+                        break@runLoop
+                    }
+                }
+            }
+
+            // ---------------- run 级 AQS ----------------
+            // AQS 输入映射合同（KDoc 详见 AqsInputMapper）：N1/N2←S1 首次 clock_sync；
+            // T 组←S2（S1/S3 的 T 组仅展示不进 AQS）；U1←S3 1MB 上传（进 AQS 用含慢启动
+            // 口径）；U2←S2 tool_loop。任一项 INVALID/缺失→KpiValue=null→AqsScorer 按
+            // 现有语义返回 KPI_MISSING（绝不以 0 顶替）。
+            val composite = AqsInputMapper.map(kpiByScenario)
+            val aqsResult = AqsScorer.score(composite)
+            aqs = aqsResult
+            log("AQS_INPUT_MAP map=${AqsInputMapper.MAPPING_DESCRIPTION}")
+            log(
+                "AQS run_id=$runId score=${aqsResult.score?.let { "%.1f".format(it) } ?: "null"} " +
+                    "low_confidence=${aqsResult.lowConfidence} veto=${aqsResult.vetoApplied} " +
+                    "reason=${aqsResult.notComputableReason ?: "none"} " +
+                    "subs=${aqsResult.subScores.entries.joinToString(",") { "${it.key}:${"%.1f".format(it.value)}" }.ifEmpty { "none" }}"
+            )
+
+            // ---------------- 结果上报（合同字段 + 400 errors 自检） ----------------
+            val runEntity = baseRun(
+                runId, startedAtEpochMs, base, modeStr, transportStr,
+                orderRecord.joinToString("|"), loaded.source, guardMeta,
+            ).copy(
+                profileVersions = profileVersions,
+                aqsScore = aqsResult.score,
+                aqsLowConfidence = aqsResult.lowConfidence,
+                aqsVetoApplied = aqsResult.vetoApplied,
+                aqsNotComputableReason = aqsResult.notComputableReason,
+                status = status,
+            )
+            val body = ResultReporter.build(runEntity, scenarioReports, aqsResult)
+            val bodyBytes = body.toByteArray(Charsets.UTF_8).size
+            if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {
+                log("REPORT_SIZE_WARN bytes=$bodyBytes limit=${ResultReporter.MAX_REPORT_BYTES}")
+            }
+            val resp = client.postResults("$base/api/v1/results", body)
+            reportStatus = "http=${resp.httpCode ?: "null"}"
+            if (resp.httpCode == 400) {
+                // 合同自检：服务端拒收即本端合同实现有错，errors 全量进日志
+                log("REPORT_CONTRACT_ERRORS body=${resp.body?.replace(' ', '_') ?: "empty"}")
+            }
+            log("REPORT http=${resp.httpCode ?: "null"} bytes=$bodyBytes error=${resp.error ?: "none"}")
+
+            persistRun(db, runEntity.copy(reportStatus = reportStatus))
+            log(
+                "DB_WRITE run_id=$runId scenarios=${scenarioReports.size} " +
+                    "env_events_pending=${envBuf.size} radio_samples_pending=${radioBuf.size}"
+            )
+            log("RUN_END run_id=$runId status=$status")
+        } catch (e: CancellationException) {
+            throw e // 外部取消（fail-closed：不吞取消）
+        } catch (e: Exception) {
+            status = "error"
+            log("RUN_FAILED run_id=$runId error=${e.toString().replace(' ', '_')}")
+            persistRun(
+                db, baseRun(
+                    runId, startedAtEpochMs, base, modeStr, transportStr,
+                    orderRecord.joinToString("|"), loaded.source, guardMeta,
+                ).copy(profileVersions = profileVersions, status = "error:${e.javaClass.simpleName}"),
+            )
+            log("RUN_END run_id=$runId status=error")
+        } finally {
+            collectors.forEach { it.cancel() }
+            pathWatch.stop()
+            envMonitors.stop()
+            // 残余 env/radio 缓冲落库（NonCancellable：外部取消也不丢已采数据）
+            withContext(NonCancellable) {
+                runCatching { flushBuffers(db, runId, envBuf, radioBuf) }.onFailure {
+                    // 评审发现 4：DB 写失败不再静默——进 AnebProbe logcat 镜像
+                    Log.e(LOG_TAG, "DB_WRITE_FAILED table=env_events,radio_samples reason=${it.toString().replace(' ', '_')}")
+                }
+            }
+            bound?.release()
+        }
+    }.flowOn(Dispatchers.IO) // R-16：场景状态机/守卫/KPI/上报/落库全部离开收集端主线程
+
+    // ------------------------------------------------------------------
+    // 落库
+    // ------------------------------------------------------------------
+
+    private suspend fun persistScenario(
+        db: AnebDatabase,
+        runId: String,
+        outcome: ScenarioRunner.ScenarioOutcome,
+        entity: ScenarioResultEntity,
+        envBuf: ConcurrentLinkedQueue<EnvEvent>,
+        radioBuf: ConcurrentLinkedQueue<RadioSample>,
+    ) {
+        val tokenEntities = ArrayList<TokenEventEntity>()
+        for (st in outcome.streams) {
+            val events = st.result.stream?.events ?: continue
+            for (e in events) {
+                tokenEntities.add(
+                    TokenEventEntity(
+                        runId = runId,
+                        scenarioKey = outcome.scenarioKey,
+                        streamIndex = st.streamIndex,
+                        seq = e.seq,
+                        schedUs = e.schedUs.takeIf { it >= 0 },
+                        preFlushUs = e.preFlushUs.takeIf { it >= 0 },
+                        arrivalNanos = e.arrivalNanos,
+                        payloadBytes = e.payloadBytes,
+                        sameReadBatch = e.sameReadBatch,
+                    )
+                )
+            }
+        }
+        val echoEntities = ArrayList<EchoSampleEntity>()
+        for (cs in outcome.clockSyncs) {
+            for (rec in cs.samples) {
+                val r = rec.result
+                echoEntities.add(
+                    EchoSampleEntity(
+                        runId = runId,
+                        scenarioKey = outcome.scenarioKey,
+                        phaseIndex = cs.phaseIndex,
+                        idx = rec.idx,
+                        warmup = rec.warmup,
+                        t0Us = r.t0Us, t1Us = r.t1Us, t2Us = r.t2Us, t3Us = r.t3Us,
+                        rttUs = r.rttUs, offsetUs = r.offsetUs, error = r.error,
+                    )
+                )
+            }
+        }
+        val envEntities = drainEnv(envBuf).map { it.toEntity(runId) }
+        val radioEntities = drainRadio(radioBuf).map { it.toEntity(runId) }
+        db.withTransaction {
+            db.scenarioResultDao().insert(entity)
+            if (tokenEntities.isNotEmpty()) db.tokenEventDao().insertAll(tokenEntities)
+            if (echoEntities.isNotEmpty()) db.echoSampleDao().insertAll(echoEntities)
+            if (envEntities.isNotEmpty()) db.envEventDao().insertAll(envEntities)
+            if (radioEntities.isNotEmpty()) db.radioSampleDao().insertAll(radioEntities)
+        }
+    }
+
+    private suspend fun flushBuffers(
+        db: AnebDatabase,
+        runId: String,
+        envBuf: ConcurrentLinkedQueue<EnvEvent>,
+        radioBuf: ConcurrentLinkedQueue<RadioSample>,
+    ) {
+        val env = drainEnv(envBuf).map { it.toEntity(runId) }
+        val radio = drainRadio(radioBuf).map { it.toEntity(runId) }
+        if (env.isEmpty() && radio.isEmpty()) return
+        db.withTransaction {
+            if (env.isNotEmpty()) db.envEventDao().insertAll(env)
+            if (radio.isNotEmpty()) db.radioSampleDao().insertAll(radio)
+        }
+    }
+
+    private fun drainEnv(q: ConcurrentLinkedQueue<EnvEvent>): List<EnvEvent> {
+        val out = ArrayList<EnvEvent>()
+        while (true) out.add(q.poll() ?: break)
+        return out
+    }
+
+    private fun drainRadio(q: ConcurrentLinkedQueue<RadioSample>): List<RadioSample> {
+        val out = ArrayList<RadioSample>()
+        while (true) out.add(q.poll() ?: break)
+        return out
+    }
+
+    private suspend fun persistRun(db: AnebDatabase, run: TestRun) {
+        withContext(NonCancellable) {
+            runCatching { db.testRunDao().insert(run) }.onFailure {
+                // 评审发现 4：DB 写失败不再静默——进 AnebProbe logcat 镜像
+                Log.e(LOG_TAG, "DB_WRITE_FAILED table=test_runs reason=${it.toString().replace(' ', '_')}")
+            }
+        }
+    }
+
+    private fun baseRun(
+        runId: String,
+        startedAtEpochMs: Long,
+        serverBase: String,
+        mode: String,
+        transport: String,
+        order: String,
+        profileSource: String,
+        guardMeta: String,
+    ): TestRun {
+        val pkg = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+        return TestRun(
+            runId = runId,
+            startedAtEpochMs = startedAtEpochMs,
+            serverBase = serverBase,
+            mode = mode,
+            scenarioOrder = order,
+            transport = transport,
+            kpiSet = KPI_SET,
+            aqsVersion = AqsScorer.AQS_VERSION,
+            profileVersions = "",
+            schemaVersion = ResultReporter.SCHEMA_VERSION,
+            profileSource = profileSource,
+            appVersionName = pkg?.versionName,
+            appVersionCode = pkg?.longVersionCode,
+            guardMetadata = guardMeta,
+            aqsScore = null,
+            aqsLowConfidence = null,
+            aqsVetoApplied = null,
+            aqsNotComputableReason = null,
+            status = null,
+            reportStatus = null,
+        )
+    }
+
+    private fun buildScenarioEntity(
+        runId: String,
+        profile: ScenarioProfile,
+        repeatIndex: Int,
+        orderIndex: Int,
+        outcome: ScenarioRunner.ScenarioOutcome,
+        kpi: KpiResult,
+        track: OffsetTrack,
+        netSnap: com.aneb.probe.net.NetworkSnapshot?,
+    ): ScenarioResultEntity {
+        val parse = outcome.streams.mapNotNull { it.result.stream }
+        val parseDurTotal = if (parse.isEmpty()) null else parse.sumOf { it.parseDurUs }
+        val eventsTotal = parse.sumOf { it.events.size }
+        return ScenarioResultEntity(
+            runId = runId,
+            profileId = profile.profileId,
+            profileVersion = profile.version,
+            repeatIndex = repeatIndex,
+            orderIndex = orderIndex,
+            startedAtNanos = outcome.startedAtNanos,
+            endedAtNanos = outcome.endedAtNanos,
+            validity = kpi.validity.name.lowercase(),
+            invalidReasons = kpi.invalidReasons.joinToString(","),
+            t1TtftMs = kpi.t1TtftMs.value, t1Grade = KpiGrading.grade("T1", kpi.t1TtftMs.value),
+            t2ItlP95Ms = kpi.t2ItlP95Ms.value, t2Grade = KpiGrading.grade("T2", kpi.t2ItlP95Ms.value),
+            t2ItlP95InclCoalescedMs = kpi.t2ItlP95InclCoalescedMs.value,
+            t3StallRate = kpi.t3StallRate.value, t3Grade = KpiGrading.grade("T3", kpi.t3StallRate.value),
+            t3StallRateInclResume = kpi.t3StallRateInclResume.value,
+            t4SevereStallRate = kpi.t4SevereStallRate.value,
+            t4Grade = KpiGrading.grade("T4", kpi.t4SevereStallRate.value),
+            t5ResumeP95Ms = kpi.t5ResumeP95Ms.value,
+            n1RttP50Ms = kpi.n1RttP50Ms.value, n1Grade = KpiGrading.grade("N1", kpi.n1RttP50Ms.value),
+            n2JitterMs = kpi.n2JitterMs.value, n2Grade = KpiGrading.grade("N2", kpi.n2JitterMs.value),
+            u1GoodputMbps = kpi.u1GoodputMbps.value,
+            u1Grade = KpiGrading.grade("U1", kpi.u1GoodputMbps.value),
+            u1GoodputExclSlowStartMbps = kpi.u1GoodputExclSlowStartMbps.value,
+            u2ToolLoopP95Ms = kpi.u2ToolLoopP95Ms.value,
+            u2Grade = KpiGrading.grade("U2", kpi.u2ToolLoopP95Ms.value),
+            seqGapCount = kpi.seqGapCount,
+            seqDupCount = kpi.seqDupCount,
+            offsetStartUs = track.start?.offsetUs,
+            offsetStartErrUs = track.start?.errUs,
+            offsetEndUs = track.end?.offsetUs,
+            offsetEndErrUs = track.end?.errUs,
+            offsetDriftPpm = track.driftPpm,
+            offsetSuspect = track.offsetSuspect,
+            netTransport = netSnap?.transport,
+            netCapabilities = netSnap?.capabilities,
+            netInterfaceName = netSnap?.interfaceName,
+            serverObservedAddr = outcome.observedAddr,
+            parseDurUsTotal = parseDurTotal,
+            perEventParseUs = if (parseDurTotal != null && eventsTotal > 0) {
+                parseDurTotal.toDouble() / eventsTotal
+            } else {
+                null
+            },
+        )
+    }
+
+    /** AUTO 模式（不绑定）：以当前默认网做每场景网络快照。 */
+    private fun autoNetSnapshot(context: Context): com.aneb.probe.net.NetworkSnapshot? {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return null
+        val active = runCatching { cm.activeNetwork }.getOrNull() ?: return null
+        val caps = runCatching { cm.getNetworkCapabilities(active) }.getOrNull()
+        val lp = runCatching { cm.getLinkProperties(active) }.getOrNull()
+        val transport = when {
+            caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "wifi"
+            caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "cellular"
+            caps?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "ethernet"
+            else -> "unknown"
+        }
+        return com.aneb.probe.net.NetworkSnapshot(
+            transport = "auto($transport)",
+            capabilities = caps?.toString() ?: "unknown",
+            interfaceName = lp?.interfaceName,
+            acquiredAtNanos = SystemClock.elapsedRealtimeNanos(),
+        )
+    }
+
+    private fun fmt(v: KpiValue): String {
+        val value = v.value ?: return "null"
+        val s = "%.4f".format(value)
+        return if (v.lowConfidence) "$s(lowconf)" else s
     }
 
     companion object {
-        private const val ECHO_SAMPLES = 20
-        private const val ECHO_WARMUP = 3
-        private const val UPLOAD_BYTES = 2048
-        private const val UPLOAD_CHUNK = 2048
-        private const val STALL_THRESHOLD_NS = 200_000_000L
-        private const val GAP_INVALID_RATIO = 0.01
+        const val KPI_SET = "agent-qoe-kpi-v0.2"
+
+        /** 与 MainActivity 的 logcat 镜像同 tag，模拟器自动化统一从该 tag 提取 */
+        private const val LOG_TAG = "AnebProbe"
+
+        /** UUIDv7（时间有序）：48bit unix ms + ver7 + 74bit 随机。 */
+        fun newRunId(): String {
+            val rnd = SecureRandom()
+            val b = ByteArray(16)
+            rnd.nextBytes(b)
+            val ms = System.currentTimeMillis()
+            b[0] = (ms ushr 40).toByte()
+            b[1] = (ms ushr 32).toByte()
+            b[2] = (ms ushr 24).toByte()
+            b[3] = (ms ushr 16).toByte()
+            b[4] = (ms ushr 8).toByte()
+            b[5] = ms.toByte()
+            b[6] = ((b[6].toInt() and 0x0F) or 0x70).toByte() // version 7
+            b[8] = ((b[8].toInt() and 0x3F) or 0x80).toByte() // variant 10
+            val hex = b.joinToString("") { "%02x".format(it) }
+            return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-" +
+                "${hex.substring(16, 20)}-${hex.substring(20)}"
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 测中路径监控适配（接线层；不改 NetGuard 公共 API）
+// ---------------------------------------------------------------------------
+
+private interface PathWatch {
+    fun start()
+    fun stop()
+}
+
+/** 绑定模式：直接复用 NetGuard.PathMonitor（首事件获胜状态机）。 */
+private class BoundPathWatch(
+    context: Context,
+    bound: BoundNetwork,
+    onEvent: (EnvEvent) -> Unit,
+    onInvalidate: (String) -> Unit,
+) : PathWatch {
+    private val monitor = PathMonitor(
+        context = context,
+        bound = bound,
+        exemptPathChanges = false,
+        onEvent = onEvent,
+        onInvalidate = onInvalidate,
+    )
+
+    override fun start() = monitor.start()
+    override fun stop() = monitor.stop()
+}
+
+/**
+ * AUTO 模式（不绑定仅监控，P1 范围 3）：registerDefaultNetworkCallback 盯默认网——
+ * 默认网切换/丢失/VALIDATED 丢失 → PATH_CHANGE 事件 + 首事件获胜 invalidate
+ * （测中默认路径漂移使样本跨路径不可比，fail-closed 语义与绑定模式一致，R-01）。
+ */
+private class DefaultNetWatch(
+    private val context: Context,
+    private val onEvent: (EnvEvent) -> Unit,
+    private val onInvalidate: (String) -> Unit,
+) : PathWatch {
+    private val tripped = AtomicBoolean(false)
+    private val baseline = AtomicReference<Network?>(null)
+
+    /**
+     * 是否见过 baseline 网络 VALIDATED。registerDefaultNetworkCallback 注册后会立即
+     * 回放当前 capabilities——从未 VALIDATED 的网络（如无外网的测试台架）首个回调
+     * 不是"丢失"，只有 true→false 转变才算 default_validated_lost（与 KDoc"VALIDATED
+     * 丢失"及 guardCheck 容忍 active_validated=false 的口径一致；联调修复，不改测量语义）。
+     */
+    private val everValidated = AtomicBoolean(false)
+    private var cb: ConnectivityManager.NetworkCallback? = null
+
+    override fun start() {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        if (cm == null) {
+            trip("connectivity_manager_unavailable")
+            return
+        }
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                if (baseline.compareAndSet(null, network)) return
+                if (baseline.get() != network) {
+                    baseline.set(network)
+                    pathEvent("default_network_changed", "-> $network")
+                }
+            }
+
+            override fun onLost(network: Network) {
+                if (network == baseline.get()) pathEvent("default_network_lost", "$network")
+            }
+
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                if (network != baseline.get()) return
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                    everValidated.set(true)
+                } else if (everValidated.get()) {
+                    // 仅 true→false 转变判丢失；从未 VALIDATED 的网络不在此误杀
+                    pathEvent("default_validated_lost", "$network")
+                }
+            }
+        }
+        try {
+            cm.registerDefaultNetworkCallback(callback)
+            cb = callback
+        } catch (t: Throwable) {
+            // R-01：注册失败无法证明测中路径稳定 → fail-closed
+            onEvent(
+                EnvEvent(
+                    SystemClock.elapsedRealtimeNanos(),
+                    EnvEventType.PATH_CHANGE,
+                    "monitor_registration_failed: ${t.javaClass.simpleName}",
+                ),
+            )
+            trip("path_monitor_registration_failed")
+        }
+    }
+
+    override fun stop() {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
+        cb?.let { runCatching { cm.unregisterNetworkCallback(it) } }
+        cb = null
+    }
+
+    private fun pathEvent(reason: String, detail: String) {
+        onEvent(
+            EnvEvent(SystemClock.elapsedRealtimeNanos(), EnvEventType.PATH_CHANGE, "$reason $detail exempt=false"),
+        )
+        trip(reason)
+    }
+
+    private fun trip(reason: String) {
+        if (tripped.compareAndSet(false, true)) onInvalidate(reason)
     }
 }

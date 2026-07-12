@@ -39,4 +39,10 @@ enum class InvalidReason {
 
     /** 无任何可用样本 */
     NO_DATA,
+
+    /** 监控器自身故障（ConnectivityManager 不可用/路径回调注册失败）：无法证明测中环境稳定，fail-closed（R-01） */
+    MONITOR_FAILURE,
+
+    /** 引擎自身异常（场景执行代码抛错，非守卫/路径/监控器语义） */
+    ENGINE_ERROR,
 }

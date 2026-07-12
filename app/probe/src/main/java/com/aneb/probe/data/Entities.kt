@@ -5,39 +5,56 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Room 骨架（阶段 0 只建表，不强制全接线）。
+ * Room 数据模型（阶段 1 全量落库，设计文档 §7）。
  * 时延字段全部可空 Long?：失败/超时记 null，禁 0/哨兵值（R-10 失败样本语义）。
- * 阶段 1 本批新增：EnvEventEntity（环境事件时间轴）与 RadioSampleEntity（无线层 1Hz 采样）。
- * TODO(阶段1 后续)：补 ScenarioResult / EchoSample 表与三态有效性字段全集。
+ * v3：TestRun 扩 run 级字段（模式/顺序/AQS/版本/守卫元数据/漂移率）；新增
+ * ScenarioResultEntity / EchoSampleEntity；TokenEventEntity 增 scenario/stream 维度。
  */
 @Entity(tableName = "test_run")
 data class TestRun(
-    @PrimaryKey val runId: String, // TODO(阶段1): UUIDv7
+    /** UUIDv7（时间有序，见 TestEngine.newRunId） */
+    @PrimaryKey val runId: String,
     val startedAtEpochMs: Long,
     val serverBase: String,
-    val profileId: String?,
-    val profileVersion: String?,
-    /** valid / valid_low_confidence / invalid（三态 Gate，阶段 0 可为 null=未评估） */
-    val validity: String?,
-    val invalidReason: String?,
-    // ---- 时延类字段一律可空（失败记 null）----
-    val ttftNs: Long?,
-    val itlMedianNs: Long?,
-    val itlP95Ns: Long?,
-    val stallCount: Int?,
-    val seqGapCount: Int?,
-    val clockOffsetUs: Long?,
-    val clockOffsetErrUs: Long?,
-    val uploadDurNs: Long?,
+    /** quick / forensic（P1 范围 6） */
+    val mode: String,
+    /** 实际执行的场景顺序，如 "s1,s2,s3|s2,s3,s1|s3,s1,s2"（拉丁方证据，5.3.6） */
+    val scenarioOrder: String,
+    /** auto / wifi / cellular（transport 策略，P1 范围 3） */
+    val transport: String,
+    // ---- 版本字段（结果合同） ----
+    val kpiSet: String,
+    val aqsVersion: String,
+    val profileVersions: String,
+    val schemaVersion: String,
+    /** profiles 来源：server / assets_fallback（版本不一致告警证据） */
+    val profileSource: String,
+    val appVersionName: String?,
+    val appVersionCode: Long?,
+    // ---- 守卫元数据（guardCheck metadata + 拒测原因，JSON/KV 串） ----
+    val guardMetadata: String?,
+    // ---- AQS（run 级；不可计算记 null，绝不 0） ----
+    val aqsScore: Double?,
+    val aqsLowConfidence: Boolean?,
+    val aqsVetoApplied: Boolean?,
+    val aqsNotComputableReason: String?,
+    /** run 结束状态：completed / aborted:<reason> */
+    val status: String?,
+    /** 上报结果：http code / 错误摘要 */
+    val reportStatus: String?,
 )
 
 @Entity(
     tableName = "token_event",
-    indices = [Index("runId"), Index(value = ["runId", "seq"])],
+    indices = [Index("runId"), Index(value = ["runId", "scenarioKey", "streamIndex", "seq"])],
 )
 data class TokenEventEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val runId: String,
+    /** 场景实例键 "profileId#repeat"（取证模式同场景 3 遍需区分） */
+    val scenarioKey: String,
+    /** 场景内第几个 token_stream phase（0 起） */
+    val streamIndex: Int,
     val seq: Long,
     /** 服务端期望发出时刻（单调 us）；缺失记 null */
     val schedUs: Long?,
@@ -47,6 +64,88 @@ data class TokenEventEntity(
     val arrivalNanos: Long?,
     val payloadBytes: Int?,
     val sameReadBatch: Boolean,
+)
+
+/**
+ * 每场景结果（设计文档 §7：各 KPI 值+分级+三态+原因码+每场景网络快照）。
+ * KPI 值可空（INVALID 已被 gate 置 null / 失败 null）；分级串随值为 null 时亦 null。
+ */
+@Entity(
+    tableName = "scenario_result",
+    indices = [Index("runId")],
+)
+data class ScenarioResultEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val runId: String,
+    val profileId: String,
+    val profileVersion: String,
+    /** 取证模式第几遍（0 起）；快测恒 0 */
+    val repeatIndex: Int,
+    /** 该场景在整个 run 内的执行序号（0 起，拉丁方实际顺序证据） */
+    val orderIndex: Int,
+    val startedAtNanos: Long,
+    val endedAtNanos: Long?,
+    // ---- 三态 + 原因码 ----
+    val validity: String,
+    /** 逗号分隔 InvalidReason 名称；空串=无 */
+    val invalidReasons: String,
+    // ---- KPI 值 + 分级（KpiGrading，agent-qoe-kpi v0.1 门限） ----
+    val t1TtftMs: Double?, val t1Grade: String?,
+    val t2ItlP95Ms: Double?, val t2Grade: String?,
+    val t2ItlP95InclCoalescedMs: Double?,
+    val t3StallRate: Double?, val t3Grade: String?,
+    val t3StallRateInclResume: Double?,
+    val t4SevereStallRate: Double?, val t4Grade: String?,
+    val t5ResumeP95Ms: Double?,
+    val n1RttP50Ms: Double?, val n1Grade: String?,
+    val n2JitterMs: Double?, val n2Grade: String?,
+    val u1GoodputMbps: Double?, val u1Grade: String?,
+    val u1GoodputExclSlowStartMbps: Double?,
+    val u2ToolLoopP95Ms: Double?, val u2Grade: String?,
+    val seqGapCount: Int,
+    val seqDupCount: Int,
+    // ---- 双 clock_sync / skew（C06/R-22） ----
+    val offsetStartUs: Long?,
+    val offsetStartErrUs: Long?,
+    val offsetEndUs: Long?,
+    val offsetEndErrUs: Long?,
+    /** 漂移率 ppm；不可估记 null */
+    val offsetDriftPpm: Double?,
+    /** |drift|>100ppm 或首尾任一端缺失（保守置疑） */
+    val offsetSuspect: Boolean,
+    // ---- 每场景网络快照（R-14） ----
+    val netTransport: String?,
+    val netCapabilities: String?,
+    val netInterfaceName: String?,
+    /** 服务端观察到的客户端源 IP:port（路径对账） */
+    val serverObservedAddr: String?,
+    // ---- 解析自监控（P0-C12） ----
+    val parseDurUsTotal: Long?,
+    val perEventParseUs: Double?,
+)
+
+/**
+ * /echo 原始 4 时间戳样本（设计文档 §7 EchoSample：仅本地全量，供 offset 质量事后审计）。
+ */
+@Entity(
+    tableName = "echo_sample",
+    indices = [Index("runId")],
+)
+data class EchoSampleEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val runId: String,
+    val scenarioKey: String,
+    /** 该 clock_sync phase 在场景内的序号（0=场景首，最后一个=场景尾） */
+    val phaseIndex: Int,
+    val idx: Int,
+    val warmup: Boolean,
+    val t0Us: Long,
+    val t1Us: Long?,
+    val t2Us: Long?,
+    val t3Us: Long?,
+    val rttUs: Long?,
+    val offsetUs: Long?,
+    val error: String?,
 )
 
 // ---------------------------------------------------------------------------

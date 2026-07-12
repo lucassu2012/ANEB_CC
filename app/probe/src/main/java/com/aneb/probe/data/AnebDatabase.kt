@@ -9,15 +9,21 @@ import androidx.room.RoomDatabase
     entities = [
         TestRun::class,
         TokenEventEntity::class,
+        ScenarioResultEntity::class,
+        EchoSampleEntity::class,
         EnvEventEntity::class,
         RadioSampleEntity::class,
     ],
-    version = 2, // v2：新增 env_event / radio_sample 表（R-02/R-12/R-13/R-15/R-16）
+    // v3：P1-C05/C06 接线——TestRun 扩 run 级字段；新增 scenario_result / echo_sample；
+    // token_event 增 scenarioKey/streamIndex 维度
+    version = 3,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
     abstract fun testRunDao(): TestRunDao
     abstract fun tokenEventDao(): TokenEventDao
+    abstract fun scenarioResultDao(): ScenarioResultDao
+    abstract fun echoSampleDao(): EchoSampleDao
     abstract fun envEventDao(): EnvEventDao
     abstract fun radioSampleDao(): RadioSampleDao
 
