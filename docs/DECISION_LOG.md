@@ -26,6 +26,7 @@
 
 | D-18 | 2026-07-13 | **P0-C14 验收判据修订**：原"U1 vs iperf3 偏差<20%"误把应用层 HTTP goodput 与裸 TCP 稳态直接对标——实测比值 0.66 稳定（1MiB POST 含请求头/逐块打戳/响应回程 vs C 裸 TCP 紧循环；亚毫秒 RTT 排除慢启动主因；iperf3 自身 run 间变异 ±19% 使 20% 门限先天偏紧）。修订为**比值带判据：U1 ∈ [0.5, 1.0] × iperf3 稳态中位**。原始 FAIL 与修订 PASS 并列入账（STATUS.json），判据变更透明可审计 | evidence/phase0/c14_u1_vs_iperf3_20260713.log 归因诊断 |
 | D-19 | 2026-07-13 | **E-01 的 TLS 切换与 H3 部署合并到 Cronet A/B 批次执行**：服务端开 TLS 会使现役 http:// 客户端断链，须与客户端 https+自签信任锚+Cronet 改造一次协同切换；证书已预生成（/opt/aneb/tls，EC P-256，SAN=IP）。届时需用户在控制台放行 **UDP 8443**（E-01 依赖项追加） | H3 代码已合并（D-17）且 37 测试全绿，仅部署时点推迟 |
+| D-20 | 2026-07-13 | **阶段 2 C 组连续性实验（continuity 模式）+ aqs v0.2 落地口径**：①C2 恢复计时起点＝客户端**检出**中断的时刻（IOException 浮出/读超时），非网络物理中断时刻——这是应用层端到端体验口径（claim scope 一致），模拟器实测蜂窝 data off 不 RST 存量 socket、检出耗时=readTimeout 30s，本身就是"静默挂起税"的直接证据；②重连=新请求同参数、指数退避 500ms×2^n、最多 5 次，全部失败→C2 该样本记 null（R-10，不记封顶值），run 状态 recovery_failed；③连续性 run 与场景 run 分流（独立引擎 ContinuityRunner/独立日志 KEY CONTINUITY_*/独立表 continuity_result），不复用场景状态机；④路径监控豁免：绑定模式用 PathMonitor(exemptPathChanges=true) 设计本尊，AUTO 模式用对偶 ExemptDefaultNetWatch——路径事件全量记 EnvEvent(exempt=true) 但绝不 invalidate（路径迁移是测量对象）；监控器自身故障不豁免，仍 fail-closed；⑤aqs v0.2＝v0.1 权重×0.8+C1 10%+C2 10%（C1 锚 0.5/2/5%，C2 锚 1/3/10s），仅显式传入 ContinuityKpi 才出 v0.2 分，无 C 数据回退 v0.1 语义不变；⑥C3 一律标 functional_only（模拟器 NAT/OkHttp 池 keepalive 5min 语义与运营商 CGNAT 不同，不构成 C3 测量结论） | KPI 文档 5.1/5.2/5.4；设计文档 §8 阶段 2；evidence/phase2/continuity_e2e_20260713.log |
 
 ## 否决记录（评估后明确不采纳）
 

@@ -166,6 +166,55 @@ data class EchoSampleEntity(
 )
 
 // ---------------------------------------------------------------------------
+// 阶段 2 C 组连续性实验结果（KPI 文档 5.1/5.2 C1/C2/C3；设计文档 §8 阶段 2）
+// ---------------------------------------------------------------------------
+
+/**
+ * 一次连续性实验（continuity 模式 run）的汇总结果。
+ * KPI 值可空（无样本/失败 null，禁 0/哨兵值 R-10）；恢复样本原始序列以 CSV 保留。
+ * v5 新增表（additive，不动既有表）。
+ */
+@Entity(
+    tableName = "continuity_result",
+    indices = [Index("runId")],
+)
+data class ContinuityResultEntity(
+    @PrimaryKey val runId: String,
+    val startedAtEpochMs: Long,
+    val serverBase: String,
+    /** auto / wifi / cellular */
+    val transport: String,
+    /** 长流参数（tokens=1200 @40tps ≈30s） */
+    val tokens: Int,
+    val rateTps: Double,
+    // ---- C1 会话中断率 ----
+    /** 实验内流式段总数（含首段与各重连段） */
+    val segmentsTotal: Int,
+    /** 异常断开段数（IOException / 无 summary 的流截断） */
+    val abnormalDisconnects: Int,
+    val c1DropRate: Double?,
+    val c1Grade: String?,
+    // ---- C2 切换恢复时间 ----
+    /** 逐次恢复样本（ms，逗号分隔）；空串=无样本 */
+    val recoveryMsCsv: String,
+    /** 恢复时间中位数（ms）；无样本 null */
+    val c2RecoveryMsP50: Double?,
+    val c2Grade: String?,
+    // ---- C3 NAT 静默挂起（阶梯 idle 探测） ----
+    /** "idle_s:conn_new:echo_ms:error;..."（ContinuityMath.c3LadderCsv） */
+    val c3LadderCsv: String,
+    /** 模拟器 NAT 语义与运营商 CGNAT 不同：结果仅证明功能路径，不作 C3 结论 */
+    val c3FunctionalOnly: Boolean,
+    // ---- 豁免路径监控证据 ----
+    /** 实验期间记录的 PATH_CHANGE 事件数（全量入 env_event，但不 invalidate——豁免语义） */
+    val pathChangeEvents: Int,
+    /** completed / recovery_failed / max_segments_reached / guard_rejected / bind_failed / monitor_failed / error:<cls> */
+    val status: String,
+    /** 该实验数据可参与的 AQS 版本（aqs-v0.2；出分仍需同环境场景 run 的 T/U/N 数据） */
+    val aqsVersionCandidate: String,
+)
+
+// ---------------------------------------------------------------------------
 // 环境事件时间轴（设计文档 §7 EnvEvent：设备侧冻结 vs 链路缓冲归因的关键证据）
 // ---------------------------------------------------------------------------
 

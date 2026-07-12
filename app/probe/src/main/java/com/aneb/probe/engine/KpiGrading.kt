@@ -39,6 +39,9 @@ object KpiGrading {
             "N1" -> lowBetter(value, 30.0, 60.0, 100.0)
             "N2" -> lowBetter(value, 10.0, 30.0, 80.0)
             "U2" -> lowBetter(value, 150.0, 300.0, 600.0)
+            // 阶段 2 C 组（agent-qoe-kpi v0.2，5.2；additive——既有 id 分级不变）
+            "C1" -> lowBetter(value, 0.005, 0.02, 0.05) // 会话中断率 0.5/2/5%
+            "C2" -> lowBetter(value, 1000.0, 3000.0, 10_000.0) // 切换恢复 1/3/10s（ms）
             "U1" -> when { // 高者优（Mbps）
                 value > 20.0 -> EXCELLENT
                 value >= 5.0 -> GOOD
