@@ -20,6 +20,8 @@
 | D-12 | 2026-07-12 | 吸收参考项目（ANEB Android Echo 切片）制度：四态证据制、claim scope 前置、fail-closed 三态 Gate、红队闭环、供应链钉死、失败样本 null 语义、成功主路径优先 | 参考文档 §4/§5 + 制度对齐分析 |
 | D-13 | 2026-07-12 | v0.2 红队修订：32 项经对抗验证的测量失真风险缓解并入设计文档与 KPI 口径（agent-qoe-kpi v0.2、profiles v0.2.0、设计文档 v0.2） | 《测量红队清单》（4 视角发现→合并→逐条对抗验证） |
 | D-14 | 2026-07-12 | 参考项目做法与本项目冲突处不照搬，逐条记录于下方"否决记录" | 制度对齐分析 conflicts 清单 |
+| D-15 | 2026-07-12 | E-01 部署**不修改 chrony**（偏离设计文档 §6"禁 makestep"条款）：共用生产服务器不动全局时钟纪律；srv_ts 单调锚点（R-24）已免疫墙钟步进，chrony 现状 RMS offset 86µs 质量足够；chronyc tracking 快照将随运行元数据存档。P0-C15 步进实验改在本机 WSL2/一次性环境执行 | E-01 为共用服务器（另一项目 mongod/node 在跑）；evidence/phase0/server_provision_20260712.log |
+| D-16 | 2026-07-12 | 本机/客户端测量**必须显式绕开系统代理并检测代理存在**：首次公网基线被本机代理（127.0.0.1:33210/7897）静默劫持，RTT p50 从 28.1ms 放大到 1519.7ms（54 倍）而流节奏无异常——单看 pacing 无法发现路径被劫持。PC 侧探针一律 UseProxy=false + 记录代理检测结果；Android NetGuard 的 VPN/代理硬拒测（R-03）优先级提升 | evidence/phase0/first_internet_baseline_20260712.log |
 
 ## 否决记录（评估后明确不采纳）
 
