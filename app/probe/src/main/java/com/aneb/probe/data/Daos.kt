@@ -25,3 +25,29 @@ interface TokenEventDao {
     @Query("SELECT COUNT(*) FROM token_event WHERE runId = :runId")
     suspend fun countForRun(runId: String): Long
 }
+
+@Dao
+interface EnvEventDao {
+    /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
+    @Insert
+    suspend fun insert(event: EnvEventEntity)
+
+    @Insert
+    suspend fun insertAll(events: List<EnvEventEntity>)
+
+    @Query("SELECT * FROM env_event WHERE runId = :runId ORDER BY tsNanos")
+    suspend fun forRun(runId: String): List<EnvEventEntity>
+}
+
+@Dao
+interface RadioSampleDao {
+    /** 1Hz 采样统一批量落库（读/采样循环内禁逐条写，R-16/§4.10） */
+    @Insert
+    suspend fun insertAll(samples: List<RadioSampleEntity>)
+
+    @Query("SELECT * FROM radio_sample WHERE runId = :runId ORDER BY tsNanos")
+    suspend fun forRun(runId: String): List<RadioSampleEntity>
+
+    @Query("SELECT COUNT(*) FROM radio_sample WHERE runId = :runId AND stale = 1")
+    suspend fun staleCountForRun(runId: String): Long
+}

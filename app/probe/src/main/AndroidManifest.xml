@@ -5,6 +5,8 @@
          READ_PHONE_STATE + ACCESS_FINE_LOCATION；不采集 IMSI/GPS 原始坐标/用户内容 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- NetGuard.acquireNetwork 的 ConnectivityManager.requestNetwork 需要（normal 权限，R-01/R-14） -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
