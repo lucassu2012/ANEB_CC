@@ -60,6 +60,29 @@ data class SseStreamResult(
 }
 
 /**
+ * 原始 SSE event（批读打戳层输出，未做任何文本/JSON 解析）。
+ * 阶段 2 起为公共类型：aneb 仿真流（[SseReader.readStream]）与真实 LLM API 探针
+ * （com.aneb.probe.apiprobe 的协议适配器）共用同一读循环与打戳语义（R-04）。
+ */
+class RawSseEvent(
+    val bytes: ByteArray,
+    val arrivalNanos: Long,
+    /** 同一次 source.read 切出的第 2..n 个 event（到达间隔为内存读出伪 0，R-04） */
+    val sameReadBatch: Boolean,
+)
+
+/** 批读打戳层的整流结果（解析前）。 */
+class RawSseStream(
+    val events: List<RawSseEvent>,
+    val readCount: Int,
+    val totalBytes: Long,
+    /** EOF 时累积缓冲仍有残留 => 尾部截断 event */
+    val truncatedTail: Boolean,
+    /** 流 EOF 时刻（elapsedRealtimeNanos） */
+    val eofNanos: Long,
+)
+
+/**
  * SSE 读取器（R-04 核心）。
  *
  * 读循环规则：
@@ -88,15 +111,13 @@ class SseReader(
         val payload: String = "",
     )
 
-    private class RawEvent(
-        val bytes: ByteArray,
-        val arrivalNanos: Long,
-        val sameReadBatch: Boolean,
-    )
-
-    fun readStream(source: BufferedSource): SseStreamResult {
+    /**
+     * 批读打戳层（阶段 2 抽出，供 LLM API 探针复用）：只做 read → 打戳 → `\n\n`
+     * 切边界 → 存原始字节，绝不解析。语义与原 readStream 读循环完全一致。
+     */
+    fun readRaw(source: BufferedSource): RawSseStream {
         // 预分配（S1 默认 600 token + prelude + summary，留裕量）
-        val rawEvents = ArrayList<RawEvent>(1024)
+        val rawEvents = ArrayList<RawSseEvent>(1024)
         val acc = Buffer()
         val readBuf = Buffer()
         var readCount = 0
@@ -119,7 +140,7 @@ class SseReader(
                 acc.skip(EVENT_DELIMITER.size.toLong())
                 if (eventBytes.isEmpty()) continue
                 rawEvents.add(
-                    RawEvent(
+                    RawSseEvent(
                         bytes = eventBytes,
                         arrivalNanos = arrivalNanos,
                         // 同一 read 内第 2..n 个 event：到达间隔是伪 0（R-04）
@@ -130,8 +151,18 @@ class SseReader(
             }
         }
         val truncatedTail = acc.size > 0L
-        // P0-C12：EOF 打戳——解析阶段（下方）与读循环（上方）的时间边界
+        // P0-C12：EOF 打戳——解析阶段与读循环的时间边界
         val eofNanos = SystemClock.elapsedRealtimeNanos()
+        return RawSseStream(rawEvents, readCount, totalBytes, truncatedTail, eofNanos)
+    }
+
+    fun readStream(source: BufferedSource): SseStreamResult {
+        val raw = readRaw(source)
+        val rawEvents = raw.events
+        val readCount = raw.readCount
+        val totalBytes = raw.totalBytes
+        val truncatedTail = raw.truncatedTail
+        val eofNanos = raw.eofNanos
 
         // ---- 解析阶段（流已读完；TODO 阶段1 移出读线程）----
         var prelude: SsePrelude? = null

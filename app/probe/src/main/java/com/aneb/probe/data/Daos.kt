@@ -58,6 +58,18 @@ interface EchoSampleDao {
 }
 
 @Dao
+interface ApiProbeResultDao {
+    @Insert
+    suspend fun insert(result: ApiProbeResultEntity): Long
+
+    @Query("SELECT * FROM api_probe_result ORDER BY startedAtEpochMs DESC")
+    suspend fun all(): List<ApiProbeResultEntity>
+
+    @Query("SELECT * FROM api_probe_result ORDER BY startedAtEpochMs DESC LIMIT :limit")
+    suspend fun recent(limit: Int): List<ApiProbeResultEntity>
+}
+
+@Dao
 interface EnvEventDao {
     /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
     @Insert

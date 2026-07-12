@@ -166,6 +166,59 @@ data class EchoSampleEntity(
 )
 
 // ---------------------------------------------------------------------------
+// 真实 LLM API 探针结果（阶段 2；claim scope 独立，绝不进 AQS / 不进 /results 上报）
+// ---------------------------------------------------------------------------
+
+/**
+ * 真实 API 探针单次结果（阶段 2 任务 #7）。
+ *
+ * - claimScope 恒为 `application_end_to_end_to_llm_api`（与仿真节点口径
+ *   application_end_to_end_to_probe_node 明确分开）；**不进 AQS、不进 /results 上报**
+ *   （若上报需扩展合同，留 TODO 阶段 3），仅本地 Room + 导出单独归类。
+ * - 数值字段全部可空：失败记 null，禁 0/哨兵值（R-10）。
+ * - 本行**绝不含 API key**：错误消息等自由文本入库前经 ApiKeyRedactor 兜底（单测锚定）。
+ */
+@Entity(tableName = "api_probe_result")
+data class ApiProbeResultEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startedAtEpochMs: Long,
+    /** anthropic / openai_compat（LlmProvider.id） */
+    val provider: String,
+    /** anthropic_messages / openai_chat（适配器 protocolId） */
+    val protocolId: String,
+    /** 请求 base URL（不含 path/query；key 走 header 绝不入 URL） */
+    val baseUrl: String,
+    val model: String,
+    /** 常量 application_end_to_end_to_llm_api（导出合同字段） */
+    val claimScope: String,
+    val httpCode: Int?,
+    /** 传输/协议错误摘要（已过 ApiKeyRedactor）；成功 null */
+    val error: String?,
+    // ---- 端到端 KPI（对照列口径，不进 AQS） ----
+    val ttftMs: Double?,
+    val itlMedianMs: Double?,
+    val itlP95Ms: Double?,
+    val itlSampleCount: Int,
+    val tokenEventCount: Int,
+    val totalMs: Double?,
+    val totalTextChars: Int,
+    // ---- 服务端 usage / 结束原因 ----
+    val inputTokens: Int?,
+    val outputTokens: Int?,
+    val stopReason: String?,
+    val parseErrors: Int,
+    /** 协议层错误（anthropic event:error 等，已过 redactor）；无 null */
+    val protocolError: String?,
+    // ---- 环境元数据（探针豁免：记录但不拒测，见 ApiProbe KDoc） ----
+    val proxyDetected: Boolean,
+    val vpnDetected: Boolean,
+    val guardMetadata: String?,
+    // ---- 读层自监控 ----
+    val readCount: Int?,
+    val totalBytes: Long?,
+)
+
+// ---------------------------------------------------------------------------
 // 环境事件时间轴（设计文档 §7 EnvEvent：设备侧冻结 vs 链路缓冲归因的关键证据）
 // ---------------------------------------------------------------------------
 

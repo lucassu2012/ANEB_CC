@@ -42,6 +42,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.aneb.probe.BuildConfig
+import com.aneb.probe.apiprobe.ApiKeyStore
+import com.aneb.probe.apiprobe.ApiProbe
+import com.aneb.probe.apiprobe.ApiProbeReport
+import com.aneb.probe.apiprobe.LlmProvider
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
 import com.aneb.probe.data.ScenarioResultEntity
@@ -91,6 +95,9 @@ class MainActivity : ComponentActivity() {
         data object Home : Screen
         data object History : Screen
         data class Result(val runId: String, val fromHistory: Boolean) : Screen
+
+        /** 阶段 2：真实 API 探针（独立入口，不动 TestEngine 流程） */
+        data object ApiProbe : Screen
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,6 +118,8 @@ class MainActivity : ComponentActivity() {
         }
         // C09 前置：注入透传仅 debug 构建生效，release 恒 null
         intentInject = if (BuildConfig.DEBUG) intent?.getStringExtra("inject") else null
+        // 阶段 2：API 探针 adb 自动化（debug only；不走 UI，不影响既有 autorun 流程）
+        maybeApiProbeAutorun()
         setContent {
             MaterialTheme {
                 // C07：内容避让系统栏（否则顶部按钮压在状态栏下，点击被系统吃掉）
@@ -139,6 +148,7 @@ class MainActivity : ComponentActivity() {
                             onRunningChange = { running = it },
                             logs = logs,
                             onOpenHistory = { screen = Screen.History },
+                            onOpenApiProbe = { screen = Screen.ApiProbe },
                             onRunFinished = { runId ->
                                 screen = Screen.Result(runId, fromHistory = false)
                             },
@@ -153,6 +163,7 @@ class MainActivity : ComponentActivity() {
                                 screen = if (s.fromHistory) Screen.History else Screen.Home
                             },
                         )
+                        is Screen.ApiProbe -> ApiProbeRoute(onBack = { screen = Screen.Home })
                     }
                 }
             }
@@ -240,6 +251,152 @@ class MainActivity : ComponentActivity() {
     }
 
     // ------------------------------------------------------------------
+    // API Probe 路由（阶段 2：真实 API 探针，独立入口）
+    // ------------------------------------------------------------------
+
+    @Composable
+    private fun ApiProbeRoute(onBack: () -> Unit) {
+        val keyStore = remember { ApiKeyStore(applicationContext) }
+        var provider by rememberSaveable { mutableStateOf(keyStore.provider) }
+        var baseUrl by rememberSaveable { mutableStateOf(keyStore.effectiveBaseUrl()) }
+        var model by rememberSaveable { mutableStateOf(keyStore.effectiveModel()) }
+        // key 输入态不进 rememberSaveable（防 key 进 Bundle）
+        var keyInput by remember { mutableStateOf("") }
+        var hasStoredKey by remember { mutableStateOf(keyStore.hasKey()) }
+        var running by remember { mutableStateOf(false) }
+        var exportStatus by remember { mutableStateOf<String?>(null) }
+        val logs = remember { mutableStateListOf<String>() }
+        var results by remember { mutableStateOf(emptyList<com.aneb.probe.data.ApiProbeResultEntity>()) }
+        var resultsVersion by remember { mutableStateOf(0) }
+
+        LaunchedEffect(resultsVersion) {
+            results = withContext(Dispatchers.IO) { db.apiProbeResultDao().recent(20) }
+        }
+
+        // 探针日志镜像 logcat（key 出口已在 ApiProbe 内经 redactor，UI 侧不再接触 key）
+        fun addLog(line: String) {
+            android.util.Log.i("AnebProbe", line)
+            logs.add(line)
+        }
+
+        ApiProbeScreen(
+            provider = provider,
+            onProviderChange = { p ->
+                provider = p
+                // 切 provider 时若字段仍是另一 provider 的默认值则跟随切换（自定义值保留）
+                if (baseUrl == LlmProvider.ANTHROPIC.defaultBaseUrl ||
+                    baseUrl == LlmProvider.OPENAI_COMPAT.defaultBaseUrl
+                ) {
+                    baseUrl = p.defaultBaseUrl
+                }
+                if (model == LlmProvider.ANTHROPIC.defaultModel ||
+                    model == LlmProvider.OPENAI_COMPAT.defaultModel
+                ) {
+                    model = p.defaultModel
+                }
+            },
+            baseUrl = baseUrl,
+            onBaseUrlChange = { baseUrl = it },
+            model = model,
+            onModelChange = { model = it },
+            keyInput = keyInput,
+            onKeyInputChange = { keyInput = it },
+            hasStoredKey = hasStoredKey,
+            keyStoreEncrypted = keyStore.encrypted,
+            onSaveConfig = {
+                keyStore.provider = provider
+                keyStore.baseUrlOverride = baseUrl.takeIf { it != provider.defaultBaseUrl }
+                keyStore.modelOverride = model.takeIf { it != provider.defaultModel }
+                if (keyInput.isNotBlank()) {
+                    keyStore.setApiKey(keyInput)
+                    keyInput = ""
+                }
+                hasStoredKey = keyStore.hasKey()
+                addLog("APIPROBE_CONFIG saved provider=${provider.id} key_present=$hasStoredKey")
+            },
+            onClearKey = {
+                keyStore.setApiKey(null)
+                hasStoredKey = false
+                addLog("APIPROBE_CONFIG key_cleared")
+            },
+            running = running,
+            onRun = {
+                val key = keyStore.apiKey()
+                if (key == null) {
+                    addLog("APIPROBE_SKIP reason=E-03_no_key") // E-03 缺 key 降级
+                } else if (!running) {
+                    running = true
+                    lifecycleScope.launch {
+                        try {
+                            ApiProbe(applicationContext).run(
+                                ApiProbe.Config(provider, baseUrl, model, key)
+                            ) { line -> withContext(Dispatchers.Main) { addLog(line) } }
+                            resultsVersion++
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            addLog("APIPROBE_FAILED error=${e.javaClass.simpleName}")
+                        } finally {
+                            running = false
+                        }
+                    }
+                }
+            },
+            logs = logs,
+            results = results,
+            exportStatus = exportStatus,
+            onExport = {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val all = db.apiProbeResultDao().all()
+                    val body = ApiProbeReport.buildJson(all, keyStore.apiKey())
+                    val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val fileName = "aneb_apiprobe_$ts.json"
+                    val outcome = Exporter.exportToDownloads(
+                        applicationContext, fileName, "application/json", body,
+                    )
+                    val line =
+                        "APIPROBE_EXPORT file=$fileName bytes=${outcome.bytes} " +
+                            "status=${if (outcome.ok) "ok" else "fail"} " +
+                            "claim_scope=${ApiProbeReport.CLAIM_SCOPE}"
+                    android.util.Log.i("AnebProbe", line)
+                    withContext(Dispatchers.Main) { exportStatus = line }
+                }
+            },
+            onBack = onBack,
+        )
+    }
+
+    /**
+     * API 探针 adb 自动化（模拟器 E2E 验收；仅 debug 构建生效——release 不接受 key 注入）：
+     *   am start ... --ez apiprobe_autorun true --es apiprobe_server http://10.0.2.2:18081
+     *     --es apiprobe_key sk-test [--es apiprobe_provider openai_compat|anthropic]
+     *     [--es apiprobe_model mock-llm]
+     * 结果只看 logcat 的 APIPROBE_RESULT 行（tag=AnebProbe），不落 UI。
+     */
+    private fun maybeApiProbeAutorun() {
+        if (!BuildConfig.DEBUG) return
+        if (intent?.getBooleanExtra("apiprobe_autorun", false) != true) return
+        val server = intent?.getStringExtra("apiprobe_server") ?: return
+        val key = intent?.getStringExtra("apiprobe_key") ?: return
+        val provider = when (intent?.getStringExtra("apiprobe_provider")?.lowercase()) {
+            "anthropic" -> LlmProvider.ANTHROPIC
+            else -> LlmProvider.OPENAI_COMPAT
+        }
+        val model = intent?.getStringExtra("apiprobe_model") ?: provider.defaultModel
+        lifecycleScope.launch {
+            try {
+                ApiProbe(applicationContext).run(
+                    ApiProbe.Config(provider, server, model, key)
+                ) { line -> android.util.Log.i("AnebProbe", line) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.i("AnebProbe", "APIPROBE_FAILED error=${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Home（C05 行为不变 + History 入口 + run 结束自动跳结果页）
     // ------------------------------------------------------------------
 
@@ -256,6 +413,7 @@ class MainActivity : ComponentActivity() {
         onRunningChange: (Boolean) -> Unit,
         logs: SnapshotStateList<String>,
         onOpenHistory: () -> Unit,
+        onOpenApiProbe: () -> Unit,
         onRunFinished: (String) -> Unit,
     ) {
         val listState = rememberLazyListState()
@@ -375,6 +533,11 @@ class MainActivity : ComponentActivity() {
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedButton(onClick = onOpenHistory) {
                     Text("History")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // 阶段 2：真实 API 探针独立入口（对照列，不进 AQS）
+                OutlinedButton(enabled = !running, onClick = onOpenApiProbe) {
+                    Text("API Probe")
                 }
             }
             if (intentInject != null) {
