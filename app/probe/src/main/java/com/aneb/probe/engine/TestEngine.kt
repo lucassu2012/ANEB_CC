@@ -112,12 +112,31 @@ class TestEngine(private val client: AnebClient) {
         // TODO(阶段1/R-09)：T2/T3/T4 一律改为 seq 对齐的网络贡献残差（到达间隔 − sched_us 发出间隔）。
         val stallCount = intervalsNs.count { it > STALL_THRESHOLD_NS }
 
+        // 对齐残差（P0-C10 验收口径）：对每对相邻（seq 排序）token，
+        // |客户端到达间隔 − 服务端发出间隔（preFlushUs 差）|，单位 us。
+        // 剔除：后一 event 为 sameReadBatch（到达间隔是内存读出伪 0，R-04）；
+        //       任一端 preFlushUs 缺失（-1，R-10 缺数据即剔除不记 0）。
+        val alignResidualsUs = ArrayList<Long>(ordered.size)
+        for (k in 1 until ordered.size) {
+            val cur = ordered[k]
+            val prev = ordered[k - 1]
+            if (cur.sameReadBatch) continue
+            if (cur.preFlushUs < 0 || prev.preFlushUs < 0) continue
+            val clientIntervalUs = (cur.arrivalNanos - prev.arrivalNanos) / 1_000L
+            val serverIntervalUs = cur.preFlushUs - prev.preFlushUs
+            alignResidualsUs.add(kotlin.math.abs(clientIntervalUs - serverIntervalUs))
+        }
+        alignResidualsUs.sort()
+        val alignResidualP50Us = percentile(alignResidualsUs, 0.50)
+        val alignResidualP95Us = percentile(alignResidualsUs, 0.95)
+
         val gapLimit = (tokens * GAP_INVALID_RATIO).toInt().coerceAtLeast(1)
         val gapVerdict = if (s.gapCount > gapLimit) "INVALID (gap>${GAP_INVALID_RATIO * 100}% of tokens, R-08 fail-closed)" else "ok"
 
         emit("--- S1 summary ---")
         emit("  TTFT           = ${ttftMs?.let { "%.2f ms".format(it) } ?: "null"} (origin=requestHeadersEnd)")
         emit("  ITL median     = ${itlMedianMs?.let { "%.2f ms".format(it) } ?: "null"}  P95 = ${itlP95Ms?.let { "%.2f ms".format(it) } ?: "null"}  (n=${intervalsNs.size}, coalesced excluded=$coalesced)")
+        emit("  alignResidualP95Us = ${alignResidualP95Us?.let { "%.0f".format(it) } ?: "null"}  P50 = ${alignResidualP50Us?.let { "%.0f".format(it) } ?: "null"}  (n=${alignResidualsUs.size}, |arrivalΔ−preFlushΔ| us, sameReadBatch/preFlush 缺失剔除)")
         emit("  stalls(>200ms) = $stallCount   [阶段0原始间隔口径，阶段1改残差域 R-09]")
         emit("  seq gaps       = ${s.gapCount} dup=${s.duplicateCount} maxSeq=${s.maxSeq} truncatedEarly=${s.truncatedEarly} -> $gapVerdict")
         emit("  clock offset   = ${offsetUs?.let { "${it}us" } ?: "null"} +/- ${offsetErrUs?.let { "${it}us" } ?: "null"} (RTT/2)")

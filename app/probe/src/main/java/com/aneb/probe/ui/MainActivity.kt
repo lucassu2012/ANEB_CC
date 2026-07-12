@@ -52,6 +52,10 @@ class MainActivity : ComponentActivity() {
     private val engine = TestEngine(AnebClient())
     private lateinit var radioCollector: RadioCollector
 
+    /** adb 自动化：am start --es server <url> --ez autorun true 时注入（联调可观测性，不改测量语义） */
+    private var intentServer: String? = null
+    private var intentAutorun: Boolean = false
+
     private val radioPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             pendingRadioLog?.invoke(
@@ -67,6 +71,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         radioCollector = RadioCollector(this)
+        intentServer = intent?.getStringExtra("server")
+        intentAutorun = intent?.getBooleanExtra("autorun", false) == true
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -78,14 +84,46 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun ProbeScreen() {
-        // 默认 10.0.2.2 = Android 模拟器指向宿主机
-        var serverUrl by remember { mutableStateOf("http://10.0.2.2:8443") }
+        // 默认 10.0.2.2 = Android 模拟器指向宿主机；adb intent --es server 可覆盖
+        var serverUrl by remember { mutableStateOf(intentServer ?: "http://10.0.2.2:8443") }
         var running by remember { mutableStateOf(false) }
         val logs = remember { mutableStateListOf<String>() }
         val listState = rememberLazyListState()
 
+        // 联调可观测性：UI 日志同时镜像到 logcat（tag=AnebProbe），不改测量语义
+        fun addLog(line: String) {
+            android.util.Log.i("AnebProbe", line)
+            logs.add(line)
+        }
+
+        // 与按钮 onClick 等价的执行路径（autorun 复用，保证 adb 自动化与手工点按一致）
+        fun startRun() {
+            if (running) return
+            running = true
+            addLog(">>> Run S1 -> $serverUrl")
+            lifecycleScope.launch {
+                try {
+                    engine.runS1(serverUrl).collect { line -> addLog(line) }
+                } catch (e: CancellationException) {
+                    throw e // 不吞取消：保持结构化并发语义（fail-closed §4.6/§4.7）
+                } catch (e: Exception) {
+                    addLog("RUN FAILED: $e")
+                } finally {
+                    running = false
+                }
+            }
+        }
+
         LaunchedEffect(logs.size) {
             if (logs.isNotEmpty()) listState.animateScrollToItem(logs.size - 1)
+        }
+
+        // adb 自动化：--ez autorun true 时自动触发一次 Run S1（等价点按钮，只触发一次）
+        LaunchedEffect(Unit) {
+            if (intentAutorun) {
+                intentAutorun = false
+                startRun()
+            }
         }
 
         Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
@@ -99,26 +137,12 @@ class MainActivity : ComponentActivity() {
             Row(modifier = Modifier.padding(vertical = 8.dp)) {
                 Button(
                     enabled = !running,
-                    onClick = {
-                        running = true
-                        logs.add(">>> Run S1 -> $serverUrl")
-                        lifecycleScope.launch {
-                            try {
-                                engine.runS1(serverUrl).collect { line -> logs.add(line) }
-                            } catch (e: CancellationException) {
-                                throw e // 不吞取消：保持结构化并发语义（fail-closed §4.6/§4.7）
-                            } catch (e: Exception) {
-                                logs.add("RUN FAILED: $e")
-                            } finally {
-                                running = false
-                            }
-                        }
-                    },
+                    onClick = { startRun() },
                 ) {
                     Text(if (running) "Running..." else "Run S1")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = { onRadioSnapshot { line -> logs.add(line) } }) {
+                Button(onClick = { onRadioSnapshot { line -> addLog(line) } }) {
                     Text("Radio snapshot")
                 }
             }
