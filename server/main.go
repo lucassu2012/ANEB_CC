@@ -21,7 +21,11 @@ type app struct {
 	// 客户端 seq join/截断/畸形 event 健壮性验收需要服务端可控注入）。
 	// 默认 false；生产/取证部署绝不开启——注入流不是测量数据。
 	allowInject bool
-	resultsMu   sync.Mutex
+	// h3Enabled 记录 -h3 开关状态，仅供 /serverinfo 如实上报（h3_enabled）。
+	// 注意其语义是"服务端配置启用了 h3"，不是"本响应经 h3 协商"——后者
+	// 看 X-Aneb-Proto 头（红队项：QUIC 启用 ≠ 协商 h3）。
+	h3Enabled bool
+	resultsMu sync.Mutex
 }
 
 // routes 构建完整 handler 树（含 X-Aneb-Server 版本头中间件）。
@@ -56,7 +60,30 @@ func main() {
 	tlsKey := flag.String("tls-key", "", "TLS key file (optional)")
 	allowInject := flag.Bool("allow-inject", false,
 		"enable /stream fault-injection hooks (&inject=...) — test rigs only, NEVER in production")
+	h3Enabled := flag.Bool("h3", false,
+		"serve HTTP/3 (quic-go) on the same port over UDP in parallel with TCP — requires -tls-cert/-tls-key (fail-closed)")
 	flag.Parse()
+
+	// 配置级 fail-closed 校验放在一切资源加载之前：配错即刻退出。
+	altSvc := ""
+	if *h3Enabled {
+		if err := validateH3Prereqs(*tlsCert, *tlsKey); err != nil {
+			log.Fatalf("h3: %v", err)
+		}
+		v, err := altSvcValue(*addr)
+		if err != nil {
+			log.Fatalf("h3: %v", err)
+		}
+		altSvc = v
+	}
+	if *tlsCert != "" || *tlsKey != "" {
+		if *tlsCert == "" || *tlsKey == "" {
+			log.Fatalf("tls: -tls-cert and -tls-key must be given together")
+		}
+		if err := validateTLSFiles(*tlsCert, *tlsKey); err != nil {
+			log.Fatalf("tls: %v", err)
+		}
+	}
 
 	profiles, err := loadProfiles(*profilesDir)
 	if err != nil {
@@ -66,7 +93,7 @@ func main() {
 		log.Printf("profile loaded: %s v%s (%d phases)", id, p.Version, len(p.Phases))
 	}
 
-	a := &app{profiles: profiles, dataDir: *dataDir, allowInject: *allowInject}
+	a := &app{profiles: profiles, dataDir: *dataDir, allowInject: *allowInject, h3Enabled: *h3Enabled}
 	if *allowInject {
 		log.Printf("WARNING: -allow-inject enabled — /stream accepts fault injection, runs are NOT evidential")
 	}
@@ -79,13 +106,24 @@ func main() {
 	//     断开检测，客户端断开即退出。
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           a.routes(),
+		Handler:           a.tcpHandler(altSvc),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
 
 	log.Printf("%s listening on %s (profiles=%s data=%s, mono-anchor wall=%d)",
 		serverVersion, *addr, *profilesDir, *dataDir, anchorWallUnixNs)
+
+	// -h3：同端口 UDP 上并行起 http3.Server，复用同一路由树与中间件；
+	// TCP 侧照旧（仅多 Alt-Svc/X-Aneb-Proto 头）。任一侧监听失败都整体
+	// 退出——半瘸状态（只剩 TCP 却广告着 h3）会污染 A/B 分组。
+	if *h3Enabled {
+		h3srv := a.newH3Server(*addr)
+		go func() {
+			log.Fatalf("h3 server: %v", h3srv.ListenAndServeTLS(*tlsCert, *tlsKey))
+		}()
+		log.Printf("h3: HTTP/3 enabled on udp%s (Alt-Svc: %s)", *addr, altSvc)
+	}
 
 	if *tlsCert != "" && *tlsKey != "" {
 		log.Fatal(srv.ListenAndServeTLS(*tlsCert, *tlsKey))

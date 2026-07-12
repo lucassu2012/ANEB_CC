@@ -23,6 +23,11 @@ type serverInfo struct {
 	Goos   string `json:"goos"`
 	Goarch string `json:"goarch"`
 
+	// H3Enabled：服务端是否以 -h3 启动（配置视角）。注意这只说明"h3 已
+	// 启用"，不证明任何一次请求协商到了 h3——逐响应协商证据看 X-Aneb-Proto
+	// 头与客户端 negotiatedProtocol（红队项：QUIC 启用 ≠ 协商 h3）。
+	H3Enabled bool `json:"h3_enabled"`
+
 	// Linux 下尽力读 /proc（读不到或非 Linux 一律 "n/a"，不猜不编）：
 	//   tcp_slow_start_after_idle 期望钉死为 "0"（R-18：防停顿后 cwnd 重置
 	//   污染 burst 段），congestion_control 期望固定 "cubic"（设计 §6）。
@@ -61,6 +66,7 @@ func (a *app) handleServerInfo(w http.ResponseWriter, r *http.Request) {
 		UptimeS:               now / 1_000_000,
 		Goos:                  runtime.GOOS,
 		Goarch:                runtime.GOARCH,
+		H3Enabled:             a.h3Enabled,
 		TCPSlowStartAfterIdle: readProcValue("/proc/sys/net/ipv4/tcp_slow_start_after_idle"),
 		CongestionControl:     readProcValue("/proc/sys/net/ipv4/tcp_congestion_control"),
 	}
