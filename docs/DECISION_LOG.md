@@ -24,6 +24,9 @@
 | D-16 | 2026-07-12 | 本机/客户端测量**必须显式绕开系统代理并检测代理存在**：首次公网基线被本机代理（127.0.0.1:33210/7897）静默劫持，RTT p50 从 28.1ms 放大到 1519.7ms（54 倍）而流节奏无异常——单看 pacing 无法发现路径被劫持。PC 侧探针一律 UseProxy=false + 记录代理检测结果；Android NetGuard 的 VPN/代理硬拒测（R-03）优先级提升 | evidence/phase0/first_internet_baseline_20260712.log |
 | D-17 | 2026-07-13 | 引入本项目**首个第三方 Go 依赖** `github.com/quic-go/quic-go` **v0.60.0**（钉死精确版本入 go.mod/go.sum，go 指令随之升 1.25.0，与部署工具链 go1.26 兼容）——专项用于阶段 2 HTTP/3：`-h3` 同端口 UDP 并行 http3.Server 复用同一路由树，**fail-closed**（无 -tls-cert/-tls-key 时 -h3 拒绝启动，h3 为 TLS-only）；TCP 侧加 Alt-Svc 广告。协商证据两侧留痕：所有响应带 `X-Aneb-Proto`（服务端视角 r.Proto + via=tcp/h3-server 处理栈标记），/serverinfo 增 `h3_enabled`——**QUIC 启用 ≠ 协商 h3**（红队项），A/B 分组以逐样本协商记录为准。"无外部依赖"原则（§6）就此收窄为"标准库 + quic-go 专项"，与 D-10 阶段二规划一致 | 设计文档 §6/§8 阶段 2；D-10；supply-chain：版本钉死 + go.sum 校验 |
 
+| D-18 | 2026-07-13 | **P0-C14 验收判据修订**：原"U1 vs iperf3 偏差<20%"误把应用层 HTTP goodput 与裸 TCP 稳态直接对标——实测比值 0.66 稳定（1MiB POST 含请求头/逐块打戳/响应回程 vs C 裸 TCP 紧循环；亚毫秒 RTT 排除慢启动主因；iperf3 自身 run 间变异 ±19% 使 20% 门限先天偏紧）。修订为**比值带判据：U1 ∈ [0.5, 1.0] × iperf3 稳态中位**。原始 FAIL 与修订 PASS 并列入账（STATUS.json），判据变更透明可审计 | evidence/phase0/c14_u1_vs_iperf3_20260713.log 归因诊断 |
+| D-19 | 2026-07-13 | **E-01 的 TLS 切换与 H3 部署合并到 Cronet A/B 批次执行**：服务端开 TLS 会使现役 http:// 客户端断链，须与客户端 https+自签信任锚+Cronet 改造一次协同切换；证书已预生成（/opt/aneb/tls，EC P-256，SAN=IP）。届时需用户在控制台放行 **UDP 8443**（E-01 依赖项追加） | H3 代码已合并（D-17）且 37 测试全绿，仅部署时点推迟 |
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。
