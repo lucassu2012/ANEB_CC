@@ -249,6 +249,12 @@ data class ContinuityResultEntity(
     /** 恢复时间中位数（ms）；无样本 null */
     val c2RecoveryMsP50: Double?,
     val c2Grade: String?,
+    /**
+     * 跨网迁移恢复的样本数（D-23）：原绑定句柄被真机硬切换拆除、迁到当前新默认网后恢复的次数。
+     * 与 [recoveryMsCsv] 样本总数相减即 same_network 重连恢复数（两种 C2 语义，KPI 文档 §5.1）。
+     * 实验未进入重连阶段（guard/bind/monitor 失败）或迁移前旧库历史行记 null（R-10）。
+     */
+    val c2CrossNetworkRecoveries: Int? = null,
     // ---- C3 NAT 静默挂起（阶梯 idle 探测） ----
     /** "idle_s:conn_new:echo_ms:error;..."（ContinuityMath.c3LadderCsv） */
     val c3LadderCsv: String,

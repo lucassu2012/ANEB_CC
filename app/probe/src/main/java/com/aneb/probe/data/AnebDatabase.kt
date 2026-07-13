@@ -32,7 +32,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //     绝不进上报体；§9.1 隐私边界，路测开关默认关）
     // v10：阶段3 SNI 双通道——test_run 增 sniReachable/sniReachMs/ipReachable/ipReachMs
     //      可空列（run 前连接可达性探测：带 SNI vs bare-IP 的 TLS 握手结果+耗时，additive）
-    version = 10,
+    // v11：阶段3 真机跨网迁移修复——continuity_result 增 c2CrossNetworkRecoveries 可空列
+    //      （真机硬切换拆除原绑定网后迁到新默认网恢复的样本数，两种 C2 语义，D-23，additive）
+    version = 11,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -193,6 +195,30 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v10 → v11 的全部语句（阶段3 真机跨网迁移修复，additive；JVM 单测锚定存在性与
+         * additive-only）：continuity_result 增 1 个**可空、无默认值**列
+         * c2CrossNetworkRecoveries（Int?→INTEGER，与 KSP 期望 schema 一致，做法同
+         * [MIGRATION_9_10]）。历史行（v10 及之前，含模拟器 508ms 基线 run）新列值为 NULL＝
+         * "当时未区分 same/cross 语义"，与 R-10 null 语义一致；真机硬切换恢复的 run 记实际
+         * 跨网迁移样本数（D-23，两种 C2 语义见 KPI 文档 §5.1）。
+         */
+        internal val MIGRATION_10_11_SQL: List<String> = listOf(
+            "ALTER TABLE `continuity_result` ADD COLUMN `c2CrossNetworkRecoveries` INTEGER",
+        )
+
+        /**
+         * v10 → v11（阶段3 真机跨网迁移修复，additive）：只加列不动数据——已落库的历史取证
+         * 数据（v10 含 continuity_result 及之前全部表）原样保留。人工验证步骤同 [MIGRATION_6_7]
+         * KDoc（覆盖安装后既有 run 可见、.schema continuity_result 输出含新列、logcat 无
+         * Migration 异常）。
+         */
+        internal val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_11_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -201,8 +227,10 @@ abstract class AnebDatabase : RoomDatabase() {
                     "aneb-probe.db",
                 )
                     // v6 起 schema 变更必须写显式 Migration（历史数据是取证资产，
-                    // 不可静默丢弃）——v6→v7 / v7→v8 / v8→v9 见上方（均 additive）。
-                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    // 不可静默丢弃）——v6→v7 / v7→v8 / v8→v9 / v9→v10 / v10→v11 见上方（均 additive）。
+                    .addMigrations(
+                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                    )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()
                     .build()
