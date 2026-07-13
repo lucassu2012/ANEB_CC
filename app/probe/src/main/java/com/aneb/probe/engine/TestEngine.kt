@@ -305,6 +305,7 @@ class TestEngine(private val context: Context) {
                             "batch_count=${buffering?.batchCount ?: 0} " +
                             "best_grid_us=${buffering?.bestGridUs ?: "null"} " +
                             "jank_overlap=${buffering?.let { "%.3f".format(it.jankOverlapRatio) } ?: "null"} " +
+                            "retrans_rate=${buffering?.retransRate?.let { "%.4f".format(it) } ?: "null"} " +
                             "affects_validity=false"
                     )
 
@@ -584,10 +585,18 @@ class TestEngine(private val context: Context) {
             }
         )
         if (residuals.isEmpty()) return null
+        // P3-C05 retrans 共变量：各流 summary 的 retrans_total（无数据 null → 检测器
+        // 行为与引入前完全一致）。口径与保守方向见 BufferingWiring.retransRate KDoc。
+        val retransRate = BufferingWiring.retransRate(
+            outcome.streams.mapNotNull { s ->
+                s.result.stream?.let { BufferingWiring.StreamRetrans(it.summaryRetransTotal, it.events.size) }
+            }
+        )
         return BufferingDetector.analyze(
             samples = residuals,
             radio = BufferingWiring.radioSummary(radioBuf, outcome.startedAtNanos, outcome.endedAtNanos),
             appJankEventsUs = BufferingWiring.jankEventsUs(envBuf, outcome.startedAtNanos, outcome.endedAtNanos),
+            retransRate = retransRate,
         )
     }
 

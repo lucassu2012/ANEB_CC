@@ -2,9 +2,11 @@
 
 > Agent Network Experience Benchmark Probe——面向智能体业务的移动网络体验测试工具
 >
-> 版本 v0.2（设计基线 + 红队修订与制度对齐）｜ 2026-07-12 ｜ 状态：待评审
+> 版本 v0.3（as-built：阶段 0–3 实测成果回写，含各阶段完成状态与证据账本指针）｜ 2026-07-13 ｜ 状态：as-built 基线
 >
-> 需求输入：《智能体互联网时代（Agentic Internet）移动通信网络的新型网络性能与体验诉求》第五部分（agent-qoe-kpi v0.2）
+> 版本沿革：v0.2 = 设计基线 + 红队修订与制度对齐（2026-07-12）；v0.3 仅做实施状态标注与下一步清单更新，架构与口径不变。
+>
+> 需求输入：《智能体互联网时代（Agentic Internet）移动通信网络的新型网络性能与体验诉求》第五部分（agent-qoe-kpi v0.2.1）
 >
 > 配套：《测量红队清单》（32 项经对抗验证的测量失真风险及闭环计划，v0.2 修订的直接依据）；《参考_ChatGPT侧ANEB_AndroidEcho方案与进展_2026-07-11》（并行项目制度借鉴来源）；《DECISION_LOG》（决策日志与外部依赖清单）
 
@@ -161,7 +163,7 @@ com.aneb.probe
 - 响应头写出后先 flush 一个 `: prelude {srv_ts}` SSE 注释帧再按节奏发首 token，把 T1 中的服务端 dwell 从"网络分量"剥离。
 - `/echo`：前 2–3 个请求丢弃预热、样本间 100–300ms 随机间隔去相关；响应回显客户端源 IP:port（路径对账）；handler 极薄（固定二进制 body、零日志），t2−t1 随样本返回入库、P99>1ms 告警。
 - `/upload` 返回的逐块到达序列是上行节奏的**权威序列**；U1 计时终点 = 客户端收到 2xx 响应头（服务端已读完 body），客户端 `writeTo` 本地写序列仅作辅助诊断（其 claim scope 为"写入本地协议栈"，防把内存拷贝测成千兆假吞吐）。
-- VM 基线钉死并快照入每次运行元数据：`net.ipv4.tcp_slow_start_after_idle=0`、拥塞算法固定（cubic）、clocksource、steal% 采样；每秒采样 TCP_INFO（notsent bytes），send queue 非空窗口内的 event 打 `egress_uncertain` 标。
+- VM 基线钉死并快照入每次运行元数据：`net.ipv4.tcp_slow_start_after_idle=0`、拥塞算法固定（cubic）、clocksource、steal% 采样；每秒采样 TCP_INFO——**实现中**（并行修复分支，尚未合并）：范围已由原 notsent bytes（`egress_uncertain` 标）扩展为**含 retrans 共变量**，用于区分"丢包重传批化"与"中间盒缓冲批化"（P3-C05 已知缺陷的修复方向，见 evidence/phase3/netem_experiments_20260713.md）。
 - `/results` 按 JSON Schema 校验拒收不合规上报：`claim_scope`（const 锁定 `application_end_to_end_to_probe_node`）、kpi_set / aqs / profile / schema 版本必填。
 - **弱网剖面**：VM 预置 `tc netem` 脚本（`scripts/netem.sh 100ms 1%`），用于工具灵敏度验证与红队闭环实验。
 
@@ -179,6 +181,15 @@ com.aneb.probe
 - 上报体 = TestRun + ScenarioResult + ITL 直方图（对数分桶）+ RadioSample 抽样，单次 <200KB；按 JSON Schema 校验（claim_scope 与版本字段 const/枚举锁定）。invalid 场景照常上报原始摘要与原因码，仅不进 KPI/AQS 聚合。
 
 ## 8. 分阶段实现计划
+
+**as-built 完成状态（2026-07-13，四态证据账本为准）：**
+
+- **阶段 0 — 已完成**（2026-07-13 收口）：17 PASS + 1 FAIL（P0-C14 字面判据 FAIL 与 D-18 修订判据 PASS 并列留档），账本 `evidence/phase0/STATUS.json`。
+- **阶段 1 — 已完成**（2026-07-13 收口）：9/9 PASS（含 TestEngine 全接线、批化三签名标定、防御路径端到端触发），账本 `evidence/phase1/STATUS.json`。
+- **阶段 2 — 本地可完成部分已完成**（2026-07-13）：5 PASS + 1 BLOCKED_EXTERNAL（P2-C06 E-01 TLS/H3 切换与公网 QUIC A/B，待 UDP 8443 放行 + E-06 域名/公共证书），账本 `evidence/phase2/STATUS.json`。
+- **阶段 3 — 本地可完成部分已完成**（2026-07-13）：5 PASS + 1 FAIL（P3-C05 批化检测器 middlebox 误报如实入册，affects_validity=false 无实害）+ 3 BLOCKED_EXTERNAL（P3-C07 海外节点/E-04、P3-C08 QoD/E-05、P3-C09 真机规模化回流/E-02），账本 `evidence/phase3/STATUS.json`。
+
+以下为原设计计划（保留作对照，验收判据的修订以 DECISION_LOG 与账本 note 为准，如 D-18 对 P0-C14 判据的修订）：
 
 **阶段 0：骨架与计时联调（第 1–2 周）**
 - monorepo 脚手架 + **供应链钉死**：Gradle wrapper 提交并写 `distributionSha256Sum`、依赖经 `libs.versions.toml` 全部固定精确版本（禁动态版本）、Go 提交 go.mod/go.sum；若配置 CI 必须经 `./gradlew`（wrapper）而非系统 gradle。
@@ -215,8 +226,20 @@ com.aneb.probe
 
 ### 9.1 隐私与权限边界
 
-与参考项目的最小权限集（仅 INTERNET + ACCESS_NETWORK_STATE、不采集小区/位置类信息）不同，本工具的 R 组无线层归因**必须**采集 PCI/小区/信号强度，因此申请 `ACCESS_FINE_LOCATION` + `READ_PHONE_STATE`——研究自用工具，被试即研究者本人，差异合理但须显式声明。承诺边界：不上传 GPS 坐标原始值（阶段三路测另行评估）、不采集 IMSI/广告 ID/用户内容；`allowBackup=false`；Release 禁明文流量。
+与参考项目的最小权限集（仅 INTERNET + ACCESS_NETWORK_STATE、不采集小区/位置类信息）不同，本工具的 R 组无线层归因**必须**采集 PCI/小区/信号强度，因此申请 `ACCESS_FINE_LOCATION` + `READ_PHONE_STATE`——研究自用工具，被试即研究者本人，差异合理但须显式声明。承诺边界：不上传 GPS 坐标原始值、不采集 IMSI/广告 ID/用户内容；`allowBackup=false`；Release 禁明文流量。
 
-## 10. 下一步
+**GPS 路测（阶段 3 已实现，P3-C06）**：路测模式以 LocationManager 1Hz 采集轨迹（无 GMS 依赖），lat/lon/accuracy 存 RadioSample 可空列，**坐标只存本机**（本地 CSV 导出）；上报体无任何坐标字段，隐私边界三重锚定——ResultReporter 无字段 + JVM 键级正则单测 + E2E 服务端落盘 grep 零命中（evidence/phase3/gps_drive_mode_20260713.log）。
 
-阶段 0 开工清单：①`server/` Go module 初始化与 `/echo`、`/stream` 最小实现（含单调锚点 srv_ts 与双时间戳）；②`app/` Android 工程脚手架（Compose + OkHttp + Room，`libs.versions.toml` 钉死版本）；③`profiles/` 三场景 JSON（本仓库已含 v0.2.0 草案，含尾部 clock_sync）；④购置国内云 VM（2C4G，公网 IP，放通 8443/TCP，阶段二加 8443/UDP），部署脚本含 sysctl/chrony 基线；⑤`scripts/verify_all` 验证链与 `evidence/phase0/` 四态记录；⑥维护 [DECISION_LOG](DECISION_LOG.md)（决策 D-xx 追加不覆盖；外部依赖 E-xx 每项标最晚需要时点与本地替代方案，保证每阶段有纯本地可完成的验收路径——参考项目 M2 被外部依赖全线卡死的教训）。
+## 10. 下一步（as-built，2026-07-13 更新；原阶段 0 开工清单已全部完成并落账）
+
+本地可完成的开发与验收已全部收口（§8 as-built 状态）。当前推进全部悬于外部依赖，逐项列出依赖与解锁内容：
+
+1. **E-02 Android 真机 + 蜂窝 SIM（4G/5G）**——解锁：蜂窝测量证据（模拟器只构成功能/fail-closed 证据）、无线层 R 组真实数据与批化检测器 AIRLINK 分支、C2/C3 的真机蜂窝口径、GPS 真机路测采集，以及 **P3-C09 规模化数据回流**（门限重标定、检测器重加权、AQS 权重迭代的数据前提——看板与分析链已就绪待数据）。
+2. **E-06 域名 + 公共 CA 证书（Let's Encrypt，绑定 E-01）+ 用户在阿里云控制台放行 UDP 8443**——解锁：**P2-C06** E-01 TLS/H3 协同切换（D-19）与公网 Cronet QUIC A/B 实采（D-21：Cronet QUIC 强制公共已知根，自签不可行，B 组 h3 样本现为 0）。
+3. **E-04 海外第二节点**——解锁：**P3-C07** 真实跨境路径对照（netem 本地替代已完成，P3-C04）。
+4. **E-05 CAMARA QoD 试点（运营商合作）**——解锁：**P3-C08** 低时延 profile 前后 A/B；无本地替代。
+5. **E-03 真实 LLM API key**——解锁：P2-C04 探针的真实端点实测对照列（探针机制已完成，mock E2E 通过）。
+
+内部待办（不依赖外部）：**P3-C05 修复**——BufferingDetector 引入 TCP_INFO retrans 共变量区分重传批化与中间盒缓冲（并行分支实现中，见 §6）；autocorr 分量重加权与判无效阈值定版合并等待 E-02 真机数据。
+
+制度延续：[DECISION_LOG](DECISION_LOG.md) 决策 D-xx 追加不覆盖；外部依赖缺位的检查一律记 `BLOCKED_EXTERNAL`，绝不折算成 PASS。

@@ -70,6 +70,8 @@ import java.util.Locale
  * adb 自动化（联调可观测性，不改测量语义）：
  *   am start ... --es server <url> --ez autorun true [--es mode quick|forensic]
  *   [--es transport auto|wifi|cellular] [--es inject truncate:50]
+ * server 缺省 https://120-79-148-0.sslip.io:8443（E-01 公网 TLS，P2-C06）；
+ * 本地明文调试需显式 --es server http://10.0.2.2:8443。
  * autorun 默认快测；inject 仅 BuildConfig.DEBUG 生效（C09 前置）。
  * C07：手动 run 结束自动跳结果页；autorun 不跳（保持 logcat 自动化验收流程不变）。
  */
@@ -165,7 +167,9 @@ class MainActivity : ComponentActivity() {
                     // Home 分支内部，手动 run 结束自动跳 Result 后返回会 dispose 重建，
                     // 静默重置已输入的服务器地址/模式/日志。intent 默认值只在状态初始化时
                     // 生效一次（autorun 路径不变）。rememberSaveable 额外撑过配置变更。
-                    var serverUrl by rememberSaveable { mutableStateOf(intentServer ?: "http://10.0.2.2:8443") }
+                    // P2-C06 TLS 切换：默认指向 E-01 公网 https（Let's Encrypt 公共 CA，
+                    // 无需自签信任锚）。本地明文调试用 intent --es server http://10.0.2.2:8443。
+                    var serverUrl by rememberSaveable { mutableStateOf(intentServer ?: "https://120-79-148-0.sslip.io:8443") }
                     var mode by rememberSaveable { mutableStateOf(intentMode) }
                     var transport by rememberSaveable { mutableStateOf(intentTransport) }
                     // 阶段3 GPS 路测开关：默认关（intent 只作初值）；开启时 Home 屏有显著提示

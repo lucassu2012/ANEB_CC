@@ -139,6 +139,63 @@ class BufferingWiringTest {
         assertEquals(listOf(1_000L, 3_000L), out)
     }
 
+    // ---------- retrans 共变量聚合（P3-C05） ----------
+
+    @Test
+    fun retransRate_noStreamHasData_returnsNull() {
+        // 全部流无 retrans 数据（非 Linux 服务端/h3/无 summary）→ null：
+        // 检测器按无共变量数据回退，行为与引入前完全一致（零回归合同）
+        assertNull(BufferingWiring.retransRate(emptyList()))
+        assertNull(
+            BufferingWiring.retransRate(
+                listOf(
+                    BufferingWiring.StreamRetrans(retransTotal = null, eventCount = 100),
+                    BufferingWiring.StreamRetrans(retransTotal = null, eventCount = 200),
+                )
+            )
+        )
+    }
+
+    @Test
+    fun retransRate_zeroEventDenominator_returnsNull() {
+        // 有 retrans 数据但事件数为 0（截断流）→ 率不可算，null 而非除零/造值
+        assertNull(
+            BufferingWiring.retransRate(
+                listOf(BufferingWiring.StreamRetrans(retransTotal = 5L, eventCount = 0))
+            )
+        )
+    }
+
+    @Test
+    fun retransRate_takesMaxOverStreamsAndSumsEventsWithData() {
+        // tcpi_total_retrans 是连接累计值：场景内多流复用同连接时后一流已含前一流，
+        // 分子取 max（同连接下即连接累计真值）、分母取带数据流的事件数之和
+        val rate = BufferingWiring.retransRate(
+            listOf(
+                BufferingWiring.StreamRetrans(retransTotal = 3L, eventCount = 100),
+                BufferingWiring.StreamRetrans(retransTotal = 8L, eventCount = 300),
+            )
+        )
+        assertEquals(8.0 / 400.0, rate!!, 1e-12)
+    }
+
+    @Test
+    fun retransRate_mixedDataStreams_excludesNoDataEventsFromDenominator() {
+        // 无数据流（如 h3 分支）的事件不进分母——分子分母保持同一观测范围
+        val rate = BufferingWiring.retransRate(
+            listOf(
+                BufferingWiring.StreamRetrans(retransTotal = null, eventCount = 500),
+                BufferingWiring.StreamRetrans(retransTotal = 4L, eventCount = 200),
+            )
+        )
+        assertEquals(4.0 / 200.0, rate!!, 1e-12)
+        // 干净路径 retrans=0 → 率 0.0（有数据的 0 与 null 语义不同，如实透出）
+        val zero = BufferingWiring.retransRate(
+            listOf(BufferingWiring.StreamRetrans(retransTotal = 0L, eventCount = 150))
+        )
+        assertEquals(0.0, zero!!, 1e-12)
+    }
+
     // ---------- 接线端到端合同 ----------
 
     @Test

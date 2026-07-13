@@ -55,8 +55,22 @@ data class SseStreamResult(
     /** 解析阶段总耗时（us）＝ parseEnd − EOF（P0-C12：解析开销不得混入 ITL 的证据） */
     val parseDurUs: Long get() = (parseEndNanos - eofNanos) / 1_000L
 
+    /**
+     * summary 透出的服务端 TCP_INFO `retrans_total`（tcpi_total_retrans，连接生命周期
+     * 累计重传段数；P3-C05 retrans 共变量，供 BufferingDetector 区分"丢包重传批化"
+     * 与"中间盒缓冲批化"）。summary 缺失 / 字段缺省（非 Linux 服务端、h3/QUIC、
+     * 截断流）→ null（R-10：无值不造值，检测器按无共变量数据回退）。
+     */
+    val summaryRetransTotal: Long?
+        get() = summaryRaw?.let { RETRANS_TOTAL_REGEX.find(it)?.groupValues?.get(1)?.toLongOrNull() }
+
     /** 每 event 平均解析耗时（us）＝ parseDurUs / 事件数；无事件记 null（R-10） */
     val perEventParseUs: Double? get() = if (events.isEmpty()) null else parseDurUs.toDouble() / events.size
+
+    private companion object {
+        /** summary data JSON 中的 `"retrans_total":N`（服务端手拼 JSON，数值无引号） */
+        private val RETRANS_TOTAL_REGEX = Regex("\"retrans_total\"\\s*:\\s*(\\d+)")
+    }
 }
 
 /**

@@ -69,6 +69,23 @@ object BufferingDetector {
     const val SCORE_ACTIVE_THRESHOLD: Double = 0.25
 
     /**
+     * retrans 共变量显著线（P3-C05）：retransRate = 服务端 TCP_INFO 连接累计重传段数 /
+     * 场景 token 事件数 > 此值时，原判 MIDDLEBOX_SUSPECT 的批化改归因
+     * [BufferingAttribution.RETRANS_SUSPECT]——netem 100ms/1% 取证（evidence/phase3/
+     * netem_experiments_20260713.md 断言 3）发现丢包重传造成的到达批化与 nginx
+     * proxy_buffering 批化签名同形。
+     *
+     * 标定依据（evidence/phase3/c05_fix_retrans_covariate_20260713.log 预检）：
+     * 账本先验取 0.02，但实测 netem loss 1% 下事件级重传率仅 ~0.008（600 token
+     * 均匀 pacing，1 event ≈ 1 段；S2 burst 簇内多 token 合段后更低）——0.02 会漏放行
+     * 全部真实丢包批化样本。区分对象是"物理零"：无丢包的干净路径 / 纯中间盒缓冲路径
+     * retrans 恒 ≈ 0（量表零点），故显著线只需压过零星散粒噪声（quick 场景 ~600 事件
+     * 下 0.002 ≈ 至少 2 个重传段）。0.002 居"干净零点"与"1% loss 实测 0.004–0.008"
+     * 之间。experimental，真实弱网样本回流后与其余阈值一并重标定。
+     */
+    const val RETRANS_RATE_SIGNIFICANT: Double = 0.002
+
+    /**
      * 干净流残差滞后1自相关的理论基线。到达时刻 = 发出时刻 + 独立时延噪声 ε 时，
      * 残差 = ε_i − ε_{i−1} 是 MA(1) 过程，理论 r1 = −0.5；缓冲/批化使残差结构化并
      * 偏离该基线（nginx 式大批 → r1 趋近 0；交替微批 → r1 趋近 −1）。experimental。
@@ -117,11 +134,15 @@ object BufferingDetector {
      * @param radio 可选 R1 信号摘要（场景期间 rsrp/sinr 中位数），null = 无无线信息。
      * @param appJankEventsUs 可选客户端 app_jank 事件时刻集合（µs，与
      *   [ResidualSample.arrivalUs] 同一单调时钟基准）。
+     * @param retransRate 可选 retrans 共变量（P3-C05）：服务端 TCP_INFO 连接累计重传
+     *   段数 / 场景 token 事件数（[BufferingWiring 侧口径]）。null = 无共变量数据
+     *   （非 Linux 服务端、h3、summary 缺失）——行为与引入前完全一致（零回归合同）。
      */
     fun analyze(
         samples: List<ResidualSample>,
         radio: RadioSummary? = null,
         appJankEventsUs: Collection<Long> = emptyList(),
+        retransRate: Double? = null,
     ): BufferingReport {
         val sorted = samples.sortedBy { it.seq }
         val n = sorted.size
@@ -183,6 +204,11 @@ object BufferingDetector {
             if (g1 == null && g2 == null) null else (g1 != false && g2 != false)
         }
 
+        // ---- retrans 共变量（P3-C05）：只改写"原本会判 MIDDLEBOX"的结论 ----
+        // netem 取证（断言 3）：丢包重传批化与中间盒缓冲批化残差签名同形，唯一可靠
+        // 区分量是传输层重传共变量。无数据（null）时不参与任何分支——零回归合同。
+        val retransSignificant = retransRate != null && retransRate > RETRANS_RATE_SIGNIFICANT
+
         // ---- 初步归因（假设而非裁决；R-05：弱信号先于任何 MIDDLEBOX 分支） ----
         val attribution = when {
             score < SCORE_ACTIVE_THRESHOLD -> BufferingAttribution.NONE
@@ -190,9 +216,14 @@ object BufferingDetector {
                 BufferingAttribution.DEVICE_SIDE
             radioWeak == true -> BufferingAttribution.AIRLINK_SUSPECT
             airlinkPeriodicity -> BufferingAttribution.AIRLINK_SUSPECT
-            radioGood == true -> BufferingAttribution.MIDDLEBOX_SUSPECT
-            // 无 R1、无网格命中但批起点足量：连续分布倾向中间盒（KPI 5.3.3）
-            enoughBatches -> BufferingAttribution.MIDDLEBOX_SUSPECT
+            radioGood == true ->
+                if (retransSignificant) BufferingAttribution.RETRANS_SUSPECT
+                else BufferingAttribution.MIDDLEBOX_SUSPECT
+            // 无 R1、无网格命中但批起点足量：连续分布倾向中间盒（KPI 5.3.3）；
+            // 但重传共变量显著时批化更可能是丢包重传所致 → RETRANS_SUSPECT
+            enoughBatches ->
+                if (retransSignificant) BufferingAttribution.RETRANS_SUSPECT
+                else BufferingAttribution.MIDDLEBOX_SUSPECT
             else -> BufferingAttribution.INDETERMINATE
         }
 
@@ -216,6 +247,7 @@ object BufferingDetector {
             jankOverlapRatio = jankOverlapRatio,
             radioWeak = radioWeak,
             radioGood = radioGood,
+            retransRate = retransRate,
         )
     }
 
@@ -330,6 +362,7 @@ object BufferingDetector {
         jankOverlapRatio = 0.0,
         radioWeak = null,
         radioGood = null,
+        retransRate = null,
     )
 }
 
@@ -367,6 +400,15 @@ enum class BufferingAttribution {
 
     /** 疑似中间盒缓冲：批间隔连续分布/RTT 相关，或信号优+批化。 */
     MIDDLEBOX_SUSPECT,
+
+    /**
+     * 疑似丢包重传批化（P3-C05，additive）：批化特征本会判 MIDDLEBOX_SUSPECT，
+     * 但服务端 TCP_INFO retrans 共变量显著（retransRate >
+     * [BufferingDetector.RETRANS_RATE_SIGNIFICANT]）——弱网丢包下 TCP 重传/乱序
+     * 重组造成的到达批化与中间盒缓冲签名同形（netem 100ms/1% 取证断言 3），
+     * 重传共变量是当前唯一可靠区分量。与其余归因一样仅是假设标注（R-05）。
+     */
+    RETRANS_SUSPECT,
 
     /** 设备侧冻结（device_side_batching，R-12）：批起点与 app_jank 事件时间轴重叠。 */
     DEVICE_SIDE,
@@ -424,4 +466,9 @@ data class BufferingReport(
     val radioWeak: Boolean?,
     /** R1 优良信号（良档以上）；无 R1 数据时 null。 */
     val radioGood: Boolean?,
+    /**
+     * retrans 共变量原始值（P3-C05：服务端 TCP_INFO 连接累计重传段数 / 事件数）；
+     * 无共变量数据（非 Linux 服务端/h3/summary 缺失）时 null。原样透出供标定重加权。
+     */
+    val retransRate: Double? = null,
 )

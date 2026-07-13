@@ -109,6 +109,10 @@ func main() {
 		Handler:           a.tcpHandler(altSvc),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
+		// P3-C05：把底层连接塞进每请求 context，供 /stream 流末尾对同一条
+		// 连接读 TCP_INFO（tcpinfo.go）。h3 侧无此机制（QUIC 无 TCP_INFO），
+		// summary 的 retrans_total 在 h3 上天然缺省（n/a）。
+		ConnContext: connContext,
 	}
 
 	log.Printf("%s listening on %s (profiles=%s data=%s, mono-anchor wall=%d)",

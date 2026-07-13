@@ -78,10 +78,10 @@ systemctl restart aneb-server
 sleep 1
 systemctl is-active aneb-server
 echo '--- smoke: /api/v1/profiles ---'
-curl -s http://127.0.0.1:8443/api/v1/profiles
+curl -sk https://127.0.0.1:8443/api/v1/profiles
 echo ''
 echo '--- smoke: /api/v1/echo ---'
-curl -s -X POST --data ping http://127.0.0.1:8443/api/v1/echo
+curl -sk -X POST --data ping https://127.0.0.1:8443/api/v1/echo
 echo ''
 echo 'DEPLOY_OK'
 '@

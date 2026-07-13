@@ -198,6 +198,15 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	buf = appendInt64Array(buf, `,"timer_late_us":`, timerLateUs)
 	buf = appendInt64Array(buf, `,"flush_block_us":`, flushBlockUs)
 	buf = appendInt64Array(buf, `,"carryover_us":`, carryoverUs)
+	// P3-C05：流末尾 TCP_INFO 采样（设计 §6 遗留条款）——连接累计重传段数
+	// tcpi_total_retrans 随 summary 透出（additive），供客户端把"丢包重传批化"
+	// 与"中间盒缓冲批化"区分（netem 取证断言 3 误报的共变量修复）。
+	// 非 Linux / h3 / 取不到底层 TCP 连接时字段整体缺省（n/a），客户端按
+	// 无共变量数据回退——绝不写 0 顶替（R-10 同款纪律）。
+	if retrans, ok := connTotalRetrans(r); ok {
+		buf = append(buf, `,"retrans_total":`...)
+		buf = strconv.AppendUint(buf, uint64(retrans), 10)
+	}
 	if inj != nil {
 		// 如实记录注入（truncate 到不了这里）：任何带 inject_applied 的
 		// summary 都不是测量数据，客户端/离线分析据此剔除。
