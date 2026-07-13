@@ -25,3 +25,6 @@ server/tls/
 Thumbs.db
 app/probe/build/
 
+
+# Kotlin build artifacts
+app/.kotlin/
