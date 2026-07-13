@@ -1,6 +1,7 @@
 package com.aneb.probe.ui.theme
 
 import com.aneb.probe.engine.KpiGrading
+import com.aneb.probe.ui.ResultFormat
 
 /**
  * AQS 四级分级 → 语义色 / 中文标签 / 用户友好标签的**单一事实来源**（展示层）。
@@ -41,14 +42,11 @@ enum class Grade(
         }
 
         /**
-         * AQS 分数 → [Grade]（门限 ≥85 优 / 70–85 良 / 55–70 可 / <55 差，KPI 文档 5.4）。
-         * 与 ResultFormat.aqsGrade 同门限（此处返回强类型枚举，供仪表/分数着色）。
+         * AQS 分数 → [Grade]（返回强类型枚举，供仪表/分数着色）。
+         * 门限**不在此重复定义**：委托 [ResultFormat.aqsGrade]（KPI 文档 5.4 的唯一门限锚点），
+         * 避免 85/70/55 数字散落两处产生漂移。
          */
-        fun fromAqsScore(score: Double): Grade = when {
-            score >= 85.0 -> Excellent
-            score >= 70.0 -> Good
-            score >= 55.0 -> Fair
-            else -> Poor
-        }
+        fun fromAqsScore(score: Double): Grade =
+            fromKey(ResultFormat.aqsGrade(score)) ?: Poor
     }
 }

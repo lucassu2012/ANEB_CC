@@ -1,0 +1,23 @@
+ANEB Phase3 UI Redesign 真机验证日志
+日期: 2026-07-13
+设备: 8MY0221126002537 (Huawei P40 Pro, ELS-AN00 / HWELS)
+目标: 验证 UI 重设计 (HEAD cff2faf) 在华为真机渲染无崩溃/无严重错位
+
+时间线:
+1. [OK] adb devices -l 确认在线: device product:ELS-AN00 model:ELS_AN00 transport_id:21
+2. [OK] git 状态: 分支 main, 工作树干净, HEAD=cff2faf "UI 重设计: SpeedTest 式双模式 + token 脉冲环(纯 UI 层)"
+       既有 APK (15:47) 早于 HEAD 提交 (15:51), 故重新构建。
+3. [OK] assembleDebug 构建成功 (app/gradlew :probe:assembleDebug), BUILD SUCCESSFUL in 4s
+       产物: app/probe/build/outputs/apk/debug/probe-debug.apk
+4. [部分] 记录设备初始状态: wifi_on=1, stay_on_while_plugged_in=0 (未做任何修改)
+5. [FAIL] adb install -r 执行中设备掉线 (2 分钟超时). 包 com.aneb.probe 仍在列表, 但版本未核实(可能旧版)。
+6. [FAIL] 设备无法重连: kill-server/start-server + 约 70s 轮询(2 轮)均无设备。
+       adb devices 持续为空。属物理层掉线(USB/锁屏断 ADB/授权失效), 需人工插拔/解锁/重新授权。
+
+结论: ok=false。设备在安装阶段物理掉线且软件无法恢复, 无法完成截图与 uiautomator 断言。
+
+设备红线核查: 全程未修改 WiFi (保持 wifi_on=1) 或 stay-awake (保持 0), 未跑蜂窝测量, 流量≈0。
+无需恢复操作(未改动任何设备设置)。
+
+后续建议: 人工重新连接并解锁设备/确认 USB 调试授权后, 重跑本验证脚本
+(assembleDebug 已就绪, 可直接 install -r 后逐屏取证)。

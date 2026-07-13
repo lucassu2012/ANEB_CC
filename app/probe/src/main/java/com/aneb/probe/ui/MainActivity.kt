@@ -397,8 +397,12 @@ class MainActivity : ComponentActivity() {
                 }
             },
             onShare = { model ->
-                // 分享成图存 MediaStore + ACTION_SEND（KEY=SHARE）；渲染/分享需 Context，故在 Activity 承载
-                ShareCard.saveAndShare(applicationContext, model)
+                // 分享成图：离屏 Canvas 渲染 + MediaStore 写盘属重 IO，必须离开主线程（与 doExport 同款）；
+                // 仅 startActivity 回主线程。KEY=SHARE。
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val uri = ShareCard.renderAndSave(applicationContext, model)
+                    withContext(Dispatchers.Main) { ShareCard.launchShare(this@MainActivity, uri) }
+                }
             },
         )
     }

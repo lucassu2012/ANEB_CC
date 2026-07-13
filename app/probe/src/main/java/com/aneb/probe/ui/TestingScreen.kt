@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +54,8 @@ fun TestingScreen(
     radioRat: String?,
 ) {
     val colors = AnebTheme.colors
-    val progress = TestProgressParser.parse(logs)
+    // logs 为 append-only SnapshotStateList，每新增一行都会重组；按行数记忆化避免逐帧全量重扫（O(n²)）
+    val progress = remember(logs.size) { TestProgressParser.parse(logs) }
     val animated by animateFloatAsState(
         targetValue = progress.fraction,
         animationSpec = tween(500),

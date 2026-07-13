@@ -40,11 +40,17 @@ object ShareCard {
     }
 
     /**
-     * 渲染 + 存 Pictures/ANEB + 拉起系统分享。返回 UI 可显示的状态串（同时打 SHARE 日志）。
+     * 重活：离屏渲染 + 存 Pictures/ANEB，返回图片 Uri（失败 null）。
+     * **必须在 IO 线程调用**（Canvas 渲染与 MediaStore 写盘）；不含 startActivity。
      */
-    fun saveAndShare(context: Context, model: Model): String {
-        val bmp = render(model)
-        val uri = saveToPictures(context, bmp)
+    fun renderAndSave(context: Context, model: Model): Uri? {
+        val uri = saveToPictures(context, render(model))
+        Log.i("AnebProbe", "SHARE_SAVE status=${if (uri != null) "ok" else "fail"} uri=${uri ?: "null"}")
+        return uri
+    }
+
+    /** 拉起系统分享（startActivity，**须在主线程**）。返回 UI 状态串。 */
+    fun launchShare(context: Context, uri: Uri?): String {
         val status: String
         if (uri != null) {
             val send = Intent(Intent.ACTION_SEND).apply {
