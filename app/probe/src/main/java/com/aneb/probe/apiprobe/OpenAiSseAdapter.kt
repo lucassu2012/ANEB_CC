@@ -122,7 +122,11 @@ class OpenAiSseAdapter(
     }
 
     private fun extractUsage(obj: kotlinx.serialization.json.JsonObject): Pair<Int?, Int?>? = try {
-        val usage = obj["usage"]?.jsonObject ?: return null
+        // Moonshot（api.moonshot.cn）的尾帧有时把 usage 内嵌在 choices[0] 内，
+        // 而非 OpenAI 规范的顶层——两处都查（顶层优先），否则 out_tokens 恒为 null。
+        val usage = obj["usage"]?.jsonObject
+            ?: obj["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("usage")?.jsonObject
+            ?: return null
         val pin = try {
             usage["prompt_tokens"]?.jsonPrimitive?.int
         } catch (e: Exception) {

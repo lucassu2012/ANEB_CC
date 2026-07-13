@@ -30,7 +30,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //     test_run 增 aqsV02* 并列出分列（阶段2 C03，无 C 数据时全 null=v0.1 语义不变）
     // v9：阶段3 GPS 路测——radio_sample 增 lat/lon/accuracyM 可空列（坐标只入本地，
     //     绝不进上报体；§9.1 隐私边界，路测开关默认关）
-    version = 9,
+    // v10：阶段3 SNI 双通道——test_run 增 sniReachable/sniReachMs/ipReachable/ipReachMs
+    //      可空列（run 前连接可达性探测：带 SNI vs bare-IP 的 TLS 握手结果+耗时，additive）
+    version = 10,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -166,6 +168,31 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v9 → v10 的全部语句（阶段3 SNI 双通道，additive；JVM 单测锚定存在性与 additive-only）：
+         * test_run 增 4 个连接可达性列——sniReachable/ipReachable（TEXT，TLS 握手结果
+         * ok/rst/timeout/error:*）与 sniReachMs/ipReachMs（INTEGER，探测耗时 ms）。全部
+         * **可空、无默认值**（新列 Kotlin 侧默认 null），做法同 [MIGRATION_8_9]。历史行
+         * 与未探测（如 WiFi 路径）新列值 NULL＝"当时未探测"，与 R-10 null 语义一致。
+         */
+        internal val MIGRATION_9_10_SQL: List<String> = listOf(
+            "ALTER TABLE `test_run` ADD COLUMN `sniReachable` TEXT",
+            "ALTER TABLE `test_run` ADD COLUMN `sniReachMs` INTEGER",
+            "ALTER TABLE `test_run` ADD COLUMN `ipReachable` TEXT",
+            "ALTER TABLE `test_run` ADD COLUMN `ipReachMs` INTEGER",
+        )
+
+        /**
+         * v9 → v10（阶段3 SNI 双通道，additive）：只加列不动数据。人工验证步骤同
+         * [MIGRATION_6_7] KDoc（覆盖安装后既有 run 可见、.schema 输出含新列、
+         * logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_10_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -175,7 +202,7 @@ abstract class AnebDatabase : RoomDatabase() {
                 )
                     // v6 起 schema 变更必须写显式 Migration（历史数据是取证资产，
                     // 不可静默丢弃）——v6→v7 / v7→v8 / v8→v9 见上方（均 additive）。
-                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()
                     .build()

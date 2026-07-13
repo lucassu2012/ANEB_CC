@@ -30,6 +30,8 @@
 
 | D-21 | 2026-07-13 | **Cronet QUIC 的公共信任链约束**：cronet-embedded 143 对 QUIC 强制 is_issued_by_known_root 校验（NetLog 逐帧证据：UDP 通、握手推进到证书阶段、客户端以 certificate_unknown 收连接退 h2），自签/私有 CA 即使装入 NSC 信任锚也无法让 h3 协商成功——TCP/TLS 不受此限（A 组 h2 正常）。**拒绝用 MockCertVerifier 关校验（造假红线）**。结论：①本地自签环境只能验证 A/B 机制与 fallback 语义（已 13 单测锚定+A 组端到端）；②E-01 公网 QUIC A/B 需要域名+公共 CA 证书（Let's Encrypt），新增外部依赖 E-06；③A/B 结论仅在 Cronet 栈内 TCP vs QUIC 对比得出，与 OkHttp 主测量数据不互比（栈间差异 KDoc 声明） | evidence/phase2/cronet_ab_e2e_20260713.log NetLog 诊断 |
 
+| D-22 | 2026-07-13 | **SNI 双通道测量决策**（应对 R-33 实测中间盒行为）：真机首测实证中国电信 5G SA 对 `*.sslip.io`/`*.nip.io` 主机名注入 SNI-keyed TLS RST（bare-IP 同路径 TLS 可完成、真实域名 api.moonshot.cn 放行），经 sslip.io 主机名的 E-01 蜂窝取证/AB/连续性被整体阻断。决策：①**蜂窝主通道 = bare-IP + IP-SAN 自签证书**（OkHttp 主测量不需 known-root，绕过 SNI-RST 采集真实蜂窝 KPI）；②**保留带 SNI 通道做连接成功率对比**，落为新候选指标 REACH（按 {SNI 主机名, bare-IP, 协议栈} 分组的 TLS 握手成功率，KPI 文档 5.5）——SNI-RST 由此从"测量障碍"转为"可量化测量维度"；③**Cronet QUIC 蜂窝受 known-root（D-21）+ SNI 双重约束**，单独观测不并入 OkHttp 主线；④与 P3-C11（按 TLS 栈指纹的 RST）同族记录为中间盒 TLS 干预两种触发键。**研究正当性边界**：自有服务器 + 自有设备 + 自有 SIM 的授权网络性能测量，SNI-RST 作为量化维度纳入、bare-IP 通道采真实 KPI，非规避审查 | evidence/phase3/realdevice_first_campaign_20260713.log（step3 HEADLINE FINDING）；R-33；P3-C11（evidence/phase3/STATUS.json）；D-21 |
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。

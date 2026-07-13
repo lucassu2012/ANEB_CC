@@ -4,6 +4,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"log"
 	"net/http"
@@ -56,8 +57,12 @@ func main() {
 	// 反斜杠不是路径分隔符，`..\profiles` 会被当成字面文件名导致启动失败。
 	profilesDir := flag.String("profiles", "../profiles", "profiles directory (versioned scenario JSON)")
 	dataDir := flag.String("data", "./data", "data directory (results JSONL)")
-	tlsCert := flag.String("tls-cert", "", "TLS certificate file (optional)")
+	tlsCert := flag.String("tls-cert", "", "TLS certificate file (optional; default/LE cert for named SNI)")
 	tlsKey := flag.String("tls-key", "", "TLS key file (optional)")
+	// SNI 双通道：-tls-cert-ip/-tls-key-ip 指向自签 IP-SAN 证书（含 IP:120.79.148.0），
+	// 供蜂窝 bare-IP 通道。缺省则 bare-IP 分支回退默认证书并日志告警（fail-open）。
+	tlsCertIP := flag.String("tls-cert-ip", "", "TLS certificate file for bare-IP/empty-SNI (IP-SAN); optional")
+	tlsKeyIP := flag.String("tls-key-ip", "", "TLS key file for bare-IP/empty-SNI; optional")
 	allowInject := flag.Bool("allow-inject", false,
 		"enable /stream fault-injection hooks (&inject=...) — test rigs only, NEVER in production")
 	h3Enabled := flag.Bool("h3", false,
@@ -84,6 +89,13 @@ func main() {
 			log.Fatalf("tls: %v", err)
 		}
 	}
+	if err := validateIPCertPair(*tlsCertIP, *tlsKeyIP); err != nil {
+		log.Fatalf("tls: %v", err)
+	}
+	// -tls-cert-ip 只在启用 TLS（给了默认证书）时有意义。
+	if (*tlsCertIP != "" || *tlsKeyIP != "") && (*tlsCert == "" || *tlsKey == "") {
+		log.Fatalf("tls: -tls-cert-ip/-tls-key-ip require -tls-cert/-tls-key (SNI selection needs a default cert)")
+	}
 
 	profiles, err := loadProfiles(*profilesDir)
 	if err != nil {
@@ -104,9 +116,20 @@ func main() {
 	//   - 刻意不设 WriteTimeout：流式端点（S2 流 ~90s）会被整连接写超时截断，
 	//     交给客户端 readTimeout 兜底；/stream pacing 循环内另有 r.Context()
 	//     断开检测，客户端断开即退出。
+	// 启用 TLS 时构建 SNI 分流的 tls.Config（GetCertificate 回调）；TCP 与 h3 共用。
+	var tlsConf *tls.Config
+	if *tlsCert != "" && *tlsKey != "" {
+		tc, err := newTLSConfig(*tlsCert, *tlsKey, *tlsCertIP, *tlsKeyIP)
+		if err != nil {
+			log.Fatalf("tls: %v", err)
+		}
+		tlsConf = tc
+	}
+
 	srv := &http.Server{
 		Addr:              *addr,
 		Handler:           a.tcpHandler(altSvc),
+		TLSConfig:         tlsConf,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		// P3-C05：把底层连接塞进每请求 context，供 /stream 流末尾对同一条
@@ -122,15 +145,16 @@ func main() {
 	// TCP 侧照旧（仅多 Alt-Svc/X-Aneb-Proto 头）。任一侧监听失败都整体
 	// 退出——半瘸状态（只剩 TCP 却广告着 h3）会污染 A/B 分组。
 	if *h3Enabled {
-		h3srv := a.newH3Server(*addr)
+		h3srv := a.newH3Server(*addr, tlsConf)
 		go func() {
-			log.Fatalf("h3 server: %v", h3srv.ListenAndServeTLS(*tlsCert, *tlsKey))
+			log.Fatalf("h3 server: %v", h3srv.ListenAndServe())
 		}()
 		log.Printf("h3: HTTP/3 enabled on udp%s (Alt-Svc: %s)", *addr, altSvc)
 	}
 
 	if *tlsCert != "" && *tlsKey != "" {
-		log.Fatal(srv.ListenAndServeTLS(*tlsCert, *tlsKey))
+		// TLSConfig 已含 GetCertificate（SNI 分流），证书文件参数留空。
+		log.Fatal(srv.ListenAndServeTLS("", ""))
 	} else {
 		log.Printf("WARNING: no -tls-cert/-tls-key given, serving PLAINTEXT HTTP — dev only, do not use for evidential runs")
 		log.Fatal(srv.ListenAndServe())

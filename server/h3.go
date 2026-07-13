@@ -61,10 +61,15 @@ func (a *app) h3Handler() http.Handler {
 // newH3Server 构造与 TCP 侧同端口（UDP）的 http3.Server。
 // 刻意不设 IdleTimeout 之类额外限制：与 TCP 侧一样，流式端点（S2 流 ~90s）
 // 不允许被整连接超时截断，断开检测交给 handler 内的 r.Context()。
-func (a *app) newH3Server(addr string) *http3.Server {
+//
+// tlsConf 复用 TCP 侧同一份带 SNI 分流 GetCertificate 的 tls.Config——QUIC 的
+// 证书选择走同一回调（http3.ConfigureTLSConfig 克隆时保留 GetCertificate），
+// 因此 h3 的 bare-IP/具名 SNI 分流与 TCP 完全一致。
+func (a *app) newH3Server(addr string, tlsConf *tls.Config) *http3.Server {
 	return &http3.Server{
-		Addr:    addr,
-		Handler: a.h3Handler(),
+		Addr:      addr,
+		Handler:   a.h3Handler(),
+		TLSConfig: tlsConf,
 	}
 }
 

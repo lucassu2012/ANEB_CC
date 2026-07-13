@@ -24,6 +24,17 @@ $SshKey  = Join-Path $env:USERPROFILE '.ssh\aneb_e01'
 $Remote  = 'root@120.79.148.0'
 $SshOpts = @('-i', $SshKey, '-o', 'BatchMode=yes')
 
+# SNI dual-path (phase 3): self-signed IP-SAN cert+key (IP:120.79.148.0) for the
+# bare-IP cellular channel, installed to /opt/aneb/tls/ip/. Must be the SAME cert
+# whose public half is the client trust anchor (app debug res/raw/aneb_ip_ca.pem).
+# Default source dir = server/tls/ip (git-ignored); generate once with:
+#   go run ./tools/gencert -mode=ip -ip=120.79.148.0 -out <dir>
+# then copy aneb_ip_cert.pem -> app .../res/raw/aneb_ip_ca.pem. When absent, the
+# IP-SAN stage is skipped (server falls back to default cert on bare-IP + logs a warning).
+$IpCertDir = Join-Path $ServerDir 'tls\ip'
+$IpCert    = Join-Path $IpCertDir 'aneb_ip_cert.pem'
+$IpKey     = Join-Path $IpCertDir 'aneb_ip_key.pem'
+
 # --- 1. cross-compile -------------------------------------------------------
 Write-Host '== [1/3] cross-compile linux/amd64 =='
 Push-Location $ServerDir
@@ -44,6 +55,18 @@ if ($LASTEXITCODE -ne 0) { throw 'scp profiles failed' }
 & scp @SshOpts $Unit "${Remote}:/tmp/aneb-server.service"
 if ($LASTEXITCODE -ne 0) { throw 'scp service file failed' }
 
+# optional IP-SAN cert+key for the bare-IP cellular channel
+$HaveIpCert = (Test-Path $IpCert) -and (Test-Path $IpKey)
+if ($HaveIpCert) {
+    Write-Host '   shipping IP-SAN cert+key (bare-IP channel)'
+    & scp @SshOpts $IpCert "${Remote}:/tmp/aneb_ip_cert.pem"
+    if ($LASTEXITCODE -ne 0) { throw 'scp IP-SAN cert failed' }
+    & scp @SshOpts $IpKey "${Remote}:/tmp/aneb_ip_key.pem"
+    if ($LASTEXITCODE -ne 0) { throw 'scp IP-SAN key failed' }
+} else {
+    Write-Host ("   WARNING: no IP-SAN cert at {0} -- bare-IP channel will use default cert (SNI dual-path degraded)" -f $IpCertDir)
+}
+
 # --- 3. remote idempotent install -------------------------------------------
 Write-Host '== [3/3] remote install =='
 $remoteScript = @'
@@ -55,9 +78,19 @@ if ! id -u aneb >/dev/null 2>&1; then
 else
     echo "user aneb already exists"
 fi
-mkdir -p /opt/aneb/bin /opt/aneb/profiles /opt/aneb/data
+mkdir -p /opt/aneb/bin /opt/aneb/profiles /opt/aneb/data /opt/aneb/tls/ip
 install -m 755 /tmp/aneb-server-linux /opt/aneb/bin/aneb-server
 mv -f /tmp/s1_chat.json /tmp/s2_coding_agent.json /tmp/s3_multimodal.json /opt/aneb/profiles/
+# SNI dual-path: install IP-SAN cert+key for the bare-IP cellular channel if shipped
+# (key 600, cert 644). Absent => keep whatever is already there (or none => server warns).
+if [ -f /tmp/aneb_ip_cert.pem ] && [ -f /tmp/aneb_ip_key.pem ]; then
+    install -m 644 /tmp/aneb_ip_cert.pem /opt/aneb/tls/ip/cert.pem
+    install -m 600 /tmp/aneb_ip_key.pem  /opt/aneb/tls/ip/key.pem
+    rm -f /tmp/aneb_ip_cert.pem /tmp/aneb_ip_key.pem
+    echo "installed IP-SAN cert /opt/aneb/tls/ip/{cert,key}.pem"
+else
+    echo "no IP-SAN cert shipped; leaving /opt/aneb/tls/ip as-is"
+fi
 chown -R aneb:aneb /opt/aneb
 install -m 644 /tmp/aneb-server.service /etc/systemd/system/aneb-server.service
 rm -f /tmp/aneb-server-linux

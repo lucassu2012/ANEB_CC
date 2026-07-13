@@ -92,6 +92,26 @@ data: [DONE]""",
     }
 
     @Test
+    fun `moonshot usage nested inside choices0 extracted`() {
+        // Moonshot 变体：尾帧把 usage 内嵌在 choices[0] 内（非顶层）——
+        // 修复前 extractUsage 只看顶层 obj["usage"]，out_tokens 恒 null。
+        val stream = """
+data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"c1","choices":[{"index":0,"delta":{"content":"你好"},"finish_reason":null}]}
+
+data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"stop","usage":{"prompt_tokens":7,"completion_tokens":11,"total_tokens":18}}]}
+
+data: [DONE]
+""".trimIndent()
+        val res = adapter.parse(SseFixtures.toRawEvents(stream))
+        assertEquals(7, res.inputTokens)
+        assertEquals(11, res.outputTokens)
+        assertEquals("stop", res.stopReason)
+        assertEquals(0, res.parseErrors)
+    }
+
+    @Test
     fun `sameReadBatch flag propagates`() {
         val res = adapter.parse(
             SseFixtures.toRawEvents(SseFixtures.OPENAI_STREAM, sameReadBatchAt = setOf(2, 3))

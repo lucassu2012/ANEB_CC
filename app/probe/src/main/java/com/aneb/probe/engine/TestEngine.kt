@@ -18,6 +18,7 @@ import com.aneb.probe.net.BoundNetwork
 import com.aneb.probe.net.GuardException
 import com.aneb.probe.net.NetGuard
 import com.aneb.probe.net.PathMonitor
+import com.aneb.probe.net.ReachabilityProbe
 import com.aneb.probe.radio.LocationTagger
 import com.aneb.probe.radio.RadioCollector
 import com.aneb.probe.radio.RadioSample
@@ -124,6 +125,24 @@ class TestEngine(private val context: Context) {
         bound?.let { log("NET_BIND transport=$transportStr snapshot=${it.snapshot.capabilities.replace(' ', '_')}") }
 
         val client = AnebClient(bound)
+
+        // ---------------- SNI 双通道连接可达性探测（阶段3，additive best-effort） ----------------
+        // run 前对同一 E-01 分别用 {带 SNI 主机名, bare-IP} 各发 1 次 /serverinfo，
+        // 把电信 SNI-keyed TLS RST 变成可量化维度（带 SNI vs bare-IP 成功率）。
+        // 仅当目标是 E-01（sslip 主机名或 bare-IP）时探测；非 E-01 保持 null（未探测）。
+        // 探测失败绝不影响测量（runCatching 兜底）；WiFi/公共域名路径行为不变。
+        var reach: ReachabilityProbe.DualReach? = null
+        ReachabilityProbe.deriveE01Pair(base)?.let { (sniBase, ipBase) ->
+            reach = runCatching {
+                ReachabilityProbe(bound).probeDual(sniBase, ipBase)
+            }.getOrNull()
+            reach?.let {
+                log(
+                    "REACH sni=${it.sni.status} sni_ms=${it.sni.elapsedMs ?: "null"} " +
+                        "ip=${it.ip.status} ip_ms=${it.ip.elapsedMs ?: "null"}"
+                )
+            }
+        }
 
         // ---------------- profiles（服务端拉取，assets 兜底） ----------------
         val loaded = try {
@@ -378,6 +397,11 @@ class TestEngine(private val context: Context) {
                 aqsV02ContinuityStartedAtEpochMs = continuitySrc?.startedAtEpochMs,
                 aqsV02C1DropRate = continuitySrc?.c1DropRate,
                 aqsV02C2RecoveryMs = continuitySrc?.c2RecoveryMsP50,
+                // SNI 双通道连接可达性（run 前探测；非 E-01 或探测失败保持 null）
+                sniReachable = reach?.sni?.status,
+                sniReachMs = reach?.sni?.elapsedMs,
+                ipReachable = reach?.ip?.status,
+                ipReachMs = reach?.ip?.elapsedMs,
             )
             val body = ResultReporter.build(runEntity, scenarioReports, aqsResult)
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size

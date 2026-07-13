@@ -58,6 +58,18 @@ data class TestRun(
     val aqsV02C1DropRate: Double? = null,
     /** v0.2 所用 C2 切换恢复时间 P50（ms） */
     val aqsV02C2RecoveryMs: Double? = null,
+    // ---- SNI 双通道连接可达性（阶段3；v10 additive 列，默认 null=未探测） ----
+    // run 前对同一 E-01 分别用 {带 SNI 主机名, bare-IP} 各发 1 次 /serverinfo，
+    // 把电信 NR-SA 的 SNI-keyed TLS RST 变成可量化维度（带 SNI vs bare-IP 成功率）。
+    // 取值 ok / rst / timeout / error:<摘要>；未探测（如 WiFi 路径不做）保持 null。
+    /** 带 SNI 主机名（sslip.io）通道 TLS 握手结果：ok/rst/timeout/error:* 或 null（未探测） */
+    val sniReachable: String? = null,
+    /** 带 SNI 通道探测耗时（ms）；失败或未探测记 null（禁 0 哨兵，R-10） */
+    val sniReachMs: Long? = null,
+    /** bare-IP 通道 TLS 握手结果：ok/rst/timeout/error:* 或 null（未探测） */
+    val ipReachable: String? = null,
+    /** bare-IP 通道探测耗时（ms）；失败或未探测记 null */
+    val ipReachMs: Long? = null,
 )
 
 @Entity(

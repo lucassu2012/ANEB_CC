@@ -20,4 +20,15 @@
             <certificates src="system" />
         </trust-anchors>
     </domain-config>
+    <!-- 阶段3 SNI 双通道：E-01 bare-IP 蜂窝通道信任自签 IP-SAN CA（含 IP:120.79.148.0，
+         server/tools/gencert -mode=ip 生成）。该路径为 https（:8443），不需明文。
+         sslip.io 公共域名（LE 证书）走系统根，无需在此列（release 变体不带本文件）。
+         保留 system 锚：将来换正规 IP 证书不必改配置。 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">120.79.148.0</domain>
+        <trust-anchors>
+            <certificates src="@raw/aneb_ip_ca" />
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

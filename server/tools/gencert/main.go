@@ -26,8 +26,13 @@ import (
 )
 
 func main() {
-	outDir := flag.String("out", ".", "output directory for aneb_local_cert.pem / aneb_local_key.pem")
+	outDir := flag.String("out", ".", "output directory for the generated PEM pair")
 	days := flag.Int("days", 730, "validity in days")
+	// mode=local（默认）：既有本地联调证书（SAN IP:10.0.2.2/127.0.0.1 + DNS:localhost）。
+	// mode=ip：阶段 3 bare-IP 蜂窝通道自签 IP-SAN 证书（SAN IP:<-ip>），
+	//   兼作叶证书（服务端 -tls-cert-ip）与客户端信任锚（debug res/raw/aneb_ip_ca.pem）。
+	mode := flag.String("mode", "local", "certificate mode: local (dev loopback SAN) or ip (bare-IP IP-SAN)")
+	ipStr := flag.String("ip", "120.79.148.0", "public IP for IP-SAN in -mode=ip (E-01 bare-IP cellular path)")
 	flag.Parse()
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -42,7 +47,6 @@ func main() {
 
 	tmpl := x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "ANEB Local Dev CA (P2-C05)", Organization: []string{"ANEB"}},
 		NotBefore:    time.Now().Add(-1 * time.Hour),
 		NotAfter:     time.Now().Add(time.Duration(*days) * 24 * time.Hour),
 		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment |
@@ -50,8 +54,27 @@ func main() {
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		IsCA:                  true, // 自签叶=信任锚（NSC <certificates src="@raw/...">）
-		IPAddresses:           []net.IP{net.ParseIP("10.0.2.2"), net.ParseIP("127.0.0.1")},
-		DNSNames:              []string{"localhost"},
+	}
+
+	var certName, keyName, sanDesc string
+	switch *mode {
+	case "local":
+		tmpl.Subject = pkix.Name{CommonName: "ANEB Local Dev CA (P2-C05)", Organization: []string{"ANEB"}}
+		tmpl.IPAddresses = []net.IP{net.ParseIP("10.0.2.2"), net.ParseIP("127.0.0.1")}
+		tmpl.DNSNames = []string{"localhost"}
+		certName, keyName = "aneb_local_cert.pem", "aneb_local_key.pem"
+		sanDesc = "IP:10.0.2.2, IP:127.0.0.1, DNS:localhost"
+	case "ip":
+		ip := net.ParseIP(*ipStr)
+		if ip == nil {
+			log.Fatalf("mode=ip: invalid -ip %q", *ipStr)
+		}
+		tmpl.Subject = pkix.Name{CommonName: "ANEB IP-SAN CA (" + *ipStr + ")", Organization: []string{"ANEB"}}
+		tmpl.IPAddresses = []net.IP{ip}
+		certName, keyName = "aneb_ip_cert.pem", "aneb_ip_key.pem"
+		sanDesc = "IP:" + *ipStr
+	default:
+		log.Fatalf("unknown -mode %q (want local|ip)", *mode)
 	}
 
 	der, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, &key.PublicKey, key)
@@ -66,13 +89,13 @@ func main() {
 	if err := os.MkdirAll(*outDir, 0o755); err != nil {
 		log.Fatalf("mkdir %s: %v", *outDir, err)
 	}
-	certPath := filepath.Join(*outDir, "aneb_local_cert.pem")
-	keyPath := filepath.Join(*outDir, "aneb_local_key.pem")
+	certPath := filepath.Join(*outDir, certName)
+	keyPath := filepath.Join(*outDir, keyName)
 
 	writePEM(certPath, "CERTIFICATE", der, 0o644)
 	writePEM(keyPath, "EC PRIVATE KEY", keyDER, 0o600)
-	log.Printf("written %s and %s (SAN: IP:10.0.2.2, IP:127.0.0.1, DNS:localhost; %d days)",
-		certPath, keyPath, *days)
+	log.Printf("written %s and %s (mode=%s SAN: %s; %d days)",
+		certPath, keyPath, *mode, sanDesc, *days)
 }
 
 func writePEM(path, blockType string, der []byte, mode os.FileMode) {
