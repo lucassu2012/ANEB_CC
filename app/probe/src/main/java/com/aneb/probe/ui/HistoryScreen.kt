@@ -41,6 +41,7 @@ import kotlin.math.roundToInt
 fun HistoryScreen(
     runs: List<TestRun>,
     onOpen: (String) -> Unit,
+    onGenerateReport: () -> Unit,
     onBack: () -> Unit,
 ) {
     val colors = AnebTheme.colors
@@ -53,6 +54,19 @@ fun HistoryScreen(
             BackButton(onBack)
             Spacer(Modifier.width(10.dp))
             Text("测试历史 (${runs.size})", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.ink)
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "生成报告",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.brand2,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(colors.surfaceMuted)
+                    .border(1.dp, colors.hairline, RoundedCornerShape(9.dp))
+                    .clickable(onClick = onGenerateReport)
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+            )
         }
         if (runs.isEmpty()) {
             Text("暂无历史记录", color = colors.muted, modifier = Modifier.padding(top = 24.dp))

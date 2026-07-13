@@ -34,7 +34,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
@@ -59,6 +63,15 @@ import java.util.concurrent.atomic.AtomicReference
  * DRIVE_TEST（GPS 路测开启时的打点器状态；坐标只入本地，绝不进上报体 §9.1）。
  */
 class TestEngine(private val context: Context) {
+
+    /**
+     * 实时分层遥测只读通道（观测通道，与测量记录口径解耦，不参与测量，R-16）。
+     * 由 run() 内独立采样协程（Dispatchers.Default, ~100ms 节流）读取引擎既有已记录状态
+     * 派生并 conflated 发射；run 结束/取消时复位为 [LiveTelemetry.EMPTY]。UI 只读观测，
+     * 绝不回压测量热路径——发射只在采样协程，不在 SSE 读线程/计时回调内进行。
+     */
+    private val _telemetry = MutableStateFlow(LiveTelemetry.EMPTY)
+    val telemetry: StateFlow<LiveTelemetry> = _telemetry.asStateFlow()
 
     enum class Mode { QUICK, FORENSIC }
 
@@ -164,6 +177,8 @@ class TestEngine(private val context: Context) {
         // ---------------- 全程监控（R-01/R-12/R-16 + RadioCollector 1Hz） ----------------
         val envBuf = ConcurrentLinkedQueue<EnvEvent>()
         val radioBuf = ConcurrentLinkedQueue<RadioSample>()
+        // 实时遥测投影源（观测通道，非测量）：引擎在既有记录点追加式填充，采样协程只读。
+        val telemetrySource = TelemetrySource()
         val invalidReason = AtomicReference<String?>(null)
         val currentScenario = AtomicReference<Job?>(null)
         fun invalidate(reason: String) {
@@ -216,7 +231,20 @@ class TestEngine(private val context: Context) {
             val shareJob = kotlinx.coroutines.SupervisorJob(coroutineContext[Job])
             radioShareJob = shareJob
             val radioFlow = radio.start(kotlinx.coroutines.CoroutineScope(coroutineContext + shareJob))
-            collectors += launch { radioFlow.collect { radioBuf.add(it) } }
+            // 最近无线样本的 O(1) 只读引用：随 radioBuf.add 同步更新，供采样协程读取，
+            // 避免 radioBuf.lastOrNull() 对 ConcurrentLinkedQueue 的 O(n) 全量遍历（取证 run 更明显）。
+            val latestRadio = AtomicReference<RadioSample?>(null)
+            collectors += launch { radioFlow.collect { radioBuf.add(it); latestRadio.set(it) } }
+
+            // ---- 实时遥测采样协程（观测通道，非测量；Dispatchers.Default, ~100ms 节流）----
+            // 只读 latestRadio 引用（O(1)，不消费队列）+ telemetrySource 投影 → derive → conflated
+            // 发射。绝不在 SSE 读线程/计时回调发射（R-16）；随 collectors 在 finally 统一取消。
+            collectors += launch(Dispatchers.Default) {
+                while (true) {
+                    _telemetry.value = LiveTelemetry.derive(telemetrySource.read(latestRadio.get()))
+                    delay(TELEMETRY_SAMPLE_MS)
+                }
+            }
 
             // ---------------- 场景循环（快测 1 遍 / 取证 3 遍拉丁方轮转） ----------------
             val ids = ProfileParser.REQUIRED_IDS
@@ -227,6 +255,12 @@ class TestEngine(private val context: Context) {
             val runner = ScenarioRunner(client)
             val kpiByScenario = LinkedHashMap<String, MutableList<KpiResult>>()
             var orderIndex = 0
+            // 实时遥测累计投影（观测通道，非测量）：总场景数用于进度分母；ITL/token 累计
+            // 与既有 KPI 同源，只是节流暴露给 UI。
+            val totalScenarios = rounds.sumOf { it.size }.coerceAtLeast(1)
+            val liveItl = ArrayList<Double>()
+            var liveTokens = 0
+            var liveTokenElapsedSec = 0.0
 
             runLoop@ for ((round, order) in rounds.withIndex()) {
                 orderRecord.add(order.joinToString(",") { ids[it] })
@@ -235,6 +269,10 @@ class TestEngine(private val context: Context) {
                     val profile = loaded.profiles.getValue(ids[pos])
                     val scenarioKey = "${profile.profileId}#$round"
                     log("SCENARIO_START scenario=$scenarioKey round=$round order_index=$orderIndex")
+                    // 遥测投影：进度阶段（观测通道，非测量）
+                    telemetrySource.update {
+                        it.copy(phase = scenarioKey, fraction = orderIndex.toDouble() / totalScenarios)
+                    }
                     val outcome = ScenarioRunner.ScenarioOutcome(profile, scenarioKey)
                     val netSnap = bound?.snapshot ?: autoNetSnapshot(context)
                     var engineError: String? = null
@@ -275,6 +313,35 @@ class TestEngine(private val context: Context) {
                     val input = ScenarioKpi.buildKpiInput(outcome, external)
                     val kpi = KpiCalculator.calculate(input)
                     kpiByScenario.getOrPut(profile.profileId) { mutableListOf() }.add(kpi)
+
+                    // ---- 实时遥测投影（观测通道，非测量；run 主协程、非热路径）----
+                    // ITL 与既有直方图/KPI 同源（correctedItlSamplesMs）；RTT 同源首个
+                    // clock_sync；upload goodput 同源 U1 终点。只读 outcome，不改任何落库/计时。
+                    liveItl.addAll(ScenarioKpi.correctedItlSamplesMs(input.tokenSamples, input.pauseSeqs))
+                    val evAll = outcome.streams.flatMap { it.result.stream?.events ?: emptyList() }
+                    liveTokens += evAll.size
+                    if (evAll.size >= 2) {
+                        val arr = evAll.map { it.arrivalNanos }
+                        liveTokenElapsedSec += (arr.max() - arr.min()) / 1e9
+                    }
+                    val liveUpMbps = outcome.uploads.lastOrNull()?.let { up ->
+                        up.durationNanos?.let { d -> if (d > 0) up.profileBytes * 8.0 / (d / 1e9) / 1e6 else null }
+                    }
+                    val liveRttMs = outcome.clockSyncs.firstOrNull()?.samples.orEmpty()
+                        .filter { !it.warmup && it.result.error == null && it.result.rttUs != null }
+                        .map { it.result.rttUs!! / 1000.0 }
+                    val liveTtft = outcome.streams.lastOrNull()?.ttftMs
+                    telemetrySource.update {
+                        it.copy(
+                            itlAllMs = ArrayList(liveItl),
+                            tokensReceived = liveTokens,
+                            tokenElapsedSec = liveTokenElapsedSec.takeIf { s -> s > 0.0 },
+                            ttftMs = liveTtft ?: it.ttftMs,
+                            rttSamplesMs = liveRttMs,
+                            latestUpMbps = liveUpMbps ?: it.latestUpMbps,
+                            fraction = (orderIndex + 1).toDouble() / totalScenarios,
+                        )
+                    }
 
                     // ---- skew（C06/R-22：双 clock_sync 线性插值轨迹 + 漂移率入库） ----
                     val track = outcome.offsetTrack()
@@ -347,6 +414,8 @@ class TestEngine(private val context: Context) {
             val composite = AqsInputMapper.map(kpiByScenario)
             val aqsResult = AqsScorer.score(composite)
             aqs = aqsResult
+            // 遥测投影：run 收尾粗 AQS（观测通道，非测量；null 时不覆盖）
+            telemetrySource.update { it.copy(aqsRunning = aqsResult.score ?: it.aqsRunning, fraction = 1.0) }
             log("AQS_INPUT_MAP map=${AqsInputMapper.MAPPING_DESCRIPTION}")
             log(
                 "AQS run_id=$runId score=${aqsResult.score?.let { "%.1f".format(it) } ?: "null"} " +
@@ -439,6 +508,9 @@ class TestEngine(private val context: Context) {
         } finally {
             collectors.forEach { it.cancel() }
             radioShareJob?.cancel() // C07：shareIn 共享协程收尸，run flow 才能正常完成
+            // 遥测观测通道复位（run 结束/取消）：采样协程已随 collectors 取消，最终态置空
+            telemetrySource.reset()
+            _telemetry.value = LiveTelemetry.EMPTY
             pathWatch.stop()
             envMonitors.stop()
             locationTagger?.stop()
@@ -737,6 +809,9 @@ class TestEngine(private val context: Context) {
 
     companion object {
         const val KPI_SET = "agent-qoe-kpi-v0.2"
+
+        /** 实时遥测采样节流间隔（ms）：观测通道节流上限，不影响任何测量计时 */
+        private const val TELEMETRY_SAMPLE_MS = 100L
 
         /** 与 MainActivity 的 logcat 镜像同 tag，模拟器自动化统一从该 tag 提取 */
         private const val LOG_TAG = "AnebProbe"

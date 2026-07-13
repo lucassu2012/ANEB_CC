@@ -29,10 +29,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.engine.LiveTelemetry
 import com.aneb.probe.ui.components.GaugeMode
+import com.aneb.probe.ui.components.LiveSparkline
 import com.aneb.probe.ui.components.PulseGauge
+import com.aneb.probe.ui.components.SectionLabel
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
+import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * 测试中屏（设计稿 §01 测试中）：脉冲环 Running（progress 由 run 进度驱动）+ 阶段标签
@@ -42,16 +47,15 @@ import com.aneb.probe.ui.theme.Grade
  * ORDER/AQS/RUN_END）派生——**不改 TestEngine 输出格式**（UI 层只读既有合同字段）。
  * RSRP/制式取不到时显 "…"（[radioLabel] 由 MainActivity 注入 RadioCollector 快照）。
  *
- * @param logs run 日志（append-only，MainActivity 提供）
- * @param radioRsrp 无线信号 RSRP 文本（如 "−93"）；取不到 null
- * @param radioRat 制式文本（如 "5G SA"）；取不到 null
+ * @param logs run 日志（append-only，MainActivity 提供）——驱动进度环与阶段名（既有解析）
+ * @param telemetry 实时分层遥测（TestEngine.telemetry StateFlow 的最新投影）——驱动两层实时区。
+ *   只读观测通道，缺失字段一律 null → 显 "…"（R-10：绝不以 0 顶替）。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TestingScreen(
     logs: List<String>,
-    radioRsrp: String?,
-    radioRat: String?,
+    telemetry: LiveTelemetry,
 ) {
     val colors = AnebTheme.colors
     // logs 为 append-only SnapshotStateList，每新增一行都会重组；按行数记忆化避免逐帧全量重扫（O(n²)）
@@ -82,7 +86,8 @@ fun TestingScreen(
             PulseGauge(
                 mode = GaugeMode.Running,
                 grade = Grade.Good,
-                score = null,
+                // 边测边合成的粗 AQS（run 收尾才有）；未合成显 "—"（不顶 0）
+                score = telemetry.aqsRunning?.roundToInt(),
                 progress = animated,
                 stallPositions = progress.stallTickPositions,
             )
@@ -101,21 +106,48 @@ fun TestingScreen(
         Spacer(Modifier.height(14.dp))
         TokenStreamStrip(fill = animated, stalls = progress.stallCount)
 
-        Spacer(Modifier.height(16.dp))
+        // ---------------- AI 业务层（token 生成质量；ITL 波形是"冲击力"核心） ----------------
+        SectionLabel("AI 业务层", trailing = "token 生成")
+        // 实时 ITL 波形：卡顿值（>LIVE_STALL_MS）高亮 poor 色；无样本显基线（不顶 0）
+        LiveSparkline(
+            values = telemetry.itlRecentMs,
+            barColor = colors.good,
+            poorThresholdMs = LiveTelemetry.LIVE_STALL_MS,
+        )
+        Spacer(Modifier.height(8.dp))
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             maxItemsInEachRow = 2,
         ) {
-            LiveMini("首字延迟", progress.ttftMs?.let { "${it.toInt()}ms" } ?: "…", Modifier.weight(1f))
-            LiveMini("卡顿", "${progress.stallCount} 次", Modifier.weight(1f))
-            LiveMini("信号 RSRP", radioRsrp ?: "…", Modifier.weight(1f))
-            LiveMini("制式", radioRat ?: "…", Modifier.weight(1f))
+            LiveMini("首字延迟", ms(telemetry.ttftMs), Modifier.weight(1f))
+            LiveMini("ITL 中位", ms(telemetry.itlMedianMs), Modifier.weight(1f))
+            LiveMini("卡顿累计", "${telemetry.stallCount} 次", Modifier.weight(1f))
+            LiveMini("token 速率", telemetry.tokenRatePerSec?.let { "${it.roundToInt()}/s" } ?: "…", Modifier.weight(1f))
+        }
+
+        // ---------------- 移动网络层（承载质量） ----------------
+        SectionLabel("移动网络层", trailing = telemetry.rat ?: "…")
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 2,
+        ) {
+            LiveMini("RTT", ms(telemetry.rttMs), Modifier.weight(1f))
+            LiveMini("抖动", ms(telemetry.jitterMs), Modifier.weight(1f))
+            LiveMini("RSRP", telemetry.rsrp?.let { "$it" } ?: "…", Modifier.weight(1f))
+            LiveMini("SINR", telemetry.sinr?.let { "$it" } ?: "…", Modifier.weight(1f))
+            LiveMini("制式", telemetry.rat ?: "…", Modifier.weight(1f))
+            LiveMini("上行", telemetry.upMbps?.let { String.format(Locale.ROOT, "%.1f Mbps", it) } ?: "…", Modifier.weight(1f))
         }
         Spacer(Modifier.weight(1f))
     }
 }
+
+/** 毫秒值格式化：null → "…"（R-10：绝不以 0 顶替缺失） */
+private fun ms(v: Double?): String = v?.let { "${it.roundToInt()}ms" } ?: "…"
 
 @Composable
 private fun TokenStreamStrip(fill: Float, stalls: Int) {

@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.aneb.probe.BuildConfig
 import com.aneb.probe.apiprobe.ApiKeyStore
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
         data object Settings : Screen
         data class Result(val runId: String, val fromHistory: Boolean) : Screen
         data object ApiProbe : Screen
+        data object Report : Screen
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -256,7 +258,12 @@ class MainActivity : ComponentActivity() {
                             onOpenSettings = { screen = Screen.Settings },
                             onOpenResult = { runId -> screen = Screen.Result(runId, fromHistory = true) },
                         )
-                        is Screen.Testing -> TestingScreen(logs = logs, radioRsrp = null, radioRat = null)
+                        is Screen.Testing -> {
+                            // TestEngine.telemetry 只读观测通道 → collectAsStateWithLifecycle（后台自动停收，
+                            // 绝不回压测量热路径；StateFlow 有初值，无闪烁）。
+                            val telemetry by engine.telemetry.collectAsStateWithLifecycle()
+                            TestingScreen(logs = logs, telemetry = telemetry)
+                        }
                         is Screen.Settings -> SettingsScreen(
                             serverUrl = serverUrl,
                             onServerUrlChange = { serverUrl = it },
@@ -284,8 +291,10 @@ class MainActivity : ComponentActivity() {
                         )
                         is Screen.History -> HistoryRoute(
                             onOpen = { runId -> screen = Screen.Result(runId, fromHistory = true) },
+                            onGenerateReport = { screen = Screen.Report },
                             onBack = { screen = Screen.Home },
                         )
+                        is Screen.Report -> ReportRoute(onBack = { screen = Screen.History })
                         is Screen.Result -> ResultRoute(
                             runId = s.runId,
                             onBack = { screen = if (s.fromHistory) Screen.History else Screen.Home },
@@ -326,11 +335,91 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun HistoryRoute(onOpen: (String) -> Unit, onBack: () -> Unit) {
+    private fun HistoryRoute(
+        onOpen: (String) -> Unit,
+        onGenerateReport: () -> Unit,
+        onBack: () -> Unit,
+    ) {
         val runs by produceState(initialValue = emptyList<TestRun>()) {
             value = withContext(Dispatchers.IO) { db.testRunDao().all() }
         }
-        HistoryScreen(runs = runs, onOpen = onOpen, onBack = onBack)
+        HistoryScreen(
+            runs = runs,
+            onOpen = onOpen,
+            onGenerateReport = onGenerateReport,
+            onBack = onBack,
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // 敏感度报告路由（analysis layer ③：多次 run → ReportMapper → ReportAnalyzer → ReportScreen）
+    // ------------------------------------------------------------------
+
+    @Composable
+    private fun ReportRoute(onBack: () -> Unit) {
+        val analysis by produceState<com.aneb.probe.scoring.ReportAnalyzer.ReportAnalysis?>(
+            initialValue = null,
+        ) {
+            value = withContext(Dispatchers.IO) {
+                val runs = db.testRunDao().all()
+                val withScenarios = runs.map { run ->
+                    run to db.scenarioResultDao().forRun(run.runId)
+                }
+                val summaries = ReportMapper.toRunSummaries(withScenarios)
+                // 会话中断率：取有 C1 实测的 run 的中位数（真实测量，供上行重发投影；无则 null）
+                val dropRates = runs.mapNotNull { it.aqsV02C1DropRate }.sorted()
+                val sessionDrop = if (dropRates.isEmpty()) null else dropRates[dropRates.size / 2]
+                com.aneb.probe.scoring.ReportAnalyzer.analyze(summaries, sessionDrop)
+            }
+        }
+        var exportStatus by remember { mutableStateOf<String?>(null) }
+        val a = analysis
+        ReportScreen(
+            analysis = a,
+            exportStatus = exportStatus,
+            onExportMarkdown = {
+                if (a != null) {
+                    doExportReport("md", "text/markdown", ReportFormat.buildMarkdown(a)) { exportStatus = it }
+                }
+            },
+            onExportJson = {
+                if (a != null) {
+                    doExportReport("json", "application/json", ReportFormat.buildJson(a)) { exportStatus = it }
+                }
+            },
+            onShare = {
+                if (a != null) {
+                    val body = ReportFormat.buildMarkdown(a)
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "ANEB 分层测试敏感度报告")
+                        putExtra(android.content.Intent.EXTRA_TEXT, body)
+                    }
+                    android.util.Log.i("AnebProbe", "REPORT_SHARE chars=${body.length}")
+                    startActivity(android.content.Intent.createChooser(send, "分享报告"))
+                }
+            },
+            onBack = onBack,
+        )
+    }
+
+    private fun doExportReport(
+        format: String,
+        mime: String,
+        content: String,
+        onStatus: (String) -> Unit,
+    ) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val fileName = "aneb_report_$ts.$format"
+            val outcome = Exporter.exportToDownloads(applicationContext, fileName, mime, content)
+            val line =
+                "REPORT_EXPORT format=$format file=$fileName bytes=${outcome.bytes} " +
+                    "status=${if (outcome.ok) "ok" else "fail"} " +
+                    "uri=${outcome.uri ?: "null"} error=${outcome.error?.replace(' ', '_') ?: "none"}"
+            android.util.Log.i("AnebProbe", line)
+            withContext(Dispatchers.Main) { onStatus(line) }
+        }
     }
 
     private data class ResultData(
