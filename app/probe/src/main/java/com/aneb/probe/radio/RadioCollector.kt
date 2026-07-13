@@ -54,9 +54,16 @@ import kotlin.coroutines.resume
  * - 权限缺失不抛异常：样本 networkType 记 permission_denied、字段全 null
  *   （valid_low_confidence 语义，§4.6：证据缺失 ≠ 隐式健康）。
  *
+ * - GPS 路测接点（阶段3）：可选 [locationProvider]（通常为 LocationTagger::current）——
+ *   每个 1Hz 样本附带最近 fix 的 lat/lon/accuracy；provider 为 null（路测开关关）或
+ *   无 fix 时坐标列 null（R-10）。坐标只入本地 Room 与本地导出，绝不进上报体（§9.1）。
+ *
  * 全部计时 SystemClock.elapsedRealtimeNanos。
  */
-class RadioCollector(private val context: Context) {
+class RadioCollector(
+    private val context: Context,
+    private val locationProvider: (() -> GeoFix?)? = null,
+) {
 
     /** requestCellInfoUpdate / TelephonyCallback 回调极薄，直接在 binder 线程跑 */
     private val directExecutor = Executor { it.run() }
@@ -161,7 +168,15 @@ class RadioCollector(private val context: Context) {
                     lastTriple = triple
                 }
 
-                emit(sample)
+                // GPS 路测打点（开关关/无 fix → null；独立于电话权限分支，degraded 样本亦可带坐标）
+                val fix = locationProvider?.invoke()
+                emit(
+                    if (fix == null) {
+                        sample
+                    } else {
+                        sample.copy(lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM)
+                    },
+                )
 
                 tick++
                 val nextNs = startNs + tick * SAMPLE_PERIOD_NS
@@ -531,6 +546,10 @@ data class RadioSample(
     val rsrq: Int?,
     val sinr: Int?,
     val operatorName: String?,
+    // GPS 路测（阶段3）：开关关/无 fix 时 null；坐标绝不进上报体（§9.1）
+    val lat: Double? = null,
+    val lon: Double? = null,
+    val accuracyM: Double? = null,
 ) {
     fun toEntity(runId: String?) = RadioSampleEntity(
         runId = runId,
@@ -550,5 +569,8 @@ data class RadioSample(
         rsrq = rsrq,
         sinr = sinr,
         operatorName = operatorName,
+        lat = lat,
+        lon = lon,
+        accuracyM = accuracyM,
     )
 }

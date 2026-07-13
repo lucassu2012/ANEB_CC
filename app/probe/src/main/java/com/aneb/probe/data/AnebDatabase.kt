@@ -26,7 +26,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v5：阶段 2 C 组——新增 continuity_result（连续性实验汇总，additive）
     // v6：阶段 2 合并——新增 api_probe_result（真实 API 探针，claim scope 独立不进 AQS）
     // v7：P2-C05——新增 ab_result（Cronet TCP vs QUIC(h3) A/B 逐样本，stack=cronet，additive）
-    version = 7,
+    // v8：阶段3 遗留接线——scenario_result 增 buffering* 标注列（P1-C08，R-05 不改 validity）；
+    //     test_run 增 aqsV02* 并列出分列（阶段2 C03，无 C 数据时全 null=v0.1 语义不变）
+    // v9：阶段3 GPS 路测——radio_sample 增 lat/lon/accuracyM 可空列（坐标只入本地，
+    //     绝不进上报体；§9.1 隐私边界，路测开关默认关）
+    version = 9,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -97,6 +101,71 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v7 → v8 的全部语句（阶段3 遗留接线，additive；JVM 单测锚定存在性与 additive-only）：
+         *  - scenario_result 增 9 个 buffering* 标注列（P1-C08；R-05 分数只作标注不改 validity）；
+         *  - test_run 增 8 个 aqsV02* 并列出分列（阶段2 C03）。
+         * 全部为**可空列、无默认值**（新列 Kotlin 侧默认 null）：ALTER TABLE ADD COLUMN 后
+         * Room 按 @Entity 期望 schema 逐列校验（列名/affinity/notNull），偏差 fail-fast——
+         * 做法与 [MIGRATION_6_7] 一致（列名=字段名，affinity：Double→REAL、
+         * Int/Long/Boolean→INTEGER、String→TEXT，与 KSP 生成的期望 schema 一致）。
+         * 历史行新列值为 NULL＝"当时未检测/无 v0.2 分支"，与 R-10 null 语义一致。
+         */
+        internal val MIGRATION_7_8_SQL: List<String> = listOf(
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingScore` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingAttribution` TEXT",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingSampleCount` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingSawtoothRatio` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingNearZeroRatio` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingLag1Autocorr` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingBatchCount` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingBestGridUs` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `bufferingJankOverlapRatio` REAL",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02Score` REAL",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02LowConfidence` INTEGER",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02VetoApplied` INTEGER",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02NotComputableReason` TEXT",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02ContinuityRunId` TEXT",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02ContinuityStartedAtEpochMs` INTEGER",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02C1DropRate` REAL",
+            "ALTER TABLE `test_run` ADD COLUMN `aqsV02C2RecoveryMs` REAL",
+        )
+
+        /**
+         * v7 → v8（阶段3 遗留接线，additive）：只加列不动数据——已落库的历史取证数据
+         * （v7 含 ab_result 及之前全部表）原样保留。人工验证步骤同 [MIGRATION_6_7] KDoc
+         * （覆盖安装后既有 run 可见、.schema 输出含新列、logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_8_SQL.forEach(db::execSQL)
+            }
+        }
+
+        /**
+         * v8 → v9 的全部语句（阶段3 GPS 路测，additive；JVM 单测锚定存在性与 additive-only）：
+         * radio_sample 增 lat / lon / accuracyM 三个**可空、无默认值**坐标列（Double→REAL，
+         * 与 KSP 期望 schema 一致，做法同 [MIGRATION_7_8]）。历史行新列值为 NULL＝
+         * "当时未开路测/无 fix"，与 R-10 null 语义一致。隐私边界（设计文档 §9.1）：
+         * 坐标只入本地 Room 与本地轨迹导出，绝不进 /results 上报体。
+         */
+        internal val MIGRATION_8_9_SQL: List<String> = listOf(
+            "ALTER TABLE `radio_sample` ADD COLUMN `lat` REAL",
+            "ALTER TABLE `radio_sample` ADD COLUMN `lon` REAL",
+            "ALTER TABLE `radio_sample` ADD COLUMN `accuracyM` REAL",
+        )
+
+        /**
+         * v8 → v9（阶段3 GPS 路测，additive）：只加列不动数据。人工验证步骤同
+         * [MIGRATION_6_7] KDoc（覆盖安装后既有 run 可见、.schema 输出含新列、
+         * logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_9_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -105,8 +174,8 @@ abstract class AnebDatabase : RoomDatabase() {
                     "aneb-probe.db",
                 )
                     // v6 起 schema 变更必须写显式 Migration（历史数据是取证资产，
-                    // 不可静默丢弃）——v6→v7 见上方 MIGRATION_6_7（additive）。
-                    .addMigrations(MIGRATION_6_7)
+                    // 不可静默丢弃）——v6→v7 / v7→v8 / v8→v9 见上方（均 additive）。
+                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()
                     .build()

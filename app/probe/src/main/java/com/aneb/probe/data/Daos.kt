@@ -67,6 +67,10 @@ interface ContinuityResultDao {
 
     @Query("SELECT * FROM continuity_result ORDER BY startedAtEpochMs DESC")
     suspend fun all(): List<ContinuityResultEntity>
+
+    /** AQS v0.2 数据可用性查询（阶段2 C03 接线）：最近窗口内的 continuity 结果，新→旧 */
+    @Query("SELECT * FROM continuity_result WHERE startedAtEpochMs >= :sinceEpochMs ORDER BY startedAtEpochMs DESC")
+    suspend fun since(sinceEpochMs: Long): List<ContinuityResultEntity>
 }
 
 @Dao

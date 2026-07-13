@@ -3,6 +3,8 @@ package com.aneb.probe.ui
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.engine.KpiGrading
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -44,6 +46,51 @@ object ResultFormat {
         KpiGrading.FAIR -> "可"
         KpiGrading.POOR -> "差"
         else -> "—"
+    }
+
+    /** 批化标注固定尾注（R-05 红线的展示锚点，uiautomator/单测断言用，勿改） */
+    const val BUFFERING_NOTE: String = "标注不改有效性判定"
+
+    /**
+     * 场景批化标注行（P1-C08 接线）：`buffering=0.xxx attribution=xxx（标注不改有效性判定）`。
+     * 未检测（bufferingScore=null，如流失败/无残差样本）→ null 不显示（R-10）。
+     */
+    fun bufferingLabel(s: ScenarioResultEntity): String? {
+        val score = s.bufferingScore ?: return null
+        return String.format(
+            Locale.ROOT,
+            "buffering=%.3f attribution=%s（%s）",
+            score,
+            s.bufferingAttribution ?: "none",
+            BUFFERING_NOTE,
+        )
+    }
+
+    /**
+     * AQS v0.2 并列展示行（阶段2 C03 接线）：
+     * - 行 0：`AQS v0.2 = 82.3（良）` 或 `AQS v0.2 不可计算：<reason>`（+低置信标注）；
+     * - 行 1：所用 continuity 数据的 C1/C2 值、时间与来源 run（可追溯标注）。
+     * 无 v0.2 分支（run 期无可用 continuity 数据）→ null，只显 v0.1（语义不变）。
+     */
+    fun aqsV02Lines(run: TestRun): List<String>? {
+        val srcRunId = run.aqsV02ContinuityRunId ?: return null
+        val score = run.aqsV02Score
+        val head = if (score != null) {
+            val lowConf = if (run.aqsV02LowConfidence == true) "　⚠ $LOW_CONFIDENCE_LABEL" else ""
+            val veto = if (run.aqsV02VetoApplied == true) "　T4 否决封顶" else ""
+            String.format(Locale.ROOT, "AQS v0.2 = %.1f（%s）%s%s", score, gradeLabel(aqsGrade(score)), veto, lowConf)
+        } else {
+            "AQS v0.2 不可计算：${run.aqsV02NotComputableReason ?: "unknown"}"
+        }
+        val c1 = run.aqsV02C1DropRate?.let { String.format(Locale.ROOT, "%.2f%%", it * 100) } ?: "—"
+        val c2 = run.aqsV02C2RecoveryMs?.let { String.format(Locale.ROOT, "%.0f ms", it) } ?: "—"
+        val at = run.aqsV02ContinuityStartedAtEpochMs?.let {
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(Date(it))
+        } ?: "—"
+        return listOf(
+            head,
+            "continuity 数据: C1=$c1 C2=$c2 @$at run=${srcRunId.take(8)}",
+        )
     }
 
     // ---- KPI 行模型 ----

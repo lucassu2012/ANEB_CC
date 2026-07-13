@@ -18,9 +18,12 @@ import com.aneb.probe.net.BoundNetwork
 import com.aneb.probe.net.GuardException
 import com.aneb.probe.net.NetGuard
 import com.aneb.probe.net.PathMonitor
+import com.aneb.probe.radio.LocationTagger
 import com.aneb.probe.radio.RadioCollector
 import com.aneb.probe.radio.RadioSample
 import com.aneb.probe.scoring.AqsScorer
+import com.aneb.probe.scoring.BufferingDetector
+import com.aneb.probe.scoring.BufferingReport
 import com.aneb.probe.scoring.InvalidReason
 import com.aneb.probe.scoring.KpiCalculator
 import com.aneb.probe.scoring.KpiResult
@@ -50,6 +53,9 @@ import java.util.concurrent.atomic.AtomicReference
  * UPLOAD / STREAM / PARSE / TOOLLOOP / SCENARIO_ABORT / SCENARIO_INVALID / SCENARIO_KPI /
  * PHASE_SKIP / RUN_ABORT / RUN_FAILED / AQS_INPUT_MAP / AQS / DB_WRITE / REPORT /
  * REPORT_CONTRACT_ERRORS / REPORT_SIZE_WARN / RUN_END。
+ * 阶段3 遗留接线新增 KEY（additive，不动既有 KEY 语义）：BUFFERING（每场景批化标注，
+ * P1-C08；R-05 分数不改 validity）/ AQS_V02（run 级 v0.2 并列出分，阶段2 C03）/
+ * DRIVE_TEST（GPS 路测开启时的打点器状态；坐标只入本地，绝不进上报体 §9.1）。
  */
 class TestEngine(private val context: Context) {
 
@@ -64,6 +70,12 @@ class TestEngine(private val context: Context) {
         val transport: TransportMode = TransportMode.AUTO,
         /** /stream 故障注入透传（C09 前置）；调用方（UI）必须用 BuildConfig.DEBUG 门控 */
         val inject: String? = null,
+        /**
+         * GPS 路测模式（阶段3；默认关）：开启时 run 全程随 RadioCollector 1Hz 附带
+         * lat/lon/accuracy 打点。隐私边界（§9.1）：坐标只入本地 Room 与本地导出，
+         * 绝不进 /results 上报体（ResultReporter 无坐标字段，单测锚定）。
+         */
+        val driveTest: Boolean = false,
     )
 
     fun run(config: RunConfig): Flow<String> = channelFlow {
@@ -76,7 +88,7 @@ class TestEngine(private val context: Context) {
         val transportStr = config.transport.name.lowercase()
         log(
             "RUN_START run_id=$runId mode=$modeStr transport=$transportStr server=$base " +
-                "inject=${config.inject ?: "none"}"
+                "inject=${config.inject ?: "none"} drive_test=${config.driveTest}"
         )
 
         // ---------------- 守卫硬拒测（R-03：VPN/代理） ----------------
@@ -142,7 +154,10 @@ class TestEngine(private val context: Context) {
         }
 
         val envMonitors = EnvMonitors(context)
-        val radio = RadioCollector(context)
+        // GPS 路测（阶段3）：开关开启才创建 LocationTagger；坐标只随 RadioSample 入本地
+        // Room（§9.1 隐私边界——上报体无坐标字段）。注册失败/权限缺失静默降级＝坐标列 null。
+        val locationTagger = if (config.driveTest) LocationTagger(context) else null
+        val radio = RadioCollector(context, locationTagger?.let { it::current })
         val pathWatch: PathWatch = if (bound != null) {
             BoundPathWatch(context, bound, envBuf::add, ::invalidate)
         } else {
@@ -160,6 +175,10 @@ class TestEngine(private val context: Context) {
         try {
             envMonitors.start()
             pathWatch.start()
+            locationTagger?.let {
+                it.start() // 主线程 Looper 回调，仅更新 AtomicReference，极薄
+                log("DRIVE_TEST enabled=true gps_active=${it.active}")
+            }
             collectors += launch {
                 envMonitors.events.collect { ev ->
                     envBuf.add(ev)
@@ -248,8 +267,14 @@ class TestEngine(private val context: Context) {
                             "offset_suspect=${track.offsetSuspect}"
                     )
 
+                    // ---- 批化检测（P1-C08 遗留接线）：token_stream 结束后由残差序列跑
+                    // BufferingDetector；R-05 红线：score/attribution 只作标注落库，
+                    // 绝不参与上面 KpiCalculator 的三态判定。radioBuf/envBuf 此刻尚未被
+                    // persistScenario 排空，快照式（不消费）取场景窗口内的 R1/jank 联动数据。
+                    val buffering = analyzeBuffering(outcome, envBuf, radioBuf)
+
                     val entity = buildScenarioEntity(
-                        runId, profile, round, orderIndex, outcome, kpi, track, netSnap,
+                        runId, profile, round, orderIndex, outcome, kpi, track, netSnap, buffering,
                     )
                     val hist = ItlHistogram.of(
                         ScenarioKpi.correctedItlSamplesMs(input.tokenSamples, input.pauseSeqs)
@@ -268,6 +293,19 @@ class TestEngine(private val context: Context) {
                             "n2_ms=${fmt(kpi.n2JitterMs)} u1_mbps=${fmt(kpi.u1GoodputMbps)} " +
                             "u1_excl_mbps=${fmt(kpi.u1GoodputExclSlowStartMbps)} u2_ms=${fmt(kpi.u2ToolLoopP95Ms)} " +
                             "gaps=${kpi.seqGapCount} dup=${kpi.seqDupCount}"
+                    )
+                    log(
+                        "BUFFERING scenario=$scenarioKey " +
+                            "score=${buffering?.let { "%.3f".format(it.bufferingScore) } ?: "null"} " +
+                            "attribution=${buffering?.attribution?.name?.lowercase() ?: "null"} " +
+                            "samples=${buffering?.sampleCount ?: 0} " +
+                            "sawtooth=${buffering?.let { "%.3f".format(it.sawtoothRatio) } ?: "null"} " +
+                            "near_zero=${buffering?.let { "%.3f".format(it.nearZeroArrivalRatio) } ?: "null"} " +
+                            "lag1=${buffering?.let { "%.3f".format(it.lag1Autocorrelation) } ?: "null"} " +
+                            "batch_count=${buffering?.batchCount ?: 0} " +
+                            "best_grid_us=${buffering?.bestGridUs ?: "null"} " +
+                            "jank_overlap=${buffering?.let { "%.3f".format(it.jankOverlapRatio) } ?: "null"} " +
+                            "affects_validity=false"
                     )
 
                     orderIndex++
@@ -297,6 +335,28 @@ class TestEngine(private val context: Context) {
                     "subs=${aqsResult.subScores.entries.joinToString(",") { "${it.key}:${"%.1f".format(it.value)}" }.ifEmpty { "none" }}"
             )
 
+            // ---------------- run 级 AQS v0.2（阶段2 C03 遗留接线，additive） ----------------
+            // 最近 24h 内存在可用 continuity 结果（C1/C2 均非 null）→ 用 AqsScorer 既有
+            // v0.2 入口并列出分并标注数据来源；无可用数据 → 不出 v0.2（v0.1 语义不变）。
+            val nowEpochMs = System.currentTimeMillis()
+            val continuityCandidates = runCatching {
+                db.continuityResultDao().since(nowEpochMs - AqsV02Gate.CONTINUITY_MAX_AGE_MS)
+            }.getOrElse { emptyList() }
+            val continuitySrc = AqsV02Gate.select(continuityCandidates, nowEpochMs)
+            val aqsV02 = continuitySrc?.let { AqsScorer.score(composite, AqsV02Gate.toContinuityKpi(it)) }
+            if (continuitySrc != null && aqsV02 != null) {
+                log(
+                    "AQS_V02 run_id=$runId score=${aqsV02.score?.let { "%.1f".format(it) } ?: "null"} " +
+                        "low_confidence=${aqsV02.lowConfidence} veto=${aqsV02.vetoApplied} " +
+                        "reason=${aqsV02.notComputableReason ?: "none"} " +
+                        "c1=${continuitySrc.c1DropRate} c2_ms=${continuitySrc.c2RecoveryMsP50} " +
+                        "continuity_run=${continuitySrc.runId} " +
+                        "continuity_started_at_epoch_ms=${continuitySrc.startedAtEpochMs}"
+                )
+            } else {
+                log("AQS_V02 run_id=$runId available=false reason=no_usable_continuity_in_24h")
+            }
+
             // ---------------- 结果上报（合同字段 + 400 errors 自检） ----------------
             val runEntity = baseRun(
                 runId, startedAtEpochMs, base, modeStr, transportStr,
@@ -308,6 +368,15 @@ class TestEngine(private val context: Context) {
                 aqsVetoApplied = aqsResult.vetoApplied,
                 aqsNotComputableReason = aqsResult.notComputableReason,
                 status = status,
+                // v0.2 并列出分（无可用 continuity 数据时全 null＝无 v0.2 分支）
+                aqsV02Score = aqsV02?.score,
+                aqsV02LowConfidence = aqsV02?.lowConfidence,
+                aqsV02VetoApplied = aqsV02?.vetoApplied,
+                aqsV02NotComputableReason = aqsV02?.notComputableReason,
+                aqsV02ContinuityRunId = continuitySrc?.runId,
+                aqsV02ContinuityStartedAtEpochMs = continuitySrc?.startedAtEpochMs,
+                aqsV02C1DropRate = continuitySrc?.c1DropRate,
+                aqsV02C2RecoveryMs = continuitySrc?.c2RecoveryMsP50,
             )
             val body = ResultReporter.build(runEntity, scenarioReports, aqsResult)
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size
@@ -347,6 +416,7 @@ class TestEngine(private val context: Context) {
             radioShareJob?.cancel() // C07：shareIn 共享协程收尸，run flow 才能正常完成
             pathWatch.stop()
             envMonitors.stop()
+            locationTagger?.stop()
             // 残余 env/radio 缓冲落库（NonCancellable：外部取消也不丢已采数据）
             withContext(NonCancellable) {
                 runCatching { flushBuffers(db, runId, envBuf, radioBuf) }.onFailure {
@@ -497,6 +567,30 @@ class TestEngine(private val context: Context) {
         )
     }
 
+    /**
+     * P1-C08 接线：场景残差序列 → BufferingDetector（R-05：产出仅作标注）。
+     * 无残差样本（流失败/无 token/时间戳不齐）→ null（R-10：不出值不造值）。
+     * envBuf/radioBuf 只读快照（ConcurrentLinkedQueue 弱一致迭代，不消费队列——
+     * 排空仍统一由 persistScenario/flushBuffers 完成，R-16 落库纪律不变）。
+     */
+    private fun analyzeBuffering(
+        outcome: ScenarioRunner.ScenarioOutcome,
+        envBuf: ConcurrentLinkedQueue<EnvEvent>,
+        radioBuf: ConcurrentLinkedQueue<RadioSample>,
+    ): BufferingReport? {
+        val residuals = BufferingWiring.residualSamples(
+            outcome.streams.map {
+                ScenarioKpi.StreamTokens(it.expectedTokens, it.result.stream?.events ?: emptyList())
+            }
+        )
+        if (residuals.isEmpty()) return null
+        return BufferingDetector.analyze(
+            samples = residuals,
+            radio = BufferingWiring.radioSummary(radioBuf, outcome.startedAtNanos, outcome.endedAtNanos),
+            appJankEventsUs = BufferingWiring.jankEventsUs(envBuf, outcome.startedAtNanos, outcome.endedAtNanos),
+        )
+    }
+
     private fun buildScenarioEntity(
         runId: String,
         profile: ScenarioProfile,
@@ -506,6 +600,7 @@ class TestEngine(private val context: Context) {
         kpi: KpiResult,
         track: OffsetTrack,
         netSnap: com.aneb.probe.net.NetworkSnapshot?,
+        buffering: BufferingReport?,
     ): ScenarioResultEntity {
         val parse = outcome.streams.mapNotNull { it.result.stream }
         val parseDurTotal = if (parse.isEmpty()) null else parse.sumOf { it.parseDurUs }
@@ -568,6 +663,16 @@ class TestEngine(private val context: Context) {
             } else {
                 null
             },
+            // P1-C08：批化标注列（R-05：只标注不改上面的 validity）；未检测全 null
+            bufferingScore = buffering?.bufferingScore,
+            bufferingAttribution = buffering?.attribution?.name?.lowercase(),
+            bufferingSampleCount = buffering?.sampleCount,
+            bufferingSawtoothRatio = buffering?.sawtoothRatio,
+            bufferingNearZeroRatio = buffering?.nearZeroArrivalRatio,
+            bufferingLag1Autocorr = buffering?.lag1Autocorrelation,
+            bufferingBatchCount = buffering?.batchCount,
+            bufferingBestGridUs = buffering?.bestGridUs,
+            bufferingJankOverlapRatio = buffering?.jankOverlapRatio,
         )
     }
 

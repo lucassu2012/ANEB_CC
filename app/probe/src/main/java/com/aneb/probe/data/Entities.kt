@@ -42,6 +42,22 @@ data class TestRun(
     val status: String?,
     /** 上报结果：http code / 错误摘要 */
     val reportStatus: String?,
+    // ---- AQS v0.2 并列出分（阶段2 C03 遗留接线，v8 additive 列，默认 null=无 v0.2 分支） ----
+    // 仅当最近 24h 内存在可用 continuity 结果（C1/C2 均非 null）时填充；
+    // 无 C 数据时全部保持 null——v0.1 语义完全不变（AqsScorer 双入口，见 AqsV02Gate）。
+    /** aqs-v0.2 分数；v0.2 分支存在但不可计算（如 T/U/N 缺失）时 null */
+    val aqsV02Score: Double? = null,
+    val aqsV02LowConfidence: Boolean? = null,
+    val aqsV02VetoApplied: Boolean? = null,
+    val aqsV02NotComputableReason: String? = null,
+    /** v0.2 所用 continuity 数据的 runId（展示标注：数据来源可追溯） */
+    val aqsV02ContinuityRunId: String? = null,
+    /** v0.2 所用 continuity 数据的开始时刻（展示标注：数据时间） */
+    val aqsV02ContinuityStartedAtEpochMs: Long? = null,
+    /** v0.2 所用 C1 会话中断率（ratio） */
+    val aqsV02C1DropRate: Double? = null,
+    /** v0.2 所用 C2 切换恢复时间 P50（ms） */
+    val aqsV02C2RecoveryMs: Double? = null,
 )
 
 @Entity(
@@ -128,6 +144,27 @@ data class ScenarioResultEntity(
     // ---- 解析自监控（P0-C12） ----
     val parseDurUsTotal: Long?,
     val perEventParseUs: Double?,
+    // ---- 批化检测标注（P1-C08 遗留接线，v8 additive 列；BufferingDetector 产出） ----
+    // R-05 红线：score/attribution 只作标注与取证证据，绝不参与 validity 判定。
+    // 未检测（无残差样本，如流失败/无 token）时全部 null（R-10：绝不记 0 顶替）。
+    /** 连续批化分 ∈ [0,1]（BufferingReport.bufferingScore） */
+    val bufferingScore: Double? = null,
+    /** 初步归因假设（BufferingAttribution.name 小写：none/airlink_suspect/...） */
+    val bufferingAttribution: String? = null,
+    /** 参与分析的残差样本数 */
+    val bufferingSampleCount: Int? = null,
+    /** 锯齿占比（正尖峰+负残差簇，批攒-放因果签名） */
+    val bufferingSawtoothRatio: Double? = null,
+    /** 近零到达间隔占比 */
+    val bufferingNearZeroRatio: Double? = null,
+    /** 残差滞后1自相关原始值 */
+    val bufferingLag1Autocorr: Double? = null,
+    /** 批起点（gap-then-burst）个数 */
+    val bufferingBatchCount: Int? = null,
+    /** 命中率达标的最大周期网格（µs）；无达标 null */
+    val bufferingBestGridUs: Long? = null,
+    /** 批起点与 app_jank 事件重叠率（R-12 设备侧冻结区分） */
+    val bufferingJankOverlapRatio: Double? = null,
 )
 
 /**
@@ -410,4 +447,12 @@ data class RadioSampleEntity(
     /** LTE=RSSNR / NR=SS-SINR (dB) */
     val sinr: Int?,
     val operatorName: String?,
+    // ---- GPS 路测打点（阶段3 路测模式，v9 additive 列；隐私边界见设计文档 §9.1） ----
+    // 仅路测开关开启且 GPS 有 fix 时非 null：权限缺失/定位未开启/无 fix/失锁一律 null
+    // （R-10 语义）。坐标只入本地 Room 与本地轨迹导出，**绝不进 /results 上报体**
+    // （ResultReporter 无坐标字段，单测锚定）。
+    val lat: Double? = null,
+    val lon: Double? = null,
+    /** fix 水平精度（米）；无精度信息 null */
+    val accuracyM: Double? = null,
 )

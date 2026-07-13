@@ -65,13 +65,19 @@ def main(argv):
     for r in recs:
         by_version[(r.get("kpi_set", "?"), r.get("aqs_version", "?"),
                     r.get("schema_version", "?"))] += 1
-        aqs = fnum(r.get("aqs")) or fnum((r.get("aqs_result") or {}).get("score"))
+        # 实际上报体（ResultReporter.kt）：AQS 在 run.aqs.score；保留旧路径兜底
+        aqs = fnum(((r.get("run") or {}).get("aqs") or {}).get("score"))
+        if aqs is None:
+            aqs = fnum(r.get("aqs")) or fnum((r.get("aqs_result") or {}).get("score"))
         if aqs is not None:
             aqs_vals.append(aqs)
         for s in r.get("scenarios", []) or []:
-            sid = s.get("scenario_id") or s.get("profile_id") or "?"
+            # 实际字段：profile_id + kpi（不是 scenario_id/kpis）；*_grade 为字符串分级，跳过
+            sid = s.get("profile_id") or s.get("scenario_id") or "?"
             validity[s.get("validity", "?")] += 1
-            for k, v in (s.get("kpis") or {}).items():
+            for k, v in (s.get("kpi") or s.get("kpis") or {}).items():
+                if k.endswith("_grade"):
+                    continue
                 val = fnum(v) if not isinstance(v, dict) else fnum(v.get("value"))
                 if val is not None:
                     kpis[sid][k].append(val)

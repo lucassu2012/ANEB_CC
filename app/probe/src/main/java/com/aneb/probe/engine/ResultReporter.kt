@@ -106,6 +106,20 @@ object ResultReporter {
             put("parse_dur_us", s.parseDurUsTotal)
             put("per_event_parse_us", s.perEventParseUs)
         })
+        // P1-C08 遗留接线：批化标注（additive 扩展——server/handlers_results.go 的
+        // validateResultContract 只校验必填字段、不拒新增字段，已读码确认）。
+        // R-05：score/attribution 仅为标注与取证证据，服务端/下游不得据此改判 validity。
+        put("buffering", buildJsonObject {
+            put("score", s.bufferingScore)
+            put("attribution", s.bufferingAttribution)
+            put("sample_count", s.bufferingSampleCount)
+            put("sawtooth_ratio", s.bufferingSawtoothRatio)
+            put("near_zero_arrival_ratio", s.bufferingNearZeroRatio)
+            put("lag1_autocorrelation", s.bufferingLag1Autocorr)
+            put("batch_count", s.bufferingBatchCount)
+            put("best_grid_us", s.bufferingBestGridUs)
+            put("jank_overlap_ratio", s.bufferingJankOverlapRatio)
+        })
         // ITL 对数分桶直方图（R-27 合同：桶界 = 对数网格 ∪ T2/T3/T4 门限锚点）
         put("itl_histogram", buildJsonObject {
             put("buckets_version", ItlHistogram.BUCKETS_VERSION)

@@ -142,9 +142,10 @@ class SseBoundaryScanner {
  *  - 在累积缓冲内扫描 `\n\n` 边界切 event；同一次 read 切出的多个 event 共享该 read
  *    的到达时戳，且第 2..n 个标 sameReadBatch=true（杜绝伪造 0ms ITL 稀释 P95）；
  *  - 读循环内除必要的字节切片分配外不做重活：原始 event 字节先写入预分配 ArrayList，
- *    文本解码 / JSON 解析 / base64 解码全部推迟到流读完之后。
- *    TODO(阶段1): 解析仍在读线程（EOF 后）执行，需移到独立线程并配合
- *    THREAD_PRIORITY_URGENT_AUDIO + 哨兵线程（设计文档 §4.10 / R-16）。
+ *    文本解码 / JSON 解析 / base64 解码全部推迟到流读完之后；
+ *  - 阶段3 收口（设计文档 §4 第 10 条 / R-04）：EOF 后的解析从读线程移到
+ *    [SseParseThread]（THREAD_PRIORITY_URGENT_AUDIO 的专用单线程）——读线程只做
+ *    read → 打戳 → 缓冲；parseDurUs 打点语义不变（仍为 EOF→解析完成）。
  *
  * 服务端 wire 约定（见 probe/README.md）：
  *  - 注释帧:  `: prelude {"srv_ts_us":...}\n\n`
@@ -183,11 +184,22 @@ class SseReader(
         return scanner.finish(SystemClock.elapsedRealtimeNanos())
     }
 
-    fun readStream(source: BufferedSource): SseStreamResult = parseRaw(readRaw(source))
+    /**
+     * 读 + 解析全流程。读循环在调用线程（OkHttp 读线程）执行——只做 read→打戳→
+     * 切边界→缓冲；EOF 后的解析移交 [SseParseThread] 专用线程执行并同步等待结果
+     * （设计文档 §4 第 10 条 / R-04 / R-16：解析开销不占读线程；EOF 后读线程已无
+     * 测量职责，同步等待不改任何打点语义——eofNanos 仍在读线程 EOF 处打，
+     * parseEndNanos 在解析线程解析完成处打，同一单调钟）。
+     */
+    fun readStream(source: BufferedSource): SseStreamResult {
+        val raw = readRaw(source)
+        return SseParseThread.execute { parseRaw(raw) }
+    }
 
     /**
      * 解析阶段（流已读完后执行；P2-C05 抽出为公共入口，Cronet 路径复用同一解析器）。
-     * TODO 阶段1 移出读线程。
+     * 本方法自身线程无关（纯数据变换 + 末尾打戳）；[readStream] 已把它调度到
+     * [SseParseThread]，直接调用方（如需）自行决定执行线程。
      */
     fun parseRaw(raw: RawSseStream): SseStreamResult {
         val rawEvents = raw.events
@@ -270,4 +282,38 @@ class SseReader(
     companion object {
         private const val READ_CHUNK_BYTES = 8192L
     }
+}
+
+/**
+ * SSE 专用解析线程（阶段3 收口，设计文档 §4 第 10 条 / R-04）：EOF 后的解析统一在
+ * 该单线程 executor 执行，读线程只做 read→打戳→缓冲。
+ *
+ * - 线程在启动时尝试升到 THREAD_PRIORITY_URGENT_AUDIO（§4.10：解析不被后台负载
+ *   饿死、也不与读线程抢核）；JVM 单测环境无 android.os.Process，runCatching
+ *   静默降级为普通优先级——只影响调度优先级，不影响解析语义与单测可跑性。
+ * - 单线程 + 同步 execute：同一时刻至多一个流在解析（流是顺序跑的），无并发解析
+ *   需求；异常原样透传，保持 readStream 既有异常合同（上层 catch 语义不变）。
+ * - daemon 线程：不阻碍进程/JVM 退出。
+ */
+internal object SseParseThread {
+    /** 解析线程名（单测锚点） */
+    const val THREAD_NAME = "aneb-sse-parse"
+
+    private val executor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread({
+            // Android 上生效；JVM 测试环境无 android.os.Process → 静默降级（Throwable 全捕）
+            runCatching {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+            }
+            r.run()
+        }, THREAD_NAME).apply { isDaemon = true }
+    }
+
+    /** 在解析线程同步执行 [block]；block 抛出的异常按原类型透传给调用方。 */
+    fun <T> execute(block: () -> T): T =
+        try {
+            executor.submit(java.util.concurrent.Callable { block() }).get()
+        } catch (e: java.util.concurrent.ExecutionException) {
+            throw e.cause ?: e
+        }
 }

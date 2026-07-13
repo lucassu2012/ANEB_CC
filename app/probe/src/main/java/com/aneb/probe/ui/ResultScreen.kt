@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.engine.KpiGrading
+import com.aneb.probe.radio.GeoTrack
 
 /**
  * 结果页（P1-C07）：AQS 头条 + run 级 KPI 表（四级色条+双口径并列+低置信标）+
@@ -60,6 +61,11 @@ fun ResultScreen(
     onExportJson: () -> Unit,
     onExportCsv: () -> Unit,
     onBack: () -> Unit,
+    /** GPS 路测轨迹摘要（key=场景实体 id；无坐标数据的 run 为空 map，卡片不显示轨迹行） */
+    trackSummaries: Map<Long, GeoTrack.Summary> = emptyMap(),
+    /** 该 run 是否存在 GPS 轨迹点（轨迹 CSV 导出按钮可用性；坐标只本地导出 §9.1） */
+    hasTrack: Boolean = false,
+    onExportTrack: () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -82,7 +88,7 @@ fun ResultScreen(
             }
             item { SectionTitle("场景明细") }
             items(count = scenarios.size, key = { i -> scenarios[i].id }) { i ->
-                ScenarioCard(scenarios[i])
+                ScenarioCard(scenarios[i], trackSummaries[scenarios[i].id])
             }
             item {
                 SectionTitle("导出")
@@ -90,6 +96,9 @@ fun ResultScreen(
                     Button(enabled = hasReportJson, onClick = onExportJson) { Text("导出 JSON") }
                     Spacer(Modifier.width(8.dp))
                     Button(enabled = scenarios.isNotEmpty(), onClick = onExportCsv) { Text("导出 CSV") }
+                    Spacer(Modifier.width(8.dp))
+                    // GPS 路测轨迹（仅本地导出；上报体无坐标，§9.1 隐私边界）
+                    Button(enabled = hasTrack, onClick = onExportTrack) { Text("导出轨迹") }
                 }
                 if (!hasReportJson) {
                     Text(
@@ -145,6 +154,17 @@ private fun AqsHeadline(run: TestRun) {
                 "不可计算：${run.aqsNotComputableReason ?: run.status ?: "unknown"}",
                 color = COLOR_INVALID,
                 fontSize = 14.sp,
+            )
+        }
+        // 阶段2 C03 接线：v0.2 并列展示（头条为 v0.1；无可用 continuity 数据时不显示，
+        // 语义不变）。行 1 标注所用 continuity 数据的 C1/C2 值、时间与来源 run。
+        ResultFormat.aqsV02Lines(run)?.let { lines ->
+            Text(lines[0], fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(
+                lines[1],
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = COLOR_INVALID,
             )
         }
     }
@@ -208,7 +228,7 @@ internal fun KpiLine(row: ResultFormat.KpiRow, prefix: String = "") {
 }
 
 @Composable
-private fun ScenarioCard(s: ScenarioResultEntity) {
+private fun ScenarioCard(s: ScenarioResultEntity, track: GeoTrack.Summary?) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.width(10.dp).height(10.dp).background(validityColor(s.validity)))
@@ -236,6 +256,19 @@ private fun ScenarioCard(s: ScenarioResultEntity) {
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
         )
+        // P1-C08 接线：批化标注（R-05：仅标注，不参与上面的 validity 色块/判定）
+        ResultFormat.bufferingLabel(s)?.let {
+            Text(it, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = COLOR_INVALID)
+        }
+        // GPS 路测轨迹行（阶段3；只在场景窗口内有坐标打点时显示——坐标数据仅存本机）
+        if (track != null && track.points > 0) {
+            Text(
+                "轨迹 ${track.points} 点  起终点距离 " +
+                    (track.startEndMeters?.let { "%.1f m".format(it) } ?: "—（<2 点）"),
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
         ResultFormat.kpiRows(s).forEach { KpiLine(it) }
         HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
     }

@@ -53,6 +53,7 @@ import com.aneb.probe.data.TestRun
 import com.aneb.probe.engine.AbRunner
 import com.aneb.probe.engine.ContinuityRunner
 import com.aneb.probe.engine.TestEngine
+import com.aneb.probe.radio.GeoTrack
 import com.aneb.probe.radio.RadioCollector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +86,9 @@ class MainActivity : ComponentActivity() {
     private var intentMode: TestEngine.Mode = TestEngine.Mode.QUICK
     private var intentTransport: TestEngine.TransportMode = TestEngine.TransportMode.AUTO
     private var intentInject: String? = null
+
+    /** 阶段3 GPS 路测：--ez drive_test true（默认关；坐标只入本地，绝不上报 §9.1） */
+    private var intentDriveTest: Boolean = false
 
     /** 阶段 2：--es mode continuity → 连续性实验模式（C1/C2/C3），与场景 run 分流 */
     private var intentContinuity: Boolean = false
@@ -148,6 +152,8 @@ class MainActivity : ComponentActivity() {
         }
         // C09 前置：注入透传仅 debug 构建生效，release 恒 null
         intentInject = if (BuildConfig.DEBUG) intent?.getStringExtra("inject") else null
+        // 阶段3 GPS 路测（adb 自动化入口；UI 开关默认关，intent 只作初值）
+        intentDriveTest = intent?.getBooleanExtra("drive_test", false) == true
         // 阶段 2：API 探针 adb 自动化（debug only；不走 UI，不影响既有 autorun 流程）
         maybeApiProbeAutorun()
         setContent {
@@ -162,6 +168,8 @@ class MainActivity : ComponentActivity() {
                     var serverUrl by rememberSaveable { mutableStateOf(intentServer ?: "http://10.0.2.2:8443") }
                     var mode by rememberSaveable { mutableStateOf(intentMode) }
                     var transport by rememberSaveable { mutableStateOf(intentTransport) }
+                    // 阶段3 GPS 路测开关：默认关（intent 只作初值）；开启时 Home 屏有显著提示
+                    var driveTest by rememberSaveable { mutableStateOf(intentDriveTest) }
                     // running/logs 生命周期绑当前 Activity 实例（run 协程随 lifecycleScope
                     // 消亡、大列表不进 Bundle）：普通 remember，往返导航存活即可
                     var running by remember { mutableStateOf(false) }
@@ -174,6 +182,8 @@ class MainActivity : ComponentActivity() {
                             onModeChange = { mode = it },
                             transport = transport,
                             onTransportChange = { transport = it },
+                            driveTest = driveTest,
+                            onDriveTestChange = { driveTest = it },
                             running = running,
                             onRunningChange = { running = it },
                             logs = logs,
@@ -216,17 +226,25 @@ class MainActivity : ComponentActivity() {
         val run: TestRun?,
         val scenarios: List<ScenarioResultEntity>,
         val reportJson: String?,
+        /** GPS 路测轨迹点（radio_sample 投影；未开路测/无 fix 的 run 为空表） */
+        val trackPoints: List<GeoTrack.Point>,
         val loaded: Boolean,
     )
 
     @Composable
     private fun ResultRoute(runId: String, onBack: () -> Unit) {
-        val data by produceState(initialValue = ResultData(null, emptyList(), null, loaded = false), runId) {
+        val data by produceState(
+            initialValue = ResultData(null, emptyList(), null, emptyList(), loaded = false),
+            runId,
+        ) {
             value = withContext(Dispatchers.IO) {
                 ResultData(
                     run = db.testRunDao().byId(runId),
                     scenarios = db.scenarioResultDao().forRun(runId),
                     reportJson = db.reportBodyDao().forRun(runId)?.body,
+                    trackPoints = db.radioSampleDao().forRun(runId)
+                        .filter { it.lat != null && it.lon != null }
+                        .map { GeoTrack.Point(it.tsNanos, it.lat, it.lon, it.accuracyM) },
                     loaded = true,
                 )
             }
@@ -237,6 +255,15 @@ class MainActivity : ComponentActivity() {
             Text("加载中…", modifier = Modifier.padding(16.dp))
             return
         }
+        // 轨迹摘要（Haversine 纯函数）：场景窗口 = startedAtNanos..endedAtNanos
+        val trackSummaries: Map<Long, GeoTrack.Summary> =
+            if (data.trackPoints.isEmpty()) {
+                emptyMap()
+            } else {
+                data.scenarios.associate { s ->
+                    s.id to GeoTrack.summarize(data.trackPoints, s.startedAtNanos, s.endedAtNanos)
+                }
+            }
         ResultScreen(
             run = data.run,
             scenarios = data.scenarios,
@@ -253,6 +280,14 @@ class MainActivity : ComponentActivity() {
                 }
             },
             onBack = onBack,
+            trackSummaries = trackSummaries,
+            hasTrack = data.trackPoints.isNotEmpty(),
+            onExportTrack = {
+                // 轨迹只本地导出（Downloads），绝不进上报体（§9.1）
+                doExport(runId, "track.csv", "text/csv", GeoTrack.buildTrackCsv(data.trackPoints)) {
+                    exportStatus = it
+                }
+            },
         )
     }
 
@@ -439,6 +474,8 @@ class MainActivity : ComponentActivity() {
         onModeChange: (TestEngine.Mode) -> Unit,
         transport: TestEngine.TransportMode,
         onTransportChange: (TestEngine.TransportMode) -> Unit,
+        driveTest: Boolean,
+        onDriveTestChange: (Boolean) -> Unit,
         running: Boolean,
         onRunningChange: (Boolean) -> Unit,
         logs: SnapshotStateList<String>,
@@ -476,6 +513,7 @@ class MainActivity : ComponentActivity() {
                             mode = mode,
                             transport = transport,
                             inject = intentInject,
+                            driveTest = driveTest,
                         )
                     ).collect { line ->
                         addLog(line)
@@ -621,6 +659,28 @@ class MainActivity : ComponentActivity() {
                     Text("AB h3")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
+                // 阶段3 GPS 路测开关（默认关；开启时下方红字显著提示，§9.1 隐私边界）
+                OutlinedButton(
+                    enabled = !running,
+                    onClick = {
+                        val turningOn = !driveTest
+                        onDriveTestChange(turningOn)
+                        if (turningOn &&
+                            ContextCompat.checkSelfPermission(
+                                this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            // 权限缺失时提前请求；拒绝不阻塞 run——坐标列按 R-10 记 null
+                            radioPermissionLauncher.launch(
+                                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                            )
+                        }
+                        addLog("DRIVE_TEST_TOGGLE enabled=$turningOn")
+                    },
+                ) {
+                    Text(if (driveTest) "GPS路测: 开" else "GPS路测: 关")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 OutlinedButton(onClick = { onRadioSnapshot { line -> addLog(line) } }) {
                     Text("Radio")
                 }
@@ -633,6 +693,14 @@ class MainActivity : ComponentActivity() {
                 OutlinedButton(enabled = !running, onClick = onOpenApiProbe) {
                     Text("API Probe")
                 }
+            }
+            if (driveTest) {
+                // §9.1：路测开启必须显著提示（默认关；坐标仅存本机 Room/本地导出，不上报）
+                Text(
+                    "GPS 路测已开启：测试期间将以 1Hz 记录位置轨迹。坐标仅保存在本机（Room/本地导出），绝不上报服务器。",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                )
             }
             if (intentInject != null) {
                 Text(
