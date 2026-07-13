@@ -113,7 +113,9 @@ class ContinuityRunner(private val context: Context) {
             log("CONTINUITY_BIND transport=$transportStr snapshot=${it.snapshot.capabilities.replace(' ', '_')}")
         }
 
-        val client = AnebClient(bound)
+        // 承载网络提供者：AUTO=unbound（走系统默认网）；绑定模式持有原绑定句柄，真机硬切换
+        // 拆除原网后可迁到当前新默认网（D-23 跨网迁移修复；决策逻辑在纯 JVM ContinuityRecovery）。
+        val netProvider = ContinuityNetworkProvider(bound)
         val envBuf = ConcurrentLinkedQueue<EnvEvent>()
         val pathChangeCount = AtomicInteger(0)
         val monitorFailure = AtomicReference<String?>(null)
@@ -122,6 +124,11 @@ class ContinuityRunner(private val context: Context) {
         val onPathEvent: (EnvEvent) -> Unit = { ev ->
             envBuf.add(ev)
             if (ev.type == EnvEventType.PATH_CHANGE) pathChangeCount.incrementAndGet()
+            // 真机硬切换：绑定的原蜂窝网被系统拆除（bound_network_lost）→ 标记原句柄失效，
+            // 重连时迁到当前可用新默认网（AUTO 只发 default_network_lost，永不命中此分支）。
+            if (ev.type == EnvEventType.PATH_CHANGE && ev.detail.startsWith("bound_network_lost")) {
+                netProvider.markBoundNetworkLost()
+            }
             // channelFlow 回调线程安全发送；关闭后丢弃（run 已结束，事件仍在 envBuf 兜底落库）
             trySend("CONTINUITY_PATH type=${ev.type.name} detail=${ev.detail.replace(' ', '_')}")
         }
@@ -136,6 +143,8 @@ class ContinuityRunner(private val context: Context) {
         var segments = 0
         var disconnects = 0
         val recoveryMs = ArrayList<Double>()
+        // 跨网迁移恢复的样本数（原绑定句柄被硬切换拆除→迁新默认网后恢复；D-23 两种 C2 语义）
+        var crossNetworkRecoveries = 0
         val c3Probes = ArrayList<ContinuityMath.C3Probe>()
 
         try {
@@ -153,7 +162,7 @@ class ContinuityRunner(private val context: Context) {
                 "&rate_tps=${config.rateTps}&seed=${config.seed}&run=$runId"
 
             // ---------------- C1/C2：长流 + 中断自动重连 ----------------
-            var current: AnebClient.ContinuityStreamResult? = client.continuityStream(streamUrl)
+            var current: AnebClient.ContinuityStreamResult? = netProvider.client().continuityStream(streamUrl)
             experiment@ while (true) {
                 val r = current ?: break
                 segments++
@@ -175,35 +184,57 @@ class ContinuityRunner(private val context: Context) {
                 val interruptNanos = r.errorNanos ?: r.lastEventNanos
                     ?: SystemClock.elapsedRealtimeNanos()
 
-                var recovered: AnebClient.ContinuityStreamResult? = null
-                for (attempt in 1..config.maxReconnectAttempts) {
-                    delay(ContinuityMath.backoffDelayMs(attempt, config.backoffBaseMs))
-                    val nr = client.continuityStream(streamUrl)
-                    if (nr.firstTokenNanos != null) {
-                        val recMs = (nr.firstTokenNanos - interruptNanos) / 1e6
-                        recoveryMs.add(recMs)
+                // 重连恢复（纯 JVM 决策，副作用注入）：绑定句柄失效（真机硬切换 EPERM/
+                // bound_network_lost）时迁到当前可用新默认网再发流（D-23），否则同一 client 重连。
+                val outcome = ContinuityRecovery.recover(
+                    interruptNanos = interruptNanos,
+                    maxAttempts = config.maxReconnectAttempts,
+                    firstTokenNanosOf = { it.firstTokenNanos },
+                    errorOf = { it.error },
+                    delayBeforeAttempt = { attempt ->
+                        delay(ContinuityMath.backoffDelayMs(attempt, config.backoffBaseMs))
+                    },
+                    boundNetworkLost = { netProvider.boundNetworkLost() },
+                    rebindToCurrentNetwork = { netProvider.rebindToCurrentNetwork() },
+                    attemptStream = { netProvider.client().continuityStream(streamUrl) },
+                    onAttemptFailed = { attempt, error ->
+                        // 死句柄错误（回绑已拆除网 EPERM）→ 标记失效，下一次尝试迁新默认网
+                        if (ContinuityRecovery.isBoundHandleDeadError(error)) {
+                            netProvider.markBoundNetworkLost()
+                        }
                         log(
-                            "CONTINUITY_RECOVERY run_id=$runId seg=$segments attempt=$attempt " +
-                                "recovery_ms=${"%.1f".format(recMs)} " +
-                                "conn_new=${nr.connectionWasNew ?: "null"}"
+                            "CONTINUITY_RECONNECT run_id=$runId seg=$segments attempt=$attempt " +
+                                "ok=false error=${error?.replace(' ', '_') ?: "no_token"}"
                         )
-                        recovered = nr
-                        break
+                    },
+                    onRebind = { attempt, detail ->
+                        log(
+                            "CONTINUITY_REBIND run_id=$runId seg=$segments attempt=$attempt " +
+                                "ok=${detail != null} target=${detail ?: "unavailable"}"
+                        )
+                    },
+                )
+                when (outcome) {
+                    is ContinuityRecovery.Outcome.Recovered -> {
+                        recoveryMs.add(outcome.recoveryMs)
+                        if (outcome.crossNetwork) crossNetworkRecoveries++
+                        val semantic = if (outcome.crossNetwork) "cross_network" else "same_network"
+                        log(
+                            "CONTINUITY_RECOVERY run_id=$runId seg=$segments attempt=${outcome.attempt} " +
+                                "recovery_ms=${"%.1f".format(outcome.recoveryMs)} semantic=$semantic " +
+                                "conn_new=${outcome.result.connectionWasNew ?: "null"}"
+                        )
+                        current = outcome.result // 重连流即下一段，回到段循环继续判定
                     }
-                    log(
-                        "CONTINUITY_RECONNECT run_id=$runId seg=$segments attempt=$attempt " +
-                            "ok=false error=${nr.error?.replace(' ', '_') ?: "no_token"}"
-                    )
+                    is ContinuityRecovery.Outcome.Failed -> {
+                        log(
+                            "CONTINUITY_RECOVERY_FAILED run_id=$runId seg=$segments " +
+                                "attempts=${outcome.attempts}"
+                        )
+                        status = "recovery_failed"
+                        break@experiment
+                    }
                 }
-                if (recovered == null) {
-                    log(
-                        "CONTINUITY_RECOVERY_FAILED run_id=$runId seg=$segments " +
-                            "attempts=${config.maxReconnectAttempts}"
-                    )
-                    status = "recovery_failed"
-                    break@experiment
-                }
-                current = recovered // 重连流即下一段，回到段循环继续判定
             }
 
             val c1 = ContinuityMath.c1Rate(disconnects, segments)
@@ -215,6 +246,7 @@ class ContinuityRunner(private val context: Context) {
             val c2p50 = ContinuityMath.medianMs(recoveryMs)
             log(
                 "CONTINUITY_C2 run_id=$runId samples=${recoveryMs.size} " +
+                    "cross_network_samples=$crossNetworkRecoveries " +
                     "p50_ms=${c2p50?.let { "%.1f".format(it) } ?: "null"} " +
                     "all_ms=${recoveryMs.joinToString(",") { "%.1f".format(it) }.ifEmpty { "none" }} " +
                     "grade=${KpiGrading.grade("C2", c2p50) ?: "null"}"
@@ -224,14 +256,14 @@ class ContinuityRunner(private val context: Context) {
             if (status == "completed") {
                 for (idleS in config.c3IdleSeconds) {
                     // 先热一条连接（确保 idle 起点是活连接），再 idle，再复用探测
-                    val prime = client.echo("$base/api/v1/echo")
+                    val prime = netProvider.client().echo("$base/api/v1/echo")
                     log(
                         "CONTINUITY_C3_PRIME run_id=$runId idle_s=$idleS " +
                             "http=${prime.httpCode ?: "null"} error=${prime.error?.replace(' ', '_') ?: "none"}"
                     )
                     delay(idleS * 1000L)
                     val t0 = SystemClock.elapsedRealtimeNanos()
-                    val probe = client.echo("$base/api/v1/echo")
+                    val probe = netProvider.client().echo("$base/api/v1/echo")
                     val t1 = SystemClock.elapsedRealtimeNanos()
                     val connNew = probe.timing?.let { it.connectStartNs != null }
                     val echoMs = if (probe.error == null) (t1 - t0) / 1e6 else null
@@ -258,6 +290,7 @@ class ContinuityRunner(private val context: Context) {
                 buildEntity(
                     runId, startedAtEpochMs, base, transportStr, config,
                     segments, disconnects, recoveryMs, c3Probes, pathChangeCount.get(), status,
+                    crossNetworkRecoveries,
                 ),
             )
             log("CONTINUITY_DB_WRITE run_id=$runId env_events=${envBuf.size}")
@@ -273,6 +306,7 @@ class ContinuityRunner(private val context: Context) {
                     buildEntity(
                         runId, startedAtEpochMs, base, transportStr, config,
                         segments, disconnects, recoveryMs, c3Probes, pathChangeCount.get(), status,
+                        crossNetworkRecoveries,
                     ),
                 )
             }
@@ -287,7 +321,8 @@ class ContinuityRunner(private val context: Context) {
                     "DB_WRITE_FAILED table=env_events reason=${it.toString().replace(' ', '_')}",
                 )
             }
-            bound?.release()
+            // 绑定句柄由 netProvider 统管释放（跨网迁移后释放的是"当前持有"的那个，幂等）
+            netProvider.release()
         }
     }.flowOn(Dispatchers.IO)
 
@@ -307,6 +342,8 @@ class ContinuityRunner(private val context: Context) {
         c3Probes: List<ContinuityMath.C3Probe>,
         pathChangeEvents: Int,
         status: String,
+        /** 跨网迁移恢复样本数（D-23）；实验未进入重连阶段（guard/bind/monitor 失败）记 null */
+        crossNetworkRecoveries: Int? = null,
     ): ContinuityResultEntity {
         val c1 = ContinuityMath.c1Rate(disconnects, segments)
         val c2p50 = ContinuityMath.medianMs(recoveryMs)
@@ -329,6 +366,7 @@ class ContinuityRunner(private val context: Context) {
             pathChangeEvents = pathChangeEvents,
             status = status,
             aqsVersionCandidate = AqsScorer.AQS_VERSION_V02,
+            c2CrossNetworkRecoveries = crossNetworkRecoveries,
         )
     }
 
@@ -369,6 +407,60 @@ class ContinuityRunner(private val context: Context) {
         val DEFAULT_C3_IDLE_S = listOf(60, 180, 300)
 
         private const val LOG_TAG = "AnebProbe"
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 承载网络提供者（C2 恢复的 Android 副作用边界；真机跨网迁移修复 D-23）
+// ---------------------------------------------------------------------------
+
+/**
+ * 把"发流用哪个 client"与"原绑定句柄失效时迁到当前可用新默认网"两处 Android 副作用，
+ * 从纯 JVM 重连决策 [ContinuityRecovery] 中隔离出来。
+ *
+ * - **AUTO/未绑定**（模拟器路径）：client 恒为初始 unbound client（本就走系统默认网，切换
+ *   由系统透明迁移）；[boundNetworkLost] 恒 false、[rebindToCurrentNetwork] 恒 no-op——
+ *   same_network 508ms 基线不回归。
+ * - **绑定模式**（真机 CELLULAR/WIFI）：初始 client 绑定 net 句柄；真机硬切换拆除原网
+ *   （PathMonitor bound_network_lost / 回绑 EPERM）后，[rebindToCurrentNetwork] 释放已死的
+ *   原绑定、改用 unbound client 落到当前系统新默认网（QUIC 迁移/重连的应用层对应）。
+ *
+ * 线程安全：[markBoundNetworkLost] 可能自 ConnectivityManager 回调线程与重连协程并发触达
+ * （AtomicBoolean）；[currentClient] @Volatile 可见；[boundRef] 以 AtomicReference 保证换网
+ * 与释放的单次语义（幂等：rebind 已释放的原绑定，release 不再重复释放）。
+ */
+private class ContinuityNetworkProvider(private val initialBound: BoundNetwork?) {
+    private val boundRef = AtomicReference(initialBound)
+    @Volatile private var currentClient = AnebClient(initialBound)
+    private val boundLost = AtomicBoolean(false)
+
+    /** 当前发流用的 client（换网后为落到系统新默认网的 unbound client）。 */
+    fun client(): AnebClient = currentClient
+
+    /** 路径事件 bound_network_lost 或重连 EPERM 触发：标记原绑定句柄已失效。 */
+    fun markBoundNetworkLost() {
+        boundLost.set(true)
+    }
+
+    /** AUTO/未绑定恒 false（无绑定句柄可失效）。 */
+    fun boundNetworkLost(): Boolean = boundLost.get()
+
+    /**
+     * 迁到当前系统新默认网：释放已死的原绑定、改用 unbound client（落系统当前默认网）。
+     * AUTO/未绑定返回 null（no-op，本就在默认网）；已迁过再调仍返回描述（幂等）。
+     */
+    fun rebindToCurrentNetwork(): String? {
+        if (initialBound == null) return null // AUTO：本就走默认网，无需换网
+        boundRef.getAndSet(null)?.let { dead ->
+            currentClient = AnebClient(null) // unbound → 落系统当前默认网（新默认网）
+            dead.release()                   // 释放已死的原绑定 requestNetwork 请求
+        }
+        return "unbound_default_network"
+    }
+
+    /** 释放仍持有的原绑定（幂等：rebind 已释放则此处无操作）。 */
+    fun release() {
+        boundRef.getAndSet(null)?.release()
     }
 }
 

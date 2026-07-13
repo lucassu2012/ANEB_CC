@@ -133,6 +133,12 @@
 | C3 | NAT 静默挂起 | 空闲 N 分钟后连接是否可用及恢复耗时（N ∈ {1,3,5,10}） | 阶梯探测 |
 | R1 | 无线层快照 | RSRP/RSRQ/SINR（LTE）或 SS-RSRP/SS-RSRQ/SS-SINR（NR）、PCI、频段、制式（4G/5G NSA/SA）、小区变更事件 | 1Hz 随测打点 |
 
+> **C2 两种恢复语义（D-23，真机取证细化）。** C2「切换恢复时间」按恢复承载网络分两类，入库列 `c2CrossNetworkRecoveries` 与日志 `CONTINUITY_RECOVERY semantic=` 标注：
+> - **same_network 重连恢复**：原绑定网仍在（或 AUTO 未绑定，切换由系统透明迁移），重连复用同一承载——模拟器 508ms 基线（transport=auto，evidence/phase2/continuity_e2e_20260713.log）属此；因是"平滑网络替换、原句柄可回绑"，未触及真机移动性的严苛面。
+> - **cross_network 迁移恢复**：真机移动性**硬切换**（蜂窝→WiFi）拆除原绑定网句柄，重连须迁到**当前系统新默认网**后首 token 到达——即 IETF draft-hw-ai-agent-6g §3.3「Agent Service Continuity」直指的真实场景、Agent 长会话的核心诉求（QUIC 连接迁移的应用层对应）。真机首测（evidence/phase3/realdevice_continuity_kimi_20260713.log §3）实证：**固定回绑原句柄在硬切换下 EPERM 全败**（原蜂窝网 net110 被拆除，回绑 110 → Operation not permitted → 5 次退避全败 recovery_failed），故 cross_network 恢复须回绑"当前可用新默认网"而非已失效的原句柄。
+>
+> 恢复计时口径两类统一为"中断检出 →（迁网后）首 token 到达"，含退避与换网耗时（D-20/D-23）。§5.2 的 C2 门限对两种语义同表适用，但**只有 cross_network 样本反映真实移动性**，门限定版以真机 cross_network 数据为准（待 E-02 回流）；模拟器 same_network 数据仅验工具灵敏度与量表方向性，不用于 C2 门限定版。
+
 #### 5.2 四级门限（agent-qoe-kpi v0.1，实验性）
 
 适用场景：**国内云 VM 仿真服务器、蜂窝网络接入**。真实 API（跨境）参考值另列。
@@ -148,7 +154,7 @@
 | U1 上行突发吞吐 | >20Mbps | 5–20Mbps | 1–5Mbps | <1Mbps | 1MB prompt 上传耗时 0.4s/1.6s/8s 边界 |
 | U2 工具循环时延 P95 | <150ms | 150–300ms | 300–600ms | >600ms | 一次任务链 10–50 次调用，600ms×N 即分钟级拖尾 |
 | C1 会话中断率 | <0.5% | 0.5–2% | 2–5% | >5% | 本文阶段一触发线 |
-| C2 切换恢复时间 | <1s | 1–3s | 3–10s | >10s 或失败 | QUIC 迁移目标 ≈0；TCP 重建+TLS+SSE 续传的现实阶梯 |
+| C2 切换恢复时间 | <1s | 1–3s | 3–10s | >10s 或失败 | QUIC 迁移目标 ≈0；TCP 重建+TLS+SSE 续传的现实阶梯；same/cross 两种恢复语义见 §5.1 注（D-23），门限定版以真机 cross_network 为准 |
 | C3 NAT 挂起 | ≥10min 存活 | ≥5min | ≥3min | <3min 或静默挂起 | 运营商 CGNAT 常见超时 1–5min |
 
 R 组无线层参考区间（工程惯用值，仅作归因参考，非本体系门限）：LTE RSRP 优 >-85dBm / 良 -85~-95 / 可 -95~-105 / 差 <-105；SINR 优 >20dB / 良 10–20 / 可 0–10 / 差 <0；NR SS-RSRP 对应放宽约 5dB。
