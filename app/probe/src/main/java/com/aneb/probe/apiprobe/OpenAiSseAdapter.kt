@@ -88,8 +88,13 @@ class OpenAiSseAdapter(
                 continue
             }
 
+            // reasoning 模型（如 Moonshot kimi-k2.6）把增量放在 delta.reasoning_content，
+            // 正文 content 可能整段为空——对 TTFT/ITL 而言两者都是真实的流式 token 到达，
+            // 故任一非空即记到达（优先 content，其次 reasoning_content）。
             val content = try {
-                choice0["delta"]?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNullSafe()
+                val delta = choice0["delta"]?.jsonObject
+                delta?.get("content")?.jsonPrimitive?.contentOrNullSafe().takeUnless { it.isNullOrEmpty() }
+                    ?: delta?.get("reasoning_content")?.jsonPrimitive?.contentOrNullSafe()
             } catch (e: Exception) {
                 null
             }

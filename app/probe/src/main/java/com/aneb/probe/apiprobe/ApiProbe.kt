@@ -243,9 +243,12 @@ class ApiProbe(private val context: Context) {
                 """{"model":${jsonStr(model)},"max_tokens":$MAX_TOKENS,"stream":true,""" +
                     """"messages":[{"role":"user","content":${jsonStr(PROMPT)}}]}"""
 
+            // 不带 temperature：各 OpenAI 兼容服务商约束不一（如 Moonshot kimi-k2.6 仅接受
+            // temperature=1，显式传 0 会 400 invalid_temperature），延迟探针不依赖确定性输出，
+            // 走服务端默认值兼容面最大。
             LlmProvider.OPENAI_COMPAT ->
                 """{"model":${jsonStr(model)},"max_tokens":$MAX_TOKENS,"stream":true,""" +
-                    """"temperature":0,"messages":[{"role":"user","content":${jsonStr(PROMPT)}}]}"""
+                    """"messages":[{"role":"user","content":${jsonStr(PROMPT)}}]}"""
         }
 
         private fun jsonStr(s: String): String = buildString {
