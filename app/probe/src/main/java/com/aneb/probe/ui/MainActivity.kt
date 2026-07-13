@@ -132,7 +132,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AnebTheme {
-                Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                // iOS chrome 接入点：应用底用 OLED 背景（--a #000 / 浅色 #F2F2F7），safe-area
+                // 内衬；各屏顶/底毛玻璃 chrome 由 GlassChrome 承载（内容留待下一阶段）。
+                Surface(
+                    color = AnebTheme.colors.background,
+                    modifier = Modifier.fillMaxSize().safeDrawingPadding(),
+                ) {
                     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
                     var serverUrl by rememberSaveable {
                         mutableStateOf(intentServer ?: "https://120-79-148-0.sslip.io:8443")

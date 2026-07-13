@@ -2,7 +2,6 @@ package com.aneb.probe.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -10,6 +9,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.ui.theme.AnebShapes
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
 
@@ -35,9 +35,9 @@ fun GradeChip(
     Text(
         text = label,
         modifier = modifier
-            .clip(RoundedCornerShape(5.dp))
-            .background(color.copy(alpha = 0.16f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .clip(AnebShapes.xs)
+            .background(colors.gradeSoft(grade))
+            .padding(horizontal = 6.dp, vertical = 3.dp),
         color = color,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,

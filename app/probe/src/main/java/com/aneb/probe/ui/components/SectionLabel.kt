@@ -34,9 +34,9 @@ fun SectionLabel(
     ) {
         Text(
             text = title,
-            fontSize = 10.5.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.11.em,
+            fontSize = 11.sp,
+            fontWeight = FontWeight(640),
+            letterSpacing = 0.09.em,
             color = colors.faint,
         )
         if (trailing != null) {

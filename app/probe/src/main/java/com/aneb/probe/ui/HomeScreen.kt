@@ -29,6 +29,7 @@ import com.aneb.probe.ui.components.PulseGauge
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.AnebType
 import com.aneb.probe.ui.theme.Grade
+import com.aneb.probe.ui.theme.onGrade
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -84,7 +85,7 @@ fun HomeScreen(
                 .clickable(enabled = !running, onClick = onStart),
             contentAlignment = Alignment.Center,
         ) {
-            PulseGauge(mode = GaugeMode.Idle, grade = null, score = null, progress = 0f)
+            PulseGauge(mode = GaugeMode.Idle, grade = null, score = null, progress = 0f, size = 216.dp)
         }
         Text(
             "轻触开始 · 约 90 秒",
@@ -143,7 +144,8 @@ private fun LastResultChip(run: TestRun, onClick: () -> Unit) {
                 text = score?.roundToInt()?.toString() ?: "—",
                 style = AnebType.StatValue,
                 fontSize = 14.sp,
-                color = androidx.compose.ui.graphics.Color(0xFF05121A),
+                // 徽标底色为分级色：文字反色按底色亮度择近黑/近白，保证深浅主题对比（token 化）。
+                color = colors.onGrade(grade),
             )
         }
         Spacer(Modifier.width(11.dp))

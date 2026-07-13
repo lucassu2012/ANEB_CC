@@ -1,0 +1,80 @@
+<!-- @dsCard group="基础 Foundations" name="色板 · 排版 · 材质 · 圆角" subtitle="四级语义色 + 系统蓝 + 尺寸相关字距 + 毛玻璃 + 连续圆角" width="980" height="880" -->
+<link rel="stylesheet" href="../tokens.css">
+<div class="wrap" style="padding:30px"><div class="inner"><div class="grid2">
+
+  <div class="panel">
+    <h3>四级语义色 + 系统蓝</h3>
+    <p>四级门限（优/良/可/差）是仪表盘的语义色，编码"好→坏"；品牌<b>系统蓝</b>只用于交互态（开始按钮、当前标签），克制到几乎不与语义色同框。全部随系统深浅色自动切换。</p>
+    <div class="swatches">
+      <div class="sw"><span class="chip" style="background:#30d158"></span><span class="nm">优 Excellent</span><span class="hx">#30D158</span></div>
+      <div class="sw"><span class="chip" style="background:#64d2ff"></span><span class="nm">良 Good</span><span class="hx">#64D2FF</span></div>
+      <div class="sw"><span class="chip" style="background:#ff9f0a"></span><span class="nm">可 Fair</span><span class="hx">#FF9F0A</span></div>
+      <div class="sw"><span class="chip" style="background:#ff453a"></span><span class="nm">差 Poor</span><span class="hx">#FF453A</span></div>
+      <div class="sw"><span class="chip" style="background:#0a84ff"></span><span class="nm">品牌 · 交互</span><span class="hx">#0A84FF</span></div>
+      <div class="sw"><span class="chip" style="background:#000;box-shadow:0 0 0 1px var(--pagehair2) inset"></span><span class="nm">底 · OLED black</span><span class="hx">#000000</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>排版 · 尺寸相关字距</h3>
+    <p>字距随尺寸变化：<b>大字收紧（负字距）</b>、正文归零、小字微开；行高与尺寸反向。层级靠 字重 + 字号 + 行高 三者一起搭，而非只靠字号。中西文用系统字体（SF / 苹方，思源回退）。</p>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:44px;font-weight:680;letter-spacing:-.05em;line-height:.9">89 分数</span><span class="hx" style="color:var(--pagemut);font-family:var(--mono);font-size:11px">44px · ‑.05em</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:22px;font-weight:640;letter-spacing:-.02em">测试结果 Title</span><span class="hx" style="color:var(--pagemut);font-family:var(--mono);font-size:11px">22px · ‑.02em</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:16px;font-weight:450;letter-spacing:-.01em">正文 Body — 一句人话</span><span class="hx" style="color:var(--pagemut);font-family:var(--mono);font-size:11px">16px · ‑.01em</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:12.5px;color:var(--pagemut)">Caption 说明文字</span><span class="hx" style="color:var(--pagemut);font-family:var(--mono);font-size:11px">12.5px · 0</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:11px;font-weight:640;letter-spacing:.09em;text-transform:uppercase;color:var(--pagefaint)">Overline 分区</span><span class="hx" style="color:var(--pagemut);font-family:var(--mono);font-size:11px">11px · +.09em</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>材质 · 毛玻璃层</h3>
+    <p>导航/顶栏/底部操作区做成<b>半透明材质浮层</b>，内容从下方滚过；不用实心色条切走固定高度。大面越厚（更强模糊 + 更深阴影），文字加重加字距保证在玻璃上清晰。</p>
+    <div style="position:relative;border-radius:var(--r-card);overflow:hidden;border:1px solid var(--pagehair)">
+      <div style="position:absolute;inset:0;background:
+        radial-gradient(120px 90px at 22% 30%,var(--brand),transparent 70%),
+        radial-gradient(120px 90px at 80% 60%,var(--exc),transparent 70%),
+        radial-gradient(120px 90px at 55% 90%,var(--fair),transparent 70%),var(--pagecard2)"></div>
+      <div style="position:relative;display:flex;flex-direction:column;gap:10px;padding:16px">
+        <div style="background:var(--pagemat);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--pagehair2);border-radius:14px;padding:11px 14px;font-size:13px;font-weight:600;letter-spacing:-.008em">Regular · 顶栏/底栏 <span style="color:var(--pagemut);font-weight:400"> blur 24</span></div>
+        <div style="background:color-mix(in srgb,var(--pagemat) 130%,transparent);backdrop-filter:var(--glass-blur-strong);-webkit-backdrop-filter:var(--glass-blur-strong);border:1px solid var(--pagehair2);border-radius:14px;padding:11px 14px;font-size:13px;font-weight:600;letter-spacing:-.008em">Thick · 大浮层/弹窗 <span style="color:var(--pagemut);font-weight:400"> blur 40</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>连续圆角 · 层级</h3>
+    <p>更大、更接近 iOS 的<b>连续圆角</b>质感。半径按容器层级递减：设备 → 屏幕 → 卡片 → 瓦片 → 按钮 → chip，越小的元件圆角越收敛。</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="text-align:center"><div style="height:56px;border-radius:22px;background:var(--pagecard2);border:1px solid var(--pagehair2)"></div><div class="hx" style="margin:8px 0 0;font-family:var(--mono);font-size:11px">card 22</div></div>
+      <div style="text-align:center"><div style="height:56px;border-radius:18px;background:var(--pagecard2);border:1px solid var(--pagehair2)"></div><div class="hx" style="margin:8px 0 0;font-family:var(--mono);font-size:11px">tile 18</div></div>
+      <div style="text-align:center"><div style="height:56px;border-radius:16px;background:var(--pagecard2);border:1px solid var(--pagehair2)"></div><div class="hx" style="margin:8px 0 0;font-family:var(--mono);font-size:11px">btn 16</div></div>
+      <div style="text-align:center"><div style="height:56px;border-radius:12px;background:var(--pagecard2);border:1px solid var(--pagehair2)"></div><div class="hx" style="margin:8px 0 0;font-family:var(--mono);font-size:11px">sm 12</div></div>
+      <div style="text-align:center"><div style="height:56px;border-radius:9px;background:var(--pagecard2);border:1px solid var(--pagehair2)"></div><div class="hx" style="margin:8px 0 0;font-family:var(--mono);font-size:11px">xs 9</div></div>
+      <div style="text-align:center"><div style="height:56px;border-radius:999px;background:var(--pagecard2);border:1px solid var(--pagehair2)"></div><div class="hx" style="margin:8px 0 0;font-family:var(--mono);font-size:11px">pill ∞</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>结论文案系统</h3>
+    <p>普通用户永远先读"一句人话"，由 AQS 分档 + 最拖后腿的 KPI 生成，不堆术语。</p>
+    <div class="vlist">
+      <div class="vrow"><span class="grade" style="background:var(--exc-soft);color:var(--exc)">优 85+</span><span class="vt"><b>很适合 AI 助手</b>——响应快、几乎不卡顿。</span></div>
+      <div class="vrow"><span class="grade" style="background:var(--good-soft);color:var(--good)">良 70–85</span><span class="vt"><b>日常够用</b>——对话流畅，大文件上传偶尔多等。</span></div>
+      <div class="vrow"><span class="grade" style="background:var(--fair-soft);color:var(--fair)">可 55–70</span><span class="vt"><b>能用但会卡</b>——长回答可能一顿一顿地出。</span></div>
+      <div class="vrow"><span class="grade" style="background:var(--poor-soft);color:var(--poor)">差 &lt;55</span><span class="vt"><b>体验较差</b>——连接不稳，AI 助手常中断。</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>华为终端即装即用</h3>
+    <p>不依赖任何 Google 服务，HarmonyOS 兼容层直接跑，侧载安装即用。</p>
+    <div class="huawei">
+      <div class="hw"><span class="ck">✓</span><span><b>无 GMS 依赖</b>：定位用系统 LocationManager、网络栈内嵌 Cronet、密钥走 Android Keystore。</span></div>
+      <div class="hw"><span class="ck">✓</span><span><b>已在真机验证</b>：P40 Pro（HarmonyOS 4.2 / API 31）跑通全套，巴龙基带真 5G SA 判别成功。</span></div>
+      <div class="hw"><span class="ck">✓</span><span><b>arm64 单包</b>：一个 APK 覆盖所有在售华为机型，权限首次运行按需申请并说明用途。</span></div>
+      <div class="hw"><span class="ck">✓</span><span><b>省电策略友好</b>：前台 Service + 屏幕常亮，避开华为后台限制；测后自动恢复。</span></div>
+    </div>
+  </div>
+
+</div></div></div>

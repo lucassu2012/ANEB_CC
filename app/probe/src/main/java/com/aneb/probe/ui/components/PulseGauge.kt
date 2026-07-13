@@ -1,7 +1,6 @@
 package com.aneb.probe.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.ui.theme.AnebMotion
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.AnebType
 import com.aneb.probe.ui.theme.Grade
@@ -32,23 +32,31 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * token 脉冲环——ANEB 的标志视觉。环上每一格刻度 = 一个 token，卡顿处留红色缺口，
- * 一眼看出"转速表看不出"的节奏。设计基准：scratchpad/aneb_app_design.html 的 gauge。
+ * iOS 仪表盘 PulseGauge——照交接稿 README §7 与 screens/aneb.js 参数化 1:1 重写：
+ *
+ * 几何（212 单位坐标系 · 圆心 106；按 [size] 等比缩放）：
+ * - 外圈灰底轨（[AnebColors.hairline]）+ 彩色进度弧（stroke 10、圆头、−90° 从顶起、顺时针）；
+ *   偏移 `C*(1-score/100)`（C=578.05, r=92），即 sweep = progress*360°。
+ * - 内圈 48 刻度点阵：点亮数 `round(progress*48)`，内半径 74、外半径 84，宽 2.4 圆头；
+ *   点亮用分级色 opacity .92、未亮用文本色 opacity .16；卡顿刻度([stallPositions])红色长刻度。
+ * - 中心巨大分数（计数 settle：[animatedCount]）。
  *
  * 三态（[GaugeMode]）：
- * - [GaugeMode.Idle]：暗刻度 + 中心播放按钮（品牌色圆），静止；
- * - [GaugeMode.Running]：grade 色弧填充到 [progress]、刻度点亮到同比例、
- *   [stallPositions] 处红色长刻度缺口；中心显示实时合成中的分数 + "…"；
+ * - [GaugeMode.Idle]：暗刻度 + 中心 62px 品牌色 GO 按钮 + 三层脉冲环（[Modifier.pulseRing]）；
+ * - [GaugeMode.Running]：弧/刻度填充到 [progress]、卡顿缺口，中心实时分数 + "正在合成…"；
  * - [GaugeMode.Result]：弧填充到 score/100、中心大分数 + 分级标签。
  *
- * 动画走 [animateFloatAsState]，尊重系统动画缩放（Settings 关动画时时长归零，直接落终值）。
+ * 动画走 [animateFloatAsState]（尊重系统动画缩放：关动画时时长归零直接落终值）+ [animatedCount]
+ * （尊重 LocalReducedMotion）。数字永远显示终值（缩略图/首帧安全）。
+ *
+ * 签名与既有调用点保持兼容（HomeScreen/TestingScreen/ResultScreen 无需改动）。
  *
  * @param mode 三态
  * @param grade 语义分级（决定弧/刻度/分数颜色；null → 中性灰）
  * @param score 0–100 分数；Running 期为实时估计、Result 期为终值；null 显 "—"
- * @param progress 弧/刻度填充比例 0f..1f（Running 用真实进度；Result 可传 score/100）
- * @param stallPositions 卡顿刻度下标（0..tickCount-1），红色长刻度
- * @param tickCount 刻度总数（= 环上 token 格数），默认 60
+ * @param progress 弧/刻度填充比例 0f..1f（Running 用真实进度；Result 传 score/100）
+ * @param stallPositions 卡顿刻度下标（0..tickCount-1），红色长刻度缺口
+ * @param tickCount 刻度总数（iOS 基线 48）
  */
 @Composable
 fun PulseGauge(
@@ -58,71 +66,71 @@ fun PulseGauge(
     progress: Float,
     modifier: Modifier = Modifier,
     stallPositions: List<Int> = emptyList(),
-    tickCount: Int = 60,
+    tickCount: Int = 48,
     size: Dp = 212.dp,
 ) {
     val colors = AnebTheme.colors
     val arcColor = colors.gradeColor(grade)
 
-    // 尊重系统动画缩放：animateFloatAsState 用平台动画时钟，关动画时 tween 时长被缩到 0，
-    // 直接落到 progress 终值（无需手动读 ANIMATOR_DURATION_SCALE）。
+    // 尊重系统动画缩放：tween 在关动画时缩到 0，直接落 progress 终值（无需手读 duration scale）。
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 600),
+        animationSpec = AnebMotion.easeOutTween(AnebMotion.Dur4),
         label = "gauge-progress",
     )
 
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(size)) {
-            val stroke = this.size.minDimension
+            val unit = this.size.minDimension / 212f // 212 单位坐标系等比缩放
             val center = Offset(this.size.width / 2f, this.size.height / 2f)
-            val radius = stroke / 2f - 16f
+            val arcR = 92f * unit
+            val arcStroke = 10f * unit
+            val rin = 74f * unit
+            val rout = 84f * unit
+            val tickStroke = 2.4f * unit
             val stalls = stallPositions.toSet()
+            val litFrac = if (mode == GaugeMode.Idle) 0f else animatedProgress
 
-            // 底环（暗描边）
+            // 外圈灰底轨
             drawCircle(
                 color = colors.hairline,
-                radius = radius,
+                radius = arcR,
                 center = center,
-                style = Stroke(width = 3f),
+                style = Stroke(width = arcStroke),
             )
 
-            // 进度弧（Idle 不画；-90° 起点在顶端，顺时针填充）
+            // 彩色进度弧（Idle 不画；−90° 顶起、顺时针 sweep = progress*360）
             if (mode != GaugeMode.Idle && animatedProgress > 0f) {
-                val arcWidth = if (mode == GaugeMode.Result) 9f else 7f
                 drawArc(
                     color = arcColor,
                     startAngle = -90f,
                     sweepAngle = animatedProgress * 360f,
                     useCenter = false,
-                    topLeft = Offset(center.x - radius, center.y - radius),
-                    size = Size(radius * 2f, radius * 2f),
-                    style = Stroke(width = arcWidth, cap = StrokeCap.Round),
+                    topLeft = Offset(center.x - arcR, center.y - arcR),
+                    size = Size(arcR * 2f, arcR * 2f),
+                    style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
             }
 
-            // 刻度：每格一 token；点亮到 progress 比例，卡顿处红色长刻度缺口
-            val litFrac = if (mode == GaugeMode.Idle) 0f else animatedProgress
+            // 内圈 48 刻度点阵（radial 短线 rin→rout）；点亮到 round(progress*N)，卡顿处红色长刻度
+            val litCount = (litFrac * tickCount).roundToInt()
             for (i in 0 until tickCount) {
-                val frac = if (tickCount > 1) i.toFloat() / (tickCount - 1) else 0f
-                val angleRad = Math.toRadians((-90.0 + frac * 360.0))
+                val angleRad = Math.toRadians(-90.0 + (i.toDouble() / tickCount) * 360.0)
                 val isStall = i in stalls
-                val lit = frac <= litFrac
-                val r1 = radius - 6f
-                val r2 = radius + if (isStall) 9f else 6f
-                val col: Color = when {
-                    isStall -> colors.poor
-                    lit -> arcColor
-                    else -> colors.hairline
-                }
-                val w = if (isStall) 2.4f else 1.6f
+                val lit = i < litCount
                 val cosA = cos(angleRad).toFloat()
                 val sinA = sin(angleRad).toFloat()
+                val r2 = if (isStall) rout + 4f * unit else rout
+                val col: Color = when {
+                    isStall -> colors.poor
+                    lit -> arcColor.copy(alpha = 0.92f)
+                    else -> colors.ink.copy(alpha = 0.16f)
+                }
                 drawLine(
                     color = col,
-                    start = Offset(center.x + cosA * r1, center.y + sinA * r1),
+                    start = Offset(center.x + cosA * rin, center.y + sinA * rin),
                     end = Offset(center.x + cosA * r2, center.y + sinA * r2),
-                    strokeWidth = w,
+                    strokeWidth = if (isStall) tickStroke * 1.2f else tickStroke,
                     cap = StrokeCap.Round,
                 )
             }
@@ -132,55 +140,64 @@ fun PulseGauge(
     }
 }
 
-/** 环心内容：Idle 播放按钮 / Running 实时分数 / Result 大分数 + 分级标签 */
+/** 环心内容：Idle GO 按钮(+脉冲环) / Running 实时分数 / Result 大分数 + 分级标签 */
 @Composable
 private fun GaugeCenter(mode: GaugeMode, grade: Grade?, score: Int?, arcColor: Color) {
     val colors = AnebTheme.colors
     when (mode) {
         GaugeMode.Idle -> PlayButton(brand = colors.brand)
         GaugeMode.Running -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val shown = animatedCount(score)
             Text(
-                text = (score?.toString() ?: "—"),
+                text = shown?.toString() ?: "—",
                 style = AnebType.DisplayScore,
                 fontSize = 52.sp,
                 color = arcColor,
             )
-            Text("正在合成体验分", fontSize = 10.5.sp, color = colors.muted)
+            Text("正在合成体验分", style = AnebType.Caption, fontSize = 10.5.sp, color = colors.muted)
         }
         GaugeMode.Result -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val shown = animatedCount(score)
             Text(
-                text = (score?.toString() ?: "—"),
+                text = shown?.toString() ?: "—",
                 style = AnebType.DisplayScore,
-                fontSize = 62.sp,
+                fontSize = 64.sp,
                 color = arcColor,
             )
             Text(
                 text = grade?.labelFriendly ?: "—",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight(640),
                 color = arcColor,
                 textAlign = TextAlign.Center,
             )
-            Text("Agent 体验分", fontSize = 10.5.sp, color = colors.muted)
+            Text("Agent 体验分", style = AnebType.Caption, fontSize = 11.sp, color = colors.muted)
         }
     }
 }
 
-/** 品牌色圆形播放键（Idle 中心）；纯绘制，点击交给外层 Box.clickable 承载 */
+/**
+ * 品牌色 62px 圆形 GO 播放键（Idle 中心）+ 三层脉冲环（[Modifier.pulseRing]，尊重减弱动效）。
+ * 点击交给外层 Box.clickable 承载（HomeScreen）。
+ */
 @Composable
 private fun PlayButton(brand: Color) {
-    Canvas(modifier = Modifier.size(58.dp).clip(androidx.compose.foundation.shape.CircleShape)) {
-        drawCircle(color = brand, radius = this.size.minDimension / 2f)
-        // 播放三角（略向右偏移视觉居中）
-        val w = this.size.width
-        val h = this.size.height
-        val tri = Path().apply {
-            moveTo(w * 0.40f, h * 0.34f)
-            lineTo(w * 0.40f, h * 0.66f)
-            lineTo(w * 0.66f, h * 0.50f)
-            close()
+    Box(
+        modifier = Modifier.size(62.dp).pulseRing(brand),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(62.dp).clip(androidx.compose.foundation.shape.CircleShape)) {
+            drawCircle(color = brand, radius = this.size.minDimension / 2f)
+            val w = this.size.width
+            val h = this.size.height
+            val tri = Path().apply {
+                moveTo(w * 0.40f, h * 0.34f)
+                lineTo(w * 0.40f, h * 0.66f)
+                lineTo(w * 0.66f, h * 0.50f)
+                close()
+            }
+            drawPath(tri, color = Color.White)
         }
-        drawPath(tri, color = Color.White)
     }
 }
 
@@ -191,7 +208,7 @@ enum class GaugeMode { Idle, Running, Result }
 // Preview（debugImplementation ui-tooling；不进 release）
 // ------------------------------------------------------------------
 
-@Preview(widthDp = 260, heightDp = 260, showBackground = true, backgroundColor = 0xFF0A0E17)
+@Preview(widthDp = 260, heightDp = 260, showBackground = true, backgroundColor = 0xFF000000)
 @Composable
 private fun PreviewGaugeIdle() {
     AnebTheme(darkTheme = true) {
@@ -199,7 +216,7 @@ private fun PreviewGaugeIdle() {
     }
 }
 
-@Preview(widthDp = 260, heightDp = 260, showBackground = true, backgroundColor = 0xFF0A0E17)
+@Preview(widthDp = 260, heightDp = 260, showBackground = true, backgroundColor = 0xFF000000)
 @Composable
 private fun PreviewGaugeRunning() {
     AnebTheme(darkTheme = true) {
@@ -213,7 +230,7 @@ private fun PreviewGaugeRunning() {
     }
 }
 
-@Preview(widthDp = 260, heightDp = 260, showBackground = true, backgroundColor = 0xFF0A0E17)
+@Preview(widthDp = 260, heightDp = 260, showBackground = true, backgroundColor = 0xFF000000)
 @Composable
 private fun PreviewGaugeResult() {
     AnebTheme(darkTheme = true) {

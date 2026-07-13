@@ -1,7 +1,6 @@
 package com.aneb.probe.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -10,9 +9,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.ui.theme.AnebElevation
+import com.aneb.probe.ui.theme.AnebShapes
 import com.aneb.probe.ui.theme.AnebTheme
 
 /**
@@ -33,11 +36,11 @@ fun <T> SegmentedControl(
     modifier: Modifier = Modifier,
 ) {
     val colors = AnebTheme.colors
+    val innerShape = RoundedCornerShape(7.dp)
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(9.dp))
+            .clip(AnebShapes.xs)
             .background(colors.surfaceMuted)
-            .border(1.dp, colors.hairline, RoundedCornerShape(9.dp))
             .padding(2.dp),
     ) {
         options.forEach { option ->
@@ -48,8 +51,9 @@ fun <T> SegmentedControl(
                 fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                 color = if (on) colors.ink else colors.muted,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(7.dp))
-                    .background(if (on) colors.surfaceElevated else androidx.compose.ui.graphics.Color.Transparent)
+                    .then(if (on) Modifier.shadow(AnebElevation.level1, innerShape, clip = false) else Modifier)
+                    .clip(innerShape)
+                    .background(if (on) colors.surface else Color.Transparent)
                     .clickable { onSelect(option) }
                     .padding(horizontal = 9.dp, vertical = 4.dp),
             )

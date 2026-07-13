@@ -1,0 +1,97 @@
+<!-- @dsCard group="基础 Foundations" name="动效与交互原则" subtitle="按压反馈 · 弹簧而非固定时长 · 脉冲 · 材质进出 · 尊重减弱动效" width="980" height="720" -->
+<link rel="stylesheet" href="../tokens.css">
+<div class="wrap" style="padding:30px"><div class="inner"><div class="grid2">
+
+  <div class="panel">
+    <h3>① 按压即反馈</h3>
+    <p>反馈在 <b>pointer-down 就出现</b>，不等松手；按住时元件下压。任何交互元件都带 <code style="font-family:var(--mono);font-size:12px;color:var(--brand)">.press</code>。试试按住 ↓</p>
+    <div style="display:flex;gap:10px">
+      <div class="btn primary press" style="border-radius:var(--r-btn)">主操作</div>
+      <div class="btn ghost press" style="border-radius:var(--r-btn);background:var(--pagecard2);color:var(--pageink)">次操作</div>
+    </div>
+    <p style="margin:16px 0 0;font-size:12.5px">缩放 0.96 · <span style="font-family:var(--mono)">120ms</span> · ease-out</p>
+  </div>
+
+  <div class="panel">
+    <h3>② 弹簧，而非固定时长</h3>
+    <p><b>默认临界阻尼</b>（无过冲，response .3–.4）；只有手势本身带动量（甩/拖放）才加轻微过冲。点轨道任意处 →</p>
+    <div id="track" style="position:relative;height:44px;border-radius:var(--r-pill);background:var(--pagecard2);border:1px solid var(--pagehair);cursor:pointer;margin-top:4px">
+      <div id="k1" style="position:absolute;top:6px;left:6px;width:30px;height:30px;border-radius:50%;background:var(--brand);transition:left .4s var(--ease-out)"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--pagemut)">
+      <span><span style="color:var(--brand)">●</span> 临界阻尼 · ease-out</span>
+      <span id="tt" style="font-family:var(--mono)">damping 1.0</span>
+    </div>
+    <div id="track2" style="position:relative;height:44px;border-radius:var(--r-pill);background:var(--pagecard2);border:1px solid var(--pagehair);cursor:pointer;margin-top:12px">
+      <div id="k2" style="position:absolute;top:6px;left:6px;width:30px;height:30px;border-radius:50%;background:var(--exc);transition:left .5s var(--ease-spring)"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--pagemut)">
+      <span><span style="color:var(--exc)">●</span> 动量 · 轻微过冲</span>
+      <span style="font-family:var(--mono)">damping ~0.8</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>③ 脉冲 · 持续状态</h3>
+    <p>进行中的状态要<b>持续反馈</b>，不是只在结束时。开始按钮向外呼吸，实时指示点心跳。</p>
+    <div style="display:flex;align-items:center;gap:26px;margin-top:6px">
+      <div class="goidle" style="position:relative;width:72px;height:72px;display:grid;place-items:center">
+        <div class="pulsering"><span></span><span></span><span></span></div>
+        <div class="play" style="position:relative;z-index:2"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#fff"/></svg></div>
+      </div>
+      <div class="phase" style="margin:0"><span class="live"></span>正在测试…</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>④ 材质会"到场"</h3>
+    <p>玻璃浮层进出时<b>同时动模糊和缩放</b>，读作一块真实材质抵达，而不是简单淡入。悬停复位 ↓</p>
+    <div style="position:relative;border-radius:var(--r-card);overflow:hidden;border:1px solid var(--pagehair);margin-top:4px" onmouseover="var m=this.querySelector('.mz');m.style.animation='none';m.offsetHeight;m.style.animation='mz .5s var(--ease-out)'">
+      <div style="position:absolute;inset:0;background:radial-gradient(90px 70px at 30% 40%,var(--brand),transparent 70%),radial-gradient(90px 70px at 75% 70%,var(--exc),transparent 70%),var(--pagecard2)"></div>
+      <div class="mz" style="position:relative;margin:26px;background:var(--pagemat);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--pagehair2);border-radius:16px;padding:16px;font-size:13px;font-weight:600;letter-spacing:-.008em">Sheet · blur + scale 一起动</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>⑤ 滚动边缘，不是硬分割线</h3>
+    <p>内容进入浮层区域时<b>渐隐</b>，而不是压一条 1px 描边。下面这块内容顶底都在玻璃下淡出。</p>
+    <div style="position:relative;height:150px;border-radius:var(--r-card);border:1px solid var(--pagehair);overflow:hidden;background:var(--pagecard2)">
+      <div style="position:absolute;top:0;left:0;right:0;height:34px;z-index:2;background:var(--pagemat);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);display:flex;align-items:center;padding:0 14px;font-size:12px;font-weight:600">顶栏</div>
+      <div id="msc" style="height:100%;overflow-y:auto;padding:42px 14px 34px;font-size:12.5px;line-height:1.7;color:var(--pagemut);-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 40px,#000 calc(100% - 34px),transparent 100%);mask-image:linear-gradient(180deg,transparent 0,#000 40px,#000 calc(100% - 34px),transparent 100%)">首字延迟 35ms<br>卡顿 0 次<br>RTT P50 44ms<br>抖动 8.4ms<br>上行 12.5 Mbps<br>RSRP −93 dBm<br>SINR 8.5 dB<br>制式 5G SA · n78</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>⑥ 尊重「减弱动效」</h3>
+    <p>开启系统「减弱动效」后，以上全部退化为<b>短促交叉淡入</b>：去掉滑动/过冲/脉冲，保留有助理解的透明度与颜色变化——反馈更温和，绝不消失。</p>
+    <div style="display:flex;flex-direction:column;gap:9px;margin-top:2px;font-size:12.5px;color:var(--pagemut)">
+      <div style="display:flex;gap:10px"><span class="ck" style="color:var(--exc);font-weight:800">✓</span>弹簧/脉冲 → 淡入淡出</div>
+      <div style="display:flex;gap:10px"><span class="ck" style="color:var(--exc);font-weight:800">✓</span>按压缩放 → 透明度变化</div>
+      <div style="display:flex;gap:10px"><span class="ck" style="color:var(--exc);font-weight:800">✓</span>数字与弧线 → 直接呈现最终值</div>
+    </div>
+  </div>
+
+</div></div></div>
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function wire(trackId, knobId, w){
+    var t=document.getElementById(trackId), k=document.getElementById(knobId);
+    if(!t) return;
+    t.addEventListener('click',function(e){
+      var r=t.getBoundingClientRect();
+      var x=Math.max(6,Math.min(r.width-36, e.clientX-r.left-15));
+      if(reduce){k.style.transition='none';}
+      k.style.left=x+'px';
+      var tt=document.getElementById('tt'); if(tt) tt.textContent='response .4s';
+    });
+  }
+  wire('track','k1'); wire('track2','k2');
+})();
+</script>
+<style>
+@keyframes mz{from{filter:blur(6px);transform:scale(.94);opacity:0}to{filter:blur(0);transform:scale(1);opacity:1}}
+#msc{scrollbar-width:none}
+#msc::-webkit-scrollbar{width:0;height:0}
+@media (prefers-reduced-motion:reduce){.mz{animation:none!important}}
+</style>

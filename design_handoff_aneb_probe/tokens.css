@@ -1,0 +1,335 @@
+/* ============================================================================
+   ANEB Probe — Design Tokens (Apple-inspired foundation)
+   系统蓝品牌色 · iOS 语义色 · 毛玻璃材质 · 连续圆角 · 弹簧动效 · 尺寸相关字距
+   ==========================================================================*/
+
+:root{
+  /* ---- Brand (iOS system blue) — 仅用于交互态 ---- */
+  --brand:#0a84ff; --brand2:#5eb0ff; --brand-press:#0060df;
+
+  /* ---- 四级语义色 (iOS system colors, dark-tuned) — 编码 好→坏 ---- */
+  --exc:#30d158;  /* 优 · green  */
+  --good:#64d2ff; /* 良 · cyan   */
+  --fair:#ff9f0a; /* 可 · orange */
+  --poor:#ff453a; /* 差 · red    */
+
+  /* ---- 语义色柔和底 (用于 chip/tile 背景) ---- */
+  --exc-soft:rgba(48,209,88,.16); --good-soft:rgba(100,210,255,.16);
+  --fair-soft:rgba(255,159,10,.16); --poor-soft:rgba(255,69,58,.16);
+
+  /* ---- 展示页中性色 (dark default) ---- */
+  --pageink:#f5f5f7; --pagemut:#98989f; --pagefaint:#68686e;
+  --pagebg:#000000; --pageelev:#0e0e10; --pagecard:#1c1c1e; --pagecard2:#2c2c2e;
+  --pagehair:rgba(255,255,255,.09); --pagehair2:rgba(255,255,255,.14);
+
+  /* ---- 材质 / 毛玻璃 ---- */
+  --glass-blur:saturate(180%) blur(24px); /* @kind other */
+  --glass-blur-strong:saturate(200%) blur(40px); /* @kind other */
+  --pagemat:rgba(24,24,26,.62);
+
+  /* ---- 连续圆角 (iOS squircle 质感) ---- */
+  --r-phone:54px; --r-screen:46px;
+  --r-xl:28px; --r-card:22px; --r-tile:18px; --r-btn:16px; --r-sm:12px; --r-xs:9px;
+  --r-pill:999px;
+
+  /* ---- 阴影 (分层 · 大面越厚) ---- */
+  --shadow-1:0 1px 2px rgba(0,0,0,.28);
+  --shadow-2:0 6px 20px -6px rgba(0,0,0,.45), 0 2px 6px -2px rgba(0,0,0,.3);
+  --shadow-3:0 34px 70px -26px rgba(0,0,0,.75), 0 10px 28px -14px rgba(0,0,0,.55);
+
+  /* ---- 动效 (弹簧感缓动 · 阻尼默认无过冲) ---- */
+  --ease-out:cubic-bezier(.22,1,.36,1); /* @kind other */
+  --ease-inout:cubic-bezier(.65,0,.35,1); /* @kind other */
+  --ease-spring:cubic-bezier(.34,1.42,.5,1); /* @kind other */
+  --dur-1:.12s; /* @kind other */
+  --dur-2:.24s; /* @kind other */
+  --dur-3:.4s; /* @kind other */
+  --dur-4:.6s; /* @kind other */
+
+  /* ---- 排版尺度 (尺寸相关字距 · 大字负、小字正) ---- */
+  /* 系统字体：Apple 上解析为 SF + 苹方，其它平台由 system-ui 解析为对应 CJK 字体（鸿蒙/思源/雅黑） */
+  --font:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --mono:ui-monospace,Menlo,Consolas,monospace; /* @kind font */
+
+  --maxw:1120px;
+
+  color-scheme:dark;
+}
+
+/* ---- 浅色 (更接近 iOS 默认) ---- */
+@media (prefers-color-scheme: light){
+  :root{
+    --brand:#007aff; --brand2:#0a84ff; --brand-press:#0060df;
+    --exc:#34c759; --good:#32ade6; --fair:#ff9500; --poor:#ff3b30;
+    --exc-soft:rgba(52,199,89,.14); --good-soft:rgba(50,173,230,.14);
+    --fair-soft:rgba(255,149,0,.14); --poor-soft:rgba(255,59,48,.14);
+    --pageink:#1d1d1f; --pagemut:#6e6e73; --pagefaint:#a1a1a6;
+    --pagebg:#f2f2f7; --pageelev:#ffffff; --pagecard:#ffffff; --pagecard2:#f2f2f7;
+    --pagehair:rgba(60,60,67,.12); --pagehair2:rgba(60,60,67,.2);
+    --pagemat:rgba(250,250,252,.7);
+    color-scheme:light;
+  }
+}
+:root[data-theme="dark"]{
+  --brand:#0a84ff; --brand2:#5eb0ff;
+  --exc:#30d158; --good:#64d2ff; --fair:#ff9f0a; --poor:#ff453a;
+  --exc-soft:rgba(48,209,88,.16); --good-soft:rgba(100,210,255,.16);
+  --fair-soft:rgba(255,159,10,.16); --poor-soft:rgba(255,69,58,.16);
+  --pageink:#f5f5f7; --pagemut:#98989f; --pagefaint:#68686e;
+  --pagebg:#000000; --pageelev:#0e0e10; --pagecard:#1c1c1e; --pagecard2:#2c2c2e;
+  --pagehair:rgba(255,255,255,.09); --pagehair2:rgba(255,255,255,.14);
+  --pagemat:rgba(24,24,26,.62); color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --brand:#007aff; --brand2:#0a84ff;
+  --exc:#34c759; --good:#32ade6; --fair:#ff9500; --poor:#ff3b30;
+  --exc-soft:rgba(52,199,89,.14); --good-soft:rgba(50,173,230,.14);
+  --fair-soft:rgba(255,149,0,.14); --poor-soft:rgba(255,59,48,.14);
+  --pageink:#1d1d1f; --pagemut:#6e6e73; --pagefaint:#a1a1a6;
+  --pagebg:#f2f2f7; --pageelev:#ffffff; --pagecard:#ffffff; --pagecard2:#f2f2f7;
+  --pagehair:rgba(60,60,67,.12); --pagehair2:rgba(60,60,67,.2);
+  --pagemat:rgba(250,250,252,.7); color-scheme:light;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+
+/* ============================================================================
+   展示页外壳 (Design system showcase wrap)
+   ==========================================================================*/
+.wrap{
+  font-family:var(--font);
+  font-optical-sizing:auto;
+  background:var(--pagebg);
+  color:var(--pageink);
+  min-height:100vh; padding:0 22px 96px;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.inner{max-width:var(--maxw);margin:0 auto}
+a{color:var(--brand);text-decoration:none}
+a:hover{color:var(--brand2)}
+
+/* ---- 通用交互反馈：按压缩放 (press-down feedback, §1) ---- */
+.press{transition:transform var(--dur-1) var(--ease-out)}
+.press:active{transform:scale(.96)}
+@media (prefers-reduced-motion:reduce){
+  .press{transition:none}
+  .press:active{transform:none;opacity:.7}
+}
+
+/* ============================================================================
+   Masthead
+   ==========================================================================*/
+header.mast{padding:60px 0 34px;display:flex;flex-direction:column;gap:22px}
+.kicker{display:flex;align-items:center;gap:12px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--pagemut);font-weight:590}
+.kicker .dot{width:7px;height:7px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 22%,transparent)}
+h1.t{margin:0;font-size:clamp(34px,5.6vw,60px);line-height:1.02;font-weight:700;letter-spacing:-.028em;text-wrap:balance;max-width:15ch}
+h1.t em{font-style:normal;color:var(--brand)}
+.lede{margin:0;max-width:62ch;font-size:clamp(16px,1.7vw,19px);line-height:1.5;letter-spacing:-.006em;color:var(--pagemut)}
+.lede b{color:var(--pageink);font-weight:600}
+.metabar{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.tag{font-size:12.5px;padding:6px 13px;border:1px solid var(--pagehair);border-radius:var(--r-pill);color:var(--pagemut);background:color-mix(in srgb,var(--pagecard) 55%,transparent);backdrop-filter:var(--glass-blur)}
+.tag b{color:var(--pageink);font-weight:600}
+
+/* ---- Section labels ---- */
+.sectlabel{display:flex;align-items:baseline;gap:14px;margin:56px 0 22px}
+.sectlabel .n{font-family:var(--mono);font-size:12px;color:var(--brand);letter-spacing:.08em}
+.sectlabel h2{margin:0;font-size:21px;font-weight:640;letter-spacing:-.018em}
+.sectlabel .sub{margin-left:auto;font-size:13.5px;color:var(--pagemut);letter-spacing:-.004em}
+
+/* ---- Strip of phone frames ---- */
+.strip{display:flex;gap:28px;overflow-x:auto;padding:8px 2px 28px;scroll-snap-type:x mandatory}
+.strip::-webkit-scrollbar{height:8px}
+.strip::-webkit-scrollbar-thumb{background:var(--pagehair2);border-radius:8px}
+.framewrap{scroll-snap-align:center;flex:0 0 auto;display:flex;flex-direction:column;gap:14px;width:300px}
+.caption{display:flex;gap:9px;align-items:baseline;padding:0 6px}
+.caption .pill{font-size:10.5px;font-weight:680;letter-spacing:.02em;padding:4px 9px;border-radius:var(--r-xs);text-transform:uppercase}
+.pill.simple{background:var(--exc-soft);color:var(--exc)}
+.pill.dev{background:color-mix(in srgb,var(--brand) 18%,transparent);color:var(--brand2)}
+.pill.light{background:var(--fair-soft);color:var(--fair)}
+.caption .cap{font-size:13.5px;color:var(--pagemut);letter-spacing:-.004em;line-height:1.45}
+.caption .cap b{color:var(--pageink);font-weight:600}
+
+/* ============================================================================
+   Phone shell  ——  绝对定位毛玻璃 chrome + 内容从下方滚过 (§12)
+   ==========================================================================*/
+.phone{
+  /* app-scope tokens (dark app, OLED black) */
+  --a:#000000; --a2:#1c1c1e; --acard:#1c1c1e; --acard2:#2c2c2e;
+  --ahair:rgba(255,255,255,.1); --ahair2:rgba(255,255,255,.16);
+  --aink:#f5f5f7; --amut:rgba(235,235,245,.6); --afaint:rgba(235,235,245,.32);
+  --amat:rgba(30,30,32,.6); --amat-solid:#141416; --band:var(--exc);
+  width:300px;height:648px;border-radius:var(--r-phone);padding:11px;
+  background:linear-gradient(160deg,#2a2a2e,#050506);
+  box-shadow:var(--shadow-3), 0 0 0 1px rgba(255,255,255,.06) inset;
+}
+.phone.lightapp{
+  --a:#f2f2f7; --a2:#ffffff; --acard:#ffffff; --acard2:#f2f2f7;
+  --ahair:rgba(60,60,67,.1); --ahair2:rgba(60,60,67,.18);
+  --aink:#1d1d1f; --amut:rgba(60,60,67,.6); --afaint:rgba(60,60,67,.34);
+  --amat:rgba(250,250,252,.68); --amat-solid:#f7f7fa;
+  background:linear-gradient(160deg,#e7e7ea,#c9c9cf);
+}
+/* 分档色 (template 复用) */
+.band-exc{--band:var(--exc)} .band-good{--band:var(--good)}
+.band-fair{--band:var(--fair)} .band-poor{--band:var(--poor)}
+.screen{position:relative;height:100%;border-radius:var(--r-screen);overflow:hidden;background:var(--a);color:var(--aink);
+  font-family:var(--font);font-optical-sizing:auto;-webkit-font-smoothing:antialiased}
+
+/* Dynamic-island pill */
+.notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:78px;height:24px;border-radius:var(--r-pill);background:#000;z-index:20}
+.lightapp .notch{background:#0b0b0d}
+
+/* Status bar (part of top chrome) */
+.sbar{display:flex;justify-content:space-between;align-items:center;height:44px;padding:0 26px 0 30px;font-size:13px;font-weight:600;color:var(--aink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.sbar .net{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:590}
+.sig{display:inline-flex;gap:1.6px;align-items:flex-end;height:11px}
+.sig i{width:2.6px;background:currentColor;border-radius:1px}
+.sig i:nth-child(1){height:4px}.sig i:nth-child(2){height:6px}.sig i:nth-child(3){height:8.5px}.sig i:nth-child(4){height:11px}
+
+/* Top glass chrome — 内容从下方滚过 */
+.chrome-top{position:absolute;top:0;left:0;right:0;z-index:10;
+  background:var(--amat);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur)}
+.chrome-top.bare{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+.chrome-bot{position:absolute;bottom:0;left:0;right:0;z-index:10;padding:12px 20px calc(env(safe-area-inset-bottom) + 22px);
+  background:var(--amat);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur)}
+/* home indicator */
+.homebar{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:118px;height:5px;border-radius:var(--r-pill);background:var(--aink);opacity:.32;z-index:12}
+
+/* Scrollable content region (scrolls under chrome) */
+.content{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:0 20px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 96px,#000 calc(100% - 72px),transparent 100%);
+  mask-image:linear-gradient(180deg,transparent 0,#000 96px,#000 calc(100% - 72px),transparent 100%)}
+.content::-webkit-scrollbar{width:0;height:0}
+/* 静态屏 (无滚动) 用 flow 版 */
+.appbody{position:absolute;inset:0;padding:52px 20px 20px;display:flex;flex-direction:column;min-height:0}
+
+/* Title row inside top chrome */
+.brandrow{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 12px;gap:12px}
+.wordmark{display:flex;flex-direction:column;line-height:1.05;min-width:0}
+.wordmark .w{font-weight:680;font-size:22px;letter-spacing:-.02em}
+.wordmark .w s{text-decoration:none;color:var(--brand)}
+.wordmark .sub{font-size:12px;color:var(--amut);margin-top:4px;letter-spacing:-.003em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Segmented control (iOS) */
+.modeseg{display:flex;background:var(--a2);border-radius:10px;padding:2px;font-size:12.5px;font-weight:590;flex:0 0 auto;
+  box-shadow:0 0 0 .5px var(--ahair) inset}
+.lightapp .modeseg{background:rgba(120,120,128,.16)}
+.modeseg span{padding:5px 12px;border-radius:8px;color:var(--amut);transition:color var(--dur-2) var(--ease-out)}
+.modeseg span.on{background:var(--acard);color:var(--aink);box-shadow:var(--shadow-1);font-weight:600}
+.lightapp .modeseg span.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.14),0 1px 1px rgba(0,0,0,.06)}
+
+/* ---- Gauge ---- */
+.gauge{position:relative;display:grid;place-items:center;margin:8px auto 4px}
+.gauge svg{display:block;transform:rotate(-90deg);overflow:visible}
+.gauge .arc{transition:stroke-dashoffset var(--dur-4) var(--ease-out)}
+.gcenter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.score{font-weight:680;letter-spacing:-.05em;line-height:.86;font-variant-numeric:tabular-nums;font-optical-sizing:auto}
+.gradelbl{font-size:14px;font-weight:640;letter-spacing:.01em;margin-top:7px}
+.gsub{font-size:11px;color:var(--amut);margin-top:4px;letter-spacing:.005em}
+
+/* GO idle */
+.goidle .gcenter .play{width:62px;height:62px;border:0;padding:0;cursor:pointer;font:inherit;border-radius:50%;background:var(--brand);display:grid;place-items:center;
+  box-shadow:0 10px 30px -6px color-mix(in srgb,var(--brand) 70%,transparent);position:relative;z-index:2}
+.goidle .play svg{transform:none;margin-left:4px}
+.pulsering{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.pulsering span{position:absolute;width:62px;height:62px;border-radius:50%;border:2px solid var(--brand);
+  animation:pulse 2.6s var(--ease-out) infinite}
+.pulsering span:nth-child(2){animation-delay:.9s}
+.pulsering span:nth-child(3){animation-delay:1.8s}
+@keyframes pulse{0%{transform:scale(1);opacity:.55}70%{opacity:0}100%{transform:scale(2.7);opacity:0}}
+.gohint{font-size:13px;color:var(--amut);margin-top:14px;letter-spacing:-.003em;text-align:center}
+
+/* Verdict + tiles */
+.verdict{font-size:16px;line-height:1.5;text-align:center;color:var(--aink);margin:14px 6px 0;font-weight:500;letter-spacing:-.01em;text-wrap:balance}
+.verdict b{font-weight:640}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:16px}
+.tile{background:var(--acard);border:1px solid var(--ahair);border-radius:var(--r-tile);padding:13px 9px;text-align:center;box-shadow:var(--shadow-1)}
+.tile .tv{font-weight:660;font-size:19px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.tile .tk{font-size:10.5px;color:var(--amut);margin-top:4px;letter-spacing:.003em}
+.tile .tg{font-size:9.5px;font-weight:700;margin-top:6px;letter-spacing:.03em}
+
+/* Buttons */
+.btnrow{display:flex;gap:10px}
+.btn{flex:1;text-align:center;padding:14px;border-radius:var(--r-btn);font-size:15px;font-weight:600;letter-spacing:-.01em;cursor:pointer}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.primary:active{background:var(--brand-press)}
+.btn.ghost{background:var(--a2);color:var(--aink)}
+.lightapp .btn.ghost{background:rgba(120,120,128,.14)}
+
+/* Last-run chip */
+.lastchip{margin-top:auto;background:var(--acard);border:1px solid var(--ahair);border-radius:var(--r-card);padding:13px 15px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-1);cursor:pointer}
+.lastchip .lg{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-weight:700;font-size:15px;color:#001b0a;font-variant-numeric:tabular-nums;flex:0 0 auto}
+.lastchip .lt{font-size:12.5px;color:var(--amut);line-height:1.45;min-width:0}
+.lastchip .lt b{color:var(--aink);font-weight:600}
+.lastchip .chev{margin-left:auto;color:var(--afaint);font-size:19px;flex:0 0 auto}
+
+/* Testing state */
+.phase{display:flex;align-items:center;gap:8px;justify-content:center;font-size:13px;color:var(--amut);margin-top:8px;letter-spacing:-.006em}
+.phase .live{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent);animation:ping 1.4s var(--ease-out) infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 55%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.phase .live,.pulsering span{animation:none}.pulsering span{opacity:.3}}
+.streamstrip{display:flex;gap:4px;align-items:center;justify-content:center;margin-top:16px;flex-wrap:wrap;max-width:236px;margin-inline:auto}
+.tk-dot{width:5px;height:5px;border-radius:50%;background:var(--good);transition:transform var(--dur-2) var(--ease-spring)}
+.tk-dot.stall{background:var(--poor);width:6px;height:6px}
+.tk-dot.dim{background:var(--afaint)}
+.livemini{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
+.lm{background:var(--acard);border:1px solid var(--ahair);border-radius:var(--r-tile);padding:12px 14px;display:flex;justify-content:space-between;align-items:baseline;box-shadow:var(--shadow-1)}
+.lm .k{font-size:11.5px;color:var(--amut);letter-spacing:-.003em}
+.lm .v{font-weight:640;font-size:15px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* Dev screen */
+.devhdr{display:flex;align-items:center;gap:14px;background:var(--acard);border:1px solid var(--ahair);border-radius:var(--r-card);padding:14px 16px;box-shadow:var(--shadow-1)}
+.devhdr .ds{font-size:34px;font-weight:680;letter-spacing:-.045em;font-variant-numeric:tabular-nums;line-height:1}
+.devhdr .dm{font-size:11px;color:var(--amut);line-height:1.5;letter-spacing:-.003em}
+.devhdr .dm b{color:var(--aink);font-weight:600}
+.blk{margin-top:16px}
+.blk .bt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--afaint);margin:0 0 9px;font-weight:640}
+.kpirow{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--ahair);font-size:12.5px}
+.kpirow:last-child{border-bottom:0}
+.kpirow .kn{width:80px;color:var(--amut);flex:0 0 auto;letter-spacing:-.006em}
+.kpirow .kbar{flex:1;height:6px;border-radius:4px;background:var(--a2);overflow:hidden}
+.kpirow .kbar i{display:block;height:100%;border-radius:4px;transition:width var(--dur-4) var(--ease-out)}
+.kpirow .kv{width:62px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;flex:0 0 auto;letter-spacing:-.02em}
+.gchip{font-size:9px;font-weight:800;padding:3px 6px;border-radius:6px;flex:0 0 auto;width:22px;text-align:center}
+.datagrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dcell{background:var(--acard);border:1px solid var(--ahair);border-radius:var(--r-tile);padding:10px 12px;box-shadow:var(--shadow-1)}
+.dcell .dk{font-size:10.5px;color:var(--amut)}
+.dcell .dv{font-size:14.5px;font-weight:640;font-variant-numeric:tabular-nums;margin-top:4px;font-family:var(--mono);letter-spacing:-.01em}
+.reach{display:grid;grid-template-columns:auto 1fr 1fr;gap:1px;background:var(--ahair);border:1px solid var(--ahair);border-radius:var(--r-tile);overflow:hidden;font-size:11.5px}
+.reach>div{background:var(--acard);padding:9px 11px}
+.reach .rh{color:var(--amut);font-weight:590;background:var(--a2)}
+.reach .ok{color:var(--exc);font-weight:640}
+.reach .rst{color:var(--poor);font-weight:640}
+.devexport{display:flex;gap:9px;margin-top:16px}
+.devexport .btn{padding:12px;font-size:13.5px}
+
+/* ============================================================================
+   Foundations panels
+   ==========================================================================*/
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.panel{background:var(--pagecard);border:1px solid var(--pagehair);border-radius:var(--r-card);padding:22px;box-shadow:var(--shadow-2)}
+.panel h3{margin:0 0 5px;font-size:16px;font-weight:640;letter-spacing:-.016em}
+.panel p{margin:0 0 16px;font-size:13.5px;color:var(--pagemut);line-height:1.55;letter-spacing:-.005em}
+.panel p b{color:var(--pageink);font-weight:600}
+.swatches{display:flex;flex-direction:column;gap:10px}
+.sw{display:flex;align-items:center;gap:13px;font-size:13px}
+.sw .chip{width:34px;height:34px;border-radius:11px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.14) inset}
+.sw .nm{font-weight:560;letter-spacing:-.006em}
+.sw .hx{margin-left:auto;color:var(--pagemut);font-family:var(--mono);font-size:11.5px}
+.vlist{display:flex;flex-direction:column;gap:13px}
+.vrow{display:flex;gap:13px;align-items:flex-start;font-size:13.5px;line-height:1.5;letter-spacing:-.006em}
+.vrow .grade{flex:0 0 auto;width:56px;text-align:center;font-weight:700;font-size:11px;padding:6px 0;border-radius:9px}
+.vrow .vt{color:var(--pagemut)}
+.vrow .vt b{color:var(--pageink);font-weight:600}
+.huawei{display:flex;flex-direction:column;gap:12px}
+.hw{display:flex;gap:12px;font-size:13.5px;line-height:1.5;color:var(--pagemut);letter-spacing:-.006em}
+.hw .ck{flex:0 0 auto;color:var(--exc);font-weight:800}
+.hw b{color:var(--pageink);font-weight:600}
+
+footer{margin-top:56px;padding-top:24px;border-top:1px solid var(--pagehair);color:var(--pagemut);font-size:13px;line-height:1.65;letter-spacing:-.004em}
+footer b{color:var(--pageink)}

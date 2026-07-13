@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="ANEB 结果屏" description="Apple 质感的 Agent 体验分结果屏，可调深浅色 / 分档 / 分数" -->
+<helmet>
+  <script src="./ds-base.js"></script>
+</helmet>
+<div class="wrap" style="padding:24px;display:flex;justify-content:center;min-height:100vh;align-items:center">
+  <div class="{{ appClass }}"><div class="screen">
+    <div class="notch"></div>
+    <div class="chrome-top">
+      <div class="sbar"><span>14:35</span><span class="net"><span>电信 5G</span><span class="sig" style="color:var(--exc)"><i></i><i></i><i></i><i></i></span></span></div>
+      <div class="brandrow"><div class="wordmark"><div class="w">测试结果</div><div class="sub">电信 5G SA · 深圳 · 刚刚</div></div>
+        <div class="modeseg"><span class="on press">简洁</span><span class="press">专业</span></div></div>
+    </div>
+
+    <div class="appbody" style="padding-top:108px;padding-bottom:96px">
+      <div class="gauge" style="margin-top:4px;color:var(--aink)">
+        <svg width="208" height="208" viewBox="0 0 212 212" aria-hidden="true">
+          <circle cx="106" cy="106" r="92" fill="none" stroke="var(--ahair)" stroke-width="4"></circle>
+          <circle class="arc" cx="106" cy="106" r="92" fill="none" stroke="var(--band)" stroke-width="10" stroke-linecap="round" stroke-dasharray="578.05" stroke-dashoffset="{{ arcOffset }}"></circle>
+          <g class="ticks">
+            <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="48">
+              <line x1="{{ t.x1 }}" y1="{{ t.y1 }}" x2="{{ t.x2 }}" y2="{{ t.y2 }}" stroke="{{ t.stroke }}" stroke-width="2.4" stroke-linecap="round" opacity="{{ t.opacity }}"></line>
+            </sc-for>
+          </g>
+        </svg>
+        <div class="gcenter">
+          <div class="score" style="font-size:64px;color:var(--band)">{{ score }}</div>
+          <div class="gradelbl" style="color:var(--band)">优秀</div>
+          <div class="gsub">Agent 体验分</div>
+        </div>
+      </div>
+      <p class="verdict">你的网络<b style="color:var(--band)">很适合 AI 助手</b>——响应快、几乎不卡顿，编码和长对话都能跟上。</p>
+      <div class="tiles">
+        <div class="tile"><div class="tv" style="color:var(--exc)">35<span style="font-size:11px">ms</span></div><div class="tk">响应速度</div><div class="tg" style="color:var(--exc)">优</div></div>
+        <div class="tile"><div class="tv" style="color:var(--exc)">0</div><div class="tk">卡顿次数</div><div class="tg" style="color:var(--exc)">优</div></div>
+        <div class="tile"><div class="tv" style="color:var(--good)">12.5</div><div class="tk">上传 Mbps</div><div class="tg" style="color:var(--good)">良</div></div>
+      </div>
+    </div>
+
+    <div class="chrome-bot">
+      <div class="btnrow">
+        <div class="btn ghost press">查看详细数据</div>
+        <div class="btn primary press">分享成绩</div>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:360,&quot;height&quot;:720},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;,&quot;section&quot;:&quot;外观&quot;},&quot;band&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;exc&quot;,&quot;good&quot;,&quot;fair&quot;,&quot;poor&quot;],&quot;default&quot;:&quot;exc&quot;,&quot;tsType&quot;:&quot;'exc'|'good'|'fair'|'poor'&quot;,&quot;section&quot;:&quot;外观&quot;},&quot;score&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:89,&quot;min&quot;:0,&quot;max&quot;:100,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;数据&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props || {};
+    const theme = p.theme || 'dark';
+    const band = p.band || 'exc';
+    let score = (p.score == null ? 89 : Number(p.score));
+    score = Math.max(0, Math.min(100, score));
+    const C = 578.05;
+    const map = { exc: 'var(--exc)', good: 'var(--good)', fair: 'var(--fair)', poor: 'var(--poor)' };
+    const themeClass = theme === 'light' ? 'phone lightapp' : 'phone';
+    // Signature tick bezel — 48 radial ticks, lit up to the score (matches the screen cards).
+    // The .gauge svg is rotated -90deg in CSS, so tick 0 sits at top and fills clockwise.
+    const N = 48, cx = 106, cy = 106, rin = 74, rout = 84;
+    const active = Math.round((score / 100) * N);
+    const ticks = [];
+    for (let i = 0; i < N; i++) {
+      const ang = (i / N) * Math.PI * 2;
+      const on = i < active;
+      ticks.push({
+        x1: (cx + rin * Math.cos(ang)).toFixed(2),
+        y1: (cy + rin * Math.sin(ang)).toFixed(2),
+        x2: (cx + rout * Math.cos(ang)).toFixed(2),
+        y2: (cy + rout * Math.sin(ang)).toFixed(2),
+        stroke: on ? 'var(--band)' : 'currentColor',
+        opacity: on ? 0.92 : 0.16
+      });
+    }
+    return {
+      appClass: themeClass + ' band-' + (map[band] ? band : 'exc'),
+      arcOffset: (C * (1 - score / 100)).toFixed(1),
+      score: score,
+      ticks: ticks
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,6 +1,11 @@
 package com.aneb.probe.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,12 +99,12 @@ fun TestingScreen(
             )
         }
 
-        // 阶段实时提示（闪烁 live 点）
+        // 阶段实时提示（live ping：心跳点向外扩散淡出，对齐设计稿 .live ping 1.4s）
         Row(
             modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(colors.good))
+            LivePingDot(color = colors.good)
             Spacer(Modifier.width(8.dp))
             Text(progress.liveHint, fontSize = 12.5.sp, color = colors.muted)
         }
@@ -148,6 +154,46 @@ fun TestingScreen(
 
 /** 毫秒值格式化：null → "…"（R-10：绝不以 0 顶替缺失） */
 private fun ms(v: Double?): String = v?.let { "${it.roundToInt()}ms" } ?: "…"
+
+/**
+ * 心跳 live 点（设计稿 .live · ping 1.4s）：实心点 + 向外扩散淡出的环。减弱动效下退化为静态点。
+ */
+@Composable
+private fun LivePingDot(color: androidx.compose.ui.graphics.Color) {
+    val reduced = com.aneb.probe.ui.theme.LocalReducedMotion.current
+    val ping = if (reduced) {
+        0f
+    } else {
+        val t = rememberInfiniteTransition(label = "live")
+        val v by t.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "live-ping",
+        )
+        v
+    }
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .drawBehind {
+                if (ping > 0f) {
+                    val r = (size.minDimension / 2f) * (1f + ping * 1.6f)
+                    val a = (0.5f * (1f - ping)).coerceAtLeast(0f)
+                    drawCircle(
+                        color = color.copy(alpha = a),
+                        radius = r,
+                        center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f),
+                    )
+                }
+            }
+            .clip(CircleShape)
+            .background(color),
+    )
+}
 
 @Composable
 private fun TokenStreamStrip(fill: Float, stalls: Int) {

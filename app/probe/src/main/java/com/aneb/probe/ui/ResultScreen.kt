@@ -1,9 +1,11 @@
 package com.aneb.probe.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,9 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,25 +26,36 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
-import com.aneb.probe.engine.KpiGrading
 import com.aneb.probe.radio.GeoTrack
 import com.aneb.probe.ui.components.GaugeMode
+import com.aneb.probe.ui.components.GlassChrome
 import com.aneb.probe.ui.components.GradeChip
 import com.aneb.probe.ui.components.KpiBar
 import com.aneb.probe.ui.components.PulseGauge
 import com.aneb.probe.ui.components.SectionLabel
 import com.aneb.probe.ui.components.SegmentedControl
 import com.aneb.probe.ui.components.StatTile
+import com.aneb.probe.ui.components.pressable
+import com.aneb.probe.ui.theme.AnebColors
+import com.aneb.probe.ui.theme.AnebElevation
+import com.aneb.probe.ui.theme.AnebShapes
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
+import com.aneb.probe.ui.theme.gradeColorByKey
+import com.aneb.probe.ui.theme.invalidNeutral
+import com.aneb.probe.ui.theme.lowConf
+import com.aneb.probe.ui.theme.validityColor
 import kotlin.math.roundToInt
 
 /**
@@ -54,23 +68,9 @@ import kotlin.math.roundToInt
  * 全部数据来自 Room 落库实体（TestEngine 写入口径），本层不重算（D-02 单一事实来源）。
  */
 
-// 四级分级色（专业视图 KPI 明细用；INVALID/缺失灰）——HistoryScreen 亦复用这些内部常量
-internal val GRADE_COLORS: Map<String, Color> = mapOf(
-    KpiGrading.EXCELLENT to Color(0xFF2FD98A),
-    KpiGrading.GOOD to Color(0xFF35B7F0),
-    KpiGrading.FAIR to Color(0xFFF6A821),
-    KpiGrading.POOR to Color(0xFFF5566B),
-)
-internal val COLOR_INVALID = Color(0xFF8792A6)
-internal val COLOR_LOWCONF = Color(0xFFF6A821)
-
-internal fun gradeColor(grade: String?): Color = GRADE_COLORS[grade] ?: COLOR_INVALID
-
-internal fun validityColor(validity: String): Color = when (validity) {
-    "valid" -> Color(0xFF2FD98A)
-    "valid_low_confidence" -> COLOR_LOWCONF
-    else -> COLOR_INVALID
-}
+// 分级/有效性色统一走 AnebTheme.colors（theme-aware 单一事实源，见 ui/theme/Color.kt）：
+// gradeColorByKey / gradeColor(Grade) / validityColor / invalidNeutral / lowConf。
+// 不再在本文件私有写死暗色 hex（浅色主题下不跟随的偏差已消除）。
 
 enum class ResultViewMode(val label: String) { Simple("简洁"), Detailed("专业") }
 
@@ -112,29 +112,104 @@ fun ResultScreen(
         }
 
         if (run == null) {
-            Text("run 不存在", color = COLOR_INVALID, modifier = Modifier.padding(top = 16.dp))
+            Text("run 不存在", color = colors.invalidNeutral, modifier = Modifier.padding(top = 16.dp))
             return
         }
 
-        when (viewMode) {
-            ResultViewMode.Simple -> SimpleResultView(
-                run = run,
-                scenarios = scenarios,
+        // 内容层 + 底部玻璃操作区（§4.3/§4.4 chrome-bot）：内容从玻璃条下方滚过，操作区常驻底部。
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            when (viewMode) {
+                ResultViewMode.Simple -> SimpleResultView(run = run, scenarios = scenarios)
+                ResultViewMode.Detailed -> DetailedResultView(
+                    run = run,
+                    scenarios = scenarios,
+                    hasReportJson = hasReportJson,
+                    exportStatus = exportStatus,
+                    trackSummaries = trackSummaries,
+                    hasTrack = hasTrack,
+                    onExportTrack = onExportTrack,
+                )
+            }
+            ResultBottomBar(
+                viewMode = viewMode,
                 onSeeDetails = { viewMode = ResultViewMode.Detailed },
-                onShare = onShare,
-            )
-            ResultViewMode.Detailed -> DetailedResultView(
-                run = run,
-                scenarios = scenarios,
-                hasReportJson = hasReportJson,
-                exportStatus = exportStatus,
+                onShare = { onShare(simpleShareModel(run, scenarios, colors)) },
                 onExportJson = onExportJson,
                 onExportCsv = onExportCsv,
-                trackSummaries = trackSummaries,
-                hasTrack = hasTrack,
-                onExportTrack = onExportTrack,
+                exportEnabledJson = hasReportJson,
+                exportEnabledCsv = scenarios.isNotEmpty(),
+                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
+    }
+}
+
+/**
+ * 底部玻璃操作区（§4.3 两按钮 查看详细/分享 · §4.4 两按钮 导出 JSON/CSV）——GlassChrome 承载，
+ * 内容从其下方滚过。按视图模式切换按钮组。
+ */
+@Composable
+private fun ResultBottomBar(
+    viewMode: ResultViewMode,
+    onSeeDetails: () -> Unit,
+    onShare: () -> Unit,
+    onExportJson: () -> Unit,
+    onExportCsv: () -> Unit,
+    exportEnabledJson: Boolean,
+    exportEnabledCsv: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    GlassChrome(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            when (viewMode) {
+                ResultViewMode.Simple -> {
+                    ActionButton("查看详细数据", primary = false, modifier = Modifier.weight(1f), onClick = onSeeDetails)
+                    ActionButton("分享成绩", primary = true, modifier = Modifier.weight(1f), onClick = onShare)
+                }
+                ResultViewMode.Detailed -> {
+                    ActionButton("导出 JSON", primary = false, enabled = exportEnabledJson, modifier = Modifier.weight(1f), onClick = onExportJson)
+                    ActionButton("导出 CSV", primary = false, enabled = exportEnabledCsv, modifier = Modifier.weight(1f), onClick = onExportCsv)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * iOS 风格操作按钮（§4 .btn）：primary=品牌填充白字（+轻抬升）；ghost=幽灵描边 ink 字。
+ * 按压反馈走 [pressable]（scale .96 / 减弱动效降级透明度），16 连续圆角。
+ */
+@Composable
+private fun ActionButton(
+    text: String,
+    primary: Boolean,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val colors = AnebTheme.colors
+    val container = if (primary) colors.brand else colors.surface2
+    val fg = if (primary) Color.White else colors.ink
+    Box(
+        modifier = modifier
+            .then(if (primary && enabled) Modifier.shadow(AnebElevation.level2, AnebShapes.button, clip = false) else Modifier)
+            .clip(AnebShapes.button)
+            .background(if (enabled) container else container.copy(alpha = 0.4f))
+            .then(if (!primary) Modifier.border(1.dp, colors.hairline, AnebShapes.button) else Modifier)
+            .pressable(onClick = onClick, enabled = enabled)
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = if (enabled) fg else fg.copy(alpha = 0.5f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -146,8 +221,6 @@ fun ResultScreen(
 private fun SimpleResultView(
     run: TestRun,
     scenarios: List<ScenarioResultEntity>,
-    onSeeDetails: () -> Unit,
-    onShare: (ShareCard.Model) -> Unit,
 ) {
     val colors = AnebTheme.colors
     val score = run.aqsScore
@@ -158,20 +231,14 @@ private fun SimpleResultView(
     val t3 = rows["T3"]?.row
     val u1 = rows["U1"]?.row
 
-    val verdict = VerdictText.generate(
-        VerdictText.Input(
-            score = score,
-            lowConfidence = run.aqsLowConfidence == true,
-            vetoApplied = run.aqsVetoApplied == true,
-            notComputableReason = run.aqsNotComputableReason ?: run.status,
-            kpiGrades = rows.values.associate { it.row.id to Grade.fromKey(it.row.grade) },
-        ),
-    )
+    val verdict = simpleVerdict(run, rows)
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            // 底部留白，让内容从底部玻璃操作区（≈68dp 高）下方滚过而不被压住
+            .padding(top = 8.dp, bottom = 88.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         PulseGauge(
@@ -179,6 +246,7 @@ private fun SimpleResultView(
             grade = grade,
             score = score?.roundToInt(),
             progress = (score?.toFloat() ?: 0f) / 100f,
+            size = 208.dp,
         )
         Spacer(Modifier.height(14.dp))
         Text(
@@ -187,7 +255,7 @@ private fun SimpleResultView(
             color = colors.ink,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 4.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(16.dp))
         Row(
@@ -214,20 +282,6 @@ private fun SimpleResultView(
                 modifier = Modifier.weight(1f),
             )
         }
-        Spacer(Modifier.height(18.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            OutlinedButton(onClick = onSeeDetails, modifier = Modifier.weight(1f)) {
-                Text("查看详细数据")
-            }
-            Button(
-                onClick = {
-                    onShare(
-                        buildShareModel(run, verdict, grade, t1, t3, u1),
-                    )
-                },
-                modifier = Modifier.weight(1f),
-            ) { Text("分享成绩") }
-        }
     }
 }
 
@@ -237,17 +291,52 @@ private fun stallTileValue(t3Rate: Double?): String = when {
     else -> "%.1f%%".format(t3Rate * 100)
 }
 
-/** 结果展示态 → 分享卡 Model（在 composable 内取语义色 argb，零重算）。 */
+/** 结论文案（普通视图展示 + 分享卡共用，确定性同源，无重算差异）。 */
+private fun simpleVerdict(run: TestRun, rows: Map<String, ResultFormat.RunKpiRow>): String =
+    VerdictText.generate(
+        VerdictText.Input(
+            score = run.aqsScore,
+            lowConfidence = run.aqsLowConfidence == true,
+            vetoApplied = run.aqsVetoApplied == true,
+            notComputableReason = run.aqsNotComputableReason ?: run.status,
+            kpiGrades = rows.values.associate { it.row.id to Grade.fromKey(it.row.grade) },
+        ),
+    )
+
+/**
+ * run+scenarios → 分享卡 Model（底部"分享成绩"按钮用；与展示态同源，零重算差异）。
+ * [colors] 由 composable 调用点注入：分享卡走 Canvas 绘制（脱离主题），故在此按当前主题取语义色再 toArgb。
+ */
+private fun simpleShareModel(
+    run: TestRun,
+    scenarios: List<ScenarioResultEntity>,
+    colors: AnebColors,
+): ShareCard.Model {
+    val rows = ResultFormat.runKpiRows(scenarios).associateBy { it.row.id }
+    val grade = run.aqsScore?.let { Grade.fromAqsScore(it) }
+    return buildShareModel(
+        run = run,
+        verdict = simpleVerdict(run, rows),
+        grade = grade,
+        colors = colors,
+        t1 = rows["T1"]?.row,
+        t3 = rows["T3"]?.row,
+        u1 = rows["U1"]?.row,
+    )
+}
+
+/** 结果展示态 → 分享卡 Model（按当前主题 [colors] 取语义色 argb，零重算）。 */
 private fun buildShareModel(
     run: TestRun,
     verdict: String,
     grade: Grade?,
+    colors: AnebColors,
     t1: ResultFormat.KpiRow?,
     t3: ResultFormat.KpiRow?,
     u1: ResultFormat.KpiRow?,
 ): ShareCard.Model {
-    fun argb(g: String?): Int = (GRADE_COLORS[g] ?: COLOR_INVALID).toArgb()
-    val gradeArgb = (grade?.let { GRADE_COLORS[it.key] } ?: COLOR_INVALID).toArgb()
+    fun argb(g: String?): Int = colors.gradeColorByKey(g).toArgb()
+    val gradeArgb = colors.gradeColor(grade).toArgb()
     return ShareCard.Model(
         score = run.aqsScore?.roundToInt(),
         gradeLabel = grade?.labelFriendly ?: "未完成",
@@ -276,13 +365,16 @@ private fun DetailedResultView(
     scenarios: List<ScenarioResultEntity>,
     hasReportJson: Boolean,
     exportStatus: String?,
-    onExportJson: () -> Unit,
-    onExportCsv: () -> Unit,
     trackSummaries: Map<Long, GeoTrack.Summary>,
     hasTrack: Boolean,
     onExportTrack: () -> Unit,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    val colors = AnebTheme.colors
+    // 主导出（JSON/CSV）已上移到底部玻璃操作区；此处 contentPadding.bottom 让末尾内容从其下方滚过。
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 84.dp),
+    ) {
         item { AqsHeadline(run) }
         item { AqsSubScoreBars(scenarios) }
         item { ReachMatrix(run) }
@@ -297,21 +389,17 @@ private fun DetailedResultView(
             ScenarioCard(scenarios[i], trackSummaries[scenarios[i].id])
         }
         item {
-            SectionLabel("导出")
-            Row {
-                Button(enabled = hasReportJson, onClick = onExportJson) { Text("导出 JSON") }
-                Spacer(Modifier.width(8.dp))
-                Button(enabled = scenarios.isNotEmpty(), onClick = onExportCsv) { Text("导出 CSV") }
-                Spacer(Modifier.width(8.dp))
-                Button(enabled = hasTrack, onClick = onExportTrack) { Text("导出轨迹") }
+            SectionLabel("导出轨迹与状态")
+            if (hasTrack) {
+                Button(enabled = true, onClick = onExportTrack) { Text("导出轨迹") }
             }
             if (!hasReportJson) {
                 Text(
                     "该 run 未生成上报体（早退/失败），JSON 不可导出",
-                    fontSize = 11.sp, color = COLOR_INVALID,
+                    fontSize = 11.sp, color = colors.invalidNeutral,
                 )
             }
-            exportStatus?.let { Text(it, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = COLOR_INVALID) }
+            exportStatus?.let { Text(it, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral) }
         }
         item { ClaimScopeFooter(run) }
     }
@@ -365,7 +453,7 @@ private fun ReachMatrix(run: TestRun) {
         ReachRow("bare-IP", run.ipReachable, run.ipReachMs, header = false)
     }
     if (run.sniReachable == null && run.ipReachable == null) {
-        Text("（本 run 未做 SNI 双通道探测）", fontSize = 11.sp, color = COLOR_INVALID, modifier = Modifier.padding(top = 4.dp))
+        Text("（本 run 未做 SNI 双通道探测）", fontSize = 11.sp, color = colors.invalidNeutral, modifier = Modifier.padding(top = 4.dp))
     }
 }
 
@@ -420,33 +508,33 @@ private fun AqsHeadline(run: TestRun) {
         if (score != null) {
             val grade = ResultFormat.aqsGrade(score)
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("%.1f".format(score), fontSize = 44.sp, fontWeight = FontWeight.Black, color = gradeColor(grade))
+                Text("%.1f".format(score), fontSize = 44.sp, fontWeight = FontWeight.Black, color = colors.gradeColorByKey(grade))
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "AQS ${ResultFormat.gradeLabel(grade)}",
-                    fontSize = 18.sp, color = gradeColor(grade),
+                    fontSize = 18.sp, color = colors.gradeColorByKey(grade),
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
             if (run.aqsVetoApplied == true) {
-                Text("T4 一票否决生效（封顶 54）", color = GRADE_COLORS.getValue(KpiGrading.POOR), fontSize = 13.sp)
+                Text("T4 一票否决生效（封顶 54）", color = colors.poor, fontSize = 13.sp)
             }
             if (run.aqsLowConfidence == true) {
                 Text(
                     "⚠ ${ResultFormat.LOW_CONFIDENCE_LABEL}：证据不完整，本分数仅供参考",
-                    color = COLOR_LOWCONF, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = colors.lowConf, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 )
             }
         } else {
-            Text("AQS —", fontSize = 44.sp, fontWeight = FontWeight.Black, color = COLOR_INVALID)
+            Text("AQS —", fontSize = 44.sp, fontWeight = FontWeight.Black, color = colors.invalidNeutral)
             Text(
                 "不可计算：${run.aqsNotComputableReason ?: run.status ?: "unknown"}",
-                color = COLOR_INVALID, fontSize = 14.sp,
+                color = colors.invalidNeutral, fontSize = 14.sp,
             )
         }
         ResultFormat.aqsV02Lines(run)?.let { lines ->
             Text(lines[0], fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.ink)
-            Text(lines[1], fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = COLOR_INVALID)
+            Text(lines[1], fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral)
         }
     }
 }
@@ -471,7 +559,7 @@ internal fun KpiLine(row: ResultFormat.KpiRow, prefix: String = "") {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
         Box(
             modifier = Modifier.width(6.dp).height(28.dp)
-                .background(if (row.value == null) COLOR_INVALID else gradeColor(row.grade)),
+                .background(if (row.value == null) colors.invalidNeutral else colors.gradeColorByKey(row.grade)),
         )
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -486,7 +574,7 @@ internal fun KpiLine(row: ResultFormat.KpiRow, prefix: String = "") {
                 GradeChip(Grade.fromKey(row.grade))
                 if (row.lowConfidence) {
                     Spacer(Modifier.width(8.dp))
-                    Text(ResultFormat.LOW_CONFIDENCE_LABEL, fontSize = 11.sp, color = COLOR_LOWCONF)
+                    Text(ResultFormat.LOW_CONFIDENCE_LABEL, fontSize = 11.sp, color = colors.lowConf)
                 }
             }
         }
@@ -498,16 +586,16 @@ private fun ScenarioCard(s: ScenarioResultEntity, track: GeoTrack.Summary?) {
     val colors = AnebTheme.colors
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.width(10.dp).height(10.dp).background(validityColor(s.validity)))
+            Box(modifier = Modifier.width(10.dp).height(10.dp).background(colors.validityColor(s.validity)))
             Spacer(Modifier.width(6.dp))
             Text("${s.profileId}#${s.repeatIndex} (${s.profileVersion})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.ink)
             Spacer(Modifier.width(8.dp))
-            Text(s.validity, fontSize = 12.sp, color = validityColor(s.validity))
+            Text(s.validity, fontSize = 12.sp, color = colors.validityColor(s.validity))
         }
         if (s.validity == "invalid") {
             Text(
                 "无效原因: ${s.invalidReasons.ifEmpty { "unknown" }}（KPI 已抑制，原始事件保留）",
-                fontSize = 11.sp, color = COLOR_INVALID,
+                fontSize = 11.sp, color = colors.invalidNeutral,
             )
         }
         Text(
@@ -517,7 +605,7 @@ private fun ScenarioCard(s: ScenarioResultEntity, track: GeoTrack.Summary?) {
             fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.muted,
         )
         ResultFormat.bufferingLabel(s)?.let {
-            Text(it, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = COLOR_INVALID)
+            Text(it, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral)
         }
         if (track != null && track.points > 0) {
             Text(
@@ -536,11 +624,11 @@ private fun ClaimScopeFooter(run: TestRun) {
     val colors = AnebTheme.colors
     Column(modifier = Modifier.padding(top = 12.dp, bottom = 24.dp)) {
         HorizontalDivider(color = colors.hairline)
-        Text(ResultFormat.CLAIM_SCOPE_TEXT, fontSize = 11.sp, color = COLOR_INVALID, modifier = Modifier.padding(top = 6.dp))
-        Text(ResultFormat.AQS_DISCLAIMER_TEXT, fontSize = 11.sp, color = COLOR_INVALID)
+        Text(ResultFormat.CLAIM_SCOPE_TEXT, fontSize = 11.sp, color = colors.invalidNeutral, modifier = Modifier.padding(top = 6.dp))
+        Text(ResultFormat.AQS_DISCLAIMER_TEXT, fontSize = 11.sp, color = colors.invalidNeutral)
         Text(
             "kpi_set=${run.kpiSet} aqs=${run.aqsVersion} schema=${run.schemaVersion} profiles=${run.profileVersions}",
-            fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = COLOR_INVALID,
+            fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral,
         )
     }
 }
