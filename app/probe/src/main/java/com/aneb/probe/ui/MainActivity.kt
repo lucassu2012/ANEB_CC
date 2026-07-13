@@ -26,10 +26,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.aneb.probe.BuildConfig
+import com.aneb.probe.apiprobe.AiReachabilityProbe
 import com.aneb.probe.apiprobe.ApiKeyStore
 import com.aneb.probe.apiprobe.ApiProbe
 import com.aneb.probe.apiprobe.ApiProbeReport
 import com.aneb.probe.apiprobe.LlmProvider
+import com.aneb.probe.apiprobe.ProviderPresets
+import com.aneb.probe.apiprobe.toLlmProvider
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
 import com.aneb.probe.data.ScenarioResultEntity
@@ -95,6 +98,7 @@ class MainActivity : ComponentActivity() {
         data object Settings : Screen
         data class Result(val runId: String, val fromHistory: Boolean) : Screen
         data object ApiProbe : Screen
+        data object ReachBoard : Screen
         data object Report : Screen
     }
 
@@ -304,7 +308,11 @@ class MainActivity : ComponentActivity() {
                             runId = s.runId,
                             onBack = { screen = if (s.fromHistory) Screen.History else Screen.Home },
                         )
-                        is Screen.ApiProbe -> ApiProbeRoute(onBack = { screen = Screen.Settings })
+                        is Screen.ApiProbe -> ApiProbeRoute(
+                            onBack = { screen = Screen.Settings },
+                            onOpenReachBoard = { screen = Screen.ReachBoard },
+                        )
+                        is Screen.ReachBoard -> ReachBoardRoute(onBack = { screen = Screen.ApiProbe })
                     }
                 }
             }
@@ -526,11 +534,12 @@ class MainActivity : ComponentActivity() {
     // ------------------------------------------------------------------
 
     @Composable
-    private fun ApiProbeRoute(onBack: () -> Unit) {
+    private fun ApiProbeRoute(onBack: () -> Unit, onOpenReachBoard: () -> Unit) {
         val keyStore = remember { ApiKeyStore(applicationContext) }
         var provider by rememberSaveable { mutableStateOf(keyStore.provider) }
         var baseUrl by rememberSaveable { mutableStateOf(keyStore.effectiveBaseUrl()) }
         var model by rememberSaveable { mutableStateOf(keyStore.effectiveModel()) }
+        var selectedPresetId by rememberSaveable { mutableStateOf<String?>(null) }
         var keyInput by remember { mutableStateOf("") }
         var hasStoredKey by remember { mutableStateOf(keyStore.hasKey()) }
         var running by remember { mutableStateOf(false) }
@@ -630,7 +639,78 @@ class MainActivity : ComponentActivity() {
                     withContext(Dispatchers.Main) { exportStatus = line }
                 }
             },
+            // 预置接入（mode②）：选中预置自动填 provider/base/model；key 处理逐字不变。
+            presets = ProviderPresets.all,
+            selectedPresetId = selectedPresetId,
+            onSelectPreset = { p ->
+                selectedPresetId = p.id
+                provider = p.toLlmProvider()
+                baseUrl = p.baseUrl
+                model = p.defaultModel
+            },
+            onOpenReachBoard = onOpenReachBoard,
             onBack = onBack,
+        )
+    }
+
+    // ------------------------------------------------------------------
+    // 可达性看板路由（mode①：AiReachabilityProbe 无 key 连接层探测，best-effort、不进 AQS）
+    // ------------------------------------------------------------------
+
+    @Composable
+    private fun ReachBoardRoute(onBack: () -> Unit) {
+        var rows by remember { mutableStateOf(emptyList<AiReachabilityProbe.Result>()) }
+        var running by remember { mutableStateOf(false) }
+        var lastRunLabel by remember { mutableStateOf<String?>(null) }
+        ReachabilityBoardScreen(
+            rows = rows,
+            running = running,
+            onRun = {
+                if (!running) {
+                    running = true
+                    // 起跑先把全部预置播种为 UNPROBED，随 onResult 逐条就地更新（看板逐条亮起，不再像卡死）
+                    rows = ProviderPresets.all.map { p ->
+                        AiReachabilityProbe.Result(
+                            presetId = p.id,
+                            displayName = p.displayName,
+                            host = runCatching { java.net.URI(p.baseUrl).host }.getOrNull() ?: p.baseUrl,
+                            status = AiReachabilityProbe.Status.UNPROBED,
+                            tlsHandshakeMs = null,
+                            connectMs = null,
+                            httpCode = null,
+                            verified = p.verified,
+                            note = null,
+                        )
+                    }
+                    lifecycleScope.launch {
+                        try {
+                            val probed = withContext(Dispatchers.IO) {
+                                AiReachabilityProbe().probeAll(ProviderPresets.all) { r ->
+                                    withContext(Dispatchers.Main) {
+                                        rows = rows.map { if (it.presetId == r.presetId) r else it }
+                                    }
+                                }
+                            }
+                            val ok = probed.count { it.status == AiReachabilityProbe.Status.OK }
+                            lastRunLabel = "刚刚 · ${probed.size} 家 · $ok 通"
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            android.util.Log.i(
+                                "AnebProbe",
+                                "AIREACH_FAILED error=${e.javaClass.simpleName}",
+                            )
+                        } finally {
+                            running = false
+                        }
+                    }
+                }
+            },
+            onBack = onBack,
+            lastRunLabel = lastRunLabel,
+            claimScopeNote =
+                "连接层口径（${AiReachabilityProbe.CLAIM_SCOPE}）：仅判定能否完成 TLS 握手" +
+                    "（拿到任意 HTTP 响应即通），不测 TTFT、不进 AQS，不看 2xx/4xx 语义。",
         )
     }
 

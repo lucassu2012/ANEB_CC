@@ -11,7 +11,7 @@ enum class LlmProvider(val id: String, val defaultBaseUrl: String, val defaultMo
     ANTHROPIC("anthropic", "https://api.anthropic.com", "claude-3-5-haiku-latest"),
 
     /** OpenAI Chat Completions 兼容端点（Kimi/Moonshot 默认） */
-    OPENAI_COMPAT("openai_compat", "https://api.moonshot.cn", "moonshot-v1-8k");
+    OPENAI_COMPAT("openai_compat", "https://api.moonshot.cn/v1", "moonshot-v1-8k");
 
     companion object {
         fun fromId(id: String?): LlmProvider =

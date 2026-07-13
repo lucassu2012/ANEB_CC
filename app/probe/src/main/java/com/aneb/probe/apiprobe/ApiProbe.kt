@@ -232,9 +232,21 @@ class ApiProbe(private val context: Context) {
 
         const val ANTHROPIC_VERSION = "2023-06-01"
 
+        /**
+         * 端点路径拼接约定（与 base URL 分工，勿混）：
+         *  - **OpenAI 兼容**：base **含版本段**（如 `.../v1`、`.../api/paas/v4`），本函数只
+         *    拼 `/chat/completions`。故最终 URL = `{base}/chat/completions`。
+         *  - **Anthropic**：base **不含版本**（`https://api.anthropic.com`），本函数拼
+         *    `/v1/messages`。
+         *
+         * 本改动对现有 Kimi 默认路径 **URL 等价、零行为变化**：旧 `moonshot.cn` +
+         * `/v1/chat/completions` == 新 `moonshot.cn/v1` + `/chat/completions`。base 侧统一
+         * 含版本段后，各家预置（deepseek/glm/qwen…）不再各自漂移版本段，单测锚定见
+         * ProviderPresetUrlTest。
+         */
         fun endpointPath(provider: LlmProvider): String = when (provider) {
             LlmProvider.ANTHROPIC -> "/v1/messages"
-            LlmProvider.OPENAI_COMPAT -> "/v1/chat/completions"
+            LlmProvider.OPENAI_COMPAT -> "/chat/completions"
         }
 
         /** 请求体构造（纯函数，单测锚定 max_tokens 硬顶与固定 prompt）。 */

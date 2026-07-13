@@ -83,7 +83,7 @@ object ProviderPresets {
         ProviderPreset(
             id = "deepseek",
             displayName = "DeepSeek",
-            baseUrl = "https://api.deepseek.com",
+            baseUrl = "https://api.deepseek.com/v1",
             defaultModel = "deepseek-chat",
             protocol = ProviderPreset.Protocol.OPENAI_COMPATIBLE,
             keyConsole = "platform.deepseek.com",
@@ -113,7 +113,7 @@ object ProviderPresets {
         ProviderPreset(
             id = "spark_xfyun",
             displayName = "讯飞星火",
-            baseUrl = "https://spark-api-open.xf-yun.com/v1/",
+            baseUrl = "https://spark-api-open.xf-yun.com/v1",
             defaultModel = "spark-lite",
             protocol = ProviderPreset.Protocol.OPENAI_COMPATIBLE,
             keyConsole = "讯飞开放平台（用 APIPassword 作 key）",
@@ -163,4 +163,14 @@ object ProviderPresets {
      */
     val excludedNote: String =
         "飞书/阿福等无公开流式 chat API，不能作 API 探针目标；其网络体验请用「服务器可达性」或「VPN 流量观测」模式测"
+}
+
+/**
+ * 预置协议族 → 探针 [LlmProvider]（决定适配器与 endpointPath 拼接口径）。
+ * 供 UI/MainActivity 选中预置后复用：`preset.toLlmProvider()` 得到 provider，再以
+ * `ApiProbe.endpointPath(provider)` 拼最终 URL（约定见 ApiProbe.endpointPath KDoc）。
+ */
+fun ProviderPreset.toLlmProvider(): LlmProvider = when (protocol) {
+    ProviderPreset.Protocol.OPENAI_COMPATIBLE -> LlmProvider.OPENAI_COMPAT
+    ProviderPreset.Protocol.ANTHROPIC -> LlmProvider.ANTHROPIC
 }
