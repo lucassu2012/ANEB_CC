@@ -6,9 +6,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +45,8 @@ import com.aneb.probe.engine.ContinuityRunner
 import com.aneb.probe.engine.TestEngine
 import com.aneb.probe.radio.GeoTrack
 import com.aneb.probe.radio.RadioCollector
+import com.aneb.probe.ui.components.AnebBottomNav
+import com.aneb.probe.ui.components.AnebTab
 import com.aneb.probe.ui.theme.AnebTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -90,15 +95,17 @@ class MainActivity : ComponentActivity() {
     private val radioPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ -> }
 
-    /** 单 Activity 内导航状态 */
+    /**
+     * Speed tab 内的下钻子状态机（SpeedTest 式外壳）：Home=当前 tab 的根哨兵（此时显底栏），
+     * 其余为下钻屏（隐底栏、靠各自返回键回根）。History/可达性 已从这里提为顶级 tab（见 [AnebTab]），
+     * 不再是 Screen 值。Result.fromHistory 仅为兼容 startRun 逐字构造保留（导航现由 tab 决定回根）。
+     */
     private sealed interface Screen {
         data object Home : Screen
         data object Testing : Screen
-        data object History : Screen
         data object Settings : Screen
         data class Result(val runId: String, val fromHistory: Boolean) : Screen
         data object ApiProbe : Screen
-        data object ReachBoard : Screen
         data object Report : Screen
     }
 
@@ -143,6 +150,9 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize().safeDrawingPadding(),
                 ) {
                     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+                    // 底部 3-tab 外壳选中态（默认 Speed）；下钻只在 Home 哨兵下按 tab 决定根，
+                    // 故切 tab 只发生在各 tab 根（切换前后 screen 均为 Home），子状态天然互不串扰。
+                    var tab by rememberSaveable { mutableStateOf(AnebTab.Speed) }
                     var serverUrl by rememberSaveable {
                         mutableStateOf(intentServer ?: "https://120-79-148-0.sslip.io:8443")
                     }
@@ -259,60 +269,92 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    when (val s = screen) {
-                        is Screen.Home -> HomeRoute(
-                            running = running,
-                            onStart = { startRun(fromAutorun = false) },
-                            onOpenHistory = { screen = Screen.History },
-                            onOpenSettings = { screen = Screen.Settings },
-                            onOpenResult = { runId -> screen = Screen.Result(runId, fromHistory = true) },
-                        )
-                        is Screen.Testing -> {
-                            // TestEngine.telemetry 只读观测通道 → collectAsStateWithLifecycle（后台自动停收，
-                            // 绝不回压测量热路径；StateFlow 有初值，无闪烁）。
-                            val telemetry by engine.telemetry.collectAsStateWithLifecycle()
-                            TestingScreen(logs = logs, telemetry = telemetry)
-                        }
-                        is Screen.Settings -> SettingsScreen(
-                            serverUrl = serverUrl,
-                            onServerUrlChange = { serverUrl = it },
-                            mode = mode,
-                            onModeChange = { mode = it },
-                            transport = transport,
-                            onTransportChange = { transport = it },
-                            driveTest = driveTest,
-                            onDriveTestChange = { turningOn ->
-                                driveTest = turningOn
-                                if (turningOn &&
-                                    ContextCompat.checkSelfPermission(
-                                        this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION,
-                                    ) != PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    radioPermissionLauncher.launch(
-                                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    // ---- SpeedTest 式底部 3-tab 外壳（Material3 Scaffold + NavigationBar）----
+                    // 底栏仅在各 tab 根（screen==Home）显示；下钻屏（Testing/Result/Settings/
+                    // ApiProbe/Report）隐底栏、Testing 运行中保持全屏专注。contentWindowInsets 置 0：
+                    // Surface 已 safeDrawingPadding 统一吃系统条，避免二次内衬。
+                    val atRoot = screen is Screen.Home
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = AnebTheme.colors.background,
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                        bottomBar = {
+                            if (atRoot) {
+                                AnebBottomNav(selected = tab, onSelect = { tab = it })
+                            }
+                        },
+                    ) { innerPadding ->
+                        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                            when (val s = screen) {
+                                // ---- 各 tab 根（显底栏）：Speed=Home / 可达性=ReachBoard / 历史=History ----
+                                is Screen.Home -> when (tab) {
+                                    AnebTab.Speed -> HomeRoute(
+                                        running = running,
+                                        onStart = { startRun(fromAutorun = false) },
+                                        onOpenHistory = { tab = AnebTab.History },
+                                        onOpenSettings = { screen = Screen.Settings },
+                                        onOpenResult = { runId ->
+                                            screen = Screen.Result(runId, fromHistory = false)
+                                        },
+                                    )
+                                    AnebTab.Reach -> ReachBoardRoute(onBack = { tab = AnebTab.Speed })
+                                    AnebTab.History -> HistoryRoute(
+                                        onOpen = { runId ->
+                                            screen = Screen.Result(runId, fromHistory = true)
+                                        },
+                                        onGenerateReport = { screen = Screen.Report },
+                                        onBack = { tab = AnebTab.Speed },
                                     )
                                 }
-                                android.util.Log.i("AnebProbe", "DRIVE_TEST_TOGGLE enabled=$turningOn")
-                            },
-                            injectActive = intentInject,
-                            onOpenApiProbe = { screen = Screen.ApiProbe },
-                            onBack = { screen = Screen.Home },
-                        )
-                        is Screen.History -> HistoryRoute(
-                            onOpen = { runId -> screen = Screen.Result(runId, fromHistory = true) },
-                            onGenerateReport = { screen = Screen.Report },
-                            onBack = { screen = Screen.Home },
-                        )
-                        is Screen.Report -> ReportRoute(onBack = { screen = Screen.History })
-                        is Screen.Result -> ResultRoute(
-                            runId = s.runId,
-                            onBack = { screen = if (s.fromHistory) Screen.History else Screen.Home },
-                        )
-                        is Screen.ApiProbe -> ApiProbeRoute(
-                            onBack = { screen = Screen.Settings },
-                            onOpenReachBoard = { screen = Screen.ReachBoard },
-                        )
-                        is Screen.ReachBoard -> ReachBoardRoute(onBack = { screen = Screen.ApiProbe })
+                                // ---- 下钻屏（隐底栏；各自返回键回当前 tab 根）----
+                                is Screen.Testing -> {
+                                    // TestEngine.telemetry 只读观测通道 → collectAsStateWithLifecycle（后台自动停收，
+                                    // 绝不回压测量热路径；StateFlow 有初值，无闪烁）。
+                                    val telemetry by engine.telemetry.collectAsStateWithLifecycle()
+                                    TestingScreen(logs = logs, telemetry = telemetry)
+                                }
+                                is Screen.Settings -> SettingsScreen(
+                                    serverUrl = serverUrl,
+                                    onServerUrlChange = { serverUrl = it },
+                                    mode = mode,
+                                    onModeChange = { mode = it },
+                                    transport = transport,
+                                    onTransportChange = { transport = it },
+                                    driveTest = driveTest,
+                                    onDriveTestChange = { turningOn ->
+                                        driveTest = turningOn
+                                        if (turningOn &&
+                                            ContextCompat.checkSelfPermission(
+                                                this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION,
+                                            ) != PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            radioPermissionLauncher.launch(
+                                                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                                            )
+                                        }
+                                        android.util.Log.i("AnebProbe", "DRIVE_TEST_TOGGLE enabled=$turningOn")
+                                    },
+                                    injectActive = intentInject,
+                                    onOpenApiProbe = { screen = Screen.ApiProbe },
+                                    onBack = { screen = Screen.Home },
+                                )
+                                is Screen.Report -> ReportRoute(onBack = { screen = Screen.Home })
+                                is Screen.Result -> ResultRoute(
+                                    runId = s.runId,
+                                    // 回根：tab 已记住来路（Speed 手动测/上次结果 或 历史 tab 下钻），
+                                    // 回到 Home 哨兵即落回当前 tab 根。
+                                    onBack = { screen = Screen.Home },
+                                )
+                                is Screen.ApiProbe -> ApiProbeRoute(
+                                    onBack = { screen = Screen.Settings },
+                                    // 可达性看板已提为顶级 tab：切到可达性 tab 并回根。
+                                    onOpenReachBoard = {
+                                        tab = AnebTab.Reach
+                                        screen = Screen.Home
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }

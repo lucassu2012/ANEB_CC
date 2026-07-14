@@ -27,7 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +43,7 @@ import com.aneb.probe.ui.components.GaugeMode
 import com.aneb.probe.ui.components.LiveSparkline
 import com.aneb.probe.ui.components.PulseGauge
 import com.aneb.probe.ui.components.SectionLabel
+import com.aneb.probe.ui.components.SegmentedControl
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
 import java.util.Locale
@@ -71,6 +75,19 @@ fun TestingScreen(
         animationSpec = tween(500),
         label = "testing-progress",
     )
+    // 仪表中心可切换核心量（默认 AQS）；仅把既有 telemetry 字段投影到中心，不改测量/落库。
+    var metric by rememberSaveable { mutableStateOf(GaugeMetric.AQS) }
+    // AQS 走默认 score 路径（centerValue=null）；TTFT/ITL 用覆盖大数，缺样本显 "…"（R-10 不顶 0）。
+    val centerValue: String? = when (metric) {
+        GaugeMetric.AQS -> null
+        GaugeMetric.TTFT -> telemetry.ttftMs?.let { "${it.roundToInt()} ms" } ?: "…"
+        GaugeMetric.ITL -> telemetry.itlMedianMs?.let { "${it.roundToInt()} ms" } ?: "…"
+    }
+    val centerLabel: String? = when (metric) {
+        GaugeMetric.AQS -> null
+        GaugeMetric.TTFT -> "首字延迟(TTFT)"
+        GaugeMetric.ITL -> "ITL 中位"
+    }
 
     Column(
         modifier = Modifier
@@ -96,6 +113,8 @@ fun TestingScreen(
                 score = telemetry.aqsRunning?.roundToInt(),
                 progress = animated,
                 stallPositions = progress.stallTickPositions,
+                centerValue = centerValue,
+                centerLabel = centerLabel,
             )
         }
 
@@ -108,6 +127,16 @@ fun TestingScreen(
             Spacer(Modifier.width(8.dp))
             Text(progress.liveHint, fontSize = 12.5.sp, color = colors.muted)
         }
+
+        // 仪表核心量切换器（AQS / 首字延迟 / ITL）——放仪表下方、live ping 行附近
+        Spacer(Modifier.height(10.dp))
+        SegmentedControl(
+            options = GaugeMetric.entries,
+            selected = metric,
+            onSelect = { metric = it },
+            label = { it.label },
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
 
         Spacer(Modifier.height(14.dp))
         TokenStreamStrip(fill = animated, stalls = progress.stallCount)
@@ -150,6 +179,16 @@ fun TestingScreen(
         }
         Spacer(Modifier.weight(1f))
     }
+}
+
+/**
+ * 仪表中心可切换核心量：AQS / 首字延迟(TTFT) / ITL。
+ * 纯展示投影——切换只改中心显示的既有 telemetry 字段，不新增/改动测量字段与落库口径。
+ */
+enum class GaugeMetric(val label: String) {
+    AQS("AQS"),
+    TTFT("首字延迟"),
+    ITL("ITL"),
 }
 
 /** 毫秒值格式化：null → "…"（R-10：绝不以 0 顶替缺失） */

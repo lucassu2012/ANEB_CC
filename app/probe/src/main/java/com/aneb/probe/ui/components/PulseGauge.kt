@@ -57,6 +57,9 @@ import kotlin.math.sin
  * @param progress 弧/刻度填充比例 0f..1f（Running 用真实进度；Result 传 score/100）
  * @param stallPositions 卡顿刻度下标（0..tickCount-1），红色长刻度缺口
  * @param tickCount 刻度总数（iOS 基线 48）
+ * @param centerValue 中心巨大数覆盖（非 null 时替代默认 AQS/分数渲染，只投影既有量、不改测量）；
+ *   null → 走既有中心渲染（零破坏既有调用）。Idle 态始终显 GO 按钮，不承载覆盖。
+ * @param centerLabel 覆盖时中心小字标签（配合 [centerValue]；null 则只显覆盖大数）
  */
 @Composable
 fun PulseGauge(
@@ -68,6 +71,8 @@ fun PulseGauge(
     stallPositions: List<Int> = emptyList(),
     tickCount: Int = 48,
     size: Dp = 212.dp,
+    centerValue: String? = null,
+    centerLabel: String? = null,
 ) {
     val colors = AnebTheme.colors
     val arcColor = colors.gradeColor(grade)
@@ -136,14 +141,46 @@ fun PulseGauge(
             }
         }
 
-        GaugeCenter(mode = mode, grade = grade, score = score, arcColor = arcColor)
+        GaugeCenter(
+            mode = mode,
+            grade = grade,
+            score = score,
+            arcColor = arcColor,
+            centerValue = centerValue,
+            centerLabel = centerLabel,
+        )
     }
 }
 
 /** 环心内容：Idle GO 按钮(+脉冲环) / Running 实时分数 / Result 大分数 + 分级标签 */
 @Composable
-private fun GaugeCenter(mode: GaugeMode, grade: Grade?, score: Int?, arcColor: Color) {
+private fun GaugeCenter(
+    mode: GaugeMode,
+    grade: Grade?,
+    score: Int?,
+    arcColor: Color,
+    centerValue: String?,
+    centerLabel: String?,
+) {
     val colors = AnebTheme.colors
+    // 覆盖投影：Running/Result 下 centerValue 非 null 时用「大数 + 小字」替代默认 AQS/分数渲染
+    // （只把既有 LiveTelemetry 字段投影到中心，不改测量）；Idle 恒显 GO 按钮，不承载覆盖。
+    if (mode != GaugeMode.Idle && centerValue != null) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = centerValue,
+                style = AnebType.DisplayScore,
+                fontSize = 40.sp,
+                color = arcColor,
+                maxLines = 1,
+                softWrap = false,
+            )
+            if (centerLabel != null) {
+                Text(centerLabel, style = AnebType.Caption, fontSize = 11.sp, color = colors.muted)
+            }
+        }
+        return
+    }
     when (mode) {
         GaugeMode.Idle -> PlayButton(brand = colors.brand)
         GaugeMode.Running -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
