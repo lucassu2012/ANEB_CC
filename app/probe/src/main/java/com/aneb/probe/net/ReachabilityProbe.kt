@@ -116,5 +116,26 @@ class ReachabilityProbe(bound: BoundNetwork? = null) {
                 else -> null
             }
         }
+
+        /**
+         * 测量端点选路（D-25，SNI-RST 自动旁路）：当配置端点是 E-01 sslip 主机名、且 run 前
+         * 双通道探测显示 **SNI 通道被 RST 而 bare-IP 通道可达** 时，返回 bare-IP 等价基址——
+         * 同一节点、同一物理路径，仅换 SNI/证书以绕过 DPI 的 SNI-keyed RST（R-33/D-22），
+         * claim_scope（application_end_to_end_to_probe_node）**不变**、无测量偏差。
+         *
+         * 其余情形一律返回原基址不变：reach 未探测（null）、非 E-01 目标（deriveE01Pair 返 null）、
+         * SNI 本就可达（不必旁路，保留观测 sslip 真实路径）、已在 bare-IP（无需再切）。
+         * 纯函数，供 [TestEngine] run 前选路与单测锚定。
+         */
+        fun preferredMeasureBase(configuredBase: String, reach: DualReach?): String {
+            if (reach == null) return configuredBase
+            val ipBase = deriveE01Pair(configuredBase)?.second ?: return configuredBase
+            val trimmed = configuredBase.trim().trimEnd('/')
+            return if (reach.sni.status == "rst" && reach.ip.status == "ok" && trimmed != ipBase) {
+                ipBase
+            } else {
+                configuredBase
+            }
+        }
     }
 }

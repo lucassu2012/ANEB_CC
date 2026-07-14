@@ -157,9 +157,17 @@ class TestEngine(private val context: Context) {
             }
         }
 
+        // SNI-RST 自动旁路（D-25）：run 前若探到 SNI 通道被 RST 而 bare-IP 通道可达，把测量端点
+        // 切到 bare-IP 等价基址（同节点同物理路径，仅换 SNI/证书绕过 DPI 的 SNI-keyed RST，
+        // claim_scope 不变、无测量偏差）；否则保持配置端点。后续 profiles/场景/上报/落库均用 measureBase。
+        val measureBase = ReachabilityProbe.preferredMeasureBase(base, reach)
+        if (measureBase != base) {
+            log("REACH_SWITCH from=sni_host to=bare_ip reason=sni_rst_ip_ok base=$measureBase")
+        }
+
         // ---------------- profiles（服务端拉取，assets 兜底） ----------------
         val loaded = try {
-            ProfileRepository(context).load(client, base)
+            ProfileRepository(context).load(client, measureBase)
         } catch (e: Exception) {
             log("RUN_FAILED run_id=$runId error=profiles_unavailable:${e.javaClass.simpleName}")
             bound?.release()
@@ -282,7 +290,7 @@ class TestEngine(private val context: Context) {
                     // LAZY 注册→检查→start 的无竞态协议见 ScenarioGate KDoc（评审发现 3）
                     val job = ScenarioGate.launchGuarded(this, invalidReason, currentScenario) {
                         try {
-                            runner.run(base, runId, outcome, config.inject, log)
+                            runner.run(measureBase, runId, outcome, config.inject, log)
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -448,7 +456,7 @@ class TestEngine(private val context: Context) {
 
             // ---------------- 结果上报（合同字段 + 400 errors 自检） ----------------
             val runEntity = baseRun(
-                runId, startedAtEpochMs, base, modeStr, transportStr,
+                runId, startedAtEpochMs, measureBase, modeStr, transportStr,
                 orderRecord.joinToString("|"), loaded.source, guardMeta,
             ).copy(
                 profileVersions = profileVersions,
@@ -477,7 +485,7 @@ class TestEngine(private val context: Context) {
             if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {
                 log("REPORT_SIZE_WARN bytes=$bodyBytes limit=${ResultReporter.MAX_REPORT_BYTES}")
             }
-            val resp = client.postResults("$base/api/v1/results", body)
+            val resp = client.postResults("$measureBase/api/v1/results", body)
             reportStatus = "http=${resp.httpCode ?: "null"}"
             if (resp.httpCode == 400) {
                 // 合同自检：服务端拒收即本端合同实现有错，errors 全量进日志
@@ -500,7 +508,7 @@ class TestEngine(private val context: Context) {
             log("RUN_FAILED run_id=$runId error=${e.toString().replace(' ', '_')}")
             persistRun(
                 db, baseRun(
-                    runId, startedAtEpochMs, base, modeStr, transportStr,
+                    runId, startedAtEpochMs, measureBase, modeStr, transportStr,
                     orderRecord.joinToString("|"), loaded.source, guardMeta,
                 ).copy(profileVersions = profileVersions, status = "error:${e.javaClass.simpleName}"),
             )
