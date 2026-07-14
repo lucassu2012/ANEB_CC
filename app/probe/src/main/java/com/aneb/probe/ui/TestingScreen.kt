@@ -12,18 +12,21 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,27 +42,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aneb.probe.engine.LiveTelemetry
-import com.aneb.probe.ui.components.GaugeMode
-import com.aneb.probe.ui.components.LiveSparkline
-import com.aneb.probe.ui.components.PulseGauge
+import com.aneb.probe.ui.components.HalfGauge
 import com.aneb.probe.ui.components.SectionLabel
 import com.aneb.probe.ui.components.SegmentedControl
+import com.aneb.probe.ui.components.StBanner
+import com.aneb.probe.ui.components.StGraph
+import com.aneb.probe.ui.components.StLink
+import com.aneb.probe.ui.components.StStep
+import com.aneb.probe.ui.components.StepState
 import com.aneb.probe.ui.theme.AnebTheme
+import com.aneb.probe.ui.theme.AnebType
 import com.aneb.probe.ui.theme.Grade
 import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
- * 测试中屏（设计稿 §01 测试中）：脉冲环 Running（progress 由 run 进度驱动）+ 阶段标签
- * "2/3·编码 Agent 流" + 实时 token 流条（stall 红点）+ 4 个 livemini。
+ * 测试中屏（Claude Design v2 · SpeedTest 式）：连接横幅 [StBanner] + 阶段步进器 [StStep] +
+ * 你↔节点 [StLink] + 180° 半盘 [HalfGauge]（中心 48px 分数/实时核心量）+ phase live 行 +
+ * 核心量段控 + 实时吞吐折线 [StGraph] + token 流条 + 分层 livemini。
  *
  * 进度由 [TestProgressParser] 从 TestEngine 既有日志 KEY 行（SCENARIO_START/SCENARIO_KPI/
  * ORDER/AQS/RUN_END）派生——**不改 TestEngine 输出格式**（UI 层只读既有合同字段）。
- * RSRP/制式取不到时显 "…"（[radioLabel] 由 MainActivity 注入 RadioCollector 快照）。
+ * 各实时量取不到显 "…"（[telemetry] 只读观测通道，缺失字段一律 null → 不以 0 顶替，R-10）。
  *
  * @param logs run 日志（append-only，MainActivity 提供）——驱动进度环与阶段名（既有解析）
- * @param telemetry 实时分层遥测（TestEngine.telemetry StateFlow 的最新投影）——驱动两层实时区。
- *   只读观测通道，缺失字段一律 null → 显 "…"（R-10：绝不以 0 顶替）。
+ * @param telemetry 实时分层遥测（TestEngine.telemetry StateFlow 的最新投影）——驱动仪表/折线/两层实时区。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -70,32 +77,49 @@ fun TestingScreen(
     val colors = AnebTheme.colors
     // logs 为 append-only SnapshotStateList，每新增一行都会重组；按行数记忆化避免逐帧全量重扫（O(n²)）
     val progress = remember(logs.size) { TestProgressParser.parse(logs) }
-    val animated by animateFloatAsState(
+
+    // 分档色（band）：边测边合成的粗 AQS（run 收尾才有）分级；驱动半盘/步进器/连线/折线的染色。
+    val runningGrade = telemetry.aqsRunning?.let { Grade.fromAqsScore(it) }
+    // 未合成 AQS 时给"良"档活性色，不发中性灰死盘（band 仅装饰用，不代表已判定）。
+    val band = if (runningGrade != null) colors.gradeColor(runningGrade) else colors.good
+    // 半盘指针/进度弧由真实测试完成度（progress.fraction 0..1）驱动"边测边扫"，绝不用
+    // aqsRunning?:0 顶替缺失读数去驱动可见几何（R-10：缺失值绝不以 0 顶替）。HalfGauge 内部自带扫动动画。
+    // token 流条填充同样随 run 进度推进（纯进度指示）。
+    val strFill by animateFloatAsState(
         targetValue = progress.fraction,
         animationSpec = tween(500),
         label = "testing-progress",
     )
+
     // 仪表中心可切换核心量（默认 AQS）；仅把既有 telemetry 字段投影到中心，不改测量/落库。
     var metric by rememberSaveable { mutableStateOf(GaugeMetric.AQS) }
-    // AQS 走默认 score 路径（centerValue=null）；TTFT/ITL 用覆盖大数，缺样本显 "…"（R-10 不顶 0）。
-    val centerValue: String? = when (metric) {
-        GaugeMetric.AQS -> null
-        GaugeMetric.TTFT -> telemetry.ttftMs?.let { "${it.roundToInt()} ms" } ?: "…"
-        GaugeMetric.ITL -> telemetry.itlMedianMs?.let { "${it.roundToInt()} ms" } ?: "…"
+    val centerValue: String = when (metric) {
+        GaugeMetric.AQS -> telemetry.aqsRunning?.roundToInt()?.toString() ?: "…"
+        GaugeMetric.TTFT -> telemetry.ttftMs?.let { "${it.roundToInt()}" } ?: "…"
+        GaugeMetric.ITL -> telemetry.itlMedianMs?.let { "${it.roundToInt()}" } ?: "…"
     }
-    val centerLabel: String? = when (metric) {
-        GaugeMetric.AQS -> null
-        GaugeMetric.TTFT -> "首字延迟(TTFT)"
-        GaugeMetric.ITL -> "ITL 中位"
+    val centerLabel: String = when (metric) {
+        GaugeMetric.AQS -> "AQS · ${runningGrade?.labelFriendly ?: "测量中"}"
+        GaugeMetric.TTFT -> "首字延迟 ms"
+        GaugeMetric.ITL -> "ITL 中位 ms"
     }
+
+    // 实时吞吐折线：ITL 越小越顺 → 归一化为"顺滑度"0..1（0=一顿一顿，1=丝滑），无样本只画基线。
+    val graphPoints = telemetry.itlRecentMs.map {
+        (1.0 - (it / (LiveTelemetry.LIVE_STALL_MS * 2.0)).coerceIn(0.0, 1.0)).toFloat()
+    }
+    val graphNow = telemetry.tokenRatePerSec?.let { "${it.roundToInt()} tok/s" }
+        ?: telemetry.itlMedianMs?.let { "${it.roundToInt()} ms/tok" }
+        ?: "…"
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
-        Column(modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
+        Column(modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)) {
             Text("测试中", fontSize = 17.sp, fontWeight = FontWeight.Black, color = colors.ink)
             Text(
                 "${progress.scenarioIndex + 1} / ${progress.totalScenarios} · ${progress.phaseName}",
@@ -104,23 +128,47 @@ fun TestingScreen(
             )
         }
 
+        // ---- 连接横幅（承载制式；测量进行中）----
+        StBanner(
+            isp = telemetry.rat ?: "自动选择网络",
+            sub = "测量进行中 · ${progress.phaseName}",
+            action = "",
+            onAction = {},
+            dotColor = band,
+        )
+
         Spacer(Modifier.height(16.dp))
-        Box(modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            PulseGauge(
-                mode = GaugeMode.Running,
-                grade = Grade.Good,
-                // 边测边合成的粗 AQS（run 收尾才有）；未合成显 "—"（不顶 0）
-                score = telemetry.aqsRunning?.roundToInt(),
-                progress = animated,
-                stallPositions = progress.stallTickPositions,
-                centerValue = centerValue,
-                centerLabel = centerLabel,
-            )
+
+        // ---- 阶段步进器（连接/流式/上传/完成，随 progress 推进）----
+        StStep(
+            labels = listOf("连接", "流式", "上传", "完成"),
+            states = testingSteps(progress),
+            band = band,
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        // ---- 你 ↔ 节点 ----
+        StLink(deviceLabel = "你", nodeLabel = "节点", band = band)
+
+        Spacer(Modifier.height(16.dp))
+
+        // ---- 180° 半盘（AQS 读数）中心放核心量 ----
+        HalfGauge(
+            fraction = progress.fraction,
+            band = band,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1.8f),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(centerValue, style = AnebType.DisplayScore, fontSize = 48.sp, color = band)
+                Spacer(Modifier.height(2.dp))
+                Text(centerLabel, fontSize = 11.sp, color = colors.muted)
+            }
         }
 
-        // 阶段实时提示（live ping：心跳点向外扩散淡出，对齐设计稿 .live ping 1.4s）
+        // ---- 阶段实时提示（live ping：心跳点向外扩散淡出）----
         Row(
-            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LivePingDot(color = colors.good)
@@ -128,7 +176,7 @@ fun TestingScreen(
             Text(progress.liveHint, fontSize = 12.5.sp, color = colors.muted)
         }
 
-        // 仪表核心量切换器（AQS / 首字延迟 / ITL）——放仪表下方、live ping 行附近
+        // ---- 仪表核心量切换器（AQS / 首字延迟 / ITL）----
         Spacer(Modifier.height(10.dp))
         SegmentedControl(
             options = GaugeMetric.entries,
@@ -138,18 +186,16 @@ fun TestingScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
 
-        Spacer(Modifier.height(14.dp))
-        TokenStreamStrip(fill = animated, stalls = progress.stallCount)
+        // ---- 实时吞吐折线 ----
+        Spacer(Modifier.height(16.dp))
+        StGraph(title = "实时吞吐", nowValue = graphNow, points = graphPoints, band = band)
 
-        // ---------------- AI 业务层（token 生成质量；ITL 波形是"冲击力"核心） ----------------
+        // ---- token 流条（stall 红点）----
+        Spacer(Modifier.height(14.dp))
+        TokenStreamStrip(fill = strFill, stalls = progress.stallCount)
+
+        // ---------------- AI 业务层（token 生成质量） ----------------
         SectionLabel("AI 业务层", trailing = "token 生成")
-        // 实时 ITL 波形：卡顿值（>LIVE_STALL_MS）高亮 poor 色；无样本显基线（不顶 0）
-        LiveSparkline(
-            values = telemetry.itlRecentMs,
-            barColor = colors.good,
-            poorThresholdMs = LiveTelemetry.LIVE_STALL_MS,
-        )
-        Spacer(Modifier.height(8.dp))
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -177,8 +223,27 @@ fun TestingScreen(
             LiveMini("制式", telemetry.rat ?: "…", Modifier.weight(1f))
             LiveMini("上行", telemetry.upMbps?.let { String.format(Locale.ROOT, "%.1f Mbps", it) } ?: "…", Modifier.weight(1f))
         }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(24.dp))
     }
+}
+
+/**
+ * 阶段步进器状态派生：连接（进屏即完成）/ 流式（s1·s2 进行）/ 上传（s3）/ 完成（RUN_END）。
+ * 纯投影既有 [TestProgressParser.LiveProgress]，不新增测量语义。
+ */
+private fun testingSteps(progress: TestProgressParser.LiveProgress): List<StepState> {
+    val idx = progress.scenarioIndex
+    val finished = progress.finished
+    return listOf(
+        StepState.Done, // 连接：进入测试中屏即视为已建连
+        if (finished || idx >= 2) StepState.Done else StepState.On, // 流式：s1/s2
+        when { // 上传：s3 多模态
+            finished -> StepState.Done
+            idx >= 2 -> StepState.On
+            else -> StepState.Todo
+        },
+        if (finished) StepState.Done else StepState.Todo, // 完成
+    )
 }
 
 /**

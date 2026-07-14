@@ -68,6 +68,7 @@ fun SettingsScreen(
     onDriveTestChange: (Boolean) -> Unit,
     injectActive: String?,
     onOpenApiProbe: () -> Unit,
+    onOpenReachBoard: () -> Unit,
     onBack: () -> Unit,
 ) {
     val colors = AnebTheme.colors
@@ -140,8 +141,8 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        // ---- API 探针入口 ----
-        SectionLabel("对照：真实 LLM API 探针")
+        // ---- 对照/探针入口（API 探针 + 可达性看板；后者已从顶级 tab 降为此二级入口）----
+        SectionLabel("对照：真实 LLM 探针")
         GroupedCard {
             OptionRow(
                 title = "Kimi / OpenAI 兼容 API 探针",
@@ -149,6 +150,14 @@ fun SettingsScreen(
                 selected = false,
                 showChevron = true,
                 onClick = onOpenApiProbe,
+            )
+            HairlineDivider()
+            OptionRow(
+                title = "AI 可达性看板",
+                subtitle = "无 key 连接层探测（TLS 握手）· best-effort 不进 AQS",
+                selected = false,
+                showChevron = true,
+                onClick = onOpenReachBoard,
             )
         }
 

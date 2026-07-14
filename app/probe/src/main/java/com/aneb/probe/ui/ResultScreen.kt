@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,27 +31,33 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.radio.GeoTrack
-import com.aneb.probe.ui.components.GaugeMode
 import com.aneb.probe.ui.components.GlassChrome
 import com.aneb.probe.ui.components.GradeChip
+import com.aneb.probe.ui.components.HalfGauge
 import com.aneb.probe.ui.components.KpiBar
-import com.aneb.probe.ui.components.PulseGauge
+import com.aneb.probe.ui.components.ResIcon
 import com.aneb.probe.ui.components.SectionLabel
 import com.aneb.probe.ui.components.SegmentedControl
-import com.aneb.probe.ui.components.StatTile
+import com.aneb.probe.ui.components.StBanner
+import com.aneb.probe.ui.components.StResItem
+import com.aneb.probe.ui.components.StResults
 import com.aneb.probe.ui.components.pressable
 import com.aneb.probe.ui.theme.AnebColors
 import com.aneb.probe.ui.theme.AnebElevation
 import com.aneb.probe.ui.theme.AnebShapes
 import com.aneb.probe.ui.theme.AnebTheme
+import com.aneb.probe.ui.theme.AnebType
 import com.aneb.probe.ui.theme.Grade
 import com.aneb.probe.ui.theme.gradeColorByKey
 import com.aneb.probe.ui.theme.invalidNeutral
@@ -225,6 +232,7 @@ private fun SimpleResultView(
     val colors = AnebTheme.colors
     val score = run.aqsScore
     val grade = score?.let { Grade.fromAqsScore(it) }
+    val band = colors.gradeColor(grade)
     val rows = ResultFormat.runKpiRows(scenarios).associateBy { it.row.id }
 
     val t1 = rows["T1"]?.row
@@ -241,47 +249,90 @@ private fun SimpleResultView(
             .padding(top = 8.dp, bottom = 88.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        PulseGauge(
-            mode = GaugeMode.Result,
-            grade = grade,
-            score = score?.roundToInt(),
-            progress = (score?.toFloat() ?: 0f) / 100f,
-            size = 208.dp,
+        // ---- 连接横幅（结果态：分档色点 + 网络副行）----
+        StBanner(
+            isp = "测试完成",
+            sub = NetworkLabel.forRun(run),
+            action = "",
+            onAction = {},
+            dotColor = band,
         )
+
+        Spacer(Modifier.height(20.dp))
+
+        // ---- 180° 半盘 + 中心 60px 大分 / 分档 / Agent 体验分 ----
+        HalfGauge(
+            fraction = ((score?.toFloat() ?: 0f) / 100f),
+            band = band,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1.8f),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    score?.roundToInt()?.toString() ?: "—",
+                    style = AnebType.DisplayScore,
+                    fontSize = 60.sp,
+                    color = band,
+                )
+                Text(grade?.labelFriendly ?: "未完成", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = band)
+                Spacer(Modifier.height(2.dp))
+                Text("Agent 体验分", fontSize = 11.sp, color = colors.muted)
+            }
+        }
+
         Spacer(Modifier.height(14.dp))
+        // ---- 结论句（关键结论小句分档色加粗）----
         Text(
-            verdict,
+            verdictAnnotated(verdict, band, colors.ink),
             fontSize = 14.5.sp,
-            color = colors.ink,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 4.dp),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            StatTile(
-                value = t1?.value?.let { "${it.roundToInt()}" } ?: "—",
-                unit = if (t1?.value != null) "ms" else "",
-                label = "响应速度",
-                grade = Grade.fromKey(t1?.grade),
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                value = stallTileValue(t3?.value),
-                label = "卡顿",
-                grade = Grade.fromKey(t3?.grade),
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                value = u1?.value?.let { "%.1f".format(it) } ?: "—",
-                label = "上传 Mbps",
-                grade = Grade.fromKey(u1?.grade),
-                modifier = Modifier.weight(1f),
-            )
+
+        Spacer(Modifier.height(18.dp))
+        // ---- 结果大数字行（响应←T1 / 上传←U1 / 卡顿←T3，各带优良可差角标）----
+        StResults(
+            items = listOf(
+                StResItem(
+                    icon = ResIcon.Down,
+                    name = "响应",
+                    value = t1?.value?.let { "${it.roundToInt()}" } ?: "—",
+                    unit = if (t1?.value != null) "ms" else "",
+                    grade = Grade.fromKey(t1?.grade),
+                ),
+                StResItem(
+                    icon = ResIcon.Up,
+                    name = "上传",
+                    value = u1?.value?.let { "%.1f".format(it) } ?: "—",
+                    unit = if (u1?.value != null) "Mbps" else "",
+                    grade = Grade.fromKey(u1?.grade),
+                ),
+                StResItem(
+                    icon = ResIcon.Stall,
+                    name = "卡顿",
+                    value = stallTileValue(t3?.value),
+                    unit = "",
+                    grade = Grade.fromKey(t3?.grade),
+                ),
+            ),
+        )
+    }
+}
+
+/**
+ * 结论句着色：主结论小句（首个破折号「——」之前的判断词，如"很适合 AI 助手"/"能用但会卡"）
+ * 染分档色 + 加粗，其余正文走 [ink]。无破折号（不可计算话术）时整句走正文，不强加分档色。
+ */
+private fun verdictAnnotated(verdict: String, accent: Color, ink: Color) = buildAnnotatedString {
+    val sep = "——"
+    val idx = verdict.indexOf(sep)
+    if (idx > 0) {
+        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.Bold)) {
+            append(verdict.substring(0, idx))
         }
+        withStyle(SpanStyle(color = ink)) { append(verdict.substring(idx)) }
+    } else {
+        withStyle(SpanStyle(color = ink)) { append(verdict) }
     }
 }
 

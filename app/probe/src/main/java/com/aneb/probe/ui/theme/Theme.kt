@@ -167,7 +167,7 @@ private val LightColorScheme = lightColorScheme(
  * - [AnebColors]（语义/材质色）经 CompositionLocal 下发；
  * - iOS 连续圆角 [AnebShapes.material] 注入 M3 `shapes`；
  * - 无障碍"减弱动效"经 [LocalReducedMotion] 下发（由系统动画缩放推断），
- *   动效基元（Modifiers/PulseGauge）据此降级为交叉淡入 / 直接终态。
+ *   动效基元（Modifiers/HalfGauge 等）据此降级为交叉淡入 / 直接终态。
  *
  * @param darkTheme 缺省跟随系统深浅色；测试/预览可显式覆盖。
  * @param reducedMotion 缺省由系统动画缩放推断；测试/预览可显式覆盖。
