@@ -162,16 +162,16 @@ fun HomeScreen(
                     val centerLabel: String
                     when {
                         !upload && rate != null && rate > 0.0 -> {
-                            gaugeFrac = (rate / 120.0).toFloat().coerceIn(0f, 1f)
-                            centerVal = "%.0f".format(rate); centerLabel = "Token /秒"
+                            gaugeFrac = (rate / 100.0).toFloat().coerceIn(0f, 1f)
+                            centerVal = "%.1f".format(rate); centerLabel = "Token /秒"
                         }
                         up != null -> {
                             gaugeFrac = (up / 50.0).toFloat().coerceIn(0f, 1f)
                             centerVal = "%.1f".format(up); centerLabel = "上行 Mbps"
                         }
                         rate != null && rate > 0.0 -> {
-                            gaugeFrac = (rate / 120.0).toFloat().coerceIn(0f, 1f)
-                            centerVal = "%.0f".format(rate); centerLabel = "Token /秒"
+                            gaugeFrac = (rate / 100.0).toFloat().coerceIn(0f, 1f)
+                            centerVal = "%.1f".format(rate); centerLabel = "Token /秒"
                         }
                         else -> {
                             gaugeFrac = 0f; centerVal = "…"; centerLabel = if (upload) "上行 Mbps" else "Token /秒"
@@ -408,7 +408,7 @@ private fun RunningSparkline(telemetry: LiveTelemetry) {
 private fun LiveMetricsRow(telemetry: LiveTelemetry) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            MetricInline("↓", "Token 流速", telemetry.tokenRatePerSec?.let { "%.0f".format(it) } ?: "—", "/秒", RingCyan)
+            MetricInline("↓", "Token 流速", telemetry.tokenRatePerSec?.let { "%.1f".format(it) } ?: "—", "/秒", RingCyan)
             MetricInline("↑", "上行", telemetry.upMbps?.let { "%.1f".format(it) } ?: "—", "Mbps", Color(0xFFA779F2))
         }
         Spacer(Modifier.height(12.dp))

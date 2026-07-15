@@ -246,24 +246,29 @@ class TestEngine(private val context: Context) {
             // D-27 实时 token 计数器（观测通道，非测量）：SSE 读循环每 read 更新，采样协程读出实时速率。
             // 场景边界粗粒度投影无法体现流内实时变化，这里补当前流的实时 token 数/到达时刻。
             val liveStreamTokens = java.util.concurrent.atomic.AtomicLong(0)
-            val liveStreamFirstNs = java.util.concurrent.atomic.AtomicLong(0)
-            val liveStreamLastNs = java.util.concurrent.atomic.AtomicLong(0)
 
             // ---- 实时遥测采样协程（观测通道，非测量；Dispatchers.Default, ~100ms 节流）----
             // 只读 latestRadio 引用（O(1)，不消费队列）+ telemetrySource 投影 → derive → conflated
             // 发射。绝不在 SSE 读线程/计时回调发射（R-16）；随 collectors 在 finally 统一取消。
             collectors += launch(Dispatchers.Default) {
+                // D-27：~0.9s 滑动窗算**瞬时** token 速率（含网络抖动/突发 → 数字与指针像 SpeedTest 持续跳动）。
+                // 观测通道，非测量：只覆盖 derive 用的速率两字段，ITL/RTT/上行/进度/KPI/落库全不动。
+                val rateWindow = ArrayDeque<Pair<Long, Long>>() // (nanoTime, 累计 token 数)
                 while (true) {
                     val base = telemetrySource.read(latestRadio.get())
-                    // D-27：当前流实时 token 数/速率覆盖（比场景边界粗粒度更实时）——只覆盖速率相关
-                    // 两字段供 derive 算实时 tokenRatePerSec，其余字段（ITL/RTT/上行/进度）不动。
-                    val n = liveStreamTokens.get()
-                    val f = liveStreamFirstNs.get()
-                    val l = liveStreamLastNs.get()
-                    val snap = if (n >= 2L && l > f) {
-                        base.copy(tokensReceived = n.toInt(), tokenElapsedSec = (l - f) / 1e9)
-                    } else {
-                        base
+                    val count = liveStreamTokens.get()
+                    val now = System.nanoTime()
+                    if (rateWindow.isNotEmpty() && count < rateWindow.last().second) rateWindow.clear() // 新场景归零→清窗
+                    rateWindow.addLast(now to count)
+                    while (rateWindow.size > 1 && now - rateWindow.first().first > 600_000_000L) rateWindow.removeFirst()
+                    val head = rateWindow.first()
+                    val dCount = count - head.second
+                    val dSec = (now - head.first) / 1e9
+                    val snap = when {
+                        rateWindow.size >= 2 && dSec > 0.15 && dCount > 0L ->
+                            base.copy(tokensReceived = dCount.toInt(), tokenElapsedSec = dSec)
+                        count > 0L -> base.copy(tokensReceived = 0, tokenElapsedSec = 1.0) // 有过 token 但窗内无新增→速率 0（诚实）
+                        else -> base
                     }
                     _telemetry.value = LiveTelemetry.derive(snap)
                     delay(TELEMETRY_SAMPLE_MS)
@@ -298,7 +303,7 @@ class TestEngine(private val context: Context) {
                         it.copy(phase = scenarioKey, fraction = orderIndex.toDouble() / totalScenarios)
                     }
                     // D-27：新场景开始，实时 token 计数器归零（避免跨场景速率污染）
-                    liveStreamTokens.set(0L); liveStreamFirstNs.set(0L); liveStreamLastNs.set(0L)
+                    liveStreamTokens.set(0L)
                     val outcome = ScenarioRunner.ScenarioOutcome(profile, scenarioKey)
                     val netSnap = bound?.snapshot ?: autoNetSnapshot(context)
                     var engineError: String? = null
@@ -309,11 +314,8 @@ class TestEngine(private val context: Context) {
                     val job = ScenarioGate.launchGuarded(this, invalidReason, currentScenario) {
                         try {
                             // D-27 实时观测 sink：SSE 读循环每 read 回调，更新当前流实时 token 数/时刻
-                            runner.run(measureBase, runId, outcome, config.inject, log) { count, ns ->
-                                // 本流首个回调锚定起点（已在 SCENARIO_START 归零 → CAS(0,ns) 稳）
-                                liveStreamFirstNs.compareAndSet(0L, ns)
-                                liveStreamLastNs.set(ns)
-                                liveStreamTokens.set(count.toLong())
+                            runner.run(measureBase, runId, outcome, config.inject, log) { count, _ ->
+                                liveStreamTokens.set(count.toLong()) // D-27：当前流累计 token 数（采样协程按滑窗算瞬时速率）
                             }
                         } catch (e: CancellationException) {
                             throw e
