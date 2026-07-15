@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,13 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +54,7 @@ import com.aneb.probe.ui.components.SegmentedControl
 import com.aneb.probe.ui.components.StBanner
 import com.aneb.probe.ui.components.StResItem
 import com.aneb.probe.ui.components.StResults
+import com.aneb.probe.ui.components.SuiteCard
 import com.aneb.probe.ui.components.pressable
 import com.aneb.probe.ui.theme.AnebColors
 import com.aneb.probe.ui.theme.AnebElevation
@@ -69,10 +72,12 @@ import kotlin.math.roundToInt
  * 结果页（重设计，设计稿 §01 结果双视图）：顶部 简洁/专业 分段控件切换普通/开发者视图。
  * - 普通（[ResultViewMode.Simple]）：脉冲环 + 分数 + 四级中文标签 + [VerdictText] 结论文案
  *   + 三瓦片（响应速度/卡顿/上传）+ 分享成图 + "查看详细数据"切专业；
- * - 开发者（[ResultViewMode.Detailed]）：全量 KPI 明细表（双口径）+ REACH 矩阵 + 连接信息
+ * - 开发者（[ResultViewMode.Detailed]）：v2 卡片化取证视图——AQS 头条（真实三组子分并列）
+ *   + AQS 子分与权重（组→KPI→贡献分，真实落库子分）+ 分组 KPI 明细 + REACH + 元信息
  *   + 导出 JSON/CSV。
  *
  * 全部数据来自 Room 落库实体（TestEngine 写入口径），本层不重算（D-02 单一事实来源）。
+ * AQS 子分为 run 结束时 AqsScorer 已落库的产物（report_body JSON），本层只解析+映射不重算。
  */
 
 // 分级/有效性色统一走 AnebTheme.colors（theme-aware 单一事实源，见 ui/theme/Color.kt）：
@@ -85,11 +90,12 @@ enum class ResultViewMode(val label: String) { Simple("简洁"), Detailed("专�
 fun ResultScreen(
     run: TestRun?,
     scenarios: List<ScenarioResultEntity>,
-    hasReportJson: Boolean,
+    reportJson: String?,
     exportStatus: String?,
     onExportJson: () -> Unit,
     onExportCsv: () -> Unit,
     onBack: () -> Unit,
+    radio: ResultRadioSummary = ResultRadioSummary.EMPTY,
     trackSummaries: Map<Long, GeoTrack.Summary> = emptyMap(),
     hasTrack: Boolean = false,
     onExportTrack: () -> Unit = {},
@@ -97,6 +103,7 @@ fun ResultScreen(
     onShare: (ShareCard.Model) -> Unit = {},
 ) {
     val colors = AnebTheme.colors
+    val hasReportJson = reportJson != null
     var viewMode by rememberSaveable { mutableStateOf(ResultViewMode.Simple) }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 20.dp)) {
@@ -130,7 +137,8 @@ fun ResultScreen(
                 ResultViewMode.Detailed -> DetailedResultView(
                     run = run,
                     scenarios = scenarios,
-                    hasReportJson = hasReportJson,
+                    reportJson = reportJson,
+                    radio = radio,
                     exportStatus = exportStatus,
                     trackSummaries = trackSummaries,
                     hasTrack = hasTrack,
@@ -407,79 +415,317 @@ private fun buildShareModel(
 }
 
 // ------------------------------------------------------------------
-// 开发者视图（原 P1-C07 全量内容 + REACH 矩阵 + 连接信息）
+// 专业视图（v2：卡片化取证视图 — 真实 AQS 子分 + 分组 KPI 明细 + REACH + 元信息）
+//   · AQS 子分为 AqsScorer 落库子分（report_body JSON）真实分解，非分级近似（D-02 不重算）
+//   · 分组/权重/门限一律引用测量层单一事实源，展示层只映射（红线 §2.3）
 // ------------------------------------------------------------------
 
 @Composable
 private fun DetailedResultView(
     run: TestRun,
     scenarios: List<ScenarioResultEntity>,
-    hasReportJson: Boolean,
+    reportJson: String?,
+    radio: ResultRadioSummary,
     exportStatus: String?,
     trackSummaries: Map<Long, GeoTrack.Summary>,
     hasTrack: Boolean,
     onExportTrack: () -> Unit,
 ) {
-    val colors = AnebTheme.colors
-    // 主导出（JSON/CSV）已上移到底部玻璃操作区；此处 contentPadding.bottom 让末尾内容从其下方滚过。
+    // 真实子分分解（落库上报体 JSON），一次解析记忆化；不可计算/无上报体 → null
+    val breakdown = remember(reportJson) { ResultAqsBreakdown.fromReportJson(reportJson) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 84.dp),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp),
     ) {
-        item { AqsHeadline(run) }
-        item { AqsSubScoreBars(scenarios) }
-        item { ReachMatrix(run) }
-        item { ConnectionInfo(scenarios) }
-        item { RunMeta(run) }
-        item {
-            SectionLabel("KPI 总表（AQS 输入映射：N←S1 / T,U2←S2 / U1←S3）")
-            Column { ResultFormat.runKpiRows(scenarios).forEach { RunKpiRowLine(it) } }
-        }
-        item { SectionLabel("场景明细") }
-        items(count = scenarios.size, key = { i -> scenarios[i].id }) { i ->
-            ScenarioCard(scenarios[i], trackSummaries[scenarios[i].id])
-        }
-        item {
-            SectionLabel("导出轨迹与状态")
-            if (hasTrack) {
-                Button(enabled = true, onClick = onExportTrack) { Text("导出轨迹") }
+        item { AqsHeadlineCard(run, breakdown, scenarios) }
+        item { AqsBreakdownSection(run, breakdown, scenarios) }
+        item { KpiDetailSection(run, scenarios) }
+        item { RadioSection(radio) }
+        item { ReachSection(run) }
+        item { MetaSection(run, scenarios, exportStatus, hasTrack, onExportTrack, reportJson != null) }
+        if (scenarios.isNotEmpty()) {
+            item { SectionLabel("场景明细", trailing = "${scenarios.size} 场景") }
+            items(count = scenarios.size, key = { i -> scenarios[i].id }) { i ->
+                SuiteCard(modifier = Modifier.padding(top = 8.dp)) {
+                    ScenarioCard(scenarios[i], trackSummaries[scenarios[i].id])
+                }
             }
-            if (!hasReportJson) {
-                Text(
-                    "该 run 未生成上报体（早退/失败），JSON 不可导出",
-                    fontSize = 11.sp, color = colors.invalidNeutral,
-                )
-            }
-            exportStatus?.let { Text(it, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral) }
         }
         item { ClaimScopeFooter(run) }
     }
 }
 
+// ---- AQS 头条卡（大分 + 分档 + 置信 + 三组子分并列 R-28 + claim scope）----
+
+@Composable
+private fun AqsHeadlineCard(
+    run: TestRun,
+    breakdown: ResultAqsBreakdown.Breakdown?,
+    scenarios: List<ScenarioResultEntity>,
+) {
+    val colors = AnebTheme.colors
+    SuiteCard(modifier = Modifier.padding(top = 4.dp)) {
+        val score = run.aqsScore
+        if (score != null) {
+            val grade = Grade.fromAqsScore(score)
+            val band = colors.gradeColor(grade)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("%.1f".format(score), style = AnebType.DisplayScore, fontSize = 46.sp, color = band)
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("${grade.labelFriendly} · AQS", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = band)
+                    Text(NetworkLabel.forRun(run), fontSize = 11.sp, color = colors.muted)
+                    Text("agent-qoe-kpi · ${run.kpiSet}", fontSize = 10.sp, color = colors.faint)
+                }
+                ConfidenceChip(run)
+            }
+            // R-28：AQS 数字旁必须并列三大组子分。真实子分（落库上报体）优先；
+            // 无上报体（早退/落库失败）时降级为分级近似，明确标注，绝不留空。
+            Spacer(Modifier.height(12.dp))
+            if (breakdown != null) {
+                GroupSubscoreRow(breakdown)
+            } else {
+                ApproxGroupSubscoreRow(scenarios)
+                Text(
+                    "子分为分级近似（本 run 无落库上报体）",
+                    fontSize = 9.5.sp, color = colors.faint, modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (run.aqsVetoApplied == true) {
+                Spacer(Modifier.height(8.dp))
+                InlineBadge("T4 一票否决生效 · AQS 封顶 54", colors.poor, colors.poorSoft)
+            }
+            if (run.aqsLowConfidence == true) {
+                Spacer(Modifier.height(8.dp))
+                InlineBadge("⚠ ${ResultFormat.LOW_CONFIDENCE_LABEL} · 证据不完整，本分数仅供参考", colors.lowConf, colors.fairSoft)
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("—", style = AnebType.DisplayScore, fontSize = 46.sp, color = colors.invalidNeutral)
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("AQS 不可计算", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.invalidNeutral)
+                    Text(run.aqsNotComputableReason ?: run.status ?: "unknown", fontSize = 11.sp, color = colors.muted)
+                }
+                ConfidenceChip(run)
+            }
+        }
+        // AQS v0.2 并列出分（若有连续性数据）
+        ResultFormat.aqsV02Lines(run)?.let { lines ->
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = colors.hairline)
+            Spacer(Modifier.height(8.dp))
+            Text(lines[0], fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.ink)
+            Text(lines[1], fontSize = 10.5.sp, fontFamily = FontFamily.Monospace, color = colors.muted)
+        }
+        Spacer(Modifier.height(10.dp))
+        ClaimScopeChip(run)
+    }
+}
+
+/** 置信状态胶囊（借鉴 Codex 语义：有效 / 低置信 / 不可计算——分数可信度一目了然）。 */
+@Composable
+private fun ConfidenceChip(run: TestRun) {
+    val colors = AnebTheme.colors
+    val (text, fg, bg) = when {
+        run.aqsScore == null -> Triple("不可计算", colors.invalidNeutral, colors.neutral.copy(alpha = 0.12f))
+        run.aqsLowConfidence == true -> Triple("低置信", colors.lowConf, colors.fairSoft)
+        else -> Triple("有效", colors.excellent, colors.excellentSoft)
+    }
+    Text(
+        text,
+        color = fg,
+        fontSize = 10.5.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.clip(AnebShapes.xs).background(bg).padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
+/** 三大组子分并列（R-28：AQS 数字旁必须同时给出流式/上行/基线子分），真实落库子分。 */
+@Composable
+private fun GroupSubscoreRow(breakdown: ResultAqsBreakdown.Breakdown) {
+    val colors = AnebTheme.colors
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        breakdown.groups.forEach { g ->
+            val normalized = if (g.maxPoints > 0) g.subtotalPoints / g.maxPoints * 100.0 else 0.0
+            GroupChip(
+                label = g.label,
+                band = colors.gradeColor(Grade.fromAqsScore(normalized)),
+                valueText = "%.1f".format(g.subtotalPoints),
+                subText = "/ ${g.maxPoints.roundToInt()}",
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
 /**
- * AQS 子分横条：用 run 级 KPI（AqsInputMapper 映射视图）的分级 + 权重标注渲染。
- * 横条填充按分级色语义呈现（值不是 0–100 子分——子分需 AqsScorer，不落 Room；此处以
- * 分级映射为主，避免展示层重算 AqsScorer 内部子分，D-02）。T4 否决在头条已标注。
+ * 三大组子分的**分级近似**并列（R-28 降级路径：run 无落库上报体、真实子分不可得时）。
+ * 每组取成员 KPI 分级的桶均值（优 1.0 / 良 .75 / 可 .5 / 差 .25），映射回四级标签——
+ * 明确近似、绝不冒充落库子分（D-02）；缺量 KPI 不参与均值（R-10 不以 0 顶替）。
  */
 @Composable
-private fun AqsSubScoreBars(scenarios: List<ScenarioResultEntity>) {
-    val weights = mapOf(
-        "T1" to "20%", "T3" to "20%", "T2" to "15%", "U1" to "15%",
-        "U2" to "10%", "N1" to "10%", "N2" to "10%",
+private fun ApproxGroupSubscoreRow(scenarios: List<ScenarioResultEntity>) {
+    val colors = AnebTheme.colors
+    val rows = ResultFormat.runKpiRows(scenarios).associateBy { it.row.id }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        ResultAqsBreakdown.GROUP_KPI_IDS_V01.forEach { (label, ids) ->
+            val buckets = ids.mapNotNull { id -> Grade.fromKey(rows[id]?.row?.grade)?.let { gradeBucket(it) } }
+            if (buckets.isEmpty()) {
+                GroupChip(label, colors.neutral, "—", "近似", Modifier.weight(1f))
+            } else {
+                val g = Grade.fromAqsScore(buckets.average() * 100.0)
+                GroupChip(label, colors.gradeColor(g), g.labelCn, "近似", Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupChip(label: String, band: Color, valueText: String, subText: String, modifier: Modifier = Modifier) {
+    val colors = AnebTheme.colors
+    Column(
+        modifier = modifier.clip(AnebShapes.sm).background(colors.surface2).padding(horizontal = 9.dp, vertical = 8.dp),
+    ) {
+        Text(label, fontSize = 9.5.sp, color = colors.muted, maxLines = 1)
+        Spacer(Modifier.height(3.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(valueText, style = AnebType.StatValue, fontSize = 16.sp, color = band)
+            Text(" $subText", fontSize = 10.sp, color = colors.faint, modifier = Modifier.padding(bottom = 1.dp))
+        }
+    }
+}
+
+/** 分级 → 近似占比桶（优 1.0 / 良 .75 / 可 .5 / 差 .25）；仅用于无落库子分时的分级近似。 */
+private fun gradeBucket(grade: Grade): Double = when (grade) {
+    Grade.Excellent -> 1.0
+    Grade.Good -> 0.75
+    Grade.Fair -> 0.5
+    Grade.Poor -> 0.25
+}
+
+/** claim scope 胶囊（R-28：分数旁标注测量口径 + 节点，避免被误读为全网结论）。 */
+@Composable
+private fun ClaimScopeChip(run: TestRun) {
+    val colors = AnebTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "claim: to_probe_node",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.muted,
+            modifier = Modifier.clip(AnebShapes.xs).background(colors.surface2).padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        Text("节点 ${nodeLabel(run.serverBase)}", fontSize = 10.sp, color = colors.faint, fontFamily = FontFamily.Monospace)
+    }
+}
+
+private fun nodeLabel(serverBase: String): String =
+    serverBase.substringAfter("://", serverBase).trimEnd('/')
+
+@Composable
+private fun InlineBadge(text: String, fg: Color, bg: Color) {
+    Text(
+        text,
+        color = fg,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth().clip(AnebShapes.sm).background(bg).padding(horizontal = 10.dp, vertical = 7.dp),
+    )
+}
+
+// ---- AQS 子分与权重（组→KPI→贡献分，真实落库子分；无子分回退分级近似）----
+
+@Composable
+private fun AqsBreakdownSection(
+    run: TestRun,
+    breakdown: ResultAqsBreakdown.Breakdown?,
+    scenarios: List<ScenarioResultEntity>,
+) {
+    val colors = AnebTheme.colors
+    Column {
+        SectionLabel("AQS 子分与权重", trailing = if (breakdown != null) "组→KPI→贡献分" else "分级近似")
+        SuiteCard {
+            when {
+                breakdown != null -> breakdown.groups.forEachIndexed { i, g ->
+                    if (i > 0) Spacer(Modifier.height(10.dp))
+                    AqsGroupBlock(g)
+                }
+                run.aqsScore != null -> {
+                    Text(
+                        "无落库子分，以下为分级近似（优 1.0 / 良 .75 / 可 .5 / 差 .25）",
+                        fontSize = 10.5.sp, color = colors.faint, modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                    ApproxSubScoreBars(scenarios)
+                }
+                else -> Text("AQS 不可计算，无子分可展示", fontSize = 12.sp, color = colors.invalidNeutral)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AqsGroupBlock(group: ResultAqsBreakdown.Group) {
+    val colors = AnebTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+        Text(
+            "${group.label} · ${(group.weight * 100).roundToInt()}%",
+            fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.ink,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${"%.1f".format(group.subtotalPoints)} / ${group.maxPoints.roundToInt()} 分",
+            style = AnebType.StatValue, fontSize = 11.sp, color = colors.muted,
+        )
+    }
+    group.kpis.forEach { AqsContribRow(it) }
+}
+
+@Composable
+private fun AqsContribRow(kpi: ResultAqsBreakdown.KpiContribution) {
+    val colors = AnebTheme.colors
+    val band = colors.gradeColor(Grade.fromKey(kpi.gradeKey))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(
+            "${kpi.label} · ${(kpi.weight * 100).roundToInt()}%",
+            fontSize = 11.sp, color = colors.muted, modifier = Modifier.width(96.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(
+            modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(999.dp)).background(colors.surfaceMuted),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth((kpi.subScore / 100.0).toFloat().coerceIn(0f, 1f))
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(band),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(66.dp)) {
+            Text("%.1f".format(kpi.subScore), style = AnebType.StatValue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.ink)
+            Text("${"%.1f".format(kpi.contributionPoints)}分", style = AnebType.StatValue, fontSize = 9.5.sp, color = colors.faint)
+        }
+    }
+}
+
+/**
+ * 分级近似子分横条（无落库子分时的回退：早退/旧行/无上报体）。明确标注非精确子分，
+ * 语义近似（优 1.0 / 良 .75 / 可 .5 / 差 .25 / 缺失 0），避免展示层重算 AqsScorer（D-02）。
+ */
+@Composable
+private fun ApproxSubScoreBars(scenarios: List<ScenarioResultEntity>) {
+    val weights = listOf(
+        "T1" to "20%", "T3" to "20%", "T2" to "15%",
+        "U1" to "15%", "U2" to "10%", "N1" to "10%", "N2" to "10%",
     )
     val rows = ResultFormat.runKpiRows(scenarios).associateBy { it.row.id }
-    SectionLabel("AQS 子分与权重")
     weights.forEach { (id, w) ->
         val r = rows[id]?.row
         val grade = Grade.fromKey(r?.grade)
-        // 分级 → 条填充占比（优 1.0 / 良 0.75 / 可 0.5 / 差 0.25 / 缺失 0），语义近似非精确子分
-        val frac = when (grade) {
-            Grade.Excellent -> 1.0f
-            Grade.Good -> 0.75f
-            Grade.Fair -> 0.5f
-            Grade.Poor -> 0.25f
-            null -> 0f
-        }
+        // 缺量 KPI（grade=null）→ 无填充（R-10：不以 0 顶替失败样本），值仍显 "—"
+        val frac = grade?.let { gradeBucket(it).toFloat() } ?: 0f
         KpiBar(
             label = "$id $w",
             fraction = frac,
@@ -489,116 +735,47 @@ private fun AqsSubScoreBars(scenarios: List<ScenarioResultEntity>) {
     }
 }
 
-/** REACH 连接可达性矩阵（SNI 域名 / bare-IP × 握手结果）——数据取自 TestRun 既有列。 */
-@Composable
-private fun ReachMatrix(run: TestRun) {
-    val colors = AnebTheme.colors
-    SectionLabel("连接可达性 REACH")
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.surfaceElevated),
-    ) {
-        ReachRow("SNI 域名", run.sniReachable, run.sniReachMs, header = false)
-        HorizontalDivider(color = colors.hairline)
-        ReachRow("bare-IP", run.ipReachable, run.ipReachMs, header = false)
-    }
-    if (run.sniReachable == null && run.ipReachable == null) {
-        Text("（本 run 未做 SNI 双通道探测）", fontSize = 11.sp, color = colors.invalidNeutral, modifier = Modifier.padding(top = 4.dp))
-    }
-}
+// ---- KPI 明细（分组 T/N/U/C，值 + 分级 chip + 低置信；双口径并列）----
 
 @Composable
-private fun ReachRow(label: String, result: String?, ms: Long?, header: Boolean) {
-    val colors = AnebTheme.colors
-    val ok = result == "ok"
-    val color = when {
-        result == null -> colors.muted
-        ok -> colors.excellent
-        else -> colors.poor
-    }
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
-        Text(label, fontSize = 12.sp, color = colors.muted, modifier = Modifier.width(90.dp))
-        Text(
-            when {
-                result == null -> "未探测"
-                ok -> "OK ${ms?.let { "${it}ms" } ?: ""}"
-                else -> result.uppercase()
-            },
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = color,
-        )
-    }
-}
-
-/** 连接信息：transport / 协商地址 / offset drift（取首个场景快照，零重算）。 */
-@Composable
-private fun ConnectionInfo(scenarios: List<ScenarioResultEntity>) {
-    val s = scenarios.firstOrNull() ?: return
-    val colors = AnebTheme.colors
-    SectionLabel("连接信息")
-    Text(
-        "transport=${s.netTransport ?: "—"}  addr=${s.serverObservedAddr ?: "—"}\n" +
-            "offset drift=${s.offsetDriftPpm?.let { "%.2f ppm".format(it) } ?: "—"}" +
-            (if (s.offsetSuspect) " (suspect)" else "") +
-            (ResultFormat.bufferingLabel(s)?.let { "\n$it" } ?: ""),
-        fontSize = 11.sp,
-        fontFamily = FontFamily.Monospace,
-        color = colors.muted,
-    )
-}
-
-// ---- 以下为原 P1-C07 详情组件（保留内部实现，专业视图复用）----
-
-@Composable
-private fun AqsHeadline(run: TestRun) {
-    val colors = AnebTheme.colors
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        val score = run.aqsScore
-        if (score != null) {
-            val grade = ResultFormat.aqsGrade(score)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text("%.1f".format(score), fontSize = 44.sp, fontWeight = FontWeight.Black, color = colors.gradeColorByKey(grade))
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "AQS ${ResultFormat.gradeLabel(grade)}",
-                    fontSize = 18.sp, color = colors.gradeColorByKey(grade),
-                    modifier = Modifier.padding(bottom = 6.dp),
-                )
-            }
-            if (run.aqsVetoApplied == true) {
-                Text("T4 一票否决生效（封顶 54）", color = colors.poor, fontSize = 13.sp)
-            }
-            if (run.aqsLowConfidence == true) {
-                Text(
-                    "⚠ ${ResultFormat.LOW_CONFIDENCE_LABEL}：证据不完整，本分数仅供参考",
-                    color = colors.lowConf, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                )
-            }
-        } else {
-            Text("AQS —", fontSize = 44.sp, fontWeight = FontWeight.Black, color = colors.invalidNeutral)
-            Text(
-                "不可计算：${run.aqsNotComputableReason ?: run.status ?: "unknown"}",
-                color = colors.invalidNeutral, fontSize = 14.sp,
-            )
-        }
-        ResultFormat.aqsV02Lines(run)?.let { lines ->
-            Text(lines[0], fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.ink)
-            Text(lines[1], fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral)
+private fun KpiDetailSection(run: TestRun, scenarios: List<ScenarioResultEntity>) {
+    val byId = ResultFormat.runKpiRows(scenarios).associateBy { it.row.id }
+    Column {
+        SectionLabel("KPI 明细", trailing = "N←S1 / T·U2←S2 / U1←S3")
+        SuiteCard {
+            KpiGroupBlock("流式体验 T", listOf("T1", "T2", "T2_incl_coalesced", "T3", "T3_incl_resume", "T4"), byId)
+            KpiGroupBlock("网络基线 N", listOf("N1", "N2"), byId)
+            KpiGroupBlock("上行突发 U", listOf("U1", "U1_excl_slow_start", "U2"), byId)
+            ContinuityDetailBlock(run)
         }
     }
 }
 
 @Composable
-private fun RunMeta(run: TestRun) {
+private fun KpiGroupBlock(title: String, ids: List<String>, byId: Map<String, ResultFormat.RunKpiRow>) {
+    val colors = AnebTheme.colors
+    val rows = ids.mapNotNull { byId[it] }
+    if (rows.isEmpty()) return
+    Text(
+        title,
+        fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = colors.faint,
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+    )
+    rows.forEach { RunKpiRowLine(it) }
+}
+
+/** 连续性 C 组明细（AQS v0.2；来自 TestRun 既有列，复用 aqsV02Lines 同源格式化）。 */
+@Composable
+private fun ContinuityDetailBlock(run: TestRun) {
+    val lines = ResultFormat.aqsV02Lines(run) ?: return
     val colors = AnebTheme.colors
     Text(
-        "run=${run.runId}\nmode=${run.mode} transport=${run.transport} status=${run.status ?: "?"} " +
-            "report=${run.reportStatus ?: "—"}\norder=${run.scenarioOrder}",
-        fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = colors.muted,
+        "连续性 C（AQS v0.2）",
+        fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = colors.faint,
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
     )
-    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = colors.hairline)
+    Text(lines[0], fontSize = 12.sp, color = colors.ink)
+    Text(lines[1], fontSize = 10.5.sp, fontFamily = FontFamily.Monospace, color = colors.muted)
 }
 
 @Composable
@@ -632,10 +809,179 @@ internal fun KpiLine(row: ResultFormat.KpiRow, prefix: String = "") {
     }
 }
 
+// ---- 无线层 R（制式三元组 R-15 + 注册小区 + 信号中位数；协变量，不进 AQS）----
+
+@Composable
+private fun RadioSection(radio: ResultRadioSummary) {
+    val colors = AnebTheme.colors
+    Column {
+        SectionLabel(
+            "无线层 R",
+            trailing = if (radio.hasSamples) {
+                "${radio.registeredCount}/${radio.sampleCount} 注册 · ${radio.staleCount} 陈旧"
+            } else {
+                "无样本"
+            },
+        )
+        SuiteCard {
+            if (!radio.hasSamples) {
+                Text("本 run 无无线层样本（模拟器 / 无 SIM / 权限缺失）", fontSize = 12.sp, color = colors.invalidNeutral)
+            } else {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    DataCell(
+                        "制式（设备报告）", radio.ratLabel ?: "—", Modifier.weight(1f),
+                        valueColor = if (radio.ratLabel != null) colors.excellent else null,
+                    )
+                    DataCell("RSRP", radio.rsrpDbm?.let { "$it dBm" } ?: "—", Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(7.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    DataCell("SINR", radio.sinrDb?.let { "$it dB" } ?: "—", Modifier.weight(1f))
+                    DataCell("PCI / TAC", cellIdText(radio.pci, radio.tac), Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(8.dp))
+                // R-15：协商/显示/nr 态三元组分列原样呈现（"设备报告制式"，非运营商全网结论）
+                Text(
+                    "设备报告制式：net=${radio.networkType ?: "—"} · override=${radio.overrideType ?: "—"} · nr=${radio.nrState ?: "—"}" +
+                        (radio.arfcn?.let { " · arfcn=$it" } ?: "") +
+                        (radio.rsrqDb?.let { " · rsrq=$it dB" } ?: ""),
+                    fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = colors.faint,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DataCell(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
+    val colors = AnebTheme.colors
+    Column(
+        modifier = modifier.clip(AnebShapes.sm).background(colors.surface2).padding(horizontal = 10.dp, vertical = 9.dp),
+    ) {
+        Text(label, fontSize = 9.5.sp, color = colors.muted, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(value, style = AnebType.StatValue, fontSize = 13.sp, color = valueColor ?: colors.ink, maxLines = 1)
+    }
+}
+
+private fun cellIdText(pci: Int?, tac: Int?): String =
+    if (pci == null && tac == null) "—" else "${pci?.toString() ?: "—"} / ${tac?.toString() ?: "—"}"
+
+// ---- REACH 连接可达性（候选，不进 AQS；bare-IP × SNI 双通道握手）----
+
+@Composable
+private fun ReachSection(run: TestRun) {
+    val colors = AnebTheme.colors
+    Column {
+        SectionLabel("连接可达性 REACH", trailing = "候选 · 不进 AQS")
+        SuiteCard(padding = 0.dp) {
+            ReachRowV2("bare-IP 通道", run.ipReachable, run.ipReachMs)
+            HorizontalDivider(color = colors.hairline)
+            ReachRowV2("SNI 域名通道", run.sniReachable, run.sniReachMs)
+        }
+        if (run.sniReachable == null && run.ipReachable == null) {
+            Text(
+                "（本 run 未做 SNI 双通道探测）",
+                fontSize = 10.5.sp, color = colors.faint, modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReachRowV2(label: String, result: String?, ms: Long?) {
+    val colors = AnebTheme.colors
+    val (stateText, stateColor, iconGlyph) = when {
+        result == null -> Triple("未探测", colors.faint, "·")
+        result == "ok" -> Triple("OK", colors.excellent, "✓")
+        result == "rst" -> Triple("RST", colors.poor, "✕")
+        result == "timeout" -> Triple("超时", colors.lowConf, "!")
+        else -> Triple(result.uppercase(), colors.lowConf, "!")
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.width(28.dp).height(28.dp).clip(AnebShapes.xs).background(stateColor.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center,
+        ) { Text(iconGlyph, color = stateColor, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = colors.ink)
+            Text(
+                when {
+                    result == null -> "—"
+                    result == "ok" -> "握手成功 · ${ms?.let { "$it ms" } ?: "—"}"
+                    else -> "握手失败 · $stateText"
+                },
+                fontSize = 10.5.sp, color = colors.muted,
+            )
+        }
+        Text(stateText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = stateColor)
+    }
+}
+
+// ---- 连接与元信息（transport / 协商地址 / drift / 版本 / 轨迹导出 / 导出状态）----
+
+@Composable
+private fun MetaSection(
+    run: TestRun,
+    scenarios: List<ScenarioResultEntity>,
+    exportStatus: String?,
+    hasTrack: Boolean,
+    onExportTrack: () -> Unit,
+    hasReportJson: Boolean,
+) {
+    val colors = AnebTheme.colors
+    val s = scenarios.firstOrNull()
+    Column {
+        SectionLabel("连接与元信息")
+        SuiteCard {
+            MetaLine("run", run.runId)
+            MetaLine("mode · transport", "${run.mode} · ${run.transport}")
+            MetaLine("status · report", "${run.status ?: "?"} · ${run.reportStatus ?: "—"}")
+            if (s != null) {
+                MetaLine("场景 transport", s.netTransport ?: "—")
+                MetaLine("协商地址", s.serverObservedAddr ?: "—")
+                MetaLine(
+                    "offset drift",
+                    (s.offsetDriftPpm?.let { "%.2f ppm".format(it) } ?: "—") + (if (s.offsetSuspect) " (suspect)" else ""),
+                )
+                ResultFormat.bufferingLabel(s)?.let { MetaLine("批化标注", it) }
+            }
+            MetaLine("版本", "kpi=${run.kpiSet} aqs=${run.aqsVersion} schema=${run.schemaVersion}")
+            if (hasTrack) {
+                Spacer(Modifier.height(8.dp))
+                ActionButton("导出轨迹", primary = false, onClick = onExportTrack)
+            }
+            if (!hasReportJson) {
+                Spacer(Modifier.height(6.dp))
+                Text("该 run 未生成上报体（早退/失败），JSON 不可导出", fontSize = 10.5.sp, color = colors.invalidNeutral)
+            }
+            exportStatus?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetaLine(k: String, v: String) {
+    val colors = AnebTheme.colors
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(k, fontSize = 11.sp, color = colors.muted, modifier = Modifier.width(104.dp))
+        Text(v, fontSize = 11.sp, color = colors.ink, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+    }
+}
+
+// ---- 场景明细卡（复用既有 KpiLine，全量单场景 KPI）----
+
 @Composable
 private fun ScenarioCard(s: ScenarioResultEntity, track: GeoTrack.Summary?) {
     val colors = AnebTheme.colors
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.width(10.dp).height(10.dp).background(colors.validityColor(s.validity)))
             Spacer(Modifier.width(6.dp))
@@ -666,17 +1012,17 @@ private fun ScenarioCard(s: ScenarioResultEntity, track: GeoTrack.Summary?) {
             )
         }
         ResultFormat.kpiRows(s).forEach { KpiLine(it) }
-        HorizontalDivider(modifier = Modifier.padding(top = 4.dp), color = colors.hairline)
     }
 }
 
 @Composable
 private fun ClaimScopeFooter(run: TestRun) {
     val colors = AnebTheme.colors
-    Column(modifier = Modifier.padding(top = 12.dp, bottom = 24.dp)) {
+    Column(modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)) {
         HorizontalDivider(color = colors.hairline)
         Text(ResultFormat.CLAIM_SCOPE_TEXT, fontSize = 11.sp, color = colors.invalidNeutral, modifier = Modifier.padding(top = 6.dp))
         Text(ResultFormat.AQS_DISCLAIMER_TEXT, fontSize = 11.sp, color = colors.invalidNeutral)
+        Text("AQS 口径 to_probe_node · 更换节点会改变本分数", fontSize = 11.sp, color = colors.invalidNeutral)
         Text(
             "kpi_set=${run.kpiSet} aqs=${run.aqsVersion} schema=${run.schemaVersion} profiles=${run.profileVersions}",
             fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = colors.invalidNeutral,

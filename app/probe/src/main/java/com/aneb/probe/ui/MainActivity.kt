@@ -479,23 +479,27 @@ class MainActivity : ComponentActivity() {
         val scenarios: List<ScenarioResultEntity>,
         val reportJson: String?,
         val trackPoints: List<GeoTrack.Point>,
+        val radioSummary: ResultRadioSummary,
         val loaded: Boolean,
     )
 
     @Composable
     private fun ResultRoute(runId: String, onBack: () -> Unit) {
         val data by produceState(
-            initialValue = ResultData(null, emptyList(), null, emptyList(), loaded = false),
+            initialValue = ResultData(null, emptyList(), null, emptyList(), ResultRadioSummary.EMPTY, loaded = false),
             runId,
         ) {
             value = withContext(Dispatchers.IO) {
+                // 无线样本一次读取，复用于轨迹点（GPS 路测）与无线层聚合（制式/信号）
+                val radioSamples = db.radioSampleDao().forRun(runId)
                 ResultData(
                     run = db.testRunDao().byId(runId),
                     scenarios = db.scenarioResultDao().forRun(runId),
                     reportJson = db.reportBodyDao().forRun(runId)?.body,
-                    trackPoints = db.radioSampleDao().forRun(runId)
+                    trackPoints = radioSamples
                         .filter { it.lat != null && it.lon != null }
                         .map { GeoTrack.Point(it.tsNanos, it.lat, it.lon, it.accuracyM) },
+                    radioSummary = ResultRadioSummary.of(radioSamples),
                     loaded = true,
                 )
             }
@@ -517,7 +521,8 @@ class MainActivity : ComponentActivity() {
         ResultScreen(
             run = data.run,
             scenarios = data.scenarios,
-            hasReportJson = data.reportJson != null,
+            reportJson = data.reportJson,
+            radio = data.radioSummary,
             exportStatus = exportStatus,
             onExportJson = {
                 val body = data.reportJson ?: return@ResultScreen
