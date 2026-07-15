@@ -5,19 +5,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,36 +27,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.TestRun
-import com.aneb.probe.ui.components.HalfGauge
-import com.aneb.probe.ui.components.SegmentedControl
-import com.aneb.probe.ui.components.StBanner
 import com.aneb.probe.ui.components.pressable
-import com.aneb.probe.ui.components.pulseRing
-import com.aneb.probe.ui.theme.AnebElevation
 import com.aneb.probe.ui.theme.AnebTheme
-import com.aneb.probe.ui.theme.AnebType
-import com.aneb.probe.ui.theme.Grade
-import com.aneb.probe.ui.theme.onGrade
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
- * 首页（Claude Design v2 · SpeedTest 式首页）：bare 顶栏（A/NEB 字标 + 简洁/专业段控）+ 连接横幅
- * [StBanner] + 180° 半盘 [HalfGauge] idle 待机（中心承载 GO 播放按钮 + 三层脉冲环）+ gohint +
- * 上次成绩 chip（[lastRun]）。
+ * 首页（严格按 ANEB_UI_v2 `home.html` idle 态重建）：深海军蓝底 + 顶部字标（ANEB PROBE）+
+ * 中央**青绿光环（"开始"）** 作为 GO（轻触启动测量）+ 说明句 + 底部**网络抽屉**（节点/设备，
+ * 可展开看连接模式/测试节点/AI 工作负载，"更换"入设置）。
  *
- * 纯 UI 层：数据经参数注入（[lastRun] 由 MainActivity 查 Room），[onStart] 触发既有 startRun
- * 编排（测量语义不动）。历史/设置导航已由底部 [com.aneb.probe.ui.components.AnebTabBar] 承载，
- * 顶栏不再挂副入口；横幅右侧动作透传至 [onOpenSettings]（就近入设置切服务器）。
+ * 纯 UI 层：数据经参数注入，[onStart] 触发既有 startRun 编排（测量语义不动）。
+ * 底部 5 标签导航为跨屏结构，随导航重构一并落地（本屏不含底栏，由 MainActivity Scaffold 承载）。
  */
 @Composable
 fun HomeScreen(
@@ -64,162 +59,193 @@ fun HomeScreen(
     running: Boolean,
     onStart: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenLastResult: (String) -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenLastResult: (String) -> Unit,
 ) {
     val colors = AnebTheme.colors
-    // 顶栏 简洁/专业 段控：控制上次成绩 chip 的信息密度（简洁只给分档，专业补网络副行）。
-    var density by rememberSaveable { mutableStateOf(HomeDensity.Simple) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .padding(horizontal = 20.dp),
-    ) {
-        // ---- bare 顶栏：A/NEB 字标 + 简洁/专业段控 ----
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text("A", fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.ink)
-                Text("NEB", fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.brand2)
-            }
-            Spacer(Modifier.weight(1f))
-            SegmentedControl(
-                options = HomeDensity.entries,
-                selected = density,
-                onSelect = { density = it },
-                label = { it.label },
+            Spacer(Modifier.height(16.dp))
+            Wordmark()
+
+            Spacer(Modifier.weight(0.9f))
+
+            CircularStartRing(running = running, onStart = onStart)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "评估网络是否适合 AI 对话、编码和文件上传",
+                fontSize = 11.sp,
+                lineHeight = 17.sp,
+                color = colors.faint,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 290.dp),
             )
+
+            Spacer(Modifier.weight(1.3f))
+
+            NetworkSheet(lastRun = lastRun, onChangeNode = onOpenSettings)
+            Spacer(Modifier.height(10.dp))
         }
-
-        Spacer(Modifier.height(10.dp))
-
-        // ---- 连接横幅（就绪态；动作入设置切服务器）----
-        StBanner(
-            isp = homeNetworkLabel(lastRun),
-            sub = "轻触 GO 开始测试 · 约 90 秒",
-            action = "设置",
-            onAction = onOpenSettings,
-            dotColor = if (lastRun != null) colors.excellent else colors.neutral,
-        )
-
-        Spacer(Modifier.weight(1f))
-
-        // ---- 180° 半盘 idle + 中心 GO（三层脉冲环）----
-        HalfGauge(
-            fraction = 0f,
-            band = colors.neutral,
-            idle = true,
-            modifier = Modifier.fillMaxWidth().aspectRatio(1.8f),
-        ) {
-            GoButton(running = running, onStart = onStart)
-        }
-        Text(
-            "轻触开始 · 约 90 秒",
-            fontSize = 12.5.sp,
-            color = colors.muted,
-            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp),
-        )
-
-        Spacer(Modifier.weight(1f))
-
-        // ---- 上次成绩 chip ----
-        if (lastRun != null) {
-            LastResultChip(
-                run = lastRun,
-                detailed = density == HomeDensity.Pro,
-                onClick = { onOpenLastResult(lastRun.runId) },
-            )
-        }
-        Spacer(Modifier.height(20.dp))
     }
 }
 
-/** 首页信息密度段控：简洁（只给分档）/ 专业（补网络副行）。纯展示，不碰测量。 */
-enum class HomeDensity(val label: String) { Simple("简洁"), Pro("专业") }
-
-/** 中心 GO 播放按钮（品牌圆钮 + 白三角 + GO 字 + 三层脉冲环）；[running] 时禁用。 */
+/** 顶部字标：弧线 AI 图标 + ANEB + PROBE（home.css .wordmark，55% 透明的浅色）。 */
 @Composable
-private fun BoxScope.GoButton(running: Boolean, onStart: () -> Unit) {
+private fun Wordmark() {
+    val c = Color(0x8CE1E8F2) // rgba(225,232,242,.55)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Canvas(Modifier.size(18.dp)) {
+            val s = size.minDimension
+            val w = s * 0.075f
+            // 半圆弧（AI 弧）
+            drawArc(
+                color = c, startAngle = 180f, sweepAngle = 180f, useCenter = false,
+                topLeft = Offset(s * 0.15f, s * 0.30f), size = Size(s * 0.70f, s * 0.70f),
+                style = Stroke(w, cap = StrokeCap.Round),
+            )
+            // 指针斜线 + 圆心点
+            drawLine(c, Offset(s * 0.5f, s * 0.65f), Offset(s * 0.70f, s * 0.38f), strokeWidth = w, cap = StrokeCap.Round)
+            drawCircle(c, radius = s * 0.05f, center = Offset(s * 0.5f, s * 0.65f))
+        }
+        Text("ANEB", fontSize = 15.sp, fontWeight = FontWeight(660), letterSpacing = 0.105.em, color = c)
+        Text("PROBE", fontSize = 8.5.sp, fontWeight = FontWeight(720), letterSpacing = 0.2.em, color = c)
+    }
+}
+
+/**
+ * 中央青绿光环（home.css .ring-stroke idle 态）：mint→cyan→blue 锥形渐变细环 + 柔光，
+ * 中心"开始"；轻触 = [onStart]（[running] 时禁用）。
+ */
+@Composable
+private fun CircularStartRing(running: Boolean, onStart: () -> Unit) {
     val colors = AnebTheme.colors
+    val mint = Color(0xFF67EDCC)
+    val cyan = Color(0xFF43E1E6)
+    val blue = Color(0xFF3EB4F1)
     Box(
         modifier = Modifier
-            .size(88.dp)
-            .pulseRing(colors.brand)
-            .shadow(AnebElevation.level2, CircleShape)
+            .size(198.dp)
             .clip(CircleShape)
-            .background(colors.brand)
             .pressable(onClick = onStart, enabled = !running),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Canvas(Modifier.size(28.dp)) {
-                val tri = Path().apply {
-                    moveTo(size.width * 0.34f, size.height * 0.22f)
-                    lineTo(size.width * 0.34f, size.height * 0.78f)
-                    lineTo(size.width * 0.80f, size.height * 0.5f)
-                    close()
-                }
-                drawPath(tri, Color.White)
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = 2.5.dp.toPx()
+            val r = (size.minDimension - stroke * 3) / 2f
+            val brush = Brush.sweepGradient(listOf(mint, cyan, blue, mint))
+            // 柔光（更宽、低透明）
+            drawCircle(brush = brush, radius = r, style = Stroke(stroke * 3f), alpha = 0.12f)
+            // 主环
+            drawCircle(brush = brush, radius = r, style = Stroke(stroke))
+        }
+        Text(
+            text = if (running) "测试中" else "开始",
+            fontSize = if (running) 22.sp else 33.sp,
+            fontWeight = FontWeight(340),
+            letterSpacing = (-0.045).em,
+            color = colors.ink,
+        )
+    }
+}
+
+/** 底部网络抽屉（home.css .network-sheet）：摘要（节点 + 设备）+ 可展开明细。 */
+@Composable
+private fun NetworkSheet(lastRun: TestRun?, onChangeNode: () -> Unit) {
+    val colors = AnebTheme.colors
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(colors.surface)
+            .border(1.dp, colors.hairline, shape)
+            .padding(bottom = 12.dp),
+    ) {
+        // 抓手
+        Box(Modifier.fillMaxWidth().padding(vertical = 9.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(36.dp).height(3.dp).clip(RoundedCornerShape(999.dp)).background(colors.faint))
+        }
+        // 摘要行（轻触展开/收起）
+        Row(
+            modifier = Modifier.fillMaxWidth().pressable(onClick = { expanded = !expanded }).padding(horizontal = 14.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SheetIcon(glyph = "≋")
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(homeNodeLabel(lastRun), fontSize = 14.sp, color = colors.ink, maxLines = 1)
+                Text(
+                    "${android.os.Build.MODEL} · ${homeNetworkLabel(lastRun)}",
+                    fontSize = 11.sp, color = colors.muted, maxLines = 1,
+                )
             }
-            Text("GO", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text(if (expanded) "▴" else "▾", fontSize = 13.sp, color = colors.muted)
+        }
+        if (expanded) {
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = colors.hairline)
+            Spacer(Modifier.height(10.dp))
+            SheetDetailRow("连接模式", homeConnMode(lastRun), null)
+            Spacer(Modifier.height(12.dp))
+            SheetDetailRow("测试节点", "仿真节点 E-01", onChangeNode)
+            Spacer(Modifier.height(12.dp))
+            SheetDetailRow("AI 工作负载", "对话 · 编码 · 文件上传", null)
         }
     }
 }
 
 @Composable
-private fun LastResultChip(run: TestRun, detailed: Boolean, onClick: () -> Unit) {
+private fun SheetIcon(glyph: String) {
     val colors = AnebTheme.colors
-    val score = run.aqsScore
-    val grade = score?.let { Grade.fromAqsScore(it) }
-    val gradeColor = colors.gradeColor(grade)
+    Box(
+        modifier = Modifier.size(27.dp).clip(CircleShape).border(1.dp, colors.hairline, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Text(glyph, fontSize = 13.sp, color = colors.muted) }
+}
+
+@Composable
+private fun SheetDetailRow(label: String, value: String, onChange: (() -> Unit)?) {
+    val colors = AnebTheme.colors
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(13.dp))
-            .background(colors.surfaceMuted)
-            .border(1.dp, colors.hairline, RoundedCornerShape(13.dp))
-            .pressable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(gradeColor),
-            contentAlignment = Alignment.Center,
-        ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 10.sp, color = colors.muted)
+            Text(value, fontSize = 12.sp, color = colors.ink, modifier = Modifier.padding(top = 2.dp), maxLines = 1)
+        }
+        if (onChange != null) {
             Text(
-                text = score?.roundToInt()?.toString() ?: "—",
-                style = AnebType.StatValue,
-                fontSize = 14.sp,
-                // 徽标底色为分级色：文字反色按底色亮度择近黑/近白，保证深浅主题对比（token 化）。
-                color = colors.onGrade(grade),
+                "更换",
+                fontSize = 9.sp,
+                color = colors.good,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .border(1.dp, colors.good.copy(alpha = 0.2f), RoundedCornerShape(999.dp))
+                    .background(colors.good.copy(alpha = 0.05f))
+                    .pressable(onClick = onChange)
+                    .padding(horizontal = 9.dp, vertical = 6.dp),
             )
         }
-        Spacer(Modifier.width(11.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text(
-                "上次：${grade?.labelFriendly ?: "未完成"}",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.ink,
-            )
-            if (detailed) {
-                Text(
-                    NetworkLabel.forRun(run),
-                    fontSize = 11.sp,
-                    color = colors.muted,
-                )
-            }
-        }
-        Text("›", fontSize = 18.sp, color = colors.faint)
     }
 }
 
-/** 首页横幅网络标签（无实时 ISP，用上次 run 的传输通道近似；无历史 run → 自动）。 */
+/** 抽屉摘要节点标签（无实时节点名，用占位"仿真节点"口径）。 */
+private fun homeNodeLabel(@Suppress("UNUSED_PARAMETER") run: TestRun?): String = "仿真节点 · E-01"
+
+/** 连接模式（用上次 run 的传输通道近似）。 */
+private fun homeConnMode(run: TestRun?): String = when (run?.transport?.lowercase()) {
+    "wifi" -> "Wi-Fi · 多线程"
+    "cellular" -> "蜂窝 · 多线程"
+    else -> "自动选择 · 多线程"
+}
+
+/** 首页网络标签（无实时 ISP，用上次 run 的传输通道近似；无历史 run → 自动）。 */
 private fun homeNetworkLabel(run: TestRun?): String = when (run?.transport?.lowercase()) {
-    "wifi" -> "WiFi 网络"
+    "wifi" -> "Wi-Fi 网络"
     "cellular" -> "蜂窝网络"
     else -> "自动选择网络"
 }
