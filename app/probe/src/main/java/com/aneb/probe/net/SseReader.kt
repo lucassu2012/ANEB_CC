@@ -110,6 +110,9 @@ class SseBoundaryScanner {
     private var readCount = 0
     private var totalBytes = 0L
 
+    /** 当前已切出的 event 数（供实时观测读取，D-27；读循环内 O(1)，不改任何切边界语义）。 */
+    val eventCount: Int get() = events.size
+
     /**
      * 交付一次 read 的字节（[chunk] 会被整体读空）。[arrivalNanos] 为该次 read
      * 返回时刻的打戳——本方法内不打戳，戳由调用方在读返回处就地打（R-04）。
@@ -182,7 +185,7 @@ class SseReader(
      * 批读打戳层（阶段 2 抽出，供 LLM API 探针复用）：只做 read → 打戳 → `\n\n`
      * 切边界 → 存原始字节，绝不解析。语义与原 readStream 读循环完全一致。
      */
-    fun readRaw(source: BufferedSource): RawSseStream {
+    fun readRaw(source: BufferedSource, onProgress: ((Int, Long) -> Unit)? = null): RawSseStream {
         // 切边界/打戳语义收敛在 SseBoundaryScanner（P2-C05：Cronet 路径共用同一实现）
         val scanner = SseBoundaryScanner()
         val readBuf = Buffer()
@@ -192,7 +195,11 @@ class SseReader(
             val n = source.read(readBuf, READ_CHUNK_BYTES)
             if (n == -1L) break
             // 一次 read 返回打一次戳（R-04），戳在读线程就地打
-            scanner.onRead(readBuf, n, SystemClock.elapsedRealtimeNanos())
+            val ns = SystemClock.elapsedRealtimeNanos()
+            scanner.onRead(readBuf, n, ns)
+            // D-27 实时观测（观测通道，非测量）：每 read 后暴露当前 token 数 + 到达时刻，
+            // 供上层算实时 token 速率。仅 O(1) 原子写回调，不改切边界/打戳/解析语义（R-16）。
+            onProgress?.invoke(scanner.eventCount, ns)
         }
         // P0-C12：EOF 打戳——解析阶段与读循环的时间边界
         return scanner.finish(SystemClock.elapsedRealtimeNanos())
@@ -205,8 +212,8 @@ class SseReader(
      * 测量职责，同步等待不改任何打点语义——eofNanos 仍在读线程 EOF 处打，
      * parseEndNanos 在解析线程解析完成处打，同一单调钟）。
      */
-    fun readStream(source: BufferedSource): SseStreamResult {
-        val raw = readRaw(source)
+    fun readStream(source: BufferedSource, onProgress: ((Int, Long) -> Unit)? = null): SseStreamResult {
+        val raw = readRaw(source, onProgress)
         return SseParseThread.execute { parseRaw(raw) }
     }
 

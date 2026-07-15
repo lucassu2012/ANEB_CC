@@ -154,7 +154,7 @@ class AnebClient(bound: BoundNetwork? = null) {
      * @param expectedTokens 调用方（ScenarioRunner）期望的 token 总数（profile 的 tokens 参数），
      *        用于尾部截断检测；seq 从 0 起，完整流应收到 seq ∈ [0, expectedTokens)。
      */
-    suspend fun stream(url: String, expectedTokens: Int): StreamResult {
+    suspend fun stream(url: String, expectedTokens: Int, onProgress: ((Int, Long) -> Unit)? = null): StreamResult {
         val call = client.newCall(
             Request.Builder().url(url).header("Accept", "text/event-stream").get().build()
         )
@@ -172,7 +172,8 @@ class AnebClient(bound: BoundNetwork? = null) {
                     )
                 } else {
                     val stream = sseReader.readStream(
-                        checkNotNull(resp.body) { "empty body for 2xx" }.source()
+                        checkNotNull(resp.body) { "empty body for 2xx" }.source(),
+                        onProgress,
                     )
                     val timing = timingFactory.recordFor(call)
 

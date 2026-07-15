@@ -94,6 +94,8 @@ class ScenarioRunner(private val client: AnebClient) {
         outcome: ScenarioOutcome,
         inject: String?,
         emit: suspend (String) -> Unit,
+        /** D-27 实时观测（观测通道，非测量）：token_stream 读循环每 read 回调 (当前 token 数, 到达纳秒)。 */
+        onStreamProgress: ((Int, Long) -> Unit)? = null,
     ) {
         val base = serverBase.trim().trimEnd('/')
         val profile = outcome.profile
@@ -117,7 +119,7 @@ class ScenarioRunner(private val client: AnebClient) {
                     }
 
                     ProfilePhase.TYPE_TOKEN_STREAM -> {
-                        val ok = runStream(base, runId, streamOrdinal, phase, inject, outcome, emit)
+                        val ok = runStream(base, runId, streamOrdinal, phase, inject, outcome, emit, onStreamProgress)
                         streamOrdinal++
                         if (!ok) {
                             outcome.abortReason = "stream_transport_error"
@@ -223,10 +225,11 @@ class ScenarioRunner(private val client: AnebClient) {
         inject: String?,
         outcome: ScenarioOutcome,
         emit: suspend (String) -> Unit,
+        onStreamProgress: ((Int, Long) -> Unit)? = null,
     ): Boolean {
         var url = "$base/api/v1/stream?profile=${outcome.profile.profileId}&phase=$streamOrdinal&run=$runId"
         if (!inject.isNullOrBlank()) url += "&inject=$inject" // C09 前置：debug 注入透传
-        val r = client.stream(url, expectedTokens = phase.tokens)
+        val r = client.stream(url, expectedTokens = phase.tokens, onProgress = onStreamProgress)
 
         val stream = r.stream
         val ttftMs: Double?

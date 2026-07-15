@@ -243,13 +243,29 @@ class TestEngine(private val context: Context) {
             // 避免 radioBuf.lastOrNull() 对 ConcurrentLinkedQueue 的 O(n) 全量遍历（取证 run 更明显）。
             val latestRadio = AtomicReference<RadioSample?>(null)
             collectors += launch { radioFlow.collect { radioBuf.add(it); latestRadio.set(it) } }
+            // D-27 实时 token 计数器（观测通道，非测量）：SSE 读循环每 read 更新，采样协程读出实时速率。
+            // 场景边界粗粒度投影无法体现流内实时变化，这里补当前流的实时 token 数/到达时刻。
+            val liveStreamTokens = AtomicReference(0L)
+            val liveStreamFirstNs = AtomicReference(0L)
+            val liveStreamLastNs = AtomicReference(0L)
 
             // ---- 实时遥测采样协程（观测通道，非测量；Dispatchers.Default, ~100ms 节流）----
             // 只读 latestRadio 引用（O(1)，不消费队列）+ telemetrySource 投影 → derive → conflated
             // 发射。绝不在 SSE 读线程/计时回调发射（R-16）；随 collectors 在 finally 统一取消。
             collectors += launch(Dispatchers.Default) {
                 while (true) {
-                    _telemetry.value = LiveTelemetry.derive(telemetrySource.read(latestRadio.get()))
+                    val base = telemetrySource.read(latestRadio.get())
+                    // D-27：当前流实时 token 数/速率覆盖（比场景边界粗粒度更实时）——只覆盖速率相关
+                    // 两字段供 derive 算实时 tokenRatePerSec，其余字段（ITL/RTT/上行/进度）不动。
+                    val n = liveStreamTokens.get()
+                    val f = liveStreamFirstNs.get()
+                    val l = liveStreamLastNs.get()
+                    val snap = if (n >= 2L && l > f) {
+                        base.copy(tokensReceived = n.toInt(), tokenElapsedSec = (l - f) / 1e9)
+                    } else {
+                        base
+                    }
+                    _telemetry.value = LiveTelemetry.derive(snap)
                     delay(TELEMETRY_SAMPLE_MS)
                 }
             }
@@ -281,6 +297,8 @@ class TestEngine(private val context: Context) {
                     telemetrySource.update {
                         it.copy(phase = scenarioKey, fraction = orderIndex.toDouble() / totalScenarios)
                     }
+                    // D-27：新场景开始，实时 token 计数器归零（避免跨场景速率污染）
+                    liveStreamTokens.set(0L); liveStreamFirstNs.set(0L); liveStreamLastNs.set(0L)
                     val outcome = ScenarioRunner.ScenarioOutcome(profile, scenarioKey)
                     val netSnap = bound?.snapshot ?: autoNetSnapshot(context)
                     var engineError: String? = null
@@ -290,7 +308,12 @@ class TestEngine(private val context: Context) {
                     // LAZY 注册→检查→start 的无竞态协议见 ScenarioGate KDoc（评审发现 3）
                     val job = ScenarioGate.launchGuarded(this, invalidReason, currentScenario) {
                         try {
-                            runner.run(measureBase, runId, outcome, config.inject, log)
+                            // D-27 实时观测 sink：SSE 读循环每 read 回调，更新当前流实时 token 数/时刻
+                            runner.run(measureBase, runId, outcome, config.inject, log) { count, ns ->
+                                if (count <= 1) liveStreamFirstNs.set(ns)
+                                liveStreamLastNs.set(ns)
+                                liveStreamTokens.set(count.toLong())
+                            }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {

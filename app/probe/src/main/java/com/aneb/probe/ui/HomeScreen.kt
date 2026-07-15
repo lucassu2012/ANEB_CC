@@ -142,29 +142,48 @@ fun HomeScreen(
                     Spacer(Modifier.weight(1.2f))
                 }
                 HomePhase.Running -> {
-                    // 真实经过毫秒（System.nanoTime 计时，非动画 API，**不受"减弱动效"影响**）：
-                    // 驱动明显可见的连续扫针 + "已测 Xs"实时计时——保证测试态一定在动。
+                    // "已测 Xs"实时计时（真实时钟，非动画 API，不受减弱动效影响）——一直在跳
                     var elapsedMs by remember { mutableStateOf(0L) }
                     LaunchedEffect(Unit) {
                         val startNs = System.nanoTime()
                         while (true) {
                             elapsedMs = (System.nanoTime() - startNs) / 1_000_000L
-                            kotlinx.coroutines.delay(120)
+                            kotlinx.coroutines.delay(200)
                         }
                     }
-                    val realFrac = progress.fraction.coerceIn(0f, 1f)
-                    // 时间驱动扫针（~48s 扫满，约 6°/s，肉眼明显）与真实完成度取大
-                    val timeFrac = (elapsedMs / 48_000f).coerceIn(0f, 0.97f)
-                    val displayFrac = maxOf(timeFrac, realFrac)
-                    val upload = progress.phaseName.contains("多模态") || progress.phaseName.contains("上传") || displayFrac > 0.66f
                     val elapsedSec = (elapsedMs / 1000L).toInt()
+                    // 指针指向**真实实时指标**（D-27 引擎实时 token 计数驱动）：
+                    // 流式段=实时 token 速率(0–120)，上行段=上行 Mbps(0–50)——值在变、针就动。
+                    val rate = telemetry.tokenRatePerSec
+                    val up = telemetry.upMbps
+                    val upload = progress.phaseName.contains("多模态") || progress.phaseName.contains("上传")
+                    val gaugeFrac: Float
+                    val centerVal: String
+                    val centerLabel: String
+                    when {
+                        !upload && rate != null && rate > 0.0 -> {
+                            gaugeFrac = (rate / 120.0).toFloat().coerceIn(0f, 1f)
+                            centerVal = "%.0f".format(rate); centerLabel = "Token /秒"
+                        }
+                        up != null -> {
+                            gaugeFrac = (up / 50.0).toFloat().coerceIn(0f, 1f)
+                            centerVal = "%.1f".format(up); centerLabel = "上行 Mbps"
+                        }
+                        rate != null && rate > 0.0 -> {
+                            gaugeFrac = (rate / 120.0).toFloat().coerceIn(0f, 1f)
+                            centerVal = "%.0f".format(rate); centerLabel = "Token /秒"
+                        }
+                        else -> {
+                            gaugeFrac = 0f; centerVal = "…"; centerLabel = if (upload) "上行 Mbps" else "Token /秒"
+                        }
+                    }
 
                     Spacer(Modifier.height(12.dp))
                     LiveMetricsRow(telemetry)
                     Spacer(Modifier.height(10.dp))
                     RunningSparkline(telemetry)
                     Spacer(Modifier.weight(1f))
-                    RunningGauge(frac = displayFrac, telemetry = telemetry, upload = upload)
+                    RunningGauge(frac = gaugeFrac, centerVal = centerVal, centerLabel = centerLabel, upload = upload, telemetry = telemetry)
                     Spacer(Modifier.height(12.dp))
                     HeroCaption("正在检查 AI 持续输出与稳定性 · 已测 ${elapsedSec}s · ${progress.phaseName}")
                     Spacer(Modifier.weight(1.1f))
@@ -281,9 +300,11 @@ private fun ConnectingRing() {
  * [frac] 由时间驱动连续推进（对齐 home.js），弧尖脉冲 + 上传段转紫（data-phase=upload）。
  */
 @Composable
-private fun RunningGauge(frac: Float, telemetry: LiveTelemetry, upload: Boolean) {
+private fun RunningGauge(frac: Float, centerVal: String, centerLabel: String, upload: Boolean, telemetry: LiveTelemetry) {
     val colors = AnebTheme.colors
     val reduced = LocalReducedMotion.current
+    // 指针平滑滑到实时值（减弱动效下直接跳到值，仍是真实值）
+    val animFrac = if (reduced) frac else animateFloatAsState(frac, tween(500), label = "gf").value
     val grade = telemetry.aqsRunning?.let { Grade.fromAqsScore(it) }
     val band = if (grade != null) colors.gradeColor(grade) else if (upload) Color(0xFFA779F2) else colors.good
     val trackColor = Color(0x522F4369)
@@ -311,20 +332,20 @@ private fun RunningGauge(frac: Float, telemetry: LiveTelemetry, upload: Boolean)
             val r = arc.minDimension / 2f
 
             drawArc(color = trackColor, startAngle = 135f, sweepAngle = 270f, useCenter = false, style = Stroke(trackStroke), topLeft = topLeft, size = arc)
-            if (frac > 0f) {
+            if (animFrac > 0f) {
                 drawArc(
                     brush = Brush.sweepGradient(progColors),
-                    startAngle = 135f, sweepAngle = 270f * frac, useCenter = false,
+                    startAngle = 135f, sweepAngle = 270f * animFrac, useCenter = false,
                     style = Stroke(progStroke, cap = StrokeCap.Round), topLeft = topLeft, size = arc,
                 )
                 // 弧尖脉冲光点（持续动，永不看着卡住）
-                val edgeRad = Math.toRadians(135.0 + 270.0 * frac)
+                val edgeRad = Math.toRadians(135.0 + 270.0 * animFrac)
                 val edge = Offset(center.x + (cos(edgeRad) * r).toFloat(), center.y + (sin(edgeRad) * r).toFloat())
                 drawCircle(progColors[2].copy(alpha = 0.30f * pulse), radius = 9.dp.toPx() * pulse, center = edge)
                 drawCircle(progColors[1], radius = 3.5.dp.toPx(), center = edge)
             }
             // 指针
-            val aRad = Math.toRadians(135.0 + 270.0 * frac)
+            val aRad = Math.toRadians(135.0 + 270.0 * animFrac)
             val len = r * 0.72f
             val tip = Offset(center.x + (cos(aRad) * len).toFloat(), center.y + (sin(aRad) * len).toFloat())
             drawLine(Color(0x66DDE7F4), center, tip, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
@@ -345,16 +366,7 @@ private fun RunningGauge(frac: Float, telemetry: LiveTelemetry, upload: Boolean)
                 drawContext.canvas.nativeCanvas.drawText(v.toString(), tx, ty, paint)
             }
         }
-        // 中心实时数字（上传段切上行 Mbps，对齐 home.js runningCopy）
-        val centerVal: String
-        val centerLabel: String
-        if (upload) {
-            centerVal = telemetry.upMbps?.let { "%.1f".format(it) } ?: "…"
-            centerLabel = "上行 Mbps"
-        } else {
-            centerVal = telemetry.tokenRatePerSec?.let { "%.1f".format(it) } ?: "…"
-            centerLabel = "Token /秒"
-        }
+        // 中心实时数字（由调用方按流式/上行段传入真实实时值）
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(centerVal, fontSize = 42.sp, fontWeight = FontWeight(440), letterSpacing = (-0.06).em, color = band)
             Text(centerLabel, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = colors.muted, modifier = Modifier.padding(top = 6.dp))
