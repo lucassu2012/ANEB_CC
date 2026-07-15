@@ -480,13 +480,17 @@ class MainActivity : ComponentActivity() {
         val reportJson: String?,
         val trackPoints: List<GeoTrack.Point>,
         val radioSummary: ResultRadioSummary,
+        val latency: ResultLatencySeries,
         val loaded: Boolean,
     )
 
     @Composable
     private fun ResultRoute(runId: String, onBack: () -> Unit) {
         val data by produceState(
-            initialValue = ResultData(null, emptyList(), null, emptyList(), ResultRadioSummary.EMPTY, loaded = false),
+            initialValue = ResultData(
+                null, emptyList(), null, emptyList(),
+                ResultRadioSummary.EMPTY, ResultLatencySeries.EMPTY, loaded = false,
+            ),
             runId,
         ) {
             value = withContext(Dispatchers.IO) {
@@ -500,6 +504,7 @@ class MainActivity : ComponentActivity() {
                         .filter { it.lat != null && it.lon != null }
                         .map { GeoTrack.Point(it.tsNanos, it.lat, it.lon, it.accuracyM) },
                     radioSummary = ResultRadioSummary.of(radioSamples),
+                    latency = ResultLatencySeries.of(db.tokenEventDao().forRun(runId)),
                     loaded = true,
                 )
             }
@@ -523,6 +528,7 @@ class MainActivity : ComponentActivity() {
             scenarios = data.scenarios,
             reportJson = data.reportJson,
             radio = data.radioSummary,
+            latency = data.latency,
             exportStatus = exportStatus,
             onExportJson = {
                 val body = data.reportJson ?: return@ResultScreen

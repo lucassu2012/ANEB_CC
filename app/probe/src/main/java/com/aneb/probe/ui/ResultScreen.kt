@@ -52,6 +52,7 @@ import com.aneb.probe.ui.components.ResIcon
 import com.aneb.probe.ui.components.SectionLabel
 import com.aneb.probe.ui.components.SegmentedControl
 import com.aneb.probe.ui.components.StBanner
+import com.aneb.probe.ui.components.StGraph
 import com.aneb.probe.ui.components.StResItem
 import com.aneb.probe.ui.components.StResults
 import com.aneb.probe.ui.components.SuiteCard
@@ -96,6 +97,7 @@ fun ResultScreen(
     onExportCsv: () -> Unit,
     onBack: () -> Unit,
     radio: ResultRadioSummary = ResultRadioSummary.EMPTY,
+    latency: ResultLatencySeries = ResultLatencySeries.EMPTY,
     trackSummaries: Map<Long, GeoTrack.Summary> = emptyMap(),
     hasTrack: Boolean = false,
     onExportTrack: () -> Unit = {},
@@ -139,6 +141,7 @@ fun ResultScreen(
                     scenarios = scenarios,
                     reportJson = reportJson,
                     radio = radio,
+                    latency = latency,
                     exportStatus = exportStatus,
                     trackSummaries = trackSummaries,
                     hasTrack = hasTrack,
@@ -426,6 +429,7 @@ private fun DetailedResultView(
     scenarios: List<ScenarioResultEntity>,
     reportJson: String?,
     radio: ResultRadioSummary,
+    latency: ResultLatencySeries,
     exportStatus: String?,
     trackSummaries: Map<Long, GeoTrack.Summary>,
     hasTrack: Boolean,
@@ -438,6 +442,7 @@ private fun DetailedResultView(
         contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp),
     ) {
         item { AqsHeadlineCard(run, breakdown, scenarios) }
+        item { LatencySection(latency) }
         item { AqsBreakdownSection(run, breakdown, scenarios) }
         item { KpiDetailSection(run, scenarios) }
         item { RadioSection(radio) }
@@ -632,6 +637,41 @@ private fun InlineBadge(text: String, fg: Color, bg: Color) {
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.fillMaxWidth().clip(AnebShapes.sm).background(bg).padding(horizontal = 10.dp, vertical = 7.dp),
     )
+}
+
+// ---- 流式时延剖面（ITL 时序迷你图；展示态，非 KPI T2 精确口径）----
+
+@Composable
+private fun LatencySection(latency: ResultLatencySeries) {
+    val colors = AnebTheme.colors
+    Column {
+        SectionLabel(
+            "流式时延剖面",
+            trailing = if (latency.hasSeries) latency.sourceLabel else "无 token 时序",
+        )
+        SuiteCard {
+            if (!latency.hasSeries) {
+                Text("本 run 无足够 token 时序样本", fontSize = 12.sp, color = colors.invalidNeutral)
+            } else {
+                val peak = latency.peakMs ?: 1.0
+                // 归一化 0..1（StGraph 口径），峰值=1.0；折线尖峰即卡顿
+                val points = latency.itlMs.map { (it / peak).toFloat().coerceIn(0f, 1f) }
+                StGraph(
+                    title = "Token 间隔时延 (ms)",
+                    nowValue = "峰值 ${peak.roundToInt()} ms",
+                    points = points,
+                    band = colors.good,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "P95 ${latency.p95Ms?.let { "${it.roundToInt()} ms" } ?: "—"} · " +
+                        "中位 ${latency.medianMs?.let { "${it.roundToInt()} ms" } ?: "—"} · " +
+                        "卡顿线 ${ResultLatencySeries.STALL_MS.roundToInt()}ms / 严重 ${ResultLatencySeries.SEVERE_STALL_MS.roundToInt()}ms",
+                    fontSize = 10.sp, color = colors.faint,
+                )
+            }
+        }
+    }
 }
 
 // ---- AQS 子分与权重（组→KPI→贡献分，真实落库子分；无子分回退分级近似）----
