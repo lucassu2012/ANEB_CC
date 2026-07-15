@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -42,6 +43,7 @@ import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.engine.AbRunner
 import com.aneb.probe.engine.ContinuityRunner
+import com.aneb.probe.engine.SpeedRunner
 import com.aneb.probe.engine.TestEngine
 import com.aneb.probe.radio.GeoTrack
 import com.aneb.probe.radio.RadioCollector
@@ -74,6 +76,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var engine: TestEngine
     private lateinit var continuityRunner: ContinuityRunner
     private lateinit var abRunner: AbRunner
+    private lateinit var speedRunner: SpeedRunner
     private lateinit var radioCollector: RadioCollector
     private lateinit var db: AnebDatabase
 
@@ -115,6 +118,7 @@ class MainActivity : ComponentActivity() {
         engine = TestEngine(applicationContext)
         continuityRunner = ContinuityRunner(applicationContext)
         abRunner = AbRunner(applicationContext)
+        speedRunner = SpeedRunner()
         radioCollector = RadioCollector(this)
         db = AnebDatabase.get(applicationContext)
         intentServer = intent?.getStringExtra("server")
@@ -166,6 +170,11 @@ class MainActivity : ComponentActivity() {
                     val telemetry by engine.telemetry.collectAsStateWithLifecycle()
                     // 持有 run 协程句柄，供首页"取消"按钮中断（cancel → CancellationException → finally running=false）
                     var runJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    // 网络基本性能模式（SpeedTest）：模式开关 + 独立 run 状态/实时样本/协程句柄
+                    var basicMode by rememberSaveable { mutableStateOf(false) }
+                    var speedRunning by remember { mutableStateOf(false) }
+                    var speedSample by remember { mutableStateOf<SpeedRunner.Sample?>(null) }
+                    var speedJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
                     fun addLog(line: String) {
                         android.util.Log.i("AnebProbe", line)
@@ -263,6 +272,25 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // 网络基本性能测速（独立于 token 引擎；实时样本驱动 SpeedTest 式仪表）
+                    fun startSpeedTest() {
+                        if (speedRunning) return
+                        speedRunning = true
+                        speedSample = null
+                        addLog(">>> SPEED -> $serverUrl")
+                        speedJob = lifecycleScope.launch {
+                            try {
+                                speedRunner.run(serverUrl).collect { speedSample = it }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                addLog("SPEED_FAILED error=$e")
+                            } finally {
+                                speedRunning = false
+                            }
+                        }
+                    }
+
                     LaunchedEffect(Unit) {
                         if (intentAutorun) {
                             intentAutorun = false
@@ -285,7 +313,7 @@ class MainActivity : ComponentActivity() {
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         bottomBar = {
                             // 测量中隐藏底栏（首页原地进入连接/测试态，全屏专注，对齐 home.html）
-                            if (atRoot && !running) {
+                            if (atRoot && !running && !speedRunning) {
                                 AnebTabBar(current = tab, onSelect = { tab = it })
                             }
                         },
@@ -294,17 +322,39 @@ class MainActivity : ComponentActivity() {
                             when (val s = screen) {
                                 // ---- 各 tab 根（显底栏）：测试=Home / 历史=History / 设置=Settings ----
                                 is Screen.Home -> when (tab) {
-                                    MainTab.Test -> HomeRoute(
-                                        running = running,
-                                        telemetry = telemetry,
-                                        logs = logs,
-                                        onStart = { startRun(fromAutorun = false) },
-                                        onCancel = { runJob?.cancel() },
-                                        onOpenSettings = { tab = MainTab.Settings },
-                                        onOpenResult = { runId ->
-                                            screen = Screen.Result(runId, fromHistory = false)
-                                        },
-                                    )
+                                    MainTab.Test -> Column(modifier = Modifier.fillMaxSize()) {
+                                        // 模式开关（Token 体验 | 网络基本性能）——两模式共享；测量中隐藏，全屏专注
+                                        if (!running && !speedRunning) {
+                                            Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                                                TestModeSegments(
+                                                    basicSelected = basicMode,
+                                                    enabled = true,
+                                                    onSelectToken = { basicMode = false },
+                                                    onSelectBasic = { basicMode = true },
+                                                )
+                                            }
+                                        }
+                                        if (basicMode) {
+                                            SpeedTestScreen(
+                                                sample = speedSample,
+                                                running = speedRunning,
+                                                onStart = { startSpeedTest() },
+                                                onCancel = { speedJob?.cancel() },
+                                            )
+                                        } else {
+                                            HomeRoute(
+                                                running = running,
+                                                telemetry = telemetry,
+                                                logs = logs,
+                                                onStart = { startRun(fromAutorun = false) },
+                                                onCancel = { runJob?.cancel() },
+                                                onOpenSettings = { tab = MainTab.Settings },
+                                                onOpenResult = { runId ->
+                                                    screen = Screen.Result(runId, fromHistory = false)
+                                                },
+                                            )
+                                        }
+                                    }
                                     MainTab.History -> HistoryRoute(
                                         onOpen = { runId ->
                                             screen = Screen.Result(runId, fromHistory = true)

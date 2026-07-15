@@ -360,7 +360,14 @@ class AnebClient(bound: BoundNetwork? = null) {
         val serverView: UploadServerView? = null,
     )
 
-    suspend fun uploadBurst(url: String, payload: ByteArray, chunkBytes: Int = 2048): UploadResult {
+    suspend fun uploadBurst(
+        url: String,
+        payload: ByteArray,
+        chunkBytes: Int = 2048,
+        /** 逐块回调（累计已写字节, 打戳纳秒）：供基本性能模式实时算上行吞吐。写入本地 socket
+         * buffer 时刻，buffer 填满后写入节奏≈真实网络上行速率（R-07 同口径，观测用）。 */
+        onChunk: ((Long, Long) -> Unit)? = null,
+    ): UploadResult {
         val stamps = ArrayList<ChunkStamp>(payload.size / chunkBytes + 1)
         val body = object : RequestBody() {
             override fun contentType() = "application/octet-stream".toMediaType()
@@ -373,9 +380,11 @@ class AnebClient(bound: BoundNetwork? = null) {
                     sink.write(payload, offset, len)
                     sink.flush()
                     // 注意：这测的是写入本地 socket buffer 的时刻，不是线上发出时刻（R-07）
-                    stamps.add(ChunkStamp(index, len, SystemClock.elapsedRealtimeNanos()))
+                    val ns = SystemClock.elapsedRealtimeNanos()
+                    stamps.add(ChunkStamp(index, len, ns))
                     offset += len
                     index++
+                    onChunk?.invoke(offset.toLong(), ns)
                 }
             }
         }
