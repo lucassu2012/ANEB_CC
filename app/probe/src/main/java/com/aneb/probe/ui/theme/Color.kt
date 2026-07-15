@@ -19,43 +19,43 @@ import kotlin.math.min
  */
 object AnebPalette {
 
-    // ---- 品牌（iOS system blue；仅交互态） ----
+    // ---- 品牌（suite --blue/--mint；仅交互态） ----
     object Brand {
-        val Base = Color(0xFF0A84FF) // 深色 --brand
-        val Hover = Color(0xFF5EB0FF) // --brand2
-        val Press = Color(0xFF0060DF) // --brand-press
-        val LightBase = Color(0xFF007AFF) // 浅色 --brand
-        val LightHover = Color(0xFF0A84FF)
+        val Base = Color(0xFF3EB4F1) // suite --blue
+        val Hover = Color(0xFF67EDCC) // suite --mint
+        val Press = Color(0xFF2A9BD8)
+        val LightBase = Color(0xFF3EB4F1)
+        val LightHover = Color(0xFF67EDCC)
     }
 
-    // ---- 四级语义色（iOS system colors；深色/浅色两调） ----
+    // ---- 四级语义色（suite.css 深蓝主题语义色） ----
     object Semantic {
-        // 深色
-        val Excellent = Color(0xFF30D158) // 优 · green
-        val Good = Color(0xFF64D2FF) // 良 · cyan
-        val Fair = Color(0xFFFF9F0A) // 可 · orange
-        val Poor = Color(0xFFFF453A) // 差 · red
-        // 浅色（更接近 iOS 默认）
+        // suite.css 语义四级
+        val Excellent = Color(0xFF59E493) // 优 · suite --green
+        val Good = Color(0xFF43E1E6) // 良 · suite --cyan
+        val Fair = Color(0xFFEFCA72) // 可 · suite --yellow
+        val Poor = Color(0xFFEB718D) // 差 · suite --red
+        // 浅色暂沿用（当前强制深色，未启用浅色主题）
         val ExcellentLight = Color(0xFF34C759)
         val GoodLight = Color(0xFF32ADE6)
         val FairLight = Color(0xFFFF9500)
         val PoorLight = Color(0xFFFF3B30)
     }
 
-    /** 无效/缺失/低置信中性灰（R-10 失败样本：绝不发语义色）——iOS systemGray */
-    val Neutral = Color(0xFF8E8E93)
+    /** 无效/缺失/低置信中性色（R-10 失败样本：绝不发语义色）——suite 中性 slate */
+    val Neutral = Color(0xFF8A94A6)
     val NeutralLight = Color(0xFFAEAEB2)
 
     // ---- App 内中性色（深色 / OLED 黑；phone 内容区 a* 口径） ----
     object Dark {
-        val Background = Color(0xFF000000) // --a 底（OLED 纯黑）
-        val Card = Color(0xFF1C1C1E) // --acard 卡片
-        val Card2 = Color(0xFF2C2C2E) // --acard2 卡片2 / 段控轨 / 进度条底
-        val Ink = Color(0xFFF5F5F7) // --aink 主文本
-        val Muted = Color(0x99EBEBF5) // --amut rgba(235,235,245,.6)
-        val Faint = Color(0x52EBEBF5) // --afaint rgba(235,235,245,.32)
-        val Hairline = Color(0x1AFFFFFF) // --ahair rgba(255,255,255,.1)
-        val Material = Color(0x99141416) // --amat 近似 rgba(20,20,22,.6)
+        val Background = Color(0xFF070A18) // suite --bg 深海军蓝
+        val Card = Color(0xFF141A33) // suite --surface（navy 卡片）
+        val Card2 = Color(0xFF1C2340) // suite --surface-2（卡片2 / 段控轨 / 进度条底）
+        val Ink = Color(0xFFF3F6FA) // suite --text 主文本
+        val Muted = Color(0xAED7E0ED) // suite --muted rgba(215,224,237,.68)
+        val Faint = Color(0x75C6D3E5) // suite --faint rgba(198,211,229,.46)
+        val Hairline = Color(0x24CADBF1) // suite --line rgba(202,219,241,.14)
+        val Material = Color(0xDB0B0F21) // suite 卡片渐变底近似 rgba(11,15,33,.86)
     }
 
     // ---- App 内中性色（浅色；跟随系统深浅色；phone.lightapp 口径） ----

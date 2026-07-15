@@ -174,7 +174,9 @@ private val LightColorScheme = lightColorScheme(
  */
 @Composable
 fun AnebTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // ANEB_UI_v2 为深蓝 dark-only 设计（suite.css `color-scheme: dark`）：默认强制深色，
+    // 不跟随系统浅色，保证全 App 深海军蓝视觉一致。测试/预览可显式覆盖。
+    darkTheme: Boolean = true,
     reducedMotion: Boolean = rememberReducedMotion(),
     content: @Composable () -> Unit,
 ) {
