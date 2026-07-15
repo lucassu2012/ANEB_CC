@@ -3,6 +3,7 @@ package com.aneb.probe.ui
 import com.aneb.probe.scoring.AqsScorer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -104,26 +105,36 @@ object ResultAqsBreakdown {
      *
      * @return 组→KPI→贡献分；上报体缺失/无法解析/无 sub_scores（不可计算 run）一律 `null`。
      */
-    fun fromReportJson(reportJson: String?): Breakdown? {
+    fun fromReportJson(reportJson: String?): Breakdown? =
+        parseNode(reportJson, nodeKey = "aqs", versionOverride = null)
+
+    /**
+     * v0.2 并列出分分解（读 `run.aqs_v02`，含连续性组，权重取 [AqsScorer.WEIGHTS_V02]）。
+     * 无 v0.2 分支（run 期无 continuity 数据）→ null。D-26 起 ResultReporter additive 写入该节点。
+     */
+    fun v02FromReportJson(reportJson: String?): Breakdown? =
+        parseNode(reportJson, nodeKey = "aqs_v02", versionOverride = AqsScorer.AQS_VERSION_V02)
+
+    private fun parseNode(reportJson: String?, nodeKey: String, versionOverride: String?): Breakdown? {
         if (reportJson.isNullOrBlank()) return null
-        return runCatching { parse(reportJson) }.getOrNull()
+        return runCatching {
+            val root = json.parseToJsonElement(reportJson) as? JsonObject ?: return@runCatching null
+            val topVersion = root["aqs_version"]?.jsonPrimitive?.contentOrNull ?: AqsScorer.AQS_VERSION
+            val aqs = (root["run"] as? JsonObject)?.get(nodeKey) as? JsonObject ?: return@runCatching null
+            // 版本优先取节点内 aqs_version（v0.2 节点自带），兜底 versionOverride，再兜底顶层
+            val version = aqs["aqs_version"]?.jsonPrimitive?.contentOrNull ?: versionOverride ?: topVersion
+            parseAqs(aqs, version)
+        }.getOrNull()
     }
 
-    private fun parse(reportJson: String): Breakdown? {
-        val root = json.parseToJsonElement(reportJson) as? JsonObject ?: return null
-        val version = root["aqs_version"]?.jsonPrimitive?.contentOrNull ?: AqsScorer.AQS_VERSION
-        val aqs = (root["run"] as? JsonObject)?.get("aqs") as? JsonObject ?: return null
+    private fun parseAqs(aqs: JsonObject, version: String): Breakdown? {
         val subObj = aqs["sub_scores"] as? JsonObject ?: return null
         val subs: Map<String, Double> = subObj.mapNotNull { (k, v) ->
-            (v as? kotlinx.serialization.json.JsonPrimitive)?.doubleOrNull?.let { k to it }
+            (v as? JsonPrimitive)?.doubleOrNull?.let { k to it }
         }.toMap()
         if (subs.isEmpty()) return null
 
-        // 版本判定：以上报体 aqs_version 为准，兜底看是否出现 C 组子分。
-        // 注：现阶段 TestEngine/ResultReporter 只把 v0.1 aqsResult 写进上报体（v0.2 并列分
-        // 走 TestRun 独立列，经 aqsV02Lines 展示），故真实 run 此处恒 v0.1；下面 v0.2 分支
-        // 为前向兼容——待上报体接入 v0.2 子分即自动生效（改上报体属测量合同变更，须走
-        // DECISION_LOG，本 UI PR 不触碰）；单测已锚定其口径正确。
+        // 版本判定：以节点/上报体 aqs_version 为准，兜底看是否出现 C 组子分。
         val isV02 = version == AqsScorer.AQS_VERSION_V02 || subs.containsKey("C1") || subs.containsKey("C2")
         val weights = if (isV02) AqsScorer.WEIGHTS_V02 else AqsScorer.WEIGHTS
 

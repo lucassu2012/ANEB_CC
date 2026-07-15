@@ -437,6 +437,8 @@ private fun DetailedResultView(
 ) {
     // 真实子分分解（落库上报体 JSON），一次解析记忆化；不可计算/无上报体 → null
     val breakdown = remember(reportJson) { ResultAqsBreakdown.fromReportJson(reportJson) }
+    // v0.2 并列分解（run.aqs_v02，D-26）；无 continuity 数据 → null（正常 run 不显示）
+    val breakdownV02 = remember(reportJson) { ResultAqsBreakdown.v02FromReportJson(reportJson) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp),
@@ -444,6 +446,7 @@ private fun DetailedResultView(
         item { AqsHeadlineCard(run, breakdown, scenarios) }
         item { LatencySection(latency) }
         item { AqsBreakdownSection(run, breakdown, scenarios) }
+        breakdownV02?.let { bd -> item { AqsV02BreakdownSection(bd) } }
         item { KpiDetailSection(run, scenarios) }
         item { RadioSection(radio) }
         item { ReachSection(run) }
@@ -772,6 +775,31 @@ private fun ApproxSubScoreBars(scenarios: List<ScenarioResultEntity>) {
             grade = grade,
             valueText = r?.let { ResultFormat.gradeLabel(it.grade) } ?: "—",
         )
+    }
+}
+
+/**
+ * AQS v0.2 并列分解卡（阶段二：v0.1×0.8 + 连续性 20%）。仅当有 continuity 数据、
+ * 上报体含 run.aqs_v02 时显示（D-26）；v0.1 仍为头条主分，此卡为并列补充。
+ */
+@Composable
+private fun AqsV02BreakdownSection(breakdown: ResultAqsBreakdown.Breakdown) {
+    val colors = AnebTheme.colors
+    Column {
+        SectionLabel(
+            "AQS v0.2 子分（含连续性）",
+            trailing = breakdown.score?.let { "= %.1f".format(it) } ?: "不可计算",
+        )
+        SuiteCard {
+            Text(
+                "阶段二口径：v0.1 各组 ×0.8 + 连续性 20%（C1 会话中断 / C2 切换恢复）",
+                fontSize = 10.sp, color = colors.faint, modifier = Modifier.padding(bottom = 6.dp),
+            )
+            breakdown.groups.forEachIndexed { i, g ->
+                if (i > 0) Spacer(Modifier.height(10.dp))
+                AqsGroupBlock(g)
+            }
+        }
     }
 }
 

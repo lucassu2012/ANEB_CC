@@ -480,7 +480,8 @@ class TestEngine(private val context: Context) {
                 ipReachable = reach?.ip?.status,
                 ipReachMs = reach?.ip?.elapsedMs,
             )
-            val body = ResultReporter.build(runEntity, scenarioReports, aqsResult)
+            // D-26：v0.2 有出分则 additive 写入 run.aqs_v02（含 C1/C2 子分，供结果页真实分解）
+            val body = ResultReporter.build(runEntity, scenarioReports, aqsResult, aqsV02)
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size
             if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {
                 log("REPORT_SIZE_WARN bytes=$bodyBytes limit=${ResultReporter.MAX_REPORT_BYTES}")

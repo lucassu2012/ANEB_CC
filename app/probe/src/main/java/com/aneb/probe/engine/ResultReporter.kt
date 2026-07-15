@@ -29,6 +29,12 @@ object ResultReporter {
         run: TestRun,
         scenarios: List<Pair<ScenarioResultEntity, ItlHistogram>>,
         aqs: AqsScorer.AqsResult,
+        /**
+         * v0.2 并列出分（阶段二，D-26）：非 null 时**附加**写入 `run.aqs_v02`（含 C1/C2 子分），
+         * 供结果页展示真实 v0.2「组→KPI→贡献分」。纯 additive——不改 `run.aqs`(v0.1 主分)语义，
+         * 服务端 validateResultContract 只校验必填字段、不拒新增字段（已读码确认）。
+         */
+        aqsV02: AqsScorer.AqsResult? = null,
     ): String = buildJsonObject {
         // ---- 合同字段（顶层，const/枚举锁定） ----
         put("claim_scope", CLAIM_SCOPE)
@@ -59,6 +65,19 @@ object ResultReporter {
                     aqs.subScores.forEach { (k, v) -> put(k, v) }
                 })
             })
+            // v0.2 并列出分（D-26，additive）：仅当有可用 continuity 数据时写入；含 C1/C2 子分
+            if (aqsV02 != null) {
+                put("aqs_v02", buildJsonObject {
+                    put("aqs_version", aqsV02.aqsVersion)
+                    put("score", aqsV02.score)
+                    put("low_confidence", aqsV02.lowConfidence)
+                    put("veto_applied", aqsV02.vetoApplied)
+                    put("not_computable_reason", aqsV02.notComputableReason)
+                    put("sub_scores", buildJsonObject {
+                        aqsV02.subScores.forEach { (k, v) -> put(k, v) }
+                    })
+                })
+            }
         })
 
         // ---- 各场景 KPI + ITL 直方图 ----

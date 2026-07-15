@@ -137,6 +137,45 @@ class ResultAqsBreakdownTest {
     }
 
     @Test
+    fun `v0_2 落库上报体 aqs_v02 端到端解析（D-26 additive）`() {
+        val v02Subs = v01Subs + mapOf("C1" to 90.0, "C2" to 84.0)
+        val body = ResultReporter.build(
+            run = run(AqsScorer.AQS_VERSION), // 顶层仍 v0.1
+            scenarios = emptyList(),
+            aqs = AqsScorer.AqsResult(
+                aqsVersion = AqsScorer.AQS_VERSION, kpiSetVersion = "agent-qoe-kpi-v0.2",
+                score = 89.2, subScores = v01Subs, vetoApplied = false, lowConfidence = false,
+                notComputableReason = null,
+            ),
+            aqsV02 = AqsScorer.AqsResult(
+                aqsVersion = AqsScorer.AQS_VERSION_V02, kpiSetVersion = "agent-qoe-kpi-v0.2",
+                score = 87.5, subScores = v02Subs, vetoApplied = false, lowConfidence = true,
+                notComputableReason = null,
+            ),
+        )
+        // v0.1 主分解仍为三组（读 run.aqs），不受 aqs_v02 影响
+        val v01 = ResultAqsBreakdown.fromReportJson(body)!!
+        assertEquals(listOf("流式体验", "上行突发", "网络基线"), v01.groups.map { it.label })
+        assertEquals("aqs-v0.1", v01.aqsVersion)
+        // v0.2 分解含连续性四组（读 run.aqs_v02），权重取 WEIGHTS_V02
+        val v02 = ResultAqsBreakdown.v02FromReportJson(body)!!
+        assertEquals("aqs-v0.2", v02.aqsVersion)
+        assertEquals(87.5, v02.score!!, 1e-9)
+        assertTrue(v02.lowConfidence)
+        assertEquals(listOf("流式体验", "上行突发", "网络基线", "连续性"), v02.groups.map { it.label })
+        val c1 = v02.groups.flatMap { it.kpis }.first { it.id == "C1" }
+        assertEquals(AqsScorer.WEIGHTS_V02.getValue("C1"), c1.weight, 1e-9)
+        assertEquals(1.0, v02.groups.sumOf { it.weight }, 1e-9)
+    }
+
+    @Test
+    fun `无 aqs_v02 时 v02FromReportJson 返回 null（正常 v0_1 run）`() {
+        val body = reportJson(AqsScorer.AQS_VERSION, v01Subs) // 不传 aqsV02
+        assertNull(ResultAqsBreakdown.v02FromReportJson(body))
+        assertNotNull(ResultAqsBreakdown.fromReportJson(body)) // v0.1 仍正常
+    }
+
+    @Test
     fun `GROUP_KPI_IDS_V01 与 AqsScorer 权重表同源不漂移`() {
         val ids = ResultAqsBreakdown.GROUP_KPI_IDS_V01.flatMap { it.second }
         // 无重复
