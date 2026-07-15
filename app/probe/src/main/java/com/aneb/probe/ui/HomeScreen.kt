@@ -1,5 +1,6 @@
 package com.aneb.probe.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
@@ -29,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +44,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -129,13 +132,25 @@ fun HomeScreen(
                     Spacer(Modifier.weight(1.2f))
                 }
                 HomePhase.Running -> {
+                    val reduced = LocalReducedMotion.current
+                    val realFrac = progress.fraction.coerceIn(0f, 1f)
+                    // 时间驱动连续扫针（对齐 home.js 时间进度）：与真实完成度取大——既顺滑连续又不超前于真值
+                    val timeSweep = remember { Animatable(0.04f) }
+                    LaunchedEffect(Unit) {
+                        if (!reduced) timeSweep.animateTo(0.96f, tween(78_000, easing = LinearEasing))
+                    }
+                    val displayFrac = if (reduced) realFrac else maxOf(timeSweep.value, realFrac)
+                    val upload = progress.phaseName.contains("多模态") || progress.phaseName.contains("上传") || displayFrac > 0.66f
+
                     Spacer(Modifier.height(12.dp))
                     LiveMetricsRow(telemetry)
+                    Spacer(Modifier.height(10.dp))
+                    RunningSparkline(telemetry)
                     Spacer(Modifier.weight(1f))
-                    RunningGauge(fraction = progress.fraction.coerceIn(0f, 1f), telemetry = telemetry)
+                    RunningGauge(frac = displayFrac, telemetry = telemetry, upload = upload)
                     Spacer(Modifier.height(14.dp))
                     HeroCaption("正在检查 AI 持续输出与稳定性 · ${progress.phaseName}")
-                    Spacer(Modifier.weight(1.2f))
+                    Spacer(Modifier.weight(1.1f))
                 }
             }
         }
@@ -244,16 +259,29 @@ private fun ConnectingRing() {
     }
 }
 
-/** running 270° 速度表（home.css .gauge，指针 rotate(-135deg + progress*2.7deg)）。 */
+/**
+ * running 270° 速度表（home.css .gauge，指针 rotate(-135deg + progress*2.7deg)）。
+ * [frac] 由时间驱动连续推进（对齐 home.js），弧尖脉冲 + 上传段转紫（data-phase=upload）。
+ */
 @Composable
-private fun RunningGauge(fraction: Float, telemetry: LiveTelemetry) {
+private fun RunningGauge(frac: Float, telemetry: LiveTelemetry, upload: Boolean) {
     val colors = AnebTheme.colors
     val reduced = LocalReducedMotion.current
-    val frac = if (reduced) fraction else animateFloatAsState(fraction, tween(450), label = "frac").value
     val grade = telemetry.aqsRunning?.let { Grade.fromAqsScore(it) }
-    val band = if (grade != null) colors.gradeColor(grade) else colors.good
+    val band = if (grade != null) colors.gradeColor(grade) else if (upload) Color(0xFFA779F2) else colors.good
     val trackColor = Color(0x522F4369)
     val tickArgb = Color(0x59CEDAEB).toArgb()
+    val progColors = if (upload) {
+        listOf(Color(0xFF8B78FF), Color(0xFFA779F2), Color(0xFFD66EF1), Color(0xFF8B78FF))
+    } else {
+        listOf(RingCyan, RingMint, RingBlue, RingCyan)
+    }
+    val pulse = if (reduced) {
+        1f
+    } else {
+        val t = rememberInfiniteTransition(label = "tip")
+        t.animateFloat(0.45f, 1f, infiniteRepeatable(tween(850), RepeatMode.Reverse), label = "p").value
+    }
 
     Box(modifier = Modifier.size(270.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
@@ -268,18 +296,24 @@ private fun RunningGauge(fraction: Float, telemetry: LiveTelemetry) {
             drawArc(color = trackColor, startAngle = 135f, sweepAngle = 270f, useCenter = false, style = Stroke(trackStroke), topLeft = topLeft, size = arc)
             if (frac > 0f) {
                 drawArc(
-                    brush = Brush.sweepGradient(listOf(RingCyan, RingMint, RingBlue, RingCyan)),
+                    brush = Brush.sweepGradient(progColors),
                     startAngle = 135f, sweepAngle = 270f * frac, useCenter = false,
                     style = Stroke(progStroke, cap = StrokeCap.Round), topLeft = topLeft, size = arc,
                 )
+                // 弧尖脉冲光点（持续动，永不看着卡住）
+                val edgeRad = Math.toRadians(135.0 + 270.0 * frac)
+                val edge = Offset(center.x + (cos(edgeRad) * r).toFloat(), center.y + (sin(edgeRad) * r).toFloat())
+                drawCircle(progColors[2].copy(alpha = 0.30f * pulse), radius = 9.dp.toPx() * pulse, center = edge)
+                drawCircle(progColors[1], radius = 3.5.dp.toPx(), center = edge)
             }
+            // 指针
             val aRad = Math.toRadians(135.0 + 270.0 * frac)
             val len = r * 0.72f
             val tip = Offset(center.x + (cos(aRad) * len).toFloat(), center.y + (sin(aRad) * len).toFloat())
             drawLine(Color(0x66DDE7F4), center, tip, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
             drawCircle(Color(0xFF182139), radius = 5.dp.toPx(), center = center)
             drawCircle(Color(0x52E7EFFA), radius = 5.dp.toPx(), center = center, style = Stroke(1.dp.toPx()))
-
+            // 刻度数字
             val paint = android.graphics.Paint().apply {
                 color = tickArgb
                 textSize = 9.dp.toPx()
@@ -294,12 +328,48 @@ private fun RunningGauge(fraction: Float, telemetry: LiveTelemetry) {
                 drawContext.canvas.nativeCanvas.drawText(v.toString(), tx, ty, paint)
             }
         }
+        // 中心实时数字（上传段切上行 Mbps，对齐 home.js runningCopy）
+        val centerVal: String
+        val centerLabel: String
+        if (upload) {
+            centerVal = telemetry.upMbps?.let { "%.1f".format(it) } ?: "…"
+            centerLabel = "上行 Mbps"
+        } else {
+            centerVal = telemetry.tokenRatePerSec?.let { "%.1f".format(it) } ?: "…"
+            centerLabel = "Token /秒"
+        }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                telemetry.tokenRatePerSec?.let { "%.1f".format(it) } ?: "…",
-                fontSize = 42.sp, fontWeight = FontWeight(440), letterSpacing = (-0.06).em, color = band,
-            )
-            Text("Token /秒", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = colors.muted, modifier = Modifier.padding(top = 6.dp))
+            Text(centerVal, fontSize = 42.sp, fontWeight = FontWeight(440), letterSpacing = (-0.06).em, color = band)
+            Text(centerLabel, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = colors.muted, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+/** 实时流式平滑度折线（真实 telemetry.itlRecentMs 驱动，随 token 到达持续变化）。 */
+@Composable
+private fun RunningSparkline(telemetry: LiveTelemetry) {
+    val colors = AnebTheme.colors
+    val pts = telemetry.itlRecentMs
+    val norm = if (pts.size < 2) emptyList() else pts.takeLast(40).map { (1.0 - it / 1000.0).coerceIn(0.05, 1.0).toFloat() }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("流式平滑度", fontSize = 9.5.sp, color = colors.muted)
+            Text(telemetry.itlMedianMs?.let { "ITL ${it.roundToInt()} ms" } ?: "…", fontSize = 9.5.sp, color = RingCyan)
+        }
+        Spacer(Modifier.height(4.dp))
+        Canvas(modifier = Modifier.fillMaxWidth().height(30.dp)) {
+            if (norm.size >= 2) {
+                val stepX = size.width / (norm.size - 1)
+                val path = Path()
+                norm.forEachIndexed { i, v ->
+                    val x = i * stepX
+                    val y = size.height * (1f - v)
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(path, RingCyan, style = Stroke(1.6.dp.toPx(), cap = StrokeCap.Round))
+            } else {
+                drawLine(colors.hairline, Offset(0f, size.height * 0.6f), Offset(size.width, size.height * 0.6f), 1.dp.toPx())
+            }
         }
     }
 }
