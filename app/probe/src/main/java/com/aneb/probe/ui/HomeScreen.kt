@@ -96,9 +96,19 @@ fun HomeScreen(
 ) {
     val colors = AnebTheme.colors
     val progress = TestProgressParser.parse(logs)
+    // 连接态只保留很短的固定缓冲（对齐 SpeedTest/home.js ~1.6s），随后进入测试态原地测量——
+    // 不再等 rttMs（要等 S1 整段跑完才有值 → 之前卡连接态 20s）。
+    var pastConnecting by remember(running) { mutableStateOf(false) }
+    LaunchedEffect(running) {
+        pastConnecting = false
+        if (running) {
+            kotlinx.coroutines.delay(1600)
+            pastConnecting = true
+        }
+    }
     val phase = when {
         !running -> HomePhase.Idle
-        telemetry.rttMs == null && telemetry.tokensReceived == 0 -> HomePhase.Connecting
+        !pastConnecting -> HomePhase.Connecting
         else -> HomePhase.Running
     }
 
@@ -132,15 +142,22 @@ fun HomeScreen(
                     Spacer(Modifier.weight(1.2f))
                 }
                 HomePhase.Running -> {
-                    val reduced = LocalReducedMotion.current
-                    val realFrac = progress.fraction.coerceIn(0f, 1f)
-                    // 时间驱动连续扫针（对齐 home.js 时间进度）：与真实完成度取大——既顺滑连续又不超前于真值
-                    val timeSweep = remember { Animatable(0.04f) }
+                    // 真实经过毫秒（System.nanoTime 计时，非动画 API，**不受"减弱动效"影响**）：
+                    // 驱动明显可见的连续扫针 + "已测 Xs"实时计时——保证测试态一定在动。
+                    var elapsedMs by remember { mutableStateOf(0L) }
                     LaunchedEffect(Unit) {
-                        if (!reduced) timeSweep.animateTo(0.96f, tween(78_000, easing = LinearEasing))
+                        val startNs = System.nanoTime()
+                        while (true) {
+                            elapsedMs = (System.nanoTime() - startNs) / 1_000_000L
+                            kotlinx.coroutines.delay(120)
+                        }
                     }
-                    val displayFrac = if (reduced) realFrac else maxOf(timeSweep.value, realFrac)
+                    val realFrac = progress.fraction.coerceIn(0f, 1f)
+                    // 时间驱动扫针（~48s 扫满，约 6°/s，肉眼明显）与真实完成度取大
+                    val timeFrac = (elapsedMs / 48_000f).coerceIn(0f, 0.97f)
+                    val displayFrac = maxOf(timeFrac, realFrac)
                     val upload = progress.phaseName.contains("多模态") || progress.phaseName.contains("上传") || displayFrac > 0.66f
+                    val elapsedSec = (elapsedMs / 1000L).toInt()
 
                     Spacer(Modifier.height(12.dp))
                     LiveMetricsRow(telemetry)
@@ -148,8 +165,8 @@ fun HomeScreen(
                     RunningSparkline(telemetry)
                     Spacer(Modifier.weight(1f))
                     RunningGauge(frac = displayFrac, telemetry = telemetry, upload = upload)
-                    Spacer(Modifier.height(14.dp))
-                    HeroCaption("正在检查 AI 持续输出与稳定性 · ${progress.phaseName}")
+                    Spacer(Modifier.height(12.dp))
+                    HeroCaption("正在检查 AI 持续输出与稳定性 · 已测 ${elapsedSec}s · ${progress.phaseName}")
                     Spacer(Modifier.weight(1.1f))
                 }
             }
