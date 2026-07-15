@@ -162,6 +162,10 @@ class MainActivity : ComponentActivity() {
                     var driveTest by rememberSaveable { mutableStateOf(intentDriveTest) }
                     var running by remember { mutableStateOf(false) }
                     val logs = remember { mutableStateListOf<String>() }
+                    // 实时遥测上提到根：供首页在测量中原地驱动仪表（R-16 只读观测，不回压热路径）
+                    val telemetry by engine.telemetry.collectAsStateWithLifecycle()
+                    // 持有 run 协程句柄，供首页"取消"按钮中断（cancel → CancellationException → finally running=false）
+                    var runJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
                     fun addLog(line: String) {
                         android.util.Log.i("AnebProbe", line)
@@ -172,9 +176,9 @@ class MainActivity : ComponentActivity() {
                     fun startRun(fromAutorun: Boolean) {
                         if (running) return
                         running = true
-                        if (!fromAutorun) screen = Screen.Testing
+                        // 测试原地留在首页（环变形驱动），不再跳独立测试页；RUN_END 仍由 jumpToResult 跳结果页
                         addLog(">>> RUN mode=${mode.name.lowercase()} transport=${transport.name.lowercase()} -> $serverUrl")
-                        lifecycleScope.launch {
+                        runJob = lifecycleScope.launch {
                             var runId: String? = null
                             var navigated = false
                             fun jumpToResult() {
@@ -280,7 +284,8 @@ class MainActivity : ComponentActivity() {
                         containerColor = AnebTheme.colors.background,
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         bottomBar = {
-                            if (atRoot) {
+                            // 测量中隐藏底栏（首页原地进入连接/测试态，全屏专注，对齐 home.html）
+                            if (atRoot && !running) {
                                 AnebTabBar(current = tab, onSelect = { tab = it })
                             }
                         },
@@ -291,7 +296,10 @@ class MainActivity : ComponentActivity() {
                                 is Screen.Home -> when (tab) {
                                     MainTab.Test -> HomeRoute(
                                         running = running,
+                                        telemetry = telemetry,
+                                        logs = logs,
                                         onStart = { startRun(fromAutorun = false) },
+                                        onCancel = { runJob?.cancel() },
                                         onOpenSettings = { tab = MainTab.Settings },
                                         onOpenResult = { runId ->
                                             screen = Screen.Result(runId, fromHistory = false)
@@ -333,12 +341,8 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 // ---- 下钻屏（隐底栏；各自返回键回当前 tab 根）----
-                                is Screen.Testing -> {
-                                    // TestEngine.telemetry 只读观测通道 → collectAsStateWithLifecycle（后台自动停收，
-                                    // 绝不回压测量热路径；StateFlow 有初值，无闪烁）。
-                                    val telemetry by engine.telemetry.collectAsStateWithLifecycle()
-                                    TestingScreen(logs = logs, telemetry = telemetry)
-                                }
+                                // 手动测量已改为首页原地进行，本分支对手动 run 不再可达；保留供潜在 autorun 路径。
+                                is Screen.Testing -> TestingScreen(logs = logs, telemetry = telemetry)
                                 is Screen.Report -> ReportRoute(onBack = { screen = Screen.Home })
                                 is Screen.Result -> ResultRoute(
                                     runId = s.runId,
@@ -367,7 +371,10 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun HomeRoute(
         running: Boolean,
+        telemetry: com.aneb.probe.engine.LiveTelemetry,
+        logs: List<String>,
         onStart: () -> Unit,
+        onCancel: () -> Unit,
         onOpenSettings: () -> Unit,
         onOpenResult: (String) -> Unit,
     ) {
@@ -380,7 +387,10 @@ class MainActivity : ComponentActivity() {
         HomeScreen(
             lastRun = lastRun,
             running = running,
+            telemetry = telemetry,
+            logs = logs,
             onStart = onStart,
+            onCancel = onCancel,
             onOpenSettings = onOpenSettings,
             onOpenLastResult = onOpenResult,
         )
