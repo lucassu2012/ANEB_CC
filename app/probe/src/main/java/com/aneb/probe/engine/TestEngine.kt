@@ -245,9 +245,9 @@ class TestEngine(private val context: Context) {
             collectors += launch { radioFlow.collect { radioBuf.add(it); latestRadio.set(it) } }
             // D-27 实时 token 计数器（观测通道，非测量）：SSE 读循环每 read 更新，采样协程读出实时速率。
             // 场景边界粗粒度投影无法体现流内实时变化，这里补当前流的实时 token 数/到达时刻。
-            val liveStreamTokens = AtomicReference(0L)
-            val liveStreamFirstNs = AtomicReference(0L)
-            val liveStreamLastNs = AtomicReference(0L)
+            val liveStreamTokens = java.util.concurrent.atomic.AtomicLong(0)
+            val liveStreamFirstNs = java.util.concurrent.atomic.AtomicLong(0)
+            val liveStreamLastNs = java.util.concurrent.atomic.AtomicLong(0)
 
             // ---- 实时遥测采样协程（观测通道，非测量；Dispatchers.Default, ~100ms 节流）----
             // 只读 latestRadio 引用（O(1)，不消费队列）+ telemetrySource 投影 → derive → conflated
@@ -310,7 +310,8 @@ class TestEngine(private val context: Context) {
                         try {
                             // D-27 实时观测 sink：SSE 读循环每 read 回调，更新当前流实时 token 数/时刻
                             runner.run(measureBase, runId, outcome, config.inject, log) { count, ns ->
-                                if (count <= 1) liveStreamFirstNs.set(ns)
+                                // 本流首个回调锚定起点（已在 SCENARIO_START 归零 → CAS(0,ns) 稳）
+                                liveStreamFirstNs.compareAndSet(0L, ns)
                                 liveStreamLastNs.set(ns)
                                 liveStreamTokens.set(count.toLong())
                             }
