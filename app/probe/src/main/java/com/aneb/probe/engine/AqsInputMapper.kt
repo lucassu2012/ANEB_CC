@@ -120,7 +120,7 @@ object AqsInputMapper {
             val mean = uploadBytes.average()
             if (mean > 0.0) uploadBytes.max() / mean else 1.0
         }
-        val downlinkMedia = phases.filter { it.type == "download_burst" }.sumOf { it.bytes }
+        val downlinkMedia = phases.filter { it.type == ProfilePhase.TYPE_DOWNLOAD_BURST }.sumOf { it.bytes }
         val maxStreamTokens = phases.filter { it.type == ProfilePhase.TYPE_TOKEN_STREAM }
             .maxOfOrNull { it.tokens } ?: 0
         val toolRounds = phases.filter { it.type == ProfilePhase.TYPE_TOOL_LOOP }.sumOf { it.rounds }

@@ -53,6 +53,9 @@ data class ProfilePhase(
         const val TYPE_THINK_PAUSE = "think_pause"
         const val TYPE_TOKEN_STREAM = "token_stream"
         const val TYPE_TOOL_LOOP = "tool_loop"
+
+        /** 下行大对象拉取（D1，PROFILE_FRAMEWORK §2.4；服务端 profiles.go 已支持同名相位）。 */
+        const val TYPE_DOWNLOAD_BURST = "download_burst"
     }
 }
 

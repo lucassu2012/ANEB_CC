@@ -58,12 +58,28 @@ class ScenarioRunner(private val client: AnebClient) {
         val ttftMs: Double?,
     )
 
+    /** 下行大对象拉取产出（D1，PROFILE_FRAMEWORK §2.4；与 [UploadOutcome] 镜像口径）。 */
+    class DownloadOutcome(
+        val index: Int,
+        val profileBytes: Long,
+        val result: AnebClient.DownloadResult,
+    ) {
+        /** D1 计时终点＝body 排空最后一字节（`/download` 无限速 2xx 口径）；失败 null（R-10） */
+        val durationNanos: Long? =
+            if (result.error == null && (result.httpCode ?: 0) in 200..299) {
+                result.bodyEndNanos?.let { it - result.startNanos }
+            } else {
+                null
+            }
+    }
+
     class ToolLoopOutcome(val round: Int, val nominalProcMs: Int, val result: AnebClient.ToolLoopResult)
 
     /** 一个场景实例（profile × repeat）的全部原始产出，运行中就地填充。 */
     class ScenarioOutcome(val profile: ScenarioProfile, val scenarioKey: String) {
         val clockSyncs = ArrayList<ClockSyncOutcome>()
         val uploads = ArrayList<UploadOutcome>()
+        val downloads = ArrayList<DownloadOutcome>()
         val streams = ArrayList<StreamOutcome>()
         val toolLoops = ArrayList<ToolLoopOutcome>()
 
@@ -117,6 +133,9 @@ class ScenarioRunner(private val client: AnebClient) {
 
                     ProfilePhase.TYPE_UPLOAD_BURST ->
                         runUpload(base, runId, phase, outcome, emit, onUploadProgress)
+
+                    ProfilePhase.TYPE_DOWNLOAD_BURST ->
+                        runDownload(base, phase, outcome, emit)
 
                     ProfilePhase.TYPE_THINK_PAUSE -> {
                         emit("THINK_PAUSE scenario=${outcome.scenarioKey} duration_ms=${phase.durationMs}")
@@ -221,6 +240,39 @@ class ScenarioRunner(private val client: AnebClient) {
             "UPLOAD scenario=${outcome.scenarioKey} idx=$idx bytes=$bytes chunk=$chunk " +
                 "http=${r.httpCode ?: "null"} dur_ms=$durMs goodput_mbps=$goodput " +
                 "server_chunks=${r.serverView?.chunkUs?.size ?: "null"} error=${r.error ?: "none"}"
+        )
+    }
+
+    // -------------------------------------------------------- download_burst
+
+    /**
+     * 下行大对象拉取（D1，PROFILE_FRAMEWORK §2.4）：GET `/download`（无限速、identity、精确
+     * Content-Length），[AnebClient.downloadDrain] 流式排空即丢；计时终点＝body 最后一字节。
+     * bytes/chunk_kb 取 profile 相位声明（≤0 缺省则不传参、用服务端默认）。
+     */
+    private suspend fun runDownload(
+        base: String,
+        phase: ProfilePhase,
+        outcome: ScenarioOutcome,
+        emit: suspend (String) -> Unit,
+    ) {
+        val idx = outcome.downloads.size
+        val params = buildList {
+            if (phase.bytes > 0) add("bytes=${phase.bytes}")
+            if (phase.chunkKb > 0) add("chunk_kb=${phase.chunkKb}")
+        }
+        val url = "$base/api/v1/download" + if (params.isEmpty()) "" else "?" + params.joinToString("&")
+        val r = client.downloadDrain(url)
+        val dl = DownloadOutcome(idx, phase.bytes, r)
+        outcome.downloads.add(dl)
+        val durMs = dl.durationNanos?.let { "%.2f".format(it / 1e6) } ?: "null"
+        val goodput = dl.durationNanos?.takeIf { it > 0 }?.let {
+            "%.3f".format(r.bytesRead * 8.0 / (it / 1e9) / 1e6)
+        } ?: "null"
+        emit(
+            "DOWNLOAD scenario=${outcome.scenarioKey} idx=$idx bytes=${phase.bytes} read=${r.bytesRead} " +
+                "chunk_kb=${phase.chunkKb} http=${r.httpCode ?: "null"} dur_ms=$durMs " +
+                "goodput_mbps=$goodput error=${r.error ?: "none"}"
         )
     }
 

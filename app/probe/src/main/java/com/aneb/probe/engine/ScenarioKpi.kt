@@ -7,6 +7,7 @@ import com.aneb.probe.scoring.KpiInput
 import com.aneb.probe.scoring.ToolLoopSample
 import com.aneb.probe.scoring.TokenSample
 import com.aneb.probe.scoring.TtftSample
+import com.aneb.probe.scoring.DownloadResult as KpiDownloadResult
 import com.aneb.probe.scoring.UploadResult as KpiUploadResult
 
 /**
@@ -136,6 +137,16 @@ object ScenarioKpi {
             )
         }
 
+        // D1：下行大对象拉取（PROFILE_FRAMEWORK §2.2 BM-09 口径(b)；bytes 取实收字节，
+        // 成功时=Content-Length；失败样本 durationNanos=null 不进统计，R-10）
+        val downloads = outcome.downloads.map { dl ->
+            KpiDownloadResult(
+                bytes = dl.result.bytesRead,
+                durationNanos = dl.durationNanos,
+                http2xx = dl.result.error == null && (dl.result.httpCode ?: 0) in 200..299,
+            )
+        }
+
         val toolLoops = outcome.toolLoops.map { tl ->
             val r = tl.result
             val actualProcUs = if (r.trecvUs != null && r.tsendUs != null) r.tsendUs - r.trecvUs else null
@@ -156,6 +167,7 @@ object ScenarioKpi {
             pauseSeqs = join.pauseSeqs,
             echoSamples = echoSamples,
             uploadResults = uploads,
+            downloadResults = downloads,
             toolLoopSamples = toolLoops,
             ttftSamples = ttfts,
             streamTruncated = truncated,
