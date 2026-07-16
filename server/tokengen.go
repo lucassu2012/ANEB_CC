@@ -53,6 +53,11 @@ type StreamParams struct {
 	// 区别于 TtftInjectUs（首 token 前）、rate_schedule（渐变）：这是**流内离散停顿**（模拟推理模型中途思考）。
 	// 服务端把注入的 think seq/dwell 经 summary 透出，供 APP 归为 pause（不计网络 stall）。nil/空 = 无（行为不变）。
 	ThinkInjections []ThinkInjection
+
+	// BehaviorModelStamp 是已解析行为模型参数包的 "id@version" 溯源印（§3.3）；
+	// 非测量输入、不进 GenerateTokens，仅供 handler 经 prelude 透出、盖入结果溯源。
+	// 空=未引用 pack。
+	BehaviorModelStamp string
 }
 
 // ThinkInjection 描述一次流内 think 驻留：在 seq=AtSeq 前注入 DwellUs 微秒停顿。

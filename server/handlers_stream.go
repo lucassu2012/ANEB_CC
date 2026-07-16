@@ -82,6 +82,12 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	// （补"减法项恒为 0"缺口）。0 = 无注入。additive 字段，旧客户端忽略未知键。
 	prelude = append(prelude, `,"ttft_inject_us":`...)
 	prelude = strconv.AppendInt(prelude, params.TtftInjectUs, 10)
+	// 行为模型溯源印（§3.3）：仅 profile 引用了 pack 时透出，供客户端盖入结果溯源。
+	// additive——未引用 pack 则 prelude 字节级不变，旧客户端忽略未知键。
+	if params.BehaviorModelStamp != "" {
+		prelude = append(prelude, `,"behavior_model":`...)
+		prelude = strconv.AppendQuote(prelude, params.BehaviorModelStamp)
+	}
 	prelude = append(prelude, `,"observed":`...)
 	// strconv.AppendQuote 做 JSON 兼容转义（RemoteAddr 正常不含特殊字符，
 	// 但手拼 JSON 不做转义是脆弱模式，防御性统一）。
@@ -305,6 +311,13 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 			params.Sigma = ph.TokenBytes.Sigma
 			params.SizeHistogram = ph.TokenBytes.Histogram
 		}
+		// §3.3 行为模型参数包：为 phase 未声明的模型旋钮补 pack 默认（phase 恒胜），
+		// 并记 id@version 溯源印。省略 behavior_model_id ⇒ bm=nil ⇒ 行为不变。
+		bm, err := lookupBehaviorModel(ph.BehaviorModelID)
+		if err != nil {
+			return params, errBadParam(err.Error())
+		}
+		bm.applyDefaults(&params, ph.TokenBytes != nil)
 	}
 	// 非平稳解码曲线（§3.2）只由 profile 声明（非平稳性是模型属性，非 URL 临时旋钮）。
 	if err := validateRateSchedule(params.RateSchedule, params.Burst != nil); err != nil {

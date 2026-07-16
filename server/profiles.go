@@ -65,6 +65,12 @@ type Phase struct {
 	// artifact_stream（§3.1，复用 Bytes/ChunkKB/Seed）：下行渐进生成节奏与类别。
 	CadenceBps    int64  `json:"cadence_bps,omitempty"`
 	ArtifactClass string `json:"artifact_class,omitempty"`
+
+	// BehaviorModelID 引用一个版本化行为模型参数包（§3.3，behavior_model.go 注册表）。
+	// 声明后，该 token_stream phase 未显式给出的 §3.2 模型旋钮（ttft/tokens_per_frame/
+	// rate_schedule/token 字节）由 pack 默认补齐；phase 已声明者恒胜（INV-3 分层）。
+	// 省略=不引用 pack（行为不变）。仅 token_stream 相位有意义。
+	BehaviorModelID string `json:"behavior_model_id,omitempty"`
 }
 
 // Profile 是版本化场景定义（发布即冻结，修改必须升版本号）。
@@ -173,5 +179,8 @@ func (a *app) handleProfiles(w http.ResponseWriter, r *http.Request) {
 	_ = enc.Encode(map[string]any{
 		"server_version": serverVersion,
 		"profiles":       list,
+		// 行为模型参数包及其标定证据（§3.3）随 profiles 一并下发，供客户端盖入结果溯源、
+		// 供评审核验「截至日期 X 本模拟是否匹配真实 AI」。additive 键，旧客户端忽略。
+		"behavior_models": behaviorModelList(),
 	})
 }

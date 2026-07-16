@@ -363,3 +363,32 @@ facet→条目：上行突发→上行条；下行大带宽→下行条；低时
 - `E:\C Project\ANEB\app\probe\src\main\java\com\aneb\probe\scoring\AqsScorer.kt` — 加 `WEIGHTS_TOKEN_*` / `D1_ANCHORS` / S1 软否决（现 `WEIGHTS` L56、`WEIGHTS_V02` L70、锚点 L99–115、veto L50/53）。
 - `KpiCalculator.kt` — 加 D1 / S1；`ProfileModels.kt::ScenarioProfile.presentation` — facet3/4 wire 投影；`server/` 的 `tokengen.go / handlers_stream.go / handlers_upload.go / handlers_download.go` — §3 行为模型 phase 与 TTFT 注入落地点。
 
+---
+
+## 7. 实现状态（as-built · 跨 PR 追踪）
+
+> 本节记实现进度对齐设计的映射；均 additive、零回归，纯 JVM 用独立编译 + JUnit 验证、服务端 Go 用 `go test` 验证。
+
+### 已落地于 `feat/result-dev-v2`（PR #1/#2 合并 + 用户后续直接落地并真机验证）
+
+| 设计条款 | 落地 | 制品 |
+|---|---|---|
+| §1.2 4-facet 契约 | `TestModeProfile` v2（4 facet 类型 + Token/网络综合性能/语音填满） | ✅ |
+| §2.5/§5 Token 打分 | `AqsScorer` `WEIGHTS_TOKEN_MM/TXT`·`D1_ANCHORS`·S1 软否决·`scoreToken`；`KpiCalculator` D1/S1 | ✅ |
+| §2.5 facet-4 分析 | `TokenBehaviorClassifier` 双证据分类 + SLA 建议；facet4 结论链闭合（`scoreToken` 落库 + 结果页行为/建议卡） | ✅ |
+| §2.2 run 接线 | `AqsInputMapper` D1←S3 / S1 聚合；`TestEngine`/`ResultReporter` token 打分落库；D1 客户端 `download_burst` 采集喂打分 | ✅ |
+| §3.4 TTFT 注入 | server `ttft_inject_us` + prelude 透出 | ✅ |
+| §3.2 非平稳 TPS / frame-batching / 字节直方图 / think 驻留 | server `rate_schedule` / `tokens_per_frame` / `token_bytes.histogram` / `think_injections` | ✅ |
+| §2.4/§3.1 D1 + 下行渐进 | server `download_burst` + `/download?profile=` + `/artifact_stream`；s3 profile 0.3.0 D1 全链激活 | ✅ |
+| §4.2 网络综合性能 | `AiScenarioAdvisor`（请求失败率实测 + 四门限 + AI 场景适配），真机验证 | ✅ |
+| §4.1 AI 实时交互（语音） | `AqsScorer` `AQS_VERSION_VOICE`/`M1_ANCHORS`/`M_FRAME_JITTER_ANCHORS`/`WEIGHTS_VOICE`/`scoreVoice`；`VoiceRunner`/`AnebClient.uploadPaced`/`VoiceTestScreen`；`VOICE_REALTIME` 入 `ALL`——零服务端改动，真机验证 | ✅ |
+
+### 待审（本 PR：`claude/dev-continuation-ix8vip`）
+
+| 设计条款 | 落地 | 备注 |
+|---|---|---|
+| §3.3 行为模型参数包（**结构**） | server `behavior_model.go`：`BehaviorModel`/`Provenance` + 内置**未标定** `generic-uncalibrated@v0` 包；`Phase.behavior_model_id` 解析（pack 补默认、phase 恒胜）；prelude `behavior_model` 溯源印；`/profiles` 透出包+provenance | 纯 Go，additive/确定性/零回归；**逐 provider 标定值**仍待抓包（见下） |
+
+### 未覆盖（外部依赖）
+
+- **§3.3 逐模型标定值**（kimi/deepseek/qwen 的 TTFT/TPS/字节直方图**真实拟合参数**）：参数包**结构 + 注册表 + provenance + 解析/溯源全链已就绪并测**（见「待审」行），仅缺**已拟合数字**——需 `tools/capture` 真机抓包 + 拟合（E-03）；届时新增 `{kimi,deepseek,qwen}@vX` 包并置 `Provenance.Calibrated=true`（附 trace 出处/残差），框架**绝不**为未标定包声称真实性（红线 §3.4）。
