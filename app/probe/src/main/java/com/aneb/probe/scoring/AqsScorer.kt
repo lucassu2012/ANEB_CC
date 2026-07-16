@@ -51,6 +51,9 @@ object AqsScorer {
      * 打分管线仍复用 [scoreWith]（INV-1：复用而非重写）。与 v0.1/v0.2 并列、互不影响。
      */
     const val AQS_VERSION_TOKEN: String = "aqs-token-v0.1"
+
+    /** 语音实时交互模式版本（PROFILE_FRAMEWORK §4.1，additive；观测口径出分，不并入 v0.1/v0.2/Token） */
+    const val AQS_VERSION_VOICE: String = "aqs-voice-v0.1"
     const val KPI_SET_VERSION: String = KpiCalculator.KPI_SET_VERSION
 
     /** T4 一票否决线（比率），KPI 文档 5.4 */
@@ -66,6 +69,9 @@ object AqsScorer {
     /** S1 硬否决：<0.90 封顶 54。 */
     const val S1_VETO_HARD_THRESHOLD: Double = 0.90
     const val S1_VETO_HARD_CAP: Double = 54.0
+
+    /** M1 口到耳预算硬否决（语音模式，§4.1「口到耳超红线一票否决」）：>400ms 封顶 54 */
+    const val M1_VETO_THRESHOLD_MS: Double = 400.0
 
     /** 权重表（合计 1.0），KPI 文档 5.4 */
     val WEIGHTS: Map<String, Double> = mapOf(
@@ -123,6 +129,20 @@ object AqsScorer {
     )
 
     /**
+     * 语音实时交互权重表（PROFILE_FRAMEWORK §4.1：权重向 M 组 + 抖动/稳定性倾斜——
+     * 语音对连续性/抖动远比吞吐敏感；无吞吐加权项）。Σ=1.0 由单测守护。
+     * M1=口到耳预算(观测口径=RTT+max(帧抖动)+编解码/播放缓冲名义常数)；
+     * M2=下行帧间抖动 P95；M3=上行帧间抖动 P95（服务端 chunk_us 权威到达序列）。
+     */
+    val WEIGHTS_VOICE: Map<String, Double> = mapOf(
+        "M1" to 0.30,
+        "M2" to 0.20,
+        "M3" to 0.15,
+        "N1" to 0.15,
+        "N2" to 0.20,
+    )
+
+    /**
      * 单调锚点表：(KPI 值, 分数) 对，按值升序。端点外 clamp。
      * 门限数字全部来自 KPI 文档 5.2（agent-qoe-kpi v0.1，实验性）。
      */
@@ -169,6 +189,14 @@ object AqsScorer {
     // C2 切换恢复时间（ms，低者优）：1s / 3s / 10s，差档下锚 3×10000=30000；
     // "失败"（恢复不成功）按 R-10 记 null → v0.2 不可计算（KPI_MISSING:C2），绝不以封顶值顶替
     internal val C2_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 1000.0 to 85.0, 3000.0 to 70.0, 10000.0 to 55.0, 30000.0 to 0.0))
+
+    // ---- M 组门限锚点（语音实时交互，PROFILE_FRAMEWORK §4.1；observation 口径）----
+    // M1 口到耳预算（ms，低者优）：150/300/400（对话自然度红线），差档下锚 3×400=1200
+    internal val M1_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 150.0 to 85.0, 300.0 to 70.0, 400.0 to 55.0, 1200.0 to 0.0))
+
+    // M2/M3 帧间抖动（ms，低者优；下行/上行同锚，§4.1 抖动<30ms 达 95%）——与 N2 数值同
+    // 但语义独立（帧到达间隔对名义 20ms 节奏的偏差 P95，非 RTT 分位差），单列防口径漂移
+    internal val M_FRAME_JITTER_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 10.0 to 85.0, 30.0 to 70.0, 80.0 to 55.0, 240.0 to 0.0))
 
     /**
      * AQS 评分结果。
@@ -251,12 +279,56 @@ object AqsScorer {
         )
     }
 
+    /**
+     * 语音实时交互出分入口（PROFILE_FRAMEWORK §4.1，additive）：M 组经 extraInputs 注入
+     * （同 C1/C2 先例），N1/N2 走最小 KpiResult；[WEIGHTS_VOICE] 加权 + M1 口到耳硬否决。
+     * 观测口径（口到耳=预算合成、帧抖动含客户端调度抖动上界），独立出分不并入既有 AQS。
+     */
+    fun scoreVoice(
+        n1RttMs: KpiValue,
+        n2JitterMs: KpiValue,
+        m1BudgetMs: KpiValue,
+        m2DownFrameJitterMs: KpiValue,
+        m3UpFrameJitterMs: KpiValue,
+    ): AqsResult = scoreWith(
+        KpiResult(
+            validity = Validity.VALID,
+            invalidReasons = emptyList(),
+            seqMissingCount = 0,
+            seqDupCount = 0,
+            seqGapCount = 0,
+            expectedTokenCount = 0,
+            t1TtftMs = KpiValue.empty("ms"),
+            t2ItlP95Ms = KpiValue.empty("ms"),
+            t2ItlP95InclCoalescedMs = KpiValue.empty("ms"),
+            t3StallRate = KpiValue.empty("ratio"),
+            t3StallRateInclResume = KpiValue.empty("ratio"),
+            t4SevereStallRate = KpiValue.empty("ratio"),
+            t5ResumeP95Ms = KpiValue.empty("ms"),
+            t5ResumeLatenciesMs = emptyList(),
+            n1RttP50Ms = n1RttMs,
+            n2JitterMs = n2JitterMs,
+            u1GoodputMbps = KpiValue.empty("Mbps"),
+            u1GoodputExclSlowStartMbps = KpiValue.empty("Mbps"),
+            u2ToolLoopP95Ms = KpiValue.empty("ms"),
+        ),
+        extraInputs = mapOf(
+            "M1" to m1BudgetMs,
+            "M2" to m2DownFrameJitterMs,
+            "M3" to m3UpFrameJitterMs,
+        ),
+        weights = WEIGHTS_VOICE,
+        version = AQS_VERSION_VOICE,
+        applyM1Veto = true,
+    )
+
     private fun scoreWith(
         kpi: KpiResult,
         extraInputs: Map<String, KpiValue>,
         weights: Map<String, Double>,
         version: String,
         applyS1Veto: Boolean = false,
+        applyM1Veto: Boolean = false,
     ): AqsResult {
         if (kpi.validity == Validity.INVALID) {
             return AqsResult(
@@ -308,13 +380,21 @@ object AqsScorer {
             "N2" to N2_ANCHORS,
             "C1" to C1_ANCHORS,
             "C2" to C2_ANCHORS,
+            "M1" to M1_ANCHORS,
+            "M2" to M_FRAME_JITTER_ANCHORS,
+            "M3" to M_FRAME_JITTER_ANCHORS,
         )
         val subScores = inputs.mapValues { (id, v) -> anchorMaps.getValue(id).score(v.value!!) }
         var total = subScores.entries.sumOf { (id, s) -> s * weights.getValue(id) }
 
         // T4 一票否决：>1% 时封顶 54（T4 缺失时不触发否决，但 T4 属流式场景必备诊断项）
         val t4 = kpi.t4SevereStallRate.value
-        val veto = t4 != null && t4 > T4_VETO_THRESHOLD
+        var veto = t4 != null && t4 > T4_VETO_THRESHOLD
+        // M1 口到耳预算硬否决（语音模式，§4.1）：>400ms 对话自然度红线，同 min() 机制
+        if (applyM1Veto) {
+            val m1 = extraInputs["M1"]?.value
+            if (m1 != null && m1 > M1_VETO_THRESHOLD_MS) veto = true
+        }
         if (veto) total = min(total, T4_VETO_CAP)
 
         // S1 会话完成率软否决（仅 Token 模式，与 T4 同 min() 机制；先判更严的硬否决）

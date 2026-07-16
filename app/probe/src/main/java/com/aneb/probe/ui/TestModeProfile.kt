@@ -462,8 +462,108 @@ object TestModeProfiles {
         ),
     )
 
+    /**
+     * AI 实时交互（语音，GPT-Live 式；PROFILE_FRAMEWORK §4.1）。零服务端部署的观测口径：
+     * 上行=uploadPaced 20ms 帧节奏（服务端 chunk_us 权威到达）；下行=/stream 50tps 精确
+     * 20ms 帧流（已对部署服务器实证）。facet4 经 AqsScorer.scoreVoice（WEIGHTS_VOICE +
+     * M1>400ms 硬否决）独立出分，不并入既有 AQS。
+     */
+    val VOICE_REALTIME = TestModeProfile(
+        id = "voice_realtime",
+        displayName = "AI 实时交互",
+        tagline = "GPT-Live 式语音双工 · 口到耳预算",
+        business = "全双工语音对话（GPT-Live 式）：上行连续音频帧 + 下行 TTS 帧流——" +
+            "口到耳时延与帧抖动决定对话自然度，对连续性/抖动远比吞吐敏感。",
+        metrics = listOf(
+            ModeMetric("口到耳预算", "ms", dynamic = true),
+            ModeMetric("帧间抖动", "ms", dynamic = true),
+            ModeMetric("RTT", "ms", dynamic = true),
+            ModeMetric("帧接收", "帧", dynamic = false),
+        ),
+        conclusion = "WEIGHTS_VOICE 加权出分（M 组+基线）+ M1>400ms 硬否决 → 优/良/可/差。",
+        version = "voice-profile@0.1.0",
+        businessType = BusinessType(
+            summary = "模拟 GPT-Live 语音互动的网络承载：20ms 帧节奏小包双工（Opus 量级 160B/帧）。" +
+                "上行=连续采集帧（uploadPaced→服务端 chunk_us），下行=TTS 帧流（/stream 50tps）。",
+            subScenarios = listOf(
+                SubScenario(
+                    "VC-1", "连续对话", "20ms×160B 连续上行帧", "50fps TTS 帧流",
+                    listOf(BehaviorTag.LOW_LATENCY, BehaviorTag.STABILITY),
+                ),
+                SubScenario(
+                    "VC-2", "打断插话", "barge-in 突发帧（未接入）", "TTS 停止+轮次切换（未接入）",
+                    listOf(BehaviorTag.LOW_LATENCY),
+                ),
+                SubScenario(
+                    "VC-3", "长时保活", "静音期心跳（未接入）", "持续会话（未接入）",
+                    listOf(BehaviorTag.STABILITY),
+                ),
+            ),
+        ),
+        metricSpecs = listOf(
+            MetricSpec(
+                id = "M1", name = "口到耳预算", unit = "ms", group = MetricGroup.N,
+                definition = "RTT_P50 + max(上/下行帧抖动 P95) + 编解码/播放缓冲名义常数 60ms" +
+                    "（网络贡献的口到耳下界预算，非真实音频链路实测）",
+                direction = Direction.LOWER_BETTER,
+                target = QualityTarget(excellent = 150.0, good = 300.0, fair = 400.0, poorFloor = 1200.0),
+                measurability = Measurability.DERIVED, scored = true, anchorRef = "M1_ANCHORS",
+            ),
+            MetricSpec(
+                id = "M2", name = "下行帧间抖动 P95", unit = "ms", group = MetricGroup.N,
+                definition = "TTS 帧到达间隔对名义 20ms 的偏差绝对值 P95（客户端 arrivalNanos）",
+                direction = Direction.LOWER_BETTER,
+                target = QualityTarget(excellent = 10.0, good = 30.0, fair = 80.0, poorFloor = 240.0),
+                measurability = Measurability.MEASURABLE, scored = true, anchorRef = "M_FRAME_JITTER_ANCHORS",
+            ),
+            MetricSpec(
+                id = "M3", name = "上行帧间抖动 P95", unit = "ms", group = MetricGroup.N,
+                definition = "上行帧到达间隔对名义 20ms 的偏差绝对值 P95（服务端 chunk_us 权威；" +
+                    "含客户端发送调度抖动，观测上界）",
+                direction = Direction.LOWER_BETTER,
+                target = QualityTarget(excellent = 10.0, good = 30.0, fair = 80.0, poorFloor = 240.0),
+                measurability = Measurability.MEASURABLE, scored = true, anchorRef = "M_FRAME_JITTER_ANCHORS",
+            ),
+            MetricSpec(
+                id = "FRLOSS", name = "帧丢失", unit = "ratio", group = MetricGroup.N,
+                definition = "TCP 重传掩盖真实丢帧——代理=期望−实收帧数（通常 0）；真丢帧需 UDP 媒体通道",
+                direction = Direction.LOWER_BETTER,
+                target = QualityTarget(excellent = 0.0, good = 0.01, fair = 0.03),
+                measurability = Measurability.NOT_MEASURABLE, scored = false, anchorRef = null,
+            ),
+            MetricSpec(
+                id = "N1", name = "RTT P50", unit = "ms", group = MetricGroup.N,
+                definition = "echo 应用层往返 P50（墙钟，丢建连首样本）",
+                direction = Direction.LOWER_BETTER,
+                target = QualityTarget(excellent = 30.0, good = 60.0, fair = 100.0, poorFloor = 300.0),
+                measurability = Measurability.MEASURABLE, scored = true, anchorRef = "N1_ANCHORS",
+            ),
+            MetricSpec(
+                id = "N2", name = "抖动", unit = "ms", group = MetricGroup.N,
+                definition = "RTT 相邻差中位（观测口径）",
+                direction = Direction.LOWER_BETTER,
+                target = QualityTarget(excellent = 10.0, good = 30.0, fair = 80.0, poorFloor = 240.0),
+                measurability = Measurability.MEASURABLE, scored = true, anchorRef = "N2_ANCHORS",
+            ),
+        ),
+        live = listOf(
+            LiveMetric("m2e", "口到耳预算", "ms", "voice.mouthEarBudgetMs", LiveRender.RUNNING_NUMBER, windowMs = 0, refreshMs = 200),
+            LiveMetric("fj", "帧间抖动", "ms", "voice.frameJitterMs", LiveRender.WAVEFORM, windowMs = 2000, refreshMs = 200),
+            LiveMetric("rtt", "RTT", "ms", "rttMs", LiveRender.WAVEFORM, windowMs = 2000, refreshMs = 200),
+        ),
+        scoring = ScoringModelSpec(
+            engine = "AqsScorer",
+            weightsTableId = "WEIGHTS_VOICE",
+            vetoRules = listOf(VetoRule(kpiId = "M1", op = "gt", threshold = 400.0, cap = 54.0)),
+            renormalizeOnDesignDefault = false,
+            gradeMapId = "aqsGrade",
+            behaviorRuleId = "voice_latency_stability",
+            recommendationTemplateId = "voice_sla",
+        ),
+    )
+
     /** 分段开关顺序即此表顺序。默认选中 [TOKEN_EXPERIENCE]（首页 token 体验）。 */
-    val ALL = listOf(TOKEN_EXPERIENCE, BASIC_NETWORK)
+    val ALL = listOf(TOKEN_EXPERIENCE, BASIC_NETWORK, VOICE_REALTIME)
 
     fun byId(id: String): TestModeProfile = ALL.firstOrNull { it.id == id } ?: TOKEN_EXPERIENCE
 }

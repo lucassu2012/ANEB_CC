@@ -46,6 +46,7 @@ import com.aneb.probe.engine.AbRunner
 import com.aneb.probe.engine.ContinuityRunner
 import com.aneb.probe.engine.SpeedRunner
 import com.aneb.probe.engine.TestEngine
+import com.aneb.probe.engine.VoiceRunner
 import com.aneb.probe.radio.GeoTrack
 import com.aneb.probe.radio.RadioCollector
 import com.aneb.probe.ui.components.AnebTabBar
@@ -78,6 +79,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var continuityRunner: ContinuityRunner
     private lateinit var abRunner: AbRunner
     private lateinit var speedRunner: SpeedRunner
+    private lateinit var voiceRunner: VoiceRunner
     private lateinit var radioCollector: RadioCollector
     private lateinit var db: AnebDatabase
 
@@ -120,6 +122,7 @@ class MainActivity : ComponentActivity() {
         continuityRunner = ContinuityRunner(applicationContext)
         abRunner = AbRunner(applicationContext)
         speedRunner = SpeedRunner()
+        voiceRunner = VoiceRunner()
         radioCollector = RadioCollector(this)
         db = AnebDatabase.get(applicationContext)
         intentServer = intent?.getStringExtra("server")
@@ -176,6 +179,10 @@ class MainActivity : ComponentActivity() {
                     var speedRunning by remember { mutableStateOf(false) }
                     var speedSample by remember { mutableStateOf<SpeedRunner.Sample?>(null) }
                     var speedJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    // 语音实时交互模式（§4.1）：独立 run 状态/实时样本/协程句柄
+                    var voiceRunning by remember { mutableStateOf(false) }
+                    var voiceSample by remember { mutableStateOf<VoiceRunner.Sample?>(null) }
+                    var voiceJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
                     fun addLog(line: String) {
                         android.util.Log.i("AnebProbe", line)
@@ -292,6 +299,25 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // 语音双工测量（独立于 token 引擎；观测口径）
+                    fun startVoiceTest() {
+                        if (voiceRunning) return
+                        voiceRunning = true
+                        voiceSample = null
+                        addLog(">>> VOICE -> $serverUrl")
+                        voiceJob = lifecycleScope.launch {
+                            try {
+                                voiceRunner.run(serverUrl).collect { voiceSample = it }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                addLog("VOICE_FAILED error=$e")
+                            } finally {
+                                voiceRunning = false
+                            }
+                        }
+                    }
+
                     LaunchedEffect(Unit) {
                         if (intentAutorun) {
                             intentAutorun = false
@@ -314,7 +340,7 @@ class MainActivity : ComponentActivity() {
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         bottomBar = {
                             // 测量中隐藏底栏（首页原地进入连接/测试态，全屏专注，对齐 home.html）
-                            if (atRoot && !running && !speedRunning) {
+                            if (atRoot && !running && !speedRunning && !voiceRunning) {
                                 AnebTabBar(current = tab, onSelect = { tab = it })
                             }
                         },
@@ -326,8 +352,7 @@ class MainActivity : ComponentActivity() {
                                     MainTab.Test -> Column(modifier = Modifier.fillMaxSize()) {
                                         // 模式开关 + 模式信息条——由 TestModeProfiles.ALL 数据驱动（加模式=加 profile）；
                                         // 两模式共享；测量中隐藏，全屏专注。
-                                        val basicMode = selectedModeId == TestModeProfiles.BASIC_NETWORK.id
-                                        if (!running && !speedRunning) {
+                                        if (!running && !speedRunning && !voiceRunning) {
                                             Column(
                                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                                                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -341,12 +366,19 @@ class MainActivity : ComponentActivity() {
                                                 ModeProfileStrip(TestModeProfiles.byId(selectedModeId))
                                             }
                                         }
-                                        if (basicMode) {
+                                        if (selectedModeId == TestModeProfiles.BASIC_NETWORK.id) {
                                             SpeedTestScreen(
                                                 sample = speedSample,
                                                 running = speedRunning,
                                                 onStart = { startSpeedTest() },
                                                 onCancel = { speedJob?.cancel() },
+                                            )
+                                        } else if (selectedModeId == TestModeProfiles.VOICE_REALTIME.id) {
+                                            VoiceTestScreen(
+                                                sample = voiceSample,
+                                                running = voiceRunning,
+                                                onStart = { startVoiceTest() },
+                                                onCancel = { voiceJob?.cancel() },
                                             )
                                         } else {
                                             HomeRoute(

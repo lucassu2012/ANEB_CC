@@ -418,6 +418,64 @@ class AnebClient(bound: BoundNetwork? = null) {
         }
     }
 
+    /**
+     * 语音帧节奏上行（M3，观测口径，PROFILE_FRAMEWORK §4.1）：按 [intervalMs] 节奏逐帧
+     * 写入并 flush（模拟 Opus ~20ms/帧小包流），服务端 /upload 的 chunk_us 权威到达序列
+     * 供上行帧间抖动计算。写线程 sleep 造节奏——客户端调度抖动叠加进测得帧抖动
+     * （观测上界，口径注明）。复用 [UploadResult]（stamps/serverView 同构）。
+     */
+    suspend fun uploadPaced(
+        url: String,
+        frames: Int,
+        frameBytes: Int,
+        intervalMs: Long,
+        onFrame: ((Int, Long) -> Unit)? = null,
+    ): UploadResult {
+        val stamps = ArrayList<ChunkStamp>(frames)
+        val frame = ByteArray(frameBytes) { 'V'.code.toByte() }
+        val body = object : RequestBody() {
+            override fun contentType() = "application/octet-stream".toMediaType()
+            override fun contentLength(): Long = (frames * frameBytes).toLong()
+            override fun writeTo(sink: BufferedSink) {
+                for (i in 0 until frames) {
+                    sink.write(frame)
+                    sink.flush()
+                    val ns = SystemClock.elapsedRealtimeNanos()
+                    stamps.add(ChunkStamp(i, frameBytes, ns))
+                    onFrame?.invoke(i + 1, ns)
+                    if (i < frames - 1) Thread.sleep(intervalMs)
+                }
+            }
+        }
+        val call = client.newCall(Request.Builder().url(url).post(body).build())
+        val startNanos = SystemClock.elapsedRealtimeNanos()
+        return try {
+            executeCancellable(call) { resp ->
+                val responseNanos = SystemClock.elapsedRealtimeNanos()
+                val timing = timingFactory.recordFor(call)
+                val bodyText = resp.body?.string()
+                val serverView = if (resp.isSuccessful && bodyText != null) {
+                    try {
+                        json.decodeFromString(UploadServerView.serializer(), bodyText)
+                    } catch (e: Exception) {
+                        null // 解析失败：serverView=null（R-10）
+                    }
+                } else {
+                    null
+                }
+                val error = if (resp.isSuccessful) null else "http ${resp.code}"
+                UploadResult(
+                    startNanos, responseNanos, stamps, frames * frameBytes, resp.code, error, timing,
+                    serverView = serverView,
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e // 不吞取消（fail-closed §4.6/§4.7）
+        } catch (e: Exception) {
+            UploadResult(startNanos, null, stamps, frames * frameBytes, null, e.toString(), timingFactory.recordFor(call))
+        }
+    }
+
     // -------------------------------------------------------------- download
 
     data class DownloadResult(
