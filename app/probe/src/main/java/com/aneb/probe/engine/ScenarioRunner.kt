@@ -96,6 +96,10 @@ class ScenarioRunner(private val client: AnebClient) {
         emit: suspend (String) -> Unit,
         /** D-27 实时观测（观测通道，非测量）：token_stream 读循环每 read 回调 (当前 token 数, 到达纳秒)。 */
         onStreamProgress: ((Int, Long) -> Unit)? = null,
+        /** D-28 实时上行观测（观测通道，非测量）：upload_burst 每 flush 回调 (本场景累计上传字节, 纳秒)。 */
+        onUploadProgress: ((Long, Long) -> Unit)? = null,
+        /** 子相位上报（观测/UI 门控，非测量）：每相位开始时报 phase.type。 */
+        onSubPhase: ((String) -> Unit)? = null,
     ) {
         val base = serverBase.trim().trimEnd('/')
         val profile = outcome.profile
@@ -106,12 +110,13 @@ class ScenarioRunner(private val client: AnebClient) {
         var streamOrdinal = 0
         try {
             for ((phaseIdx, phase) in profile.phases.withIndex()) {
+                onSubPhase?.invoke(phase.type) // 观测：当前子相位（供 UI 相位门控）
                 when (phase.type) {
                     ProfilePhase.TYPE_CLOCK_SYNC ->
                         runClockSync(base, phaseIdx, phase.samples, outcome, emit)
 
                     ProfilePhase.TYPE_UPLOAD_BURST ->
-                        runUpload(base, runId, phase, outcome, emit)
+                        runUpload(base, runId, phase, outcome, emit, onUploadProgress)
 
                     ProfilePhase.TYPE_THINK_PAUSE -> {
                         emit("THINK_PAUSE scenario=${outcome.scenarioKey} duration_ms=${phase.durationMs}")
@@ -191,14 +196,19 @@ class ScenarioRunner(private val client: AnebClient) {
         phase: ProfilePhase,
         outcome: ScenarioOutcome,
         emit: suspend (String) -> Unit,
+        onUploadProgress: ((Long, Long) -> Unit)? = null,
     ) {
         val bytes = phase.bytes.toInt().coerceAtLeast(1)
         val chunk = (phase.chunkKb * 1024).coerceAtLeast(1024)
         val idx = outcome.uploads.size
+        // D-28 观测：本 burst 的 onChunk offset 从 0 起；加本场景先前 burst 已上传字节作基，
+        // 让实时上行回调上报单调累计（跨 burst 不回跳）。仅观测，不改测量/落库。
+        val base0 = outcome.uploads.sumOf { it.profileBytes }
         val r = client.uploadBurst(
             "$base/api/v1/upload?run=$runId",
             ByteArray(bytes) { 'A'.code.toByte() },
             chunk,
+            onChunk = onUploadProgress?.let { cb -> { offset, ns -> cb(base0 + offset, ns) } },
         )
         val up = UploadOutcome(idx, phase.bytes, r)
         outcome.uploads.add(up)

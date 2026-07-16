@@ -30,6 +30,8 @@ data class LiveTelemetry(
     val rat: String? = null,
     /** 最近一次 upload_burst goodput（Mbps，终点=2xx 头，与 U1 同终点）；无上传＝null */
     val upMbps: Double? = null,
+    /** 实时上行吞吐（Mbps，~0.6s 滑窗；观测口径=写 socket buffer，D-28）；非上传相/窗不足＝null */
+    val liveUpMbps: Double? = null,
 
     // ---------------- AI 业务层 ----------------
     /** 最近完成流的 TTFT（ms，已剥服务端 dwell）；不可算/未出流＝null */
@@ -48,6 +50,8 @@ data class LiveTelemetry(
     // ---------------- 进度 ----------------
     /** 当前场景+阶段标识（如 profileId#round）；未开始＝null */
     val phase: String? = null,
+    /** 当前子相位类型（upload_burst/token_stream/think_pause/clock_sync；供 UI 相位门控）；未知＝null */
+    val subPhase: String? = null,
     /** 全局完成度 0..1（已完成场景 / 总场景数） */
     val fraction: Double = 0.0,
     /** 边测边合成的粗 AQS（run 收尾时才有）；未合成＝null */
@@ -102,6 +106,7 @@ data class LiveTelemetry(
                 sinr = radio?.sinr,
                 rat = rat,
                 upMbps = s.latestUpMbps,
+                liveUpMbps = s.liveUpMbps,
                 ttftMs = s.ttftMs,
                 itlRecentMs = window,
                 itlMedianMs = itlMedian,
@@ -109,6 +114,7 @@ data class LiveTelemetry(
                 tokensReceived = s.tokensReceived,
                 tokenRatePerSec = rate,
                 phase = s.phase,
+                subPhase = s.subPhase,
                 fraction = s.fraction.coerceIn(0.0, 1.0),
                 aqsRunning = s.aqsRunning,
             )
@@ -137,6 +143,8 @@ data class TelemetrySnapshot(
     val rttSamplesMs: List<Double> = emptyList(),
     /** 最近一次 upload goodput（Mbps）；无＝null */
     val latestUpMbps: Double? = null,
+    /** 实时上行吞吐（Mbps，采样协程 0.6s 滑窗；D-28）；非上传相/窗不足＝null */
+    val liveUpMbps: Double? = null,
     /** 最近完成流的 TTFT（ms）；无＝null */
     val ttftMs: Double? = null,
     /** 累计校正 ITL（ms，与 [ScenarioKpi.correctedItlSamplesMs] 同口径）；无＝空列表 */
@@ -147,6 +155,8 @@ data class TelemetrySnapshot(
     val tokenElapsedSec: Double? = null,
     /** 当前场景+阶段标识；未开始＝null */
     val phase: String? = null,
+    /** 当前子相位类型（upload_burst/token_stream/...）；未知＝null */
+    val subPhase: String? = null,
     /** 全局完成度 0..1 */
     val fraction: Double = 0.0,
     /** 粗 AQS；未合成＝null */

@@ -246,6 +246,11 @@ class TestEngine(private val context: Context) {
             // D-27 实时 token 计数器（观测通道，非测量）：SSE 读循环每 read 更新，采样协程读出实时速率。
             // 场景边界粗粒度投影无法体现流内实时变化，这里补当前流的实时 token 数/到达时刻。
             val liveStreamTokens = java.util.concurrent.atomic.AtomicLong(0)
+            // D-28 实时上行观测通道（观测，非测量）：uploadBurst.onChunk 在上传写线程写累计字节（仅原子写，
+            // R-16），采样协程 0.6s 滑窗算实时上行 Mbps。区别于场景末粗粒度 latestUpMbps（喂 KPI-相邻，不动）。
+            val liveUploadBytes = java.util.concurrent.atomic.AtomicLong(0)
+            // 当前子相位（upload_burst/token_stream/...）：ScenarioRunner 每相位起点原子写，采样协程读出供 UI 门控。
+            val currentSubPhase = java.util.concurrent.atomic.AtomicReference<String?>(null)
 
             // ---- 实时遥测采样协程（观测通道，非测量；Dispatchers.Default, ~100ms 节流）----
             // 只读 latestRadio 引用（O(1)，不消费队列）+ telemetrySource 投影 → derive → conflated
@@ -254,6 +259,7 @@ class TestEngine(private val context: Context) {
                 // D-27：~0.9s 滑动窗算**瞬时** token 速率（含网络抖动/突发 → 数字与指针像 SpeedTest 持续跳动）。
                 // 观测通道，非测量：只覆盖 derive 用的速率两字段，ITL/RTT/上行/进度/KPI/落库全不动。
                 val rateWindow = ArrayDeque<Pair<Long, Long>>() // (nanoTime, 累计 token 数)
+                val upWindow = ArrayDeque<Pair<Long, Long>>() // (nanoTime, 累计上传字节) — D-28 实时上行
                 while (true) {
                     val base = telemetrySource.read(latestRadio.get())
                     val count = liveStreamTokens.get()
@@ -264,12 +270,23 @@ class TestEngine(private val context: Context) {
                     val head = rateWindow.first()
                     val dCount = count - head.second
                     val dSec = (now - head.first) / 1e9
-                    val snap = when {
+                    // D-28：并行 0.6s 上行滑窗（镜像 token 速率窗 / SpeedRunner 上传窗）→ 实时上行 Mbps；
+                    // 窗不足或非上传相（字节不增）即 null（R-10，绝不 0 顶替）。
+                    val upBytes = liveUploadBytes.get()
+                    if (upWindow.isNotEmpty() && upBytes < upWindow.last().second) upWindow.clear() // 新场景归零→清窗
+                    upWindow.addLast(now to upBytes)
+                    while (upWindow.size > 1 && now - upWindow.first().first > 600_000_000L) upWindow.removeFirst()
+                    val upHead = upWindow.first()
+                    val dUp = upBytes - upHead.second
+                    val dUpSec = (now - upHead.first) / 1e9
+                    val liveUpMbps = if (upWindow.size >= 2 && dUpSec > 0.1 && dUp > 0L) dUp * 8.0 / dUpSec / 1e6 else null
+                    val rateSnap = when {
                         rateWindow.size >= 2 && dSec > 0.15 && dCount > 0L ->
                             base.copy(tokensReceived = dCount.toInt(), tokenElapsedSec = dSec)
                         count > 0L -> base.copy(tokensReceived = 0, tokenElapsedSec = 1.0) // 有过 token 但窗内无新增→速率 0（诚实）
                         else -> base
                     }
+                    val snap = rateSnap.copy(liveUpMbps = liveUpMbps, subPhase = currentSubPhase.get())
                     _telemetry.value = LiveTelemetry.derive(snap)
                     delay(TELEMETRY_SAMPLE_MS)
                 }
@@ -302,8 +319,10 @@ class TestEngine(private val context: Context) {
                     telemetrySource.update {
                         it.copy(phase = scenarioKey, fraction = orderIndex.toDouble() / totalScenarios)
                     }
-                    // D-27：新场景开始，实时 token 计数器归零（避免跨场景速率污染）
+                    // D-27/D-28：新场景开始，实时 token/上行 计数器归零（避免跨场景污染）+ 清子相位
                     liveStreamTokens.set(0L)
+                    liveUploadBytes.set(0L)
+                    currentSubPhase.set(null)
                     val outcome = ScenarioRunner.ScenarioOutcome(profile, scenarioKey)
                     val netSnap = bound?.snapshot ?: autoNetSnapshot(context)
                     var engineError: String? = null
@@ -313,10 +332,14 @@ class TestEngine(private val context: Context) {
                     // LAZY 注册→检查→start 的无竞态协议见 ScenarioGate KDoc（评审发现 3）
                     val job = ScenarioGate.launchGuarded(this, invalidReason, currentScenario) {
                         try {
-                            // D-27 实时观测 sink：SSE 读循环每 read 回调，更新当前流实时 token 数/时刻
-                            runner.run(measureBase, runId, outcome, config.inject, log) { count, _ ->
-                                liveStreamTokens.set(count.toLong()) // D-27：当前流累计 token 数（采样协程按滑窗算瞬时速率）
-                            }
+                            // D-27/D-28 实时观测 sink（仅原子写，非测量，R-16）：SSE 读线程写实时 token 数、
+                            // 上传写线程写累计上传字节；子相位每相位起点写。采样协程读出算滑窗速率并投影。
+                            runner.run(
+                                measureBase, runId, outcome, config.inject, log,
+                                onStreamProgress = { count, _ -> liveStreamTokens.set(count.toLong()) },
+                                onUploadProgress = { cumulative, _ -> liveUploadBytes.set(cumulative) },
+                                onSubPhase = { type -> currentSubPhase.set(type) },
+                            )
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -358,7 +381,9 @@ class TestEngine(private val context: Context) {
                         val arr = evAll.map { it.arrivalNanos }
                         liveTokenElapsedSec += (arr.max() - arr.min()) / 1e9
                     }
-                    val liveUpMbps = outcome.uploads.lastOrNull()?.let { up ->
+                    // 场景末粗粒度 burst goodput（终点=2xx 头，与 U1 同口径；喂 KPI-相邻展示，非实时）。
+                    // 与采样协程的实时 liveUpMbps 是两条独立通道，勿混。
+                    val burstGoodputMbps = outcome.uploads.lastOrNull()?.let { up ->
                         up.durationNanos?.let { d -> if (d > 0) up.profileBytes * 8.0 / (d / 1e9) / 1e6 else null }
                     }
                     val liveRttMs = outcome.clockSyncs.firstOrNull()?.samples.orEmpty()
@@ -372,7 +397,7 @@ class TestEngine(private val context: Context) {
                             tokenElapsedSec = liveTokenElapsedSec.takeIf { s -> s > 0.0 },
                             ttftMs = liveTtft ?: it.ttftMs,
                             rttSamplesMs = liveRttMs,
-                            latestUpMbps = liveUpMbps ?: it.latestUpMbps,
+                            latestUpMbps = burstGoodputMbps ?: it.latestUpMbps,
                             fraction = (orderIndex + 1).toDouble() / totalScenarios,
                         )
                     }

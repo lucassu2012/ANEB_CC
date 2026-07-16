@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.engine.LiveTelemetry
+import com.aneb.probe.engine.ProfilePhase
 import com.aneb.probe.ui.components.pressable
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
@@ -152,38 +153,36 @@ fun HomeScreen(
                         }
                     }
                     val elapsedSec = (elapsedMs / 1000L).toInt()
-                    // 指针指向**真实实时指标**（D-27 引擎实时 token 计数驱动）：
-                    // 流式段=实时 token 速率(0–120)，上行段=上行 Mbps(0–50)——值在变、针就动。
+                    // 指针指向**真实子相位实时指标**（D-27 token 速率 / D-28 实时上行）：上传相=实时上行
+                    // Mbps(0–50)，流式相=实时 token 速率(0–100)——按真实子相位切换，值在变、针就动。
                     val rate = telemetry.tokenRatePerSec
-                    val up = telemetry.upMbps
-                    val upload = progress.phaseName.contains("多模态") || progress.phaseName.contains("上传")
+                    val up = telemetry.liveUpMbps // D-28 实时上行（0.6s 滑窗），非场景末冻结的 upMbps
+                    val uploading = telemetry.subPhase == ProfilePhase.TYPE_UPLOAD_BURST
+                    val streaming = telemetry.subPhase == ProfilePhase.TYPE_TOKEN_STREAM
                     val gaugeFrac: Float
                     val centerVal: String
                     val centerLabel: String
                     when {
-                        !upload && rate != null && rate > 0.0 -> {
-                            gaugeFrac = (rate / 100.0).toFloat().coerceIn(0f, 1f)
-                            centerVal = "%.1f".format(rate); centerLabel = "Token /秒"
+                        uploading -> { // 上传相：实时上行是唯一动态主角（violet）；无值显"…"，不回落 stale token
+                            gaugeFrac = ((up ?: 0.0) / 50.0).toFloat().coerceIn(0f, 1f)
+                            centerVal = up?.let { "%.1f".format(it) } ?: "…"
+                            centerLabel = "上行 Mbps"
                         }
-                        up != null -> {
-                            gaugeFrac = (up / 50.0).toFloat().coerceIn(0f, 1f)
-                            centerVal = "%.1f".format(up); centerLabel = "上行 Mbps"
-                        }
-                        rate != null && rate > 0.0 -> {
+                        rate != null && rate > 0.0 -> { // 流式/其它相：token 速率（cyan），禁止上行劫持
                             gaugeFrac = (rate / 100.0).toFloat().coerceIn(0f, 1f)
                             centerVal = "%.1f".format(rate); centerLabel = "Token /秒"
                         }
                         else -> {
-                            gaugeFrac = 0f; centerVal = "…"; centerLabel = if (upload) "上行 Mbps" else "Token /秒"
+                            gaugeFrac = 0f; centerVal = "…"; centerLabel = if (uploading) "上行 Mbps" else "Token /秒"
                         }
                     }
 
                     Spacer(Modifier.height(12.dp))
-                    LiveMetricsRow(telemetry)
+                    LiveMetricsRow(telemetry, uploading, streaming)
                     Spacer(Modifier.height(10.dp))
-                    RunningSparkline(telemetry)
+                    RunningSparkline(telemetry, uploading)
                     Spacer(Modifier.weight(1f))
-                    RunningGauge(frac = gaugeFrac, centerVal = centerVal, centerLabel = centerLabel, upload = upload, telemetry = telemetry)
+                    RunningGauge(frac = gaugeFrac, centerVal = centerVal, centerLabel = centerLabel, upload = uploading, telemetry = telemetry)
                     Spacer(Modifier.height(12.dp))
                     HeroCaption("正在检查 AI 持续输出与稳定性 · 已测 ${elapsedSec}s · ${progress.phaseName}")
                     Spacer(Modifier.weight(1.1f))
@@ -374,16 +373,22 @@ private fun RunningGauge(frac: Float, centerVal: String, centerLabel: String, up
     }
 }
 
-/** 实时流式平滑度折线（真实 telemetry.itlRecentMs 驱动，随 token 到达持续变化）。 */
+/**
+ * 实时流式平滑度折线（真实 telemetry.itlRecentMs 驱动，随 token 到达持续变化）。
+ * 上传相 ITL 是流式信号、此刻无意义 → 门控为平直 hairline + 标签/值置灰（不画 stale 折线）。
+ */
 @Composable
-private fun RunningSparkline(telemetry: LiveTelemetry) {
+private fun RunningSparkline(telemetry: LiveTelemetry, uploading: Boolean) {
     val colors = AnebTheme.colors
-    val pts = telemetry.itlRecentMs
+    val pts = if (uploading) emptyList() else telemetry.itlRecentMs
     val norm = if (pts.size < 2) emptyList() else pts.takeLast(40).map { (1.0 - it / 1000.0).coerceIn(0.05, 1.0).toFloat() }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("流式平滑度", fontSize = 9.5.sp, color = colors.muted)
-            Text(telemetry.itlMedianMs?.let { "ITL ${it.roundToInt()} ms" } ?: "…", fontSize = 9.5.sp, color = RingCyan)
+            Text("流式平滑度", fontSize = 9.5.sp, color = if (uploading) colors.faint else colors.muted)
+            Text(
+                if (uploading) "—" else telemetry.itlMedianMs?.let { "ITL ${it.roundToInt()} ms" } ?: "…",
+                fontSize = 9.5.sp, color = if (uploading) colors.faint else RingCyan,
+            )
         }
         Spacer(Modifier.height(4.dp))
         Canvas(modifier = Modifier.fillMaxWidth().height(30.dp)) {
@@ -403,13 +408,27 @@ private fun RunningSparkline(telemetry: LiveTelemetry) {
     }
 }
 
-/** 顶部实时指标（home.css .live-metrics）：吞吐行 + 质量行（值 tile，无字段项显 —，R-10）。 */
+/**
+ * 顶部实时指标（home.css .live-metrics）：吞吐行 + 质量行（值 tile，无字段项显 —，R-10）。
+ * 按当前子相位门控：上传相→Token 流速置灰不适用、上行用实时 liveUpMbps；流式相→上行置灰。
+ */
 @Composable
-private fun LiveMetricsRow(telemetry: LiveTelemetry) {
+private fun LiveMetricsRow(telemetry: LiveTelemetry, uploading: Boolean, streaming: Boolean) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            MetricInline("↓", "Token 流速", telemetry.tokenRatePerSec?.let { "%.1f".format(it) } ?: "—", "/秒", RingCyan)
-            MetricInline("↑", "上行", telemetry.upMbps?.let { "%.1f".format(it) } ?: "—", "Mbps", Color(0xFFA779F2))
+            // Token 流速：上传相无 token 流 → 置灰 —（不显活的 0.0）
+            MetricInline(
+                "↓", "Token 流速",
+                if (uploading) "—" else telemetry.tokenRatePerSec?.let { "%.1f".format(it) } ?: "—",
+                "/秒", RingCyan, inactive = uploading,
+            )
+            // 上行：上传相用实时 liveUpMbps（动态）；流式相置灰 —；其它态回落场景末粗粒度 upMbps
+            val upStr = when {
+                uploading -> telemetry.liveUpMbps?.let { "%.1f".format(it) } ?: "—"
+                streaming -> "—"
+                else -> telemetry.upMbps?.let { "%.1f".format(it) } ?: "—"
+            }
+            MetricInline("↑", "上行", upStr, "Mbps", Color(0xFFA779F2), inactive = streaming)
         }
         Spacer(Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -423,15 +442,18 @@ private fun LiveMetricsRow(telemetry: LiveTelemetry) {
 }
 
 @Composable
-private fun MetricInline(dir: String, label: String, value: String, unit: String, dirColor: Color) {
+private fun MetricInline(dir: String, label: String, value: String, unit: String, dirColor: Color, inactive: Boolean = false) {
     val colors = AnebTheme.colors
+    // inactive（当前子相位不适用）：方向箭头 + 数值置灰，视觉退居次要（非活的 0.0，R-10）
+    val dc = if (inactive) colors.faint else dirColor
+    val vc = if (inactive) colors.faint else colors.ink
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(dir, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = dirColor)
+            Text(dir, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = dc)
             Text(label, fontSize = 10.sp, color = colors.muted)
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.ink)
+            Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = vc)
             Text(" $unit", fontSize = 9.sp, color = colors.muted, modifier = Modifier.padding(bottom = 1.dp))
         }
     }
