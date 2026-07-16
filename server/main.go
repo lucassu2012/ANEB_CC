@@ -36,6 +36,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/v1/profiles", a.handleProfiles)
 	mux.HandleFunc("/api/v1/stream", a.handleStream)
 	mux.HandleFunc("/api/v1/upload", a.handleUpload)
+	mux.HandleFunc("/api/v1/download", a.handleDownload)
 	mux.HandleFunc("/api/v1/toolloop", a.handleToolLoop)
 	mux.HandleFunc("/api/v1/results", a.handleResults)
 	mux.HandleFunc("/api/v1/serverinfo", a.handleServerInfo)
