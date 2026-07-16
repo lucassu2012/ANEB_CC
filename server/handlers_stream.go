@@ -106,6 +106,16 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	payloadRaw := make([]byte, tokenBytesMax)
 	payloadB64 := make([]byte, base64.StdEncoding.EncodedLen(tokenBytesMax))
 
+	// frame-batching（§3.2）：每 K 个 token 合并进一个 SSE 帧（一次 w.Write+Flush）——客户端在同一次
+	// socket read 读到整批、标 sameReadBatch(coalesced)，T2 主口径剔除批内伪 0 间隔。K=1 即每 token 一帧（原行为）。
+	frameK := params.TokensPerFrame
+	if frameK < 1 {
+		frameK = 1
+	}
+	frame := make([]byte, 0, 8192) // 跨至多 K 个 event 的批累积缓冲
+	frameStart := 0                // 当前未 flush 帧内首 token 下标
+	framesFlushed := 0             // 已 flush 的 token 帧数（诊断/测试可观测）
+
 	ctx := r.Context()
 	for i := 0; i < n; i++ {
 		// 客户端断开立即退出：Flush 不报错，必须显式查 ctx。
@@ -178,16 +188,27 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 			buf = append(buf, "\"}\n\n"...)
 		}
 
-		if _, err := w.Write(buf); err != nil {
-			return // 客户端断开
-		}
-		flushStart := time.Now()
-		flusher.Flush()
-		flushBlockUs[i] = time.Since(flushStart).Microseconds() // R-06：回压证据，与调度误差分开
-		flushReturnUs[i] = nowMicros()                          // R-17：语义固定为 Flush() 返回之后
+		// 累积进批帧；非边界 token 暂记写入缓冲时刻为 flush_return（边界处以真 flush 后时刻覆盖）。
+		frame = append(frame, buf...)
+		flushReturnUs[i] = nowMicros()
 
-		if inj != nil && inj.kind == injectTruncate && i+1 == inj.n {
-			return // truncate:N——第 N 个 event 之后直接关流，summary 不发
+		isTruncate := inj != nil && inj.kind == injectTruncate && i+1 == inj.n
+		// 边界：本帧已满 K、或最后一个 token、或 truncate 到点（截断也要把同批已积攒者一并发出）。
+		if i-frameStart+1 >= frameK || i == n-1 || isTruncate {
+			if _, err := w.Write(frame); err != nil {
+				return // 客户端断开
+			}
+			flushStart := time.Now()
+			flusher.Flush()
+			flushBlockUs[i] = time.Since(flushStart).Microseconds() // R-06：回压证据，记在触发 flush 的边界 token
+			flushReturnUs[i] = nowMicros()                          // R-17：语义固定为 Flush() 返回之后
+			framesFlushed++
+			frame = frame[:0]
+			frameStart = i + 1
+		}
+
+		if isTruncate {
+			return // truncate:N——第 N 个 event（含同批已积攒者）发出后直接关流，summary 不发
 		}
 	}
 
@@ -198,6 +219,12 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	buf = strconv.AppendInt(buf, int64(n), 10)
 	buf = append(buf, `,"stream_start_us":`...)
 	buf = strconv.AppendInt(buf, startUs, 10)
+	// frame-batching 诊断（§3.2）：本流实际使用的每帧 token 数与已发出的 token 帧数
+	// （frames_flushed = ceil(n/K)，客户端/离线分析据此核对合帧结构）。additive。
+	buf = append(buf, `,"tokens_per_frame":`...)
+	buf = strconv.AppendInt(buf, int64(frameK), 10)
+	buf = append(buf, `,"frames_flushed":`...)
+	buf = strconv.AppendInt(buf, int64(framesFlushed), 10)
 	buf = appendInt64Array(buf, `,"flush_return_us":`, flushReturnUs)
 	buf = appendInt64Array(buf, `,"timer_late_us":`, timerLateUs)
 	buf = appendInt64Array(buf, `,"flush_block_us":`, flushBlockUs)
@@ -259,6 +286,7 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		params.Burst = ph.Burst
 		params.TtftInjectUs = ph.TtftInjectUs
 		params.RateSchedule = ph.RateSchedule
+		params.TokensPerFrame = ph.TokensPerFrame
 		if ph.TokenBytes != nil {
 			params.Median = ph.TokenBytes.Median
 			params.Sigma = ph.TokenBytes.Sigma
@@ -267,6 +295,18 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 	// 非平稳解码曲线（§3.2）只由 profile 声明（非平稳性是模型属性，非 URL 临时旋钮）。
 	if err := validateRateSchedule(params.RateSchedule, params.Burst != nil); err != nil {
 		return params, err
+	}
+	if s := q.Get("tokens_per_frame"); s != "" {
+		// SSE frame-batching（§3.2）：每帧 token 数。上限 64（防单帧过大内存/时延突刺）。
+		v, err := strconv.Atoi(s)
+		if err != nil || v < 1 || v > 64 {
+			return params, errBadParam("invalid tokens_per_frame (want 1..64): " + s)
+		}
+		params.TokensPerFrame = v
+	}
+	// profile 声明的 tokens_per_frame 也须在界内（0=省略=默认每 token 一帧）。
+	if params.TokensPerFrame < 0 || params.TokensPerFrame > 64 {
+		return params, errBadParam("tokens_per_frame out of range [0,64]")
 	}
 	// 显式参数覆盖（无 profile 时即直接指定路径）。
 	if s := q.Get("tokens"); s != "" {

@@ -37,6 +37,11 @@ type StreamParams struct {
 	// 按流内进度分段线性给出瞬时 TPS，逐 token 累积间隔——模拟真实 LLM 随上下文增长的解码变速
 	// （典型前快后慢）。nil/空 = 常速 RateTps（原逻辑，行为不变）。仅均匀模式生效（burst 自有节奏）。
 	RateSchedule []RatePoint
+
+	// TokensPerFrame 是 **SSE frame-batching**（§3.2）：每帧合并的 token 数——纯 wire 层框帧，
+	// 不影响 token 时刻表（GenerateTokens 忽略本字段），由 handler 在发送时按此合并 flush。
+	// 1/0 = 每 token 一帧（默认，行为不变）。
+	TokensPerFrame int
 }
 
 // RatePoint 是非平稳解码 TPS 曲线上的一个断点：流内进度 AtFrac∈[0,1] 处的瞬时 TPS。

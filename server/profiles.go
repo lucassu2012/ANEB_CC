@@ -49,6 +49,8 @@ type Phase struct {
 	TtftInjectUs int64 `json:"ttft_inject_us,omitempty"`
 	// RateSchedule：非平稳解码 TPS 曲线（上下文衰减，§3.2）；省略=常速 rate_tps（行为不变）。仅均匀模式生效。
 	RateSchedule []RatePoint `json:"rate_schedule,omitempty"`
+	// TokensPerFrame：每个 SSE 帧合并的 token 数（frame-batching，§3.2）；省略/0/1=每 token 一帧（行为不变）。
+	TokensPerFrame int `json:"tokens_per_frame,omitempty"`
 
 	// tool_loop
 	Rounds       int   `json:"rounds,omitempty"`
