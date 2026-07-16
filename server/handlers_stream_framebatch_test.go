@@ -154,4 +154,3 @@ func TestStreamFrameBatchingFromProfile(t *testing.T) {
 		t.Fatalf("profile framing: tokens_per_frame=%d frames_flushed=%d, want 4/2", sum.TokensPerFrame, sum.FramesFlushed)
 	}
 }
-

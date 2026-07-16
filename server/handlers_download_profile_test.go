@@ -43,7 +43,7 @@ func TestDownloadFromProfileBurstPhase(t *testing.T) {
 func TestDownloadQueryOverridesProfile(t *testing.T) {
 	prof := &Profile{
 		ProfileID: "dl_ov", Version: "t@1",
-		Phases:    []Phase{{Type: "download_burst", Bytes: 2 << 20}},
+		Phases: []Phase{{Type: "download_burst", Bytes: 2 << 20}},
 	}
 	a := &app{profiles: map[string]*Profile{"dl_ov": prof}, dataDir: t.TempDir()}
 	srv := httptest.NewServer(a.routes())
@@ -87,21 +87,21 @@ func TestDownloadProfilePhaseIndex(t *testing.T) {
 func TestDownloadProfileErrors(t *testing.T) {
 	prof := &Profile{
 		ProfileID: "dl_err", Version: "t@1",
-		Phases:    []Phase{{Type: "token_stream", Tokens: 5, RateTps: 40, Seed: 1}}, // 无 download_burst
+		Phases: []Phase{{Type: "token_stream", Tokens: 5, RateTps: 40, Seed: 1}}, // 无 download_burst
 	}
 	oversize := &Profile{
 		ProfileID: "dl_big", Version: "t@1",
-		Phases:    []Phase{{Type: "download_burst", Bytes: downloadMaxBytes + 1}},
+		Phases: []Phase{{Type: "download_burst", Bytes: downloadMaxBytes + 1}},
 	}
 	a := &app{profiles: map[string]*Profile{"dl_err": prof, "dl_big": oversize}, dataDir: t.TempDir()}
 	srv := httptest.NewServer(a.routes())
 	defer srv.Close()
 
 	cases := []string{
-		"profile=nope",             // 未知 profile
-		"profile=dl_err",           // 无 download_burst 相位
-		"profile=dl_err&phase=x",   // 非法 phase
-		"profile=dl_big",           // 声明 bytes 越界
+		"profile=nope",           // 未知 profile
+		"profile=dl_err",         // 无 download_burst 相位
+		"profile=dl_err&phase=x", // 非法 phase
+		"profile=dl_big",         // 声明 bytes 越界
 	}
 	for _, q := range cases {
 		resp, err := http.Get(srv.URL + "/api/v1/download?" + q)
