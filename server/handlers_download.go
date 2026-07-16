@@ -26,12 +26,19 @@ func (a *app) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	total, err := positiveInt64Query(r, "bytes", downloadDefaultBytes, downloadMaxBytes)
+	// 缺省字节/块可来自冻结 profile 的 download_burst 相位（§2.4/§3.1，单一事实源，
+	// 与 /stream 的 profile 解析对齐）；query bytes/chunk_kb 仍可覆盖。
+	defBytes, defChunkKB, err := a.downloadDefaultsFromProfile(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	chunkKB, err := positiveIntQuery(r, "chunk_kb", downloadDefaultChunkKB, downloadMaxChunkKB)
+	total, err := positiveInt64Query(r, "bytes", defBytes, downloadMaxBytes)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	chunkKB, err := positiveIntQuery(r, "chunk_kb", defChunkKB, downloadMaxChunkKB)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -71,6 +78,48 @@ func (a *app) handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 		remaining -= n
 	}
+}
+
+// downloadDefaultsFromProfile 解析 profile=&phase=：有 profile 时取该 profile 第 phase 个
+// download_burst 相位的 bytes/chunk_kb 作缺省（单一事实源；query 仍可覆盖）；无 profile 时用全局缺省。
+// download_burst 声明的 bytes/chunk_kb 越界（超 /download 上限）直接报错，避免运行期才 400。
+func (a *app) downloadDefaultsFromProfile(r *http.Request) (int64, int, error) {
+	q := r.URL.Query()
+	pid := q.Get("profile")
+	if pid == "" {
+		return downloadDefaultBytes, downloadDefaultChunkKB, nil
+	}
+	p, ok := a.profiles[pid]
+	if !ok {
+		return 0, 0, fmt.Errorf("unknown profile: %s", pid)
+	}
+	phaseIdx := 0
+	if s := q.Get("phase"); s != "" {
+		v, err := strconv.Atoi(s)
+		if err != nil || v < 0 {
+			return 0, 0, fmt.Errorf("invalid phase: %s", s)
+		}
+		phaseIdx = v
+	}
+	ph, err := p.downloadBurstPhase(phaseIdx)
+	if err != nil {
+		return 0, 0, err
+	}
+	bytes := downloadDefaultBytes
+	if ph.Bytes > 0 {
+		if ph.Bytes > downloadMaxBytes {
+			return 0, 0, fmt.Errorf("download_burst bytes %d exceeds max %d", ph.Bytes, downloadMaxBytes)
+		}
+		bytes = ph.Bytes
+	}
+	chunkKB := downloadDefaultChunkKB
+	if ph.ChunkKB > 0 {
+		if ph.ChunkKB > downloadMaxChunkKB {
+			return 0, 0, fmt.Errorf("download_burst chunk_kb %d exceeds max %d", ph.ChunkKB, downloadMaxChunkKB)
+		}
+		chunkKB = ph.ChunkKB
+	}
+	return bytes, chunkKB, nil
 }
 
 // positiveInt64Query 读取正整数查询参数，缺省用 fallback，越界（(0,max] 之外）报错。

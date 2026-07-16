@@ -44,6 +44,13 @@ object AqsScorer {
      * 无 C 数据一律走 v0.1 默认（additive，不改 v0.1 语义）。
      */
     const val AQS_VERSION_V02: String = "aqs-v0.2"
+
+    /**
+     * Token 体验模式版本（Profile 框架 v1.0，PROFILE_FRAMEWORK §2/§5）。按模态选权重表
+     * （[WEIGHTS_TOKEN_MM] / [WEIGHTS_TOKEN_TXT]），新增 D1 加权项 + S1 软否决；
+     * 打分管线仍复用 [scoreWith]（INV-1：复用而非重写）。与 v0.1/v0.2 并列、互不影响。
+     */
+    const val AQS_VERSION_TOKEN: String = "aqs-token-v0.1"
     const val KPI_SET_VERSION: String = KpiCalculator.KPI_SET_VERSION
 
     /** T4 一票否决线（比率），KPI 文档 5.4 */
@@ -51,6 +58,14 @@ object AqsScorer {
 
     /** T4 否决时的 AQS 封顶分 */
     const val T4_VETO_CAP: Double = 54.0
+
+    /** S1 会话完成率软否决（PROFILE_FRAMEWORK §2.5，与 T4 同机制）：<0.95 封顶 70。 */
+    const val S1_VETO_SOFT_THRESHOLD: Double = 0.95
+    const val S1_VETO_SOFT_CAP: Double = 70.0
+
+    /** S1 硬否决：<0.90 封顶 54。 */
+    const val S1_VETO_HARD_THRESHOLD: Double = 0.90
+    const val S1_VETO_HARD_CAP: Double = 54.0
 
     /** 权重表（合计 1.0），KPI 文档 5.4 */
     val WEIGHTS: Map<String, Double> = mapOf(
@@ -69,6 +84,43 @@ object AqsScorer {
      */
     val WEIGHTS_V02: Map<String, Double> =
         WEIGHTS.mapValues { it.value * 0.8 } + mapOf("C1" to 0.10, "C2" to 0.10)
+
+    /**
+     * Token 体验·多模态权重表（PROFILE_FRAMEWORK §2.5，含 MB/10MB/100MB 上下行，合计 1.0）。
+     * 相对 v0.1 抬升上下行（U1+D1=0.30）与 TTFT、压低 tool_loop。新增 D1（下行 goodput）加权项。
+     * 本表为单一事实源（无更基元的派生源），Σ=1.0 由单测守护。
+     */
+    val WEIGHTS_TOKEN_MM: Map<String, Double> = mapOf(
+        "T1" to 0.18,
+        "T3" to 0.15,
+        "T2" to 0.12,
+        "U1" to 0.15,
+        "D1" to 0.15,
+        "U2" to 0.05,
+        "N1" to 0.10,
+        "N2" to 0.10,
+    )
+
+    /**
+     * Token 体验·纯文本权重表（PROFILE_FRAMEWORK §2.5，上传≪1MB、无媒体返回，合计 1.0）。
+     * U1/D1 属**设计缺省**（该业务本无大上下行）→ 按 INV-4 从表中剔除，对在场 KPI 归一化后独立标定，
+     * 与「测量失败(value=null)不可计算」严格区分：设计缺省不入表→不参评；测量失败在表→KPI_MISSING。
+     * Σ=1.0 由单测守护。
+     */
+    val WEIGHTS_TOKEN_TXT: Map<String, Double> = mapOf(
+        "T1" to 0.25,
+        "T3" to 0.22,
+        "T2" to 0.18,
+        "U2" to 0.05,
+        "N1" to 0.15,
+        "N2" to 0.15,
+    )
+
+    /** Token 模式权重表注册（`ScoringModelSpec.weightsTableId` 字符串键控，单一事实源）。 */
+    val TOKEN_WEIGHT_TABLES: Map<String, Map<String, Double>> = mapOf(
+        "WEIGHTS_TOKEN_MM" to WEIGHTS_TOKEN_MM,
+        "WEIGHTS_TOKEN_TXT" to WEIGHTS_TOKEN_TXT,
+    )
 
     /**
      * 单调锚点表：(KPI 值, 分数) 对，按值升序。端点外 clamp。
@@ -106,6 +158,10 @@ object AqsScorer {
     // 高者优（U1，Mbps）：0→0，可/差=1→55，良/可=5→70，优/良=20→85，100→100
     internal val U1_ANCHORS = AnchorMap(listOf(0.0 to 0.0, 1.0 to 55.0, 5.0 to 70.0, 20.0 to 85.0, 100.0 to 100.0))
 
+    // 高者优（D1 下行 goodput，Mbps；PROFILE_FRAMEWORK §2.3/§5，结构同 U1）：
+    // 0→0，可/差=2→55，良/可=8→70，优/良=25→85，100→100（返回下行略高于上行 + 蜂窝下行利好，锚点整体高于 U1）
+    internal val D1_ANCHORS = AnchorMap(listOf(0.0 to 0.0, 2.0 to 55.0, 8.0 to 70.0, 25.0 to 85.0, 100.0 to 100.0))
+
     // ---- C 组门限锚点（agent-qoe-kpi v0.2 / KPI 文档 5.2；补全锚点规则同 v0.1）----
     // C1 会话中断率（ratio，低者优）：0.5% / 2% / 5%，差档下锚 3×0.05=0.15
     internal val C1_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 0.005 to 85.0, 0.02 to 70.0, 0.05 to 55.0, 0.15 to 0.0))
@@ -120,6 +176,7 @@ object AqsScorer {
      * @param score 0–100 综合分；不可计算时 null（绝不 0）
      * @param subScores 各权重项子分（KPI id → 0–100），可计算时非空
      * @param vetoApplied T4 > 1% 一票否决已触发（分数封顶 54）
+     * @param s1VetoApplied S1 会话完成率软否决已触发（<0.95 封顶 70 / <0.90 封顶 54）；仅 Token 模式出分时可能为 true
      * @param lowConfidence 低置信（VALID_LOW_CONFIDENCE 场景或任一权重项样本不足），展示必须带标
      * @param notComputableReason 不可计算原因（"INVALID_SCENARIO:…" / "KPI_MISSING:…"）
      */
@@ -131,6 +188,7 @@ object AqsScorer {
         val vetoApplied: Boolean,
         val lowConfidence: Boolean,
         val notComputableReason: String?,
+        val s1VetoApplied: Boolean = false,
     )
 
     /**
@@ -147,7 +205,7 @@ object AqsScorer {
     )
 
     fun score(kpi: KpiResult): AqsResult =
-        scoreWith(kpi, extraInputs = emptyMap(), version = AQS_VERSION)
+        scoreWith(kpi, extraInputs = emptyMap(), weights = WEIGHTS, version = AQS_VERSION)
 
     /**
      * aqs v0.2 出分入口（additive）：仅当 [continuity] 非 null 时按 v0.2 权重
@@ -163,16 +221,43 @@ object AqsScorer {
                 "C1" to continuity.c1SessionDropRate,
                 "C2" to continuity.c2RecoveryMs,
             ),
+            weights = WEIGHTS_V02,
             version = AQS_VERSION_V02,
+        )
+    }
+
+    /**
+     * Token 体验模式出分入口（PROFILE_FRAMEWORK §2.5，additive）：按 [weightsTableId]
+     * 从 [TOKEN_WEIGHT_TABLES] 选权重表（多模态 "WEIGHTS_TOKEN_MM" / 纯文本 "WEIGHTS_TOKEN_TXT"），
+     * 复用同一 [scoreWith] 打分管线（INV-1）。
+     *
+     * 与 v0.1/v0.2 的差异（全 additive、互不影响）：
+     * - **renormalize（INV-4）**：只要求「在表」的 KPI 非 null——不在表的设计缺省项（如 TXT 的 U1/D1）
+     *   不参评、不判 KPI_MISSING；在表项 value=null 才判 KPI_MISSING（测量失败 fail-closed）。
+     * - **D1 加权项**：MM 表含 D1（下行 goodput），走 [D1_ANCHORS]。
+     * - **S1 软否决**：会话完成率 <0.95 封顶 70、<0.90 封顶 54（与 T4 同 min() 机制）。
+     *
+     * @throws IllegalArgumentException 未知 [weightsTableId]
+     */
+    fun scoreToken(kpi: KpiResult, weightsTableId: String): AqsResult {
+        val weights = TOKEN_WEIGHT_TABLES[weightsTableId]
+            ?: throw IllegalArgumentException("未知 Token 权重表: $weightsTableId")
+        return scoreWith(
+            kpi,
+            extraInputs = emptyMap(),
+            weights = weights,
+            version = AQS_VERSION_TOKEN,
+            applyS1Veto = true,
         )
     }
 
     private fun scoreWith(
         kpi: KpiResult,
         extraInputs: Map<String, KpiValue>,
+        weights: Map<String, Double>,
         version: String,
+        applyS1Veto: Boolean = false,
     ): AqsResult {
-        val weights = if (version == AQS_VERSION_V02) WEIGHTS_V02 else WEIGHTS
         if (kpi.validity == Validity.INVALID) {
             return AqsResult(
                 aqsVersion = version,
@@ -185,19 +270,22 @@ object AqsScorer {
             )
         }
 
-        // 进入评分的权重项取值（口径见类 KDoc）
-        val inputs: Map<String, KpiValue> = mapOf(
+        // 候选权重项取值（口径见类 KDoc）。按所选权重表**投影**——不在表的项（如 TXT 的 U1/D1、
+        // 或 v0.1 的 D1/C1/C2）自动剔除，即 INV-4 的「设计缺省 renormalize」；在表项才要求非 null。
+        val candidateInputs: Map<String, KpiValue> = mapOf(
             "T1" to kpi.t1TtftMs,
             "T2" to kpi.t2ItlP95Ms,
             "T3" to kpi.t3StallRate,
             "U1" to kpi.u1GoodputMbps,
+            "D1" to kpi.d1GoodputMbps,
             "U2" to kpi.u2ToolLoopP95Ms,
             "N1" to kpi.n1RttP50Ms,
             "N2" to kpi.n2JitterMs,
         ) + extraInputs
+        val inputs = candidateInputs.filterKeys { it in weights.keys }
         val missing = inputs.filterValues { it.value == null }.keys.sorted()
         if (missing.isNotEmpty()) {
-            // 任一权重项缺失 → AQS 不可计算（R-10：绝不以 0 分顶替失败样本）
+            // 在表权重项缺失 → AQS 不可计算（R-10：绝不以 0 分顶替失败样本）
             return AqsResult(
                 aqsVersion = version,
                 kpiSetVersion = KPI_SET_VERSION,
@@ -214,6 +302,7 @@ object AqsScorer {
             "T2" to T2_ANCHORS,
             "T3" to T3_ANCHORS,
             "U1" to U1_ANCHORS,
+            "D1" to D1_ANCHORS,
             "U2" to U2_ANCHORS,
             "N1" to N1_ANCHORS,
             "N2" to N2_ANCHORS,
@@ -228,6 +317,17 @@ object AqsScorer {
         val veto = t4 != null && t4 > T4_VETO_THRESHOLD
         if (veto) total = min(total, T4_VETO_CAP)
 
+        // S1 会话完成率软否决（仅 Token 模式，与 T4 同 min() 机制；先判更严的硬否决）
+        var s1Veto = false
+        if (applyS1Veto) {
+            val s1 = kpi.s1SessionSuccessRate.value
+            if (s1 != null && s1 < S1_VETO_SOFT_THRESHOLD) {
+                s1Veto = true
+                val cap = if (s1 < S1_VETO_HARD_THRESHOLD) S1_VETO_HARD_CAP else S1_VETO_SOFT_CAP
+                total = min(total, cap)
+            }
+        }
+
         val lowConf = kpi.validity == Validity.VALID_LOW_CONFIDENCE ||
             inputs.values.any { it.lowConfidence }
 
@@ -239,6 +339,7 @@ object AqsScorer {
             vetoApplied = veto,
             lowConfidence = lowConf,
             notComputableReason = null,
+            s1VetoApplied = s1Veto,
         )
     }
 }

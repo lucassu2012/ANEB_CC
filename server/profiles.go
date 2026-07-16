@@ -10,11 +10,13 @@ import (
 	"strings"
 )
 
-// TokenBytes 描述单 token 事件 payload 字节数的对数正态分布参数。
+// TokenBytes 描述单 token 事件 payload 字节数分布：默认对数正态(median,sigma)；
+// 若 Histogram 非空则改用每模型经验直方图（§3.2，取代全局 median=120/sigma=0.6）。
 type TokenBytes struct {
-	Dist   string  `json:"dist"`
-	Median float64 `json:"median"`
-	Sigma  float64 `json:"sigma"`
+	Dist      string    `json:"dist"`
+	Median    float64   `json:"median"`
+	Sigma     float64   `json:"sigma"`
+	Histogram []SizeBin `json:"histogram,omitempty"`
 }
 
 // Burst 描述突发簇节奏（S2 编码 Agent 流）。
@@ -44,6 +46,13 @@ type Phase struct {
 	TokenBytes *TokenBytes `json:"token_bytes,omitempty"`
 	Burst      *Burst      `json:"burst,omitempty"`
 	Seed       int64       `json:"seed,omitempty"`
+	// TtftInjectUs：首 token 前注入的确定性 TTFT 驻留（模拟 AI 排队/prefill/think，§3.2/§3.4）；
+	// 服务端 prelude 透出供 APP 从 T1 减去。省略=0=无注入（行为不变）。
+	TtftInjectUs int64 `json:"ttft_inject_us,omitempty"`
+	// RateSchedule：非平稳解码 TPS 曲线（上下文衰减，§3.2）；省略=常速 rate_tps（行为不变）。仅均匀模式生效。
+	RateSchedule []RatePoint `json:"rate_schedule,omitempty"`
+	// TokensPerFrame：每个 SSE 帧合并的 token 数（frame-batching，§3.2）；省略/0/1=每 token 一帧（行为不变）。
+	TokensPerFrame int `json:"tokens_per_frame,omitempty"`
 
 	// tool_loop
 	Rounds       int   `json:"rounds,omitempty"`
@@ -74,6 +83,21 @@ func (p *Profile) tokenStreamPhase(idx int) (*Phase, error) {
 		}
 	}
 	return nil, fmt.Errorf("profile %s: token_stream phase index %d not found (has %d)", p.ProfileID, idx, n)
+}
+
+// downloadBurstPhase 返回第 idx 个 download_burst phase（idx 从 0 计，只数 download_burst）。
+// download_burst 声明 TK-5 下行大对象拉取（PROFILE_FRAMEWORK §2.4/§3.1，接 /download 供 D1）。
+func (p *Profile) downloadBurstPhase(idx int) (*Phase, error) {
+	n := 0
+	for i := range p.Phases {
+		if p.Phases[i].Type == "download_burst" {
+			if n == idx {
+				return &p.Phases[i], nil
+			}
+			n++
+		}
+	}
+	return nil, fmt.Errorf("profile %s: download_burst phase index %d not found (has %d)", p.ProfileID, idx, n)
 }
 
 // loadProfiles 读取目录下全部 *.json 并解析为 Profile。
