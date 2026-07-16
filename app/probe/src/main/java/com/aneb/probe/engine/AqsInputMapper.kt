@@ -16,6 +16,10 @@ import com.aneb.probe.scoring.Validity
  * - **U1 ← S3**：1MB 上传（S3 两次 1MB upload_burst）。进 AQS 用**含慢启动**主口径
  *   （u1GoodputMbps）；剔慢启动并列口径仅展示。S2 的 512KB 上传不进 AQS 的 U1。
  * - **U2 ← S2**：tool_loop P95。
+ * - **D1 ← S3**（Token 多模态专用，PROFILE_FRAMEWORK §2.2 BM-09）：下行大对象 goodput（`/download`
+ *   无限速 2xx 口径）。仅 Token 模式 `scoreToken` 用；v0.1/v0.2 权重表不含 D1，不受影响。
+ * - **S1 ← 全场景聚合**（Token 会话完成率，PROFILE_FRAMEWORK §2.2 BM-06）：跨场景**成功轮次占比**
+ *   （Σ成功轮次/Σ总轮次，按各场景轮数加权），非中位数——完成率是计数占比口径。仅 Token 模式软否决用。
  *
  * ## 失效语义（按 AqsScorer 现有语义处理，不新增分支）
  * - 某贡献场景 INVALID：其 KpiResult 已被 gate 置 null → 合成结果对应 KpiValue.value=null
@@ -33,7 +37,7 @@ object AqsInputMapper {
 
     /** 机器可解析（无空格）：日志 AQS_INPUT_MAP 行原样输出。 */
     const val MAPPING_DESCRIPTION: String =
-        "N1,N2<-S1.first_clock_sync;T1,T2,T3,T4,T5<-S2;U1<-S3.1MB_upload(incl_slow_start_into_AQS);U2<-S2.tool_loop"
+        "N1,N2<-S1.first_clock_sync;T1,T2,T3,T4,T5<-S2;U1<-S3.1MB_upload(incl_slow_start_into_AQS);U2<-S2.tool_loop;D1<-S3.download;S1<-all_scenarios.round_success_ratio"
 
     const val S1 = "s1_chat"
     const val S2 = "s2_coding_agent"
@@ -60,8 +64,12 @@ object AqsInputMapper {
         val u1 = medianKpi(s3.map { it.u1GoodputMbps }, "Mbps")
         val u1Excl = medianKpi(s3.map { it.u1GoodputExclSlowStartMbps }, "Mbps")
         val u2 = medianKpi(s2.map { it.u2ToolLoopP95Ms }, "ms")
+        // D1 ← S3 下行大对象 goodput（Token 多模态专用；v0.1/v0.2 不含 D1，不影响既有合成分）
+        val d1 = medianKpi(s3.map { it.d1GoodputMbps }, "Mbps")
+        // S1 ← 全场景成功轮次占比聚合（计数口径，非中位数；s1/s2/s3 为各场景遍列表）
+        val s1Kpi = aggregateSuccessRate(listOf(s1, s2, s3).flatten().map { it.s1SessionSuccessRate })
 
-        val all = listOf(t1, t2, t2Incl, t3, t3Incl, t4, n1, n2, u1, u1Excl, u2)
+        val all = listOf(t1, t2, t2Incl, t3, t3Incl, t4, n1, n2, u1, u1Excl, u2, d1)
         val anyLowConf = all.any { it.lowConfidence } ||
             listOf(s1, s2, s3).flatten().any { it.validity == Validity.VALID_LOW_CONFIDENCE }
         val validity = if (anyLowConf) Validity.VALID_LOW_CONFIDENCE else Validity.VALID
@@ -87,6 +95,27 @@ object AqsInputMapper {
             u1GoodputMbps = u1,
             u1GoodputExclSlowStartMbps = u1Excl,
             u2ToolLoopP95Ms = u2,
+            d1GoodputMbps = d1,
+            s1SessionSuccessRate = s1Kpi,
+        )
+    }
+
+    /**
+     * 全场景成功轮次占比聚合（计数口径）：Σ成功轮次 / Σ总轮次，按各场景轮数加权。
+     * 完成率是计数占比、非分布分位——故不复用 [medianKpi]（会错误地对占比取中位数）。
+     * 无任何轮次样本 → value=null（R-10：绝不 0 顶替）。
+     */
+    private fun aggregateSuccessRate(rates: List<KpiValue>): KpiValue {
+        val valid = rates.filter { it.value != null && it.sampleCount > 0 }
+        val totalRounds = valid.sumOf { it.sampleCount }
+        if (totalRounds == 0) return KpiValue.empty("ratio")
+        // 各场景成功轮次 = round(rate × count)，跨场景求和后除总轮次
+        val successRounds = valid.sumOf { Math.round(it.value!! * it.sampleCount) }
+        return KpiValue(
+            value = successRounds.toDouble() / totalRounds,
+            unit = "ratio",
+            sampleCount = totalRounds,
+            lowConfidence = valid.any { it.lowConfidence },
         )
     }
 
