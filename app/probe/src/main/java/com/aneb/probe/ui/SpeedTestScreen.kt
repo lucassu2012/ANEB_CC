@@ -162,7 +162,11 @@ fun SpeedTestScreen(
 
         // ---- 结论（测速完成后给判定，满足"每个场景一个结论"）----
         if (phase == SpeedRunner.Phase.Done) {
-            ConclusionCard(peakDown = peakDown, peakUp = peakUp, rttMs = sample?.rttMs, jitterMs = sample?.jitterMs)
+            ConclusionCard(
+                peakDown = peakDown, peakUp = peakUp,
+                rttMs = sample?.rttMs, jitterMs = sample?.jitterMs,
+                reqFailed = sample?.reqFailed ?: 0, reqTotal = sample?.reqTotal ?: 0,
+            )
         }
 
         Spacer(Modifier.height(24.dp))
@@ -382,7 +386,14 @@ private fun androidx.compose.foundation.layout.RowScope.StatTile(
 }
 
 @Composable
-private fun ConclusionCard(peakDown: Float, peakUp: Float, rttMs: Double?, jitterMs: Double?) {
+private fun ConclusionCard(
+    peakDown: Float,
+    peakUp: Float,
+    rttMs: Double?,
+    jitterMs: Double?,
+    reqFailed: Int = 0,
+    reqTotal: Int = 0,
+) {
     val c = AnebTheme.colors
     // 简单判定门限（观测展示口径）：下行≥20 / 上行≥10 良好；时延≤60 低时延；抖动≤20 稳定
     val downOk = peakDown >= 20f
@@ -416,6 +427,51 @@ private fun ConclusionCard(peakDown: Float, peakUp: Float, rttMs: Double?, jitte
             color = c.muted,
             fontSize = 11.sp,
         )
+
+        // ---- facet2 FAIL：应用层请求失败率（门限取 BASIC_NETWORK profile 声明，INV-3）----
+        if (reqTotal > 0) {
+            val rate = reqFailed.toDouble() / reqTotal
+            val failSpec = TestModeProfiles.BASIC_NETWORK.metricSpecs.firstOrNull { it.id == "FAIL" }
+            val failColor = when {
+                rate <= (failSpec?.target?.excellent ?: 0.0) -> c.excellent
+                rate <= (failSpec?.target?.good ?: 0.005) -> c.good
+                rate <= (failSpec?.target?.fair ?: 0.01) -> c.fair
+                else -> c.poor
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "请求失败 $reqFailed/$reqTotal（${"%.1f".format(rate * 100)}%）",
+                color = failColor,
+                fontSize = 11.sp,
+            )
+        }
+
+        // ---- facet4 ai_scenario_fitness：AI 场景适配建议（§4.2；门限取 Token profile facet2）----
+        val verdicts = remember(peakDown, peakUp, rttMs, jitterMs) {
+            AiScenarioAdvisor.advise(
+                downMbps = peakDown.takeIf { it > 0f }?.toDouble(),
+                upMbps = peakUp.takeIf { it > 0f }?.toDouble(),
+                rttMs = rttMs,
+                jitterMs = jitterMs,
+            )
+        }
+        if (verdicts.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text("AI 场景适配（按峰值判定 · 良级门限）", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = c.muted)
+            Spacer(Modifier.height(4.dp))
+            verdicts.forEach { v ->
+                val (mark, col) = when (v.suitable) {
+                    true -> "✓ 适合" to c.excellent
+                    false -> "✗ 不适合" to c.poor
+                    null -> "— 无法判定" to c.neutral
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${v.code} ${v.title}", fontSize = 11.sp, color = c.ink, modifier = Modifier.weight(1f))
+                    Text(mark, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = col)
+                }
+                Text(v.requirement, fontSize = 9.5.sp, color = c.faint)
+            }
+        }
     }
 }
 

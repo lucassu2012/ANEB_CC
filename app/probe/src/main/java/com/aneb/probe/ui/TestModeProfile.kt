@@ -400,7 +400,14 @@ object TestModeProfiles {
                 id = "D1", name = "下行 goodput", unit = "Mbps", group = MetricGroup.D,
                 definition = "GET /download 无限速 2xx 有效字节×8/耗时，逐次 P50（token 流受 pacing 禁作带宽）",
                 direction = Direction.HIGHER_BETTER,
-                target = QualityTarget(excellent = 25.0, good = 8.0, fair = 2.0),
+                target = QualityTarget(
+                    excellent = 25.0, good = 8.0, fair = 2.0,
+                    // §2.3 D1 分档：返回文档/10MB 图 ≥12 良；100MB 视频 sustained ≥15 良/≥25 优
+                    perPayloadBand = mapOf(
+                        "10MB" to Band(excellent = 20.0, good = 12.0, fair = 8.0),
+                        "100MB" to Band(excellent = 25.0, good = 15.0, fair = 10.0),
+                    ),
+                ),
                 measurability = Measurability.MEASURABLE, scored = true, anchorRef = "D1_ANCHORS",
             ),
             MetricSpec(

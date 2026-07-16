@@ -44,6 +44,10 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         val downMbps: Double?,
         /** 进度 0..1 */
         val progress: Float,
+        /** 应用层请求失败数（非 2xx/IO 错误；facet2 FAIL 观测口径，主动取消不计） */
+        val reqFailed: Int = 0,
+        /** 应用层请求总数 */
+        val reqTotal: Int = 0,
     )
 
     fun run(serverBase: String): Flow<Sample> = channelFlow {
@@ -52,6 +56,11 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         val raw = serverBase.trim().trimEnd('/')
         val base = ReachabilityProbe.deriveE01Pair(raw)?.second ?: raw
 
+        // facet2 FAIL：应用层请求失败计数（非 2xx/IO 错误；主动取消不计）——观测口径
+        val reqFailed = java.util.concurrent.atomic.AtomicInteger(0)
+        val reqTotal = java.util.concurrent.atomic.AtomicInteger(0)
+        suspend fun emit(s: Sample) = send(s.copy(reqFailed = reqFailed.get(), reqTotal = reqTotal.get()))
+
         // ---- Ping 阶段（~1.7s，快速 echo；实时 RTT + 抖动）----
         val rtts = ArrayList<Double>()
         val pingN = 24
@@ -59,10 +68,12 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             val t0 = System.nanoTime()
             val r = withContext(Dispatchers.IO) { runCatching { client.echo("$base/api/v1/echo") }.getOrNull() }
             val rttMs = (System.nanoTime() - t0) / 1e6
+            reqTotal.incrementAndGet()
+            if (r == null || r.error != null) reqFailed.incrementAndGet()
             // 客户端往返墙钟＝网络 RTT（恒非空、随网络波动）；首个含 TCP/TLS 建连，丢弃避免偏高。
             // 不取 echo.rttUs（其依赖服务端 wire 时戳/时钟同步，speed 模式不做同步会为 null）。
             if (i > 0 && r != null && r.error == null) rtts.add(rttMs)
-            send(Sample(Phase.Ping, median(rtts), jitter(rtts), null, null, i.toFloat() / pingN * 0.2f))
+            emit(Sample(Phase.Ping, median(rtts), jitter(rtts), null, null, i.toFloat() / pingN * 0.2f))
             delay(70)
         }
         val rttMed = median(rtts)
@@ -73,8 +84,12 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         val dlStartNs = System.nanoTime()
         val dlDurNs = 6_000_000_000L
         val dlJob = launch(Dispatchers.IO) {
+            reqTotal.incrementAndGet()
+            // 主动取消（测够时长）→ 异常路径 getOrNull()=null 不计失败；真实连接/HTTP 失败才计
             runCatching {
                 client.downloadDrain("$base/api/v1/download?bytes=$DOWNLOAD_BYTES") { total, _ -> dlBytes.set(total) }
+            }.getOrNull()?.let { r ->
+                if ((r.httpCode ?: 0) !in 200..299) reqFailed.incrementAndGet()
             }
         }
         val dlWindow = ArrayDeque<Pair<Long, Long>>()
@@ -87,7 +102,7 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             val dS = (now - dlWindow.first().first) / 1e9
             val mbps = if (dlWindow.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
             val prog = 0.2f + ((now - dlStartNs).toFloat() / dlDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
-            send(Sample(Phase.Download, rttMed, jit, null, mbps, prog.coerceIn(0f, 0.59f)))
+            emit(Sample(Phase.Download, rttMed, jit, null, mbps, prog.coerceIn(0f, 0.59f)))
             delay(100)
         }
         dlJob.cancel() // 测够时长即取消 → 服务端随 request context 退出
@@ -100,11 +115,13 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         val upJob = launch(Dispatchers.IO) {
             var acc = 0L
             while (isActive && System.nanoTime() - upStartNs < upDurNs) {
-                runCatching {
+                reqTotal.incrementAndGet()
+                val res = runCatching {
                     client.uploadBurst("$base/api/v1/upload?run=speed", chunk, chunkBytes = 65536) { total, _ ->
                         bytes.set(acc + total)
                     }
-                }
+                }.getOrNull()
+                if (res != null && (res.error != null || (res.httpCode ?: 0) !in 200..299)) reqFailed.incrementAndGet()
                 acc += chunk.size
                 bytes.set(acc)
             }
@@ -119,11 +136,11 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             val dS = (now - window.first().first) / 1e9
             val mbps = if (window.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
             val prog = 0.6f + ((now - upStartNs).toFloat() / upDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
-            send(Sample(Phase.Upload, rttMed, jit, mbps, null, prog.coerceIn(0f, 0.99f)))
+            emit(Sample(Phase.Upload, rttMed, jit, mbps, null, prog.coerceIn(0f, 0.99f)))
             delay(100)
         }
         upJob.join()
-        send(Sample(Phase.Done, rttMed, jit, null, null, 1f))
+        emit(Sample(Phase.Done, rttMed, jit, null, null, 1f))
     }
 
     private fun median(xs: List<Double>): Double? {
