@@ -60,47 +60,61 @@ fun SpeedTestScreen(
     onCancel: () -> Unit,
 ) {
     val c = AnebTheme.colors
-    // 实时上行火花线 + 峰值（每次起测清空）
+    // 实时吞吐火花线（当前相：下行/上行）+ 上下行峰值（每次起测清空）
     val history = remember { mutableStateListOf<Float>() }
     var peakUp by remember { mutableStateOf(0f) }
+    var peakDown by remember { mutableStateOf(0f) }
     LaunchedEffect(running) {
         if (running) {
             history.clear()
             peakUp = 0f
+            peakDown = 0f
         }
     }
     LaunchedEffect(sample) {
-        val up = sample?.upMbps?.toFloat() ?: return@LaunchedEffect
-        history.add(up)
+        // 火花线记录当前相的吞吐（下行相记 downMbps，上行相记 upMbps）
+        val v = (sample?.downMbps ?: sample?.upMbps)?.toFloat() ?: return@LaunchedEffect
+        history.add(v)
         if (history.size > 64) history.removeAt(0)
-        if (up > peakUp) peakUp = up
+        sample?.upMbps?.toFloat()?.let { if (it > peakUp) peakUp = it }
+        sample?.downMbps?.toFloat()?.let { if (it > peakDown) peakDown = it }
     }
 
     val phase = sample?.phase
     val isPing = phase == SpeedRunner.Phase.Ping
+    val isDownload = phase == SpeedRunner.Phase.Download
     val accent = when (phase) {
         SpeedRunner.Phase.Ping -> c.good
-        SpeedRunner.Phase.Upload -> c.brand
+        SpeedRunner.Phase.Download -> c.excellent // 下行 = 薄荷绿
+        SpeedRunner.Phase.Upload -> c.brand // 上行 = 系统蓝
         else -> c.excellent
     }
-    // 量程自适应：随峰值上探，最小 20 Mbps，取整到 10
-    val gaugeMax = max(20f, ceil((peakUp * 1.15f) / 10f) * 10f)
+    // 当前相主指标（下行相 downMbps / 上行相 upMbps）
+    val mainVal = if (isDownload) sample?.downMbps else sample?.upMbps
+    val phasePeak = if (isDownload) peakDown else peakUp
+    // 量程自适应：随当前相峰值上探，最小 20 Mbps，取整到 10
+    val gaugeMax = max(20f, ceil((phasePeak * 1.15f) / 10f) * 10f)
     val targetFrac = if (isPing) {
         // ping 阶段：RTT→0..1（0..200ms，越低越满）；无测量值保持 0（R-10：null 不驱动几何显示为"满/优"）
         val r = sample?.rttMs
         if (r == null) 0f else (1f - (r.toFloat() / 200f)).coerceIn(0f, 1f)
     } else {
-        ((sample?.upMbps ?: 0.0).toFloat() / gaugeMax).coerceIn(0f, 1f)
+        ((mainVal ?: 0.0).toFloat() / gaugeMax).coerceIn(0f, 1f)
     }
     val frac by animateFloatAsState(targetFrac, tween(220), label = "speedFrac")
 
     val valueText = when {
         isPing -> sample?.rttMs?.let { "%.0f".format(it) } ?: "—"
-        else -> (sample?.upMbps ?: 0.0).let { "%.1f".format(it) }
+        else -> (mainVal ?: 0.0).let { "%.1f".format(it) }
     }
-    val unit = if (isPing) "ms 时延" else "Mbps 上行"
+    val unit = when {
+        isPing -> "ms 时延"
+        isDownload -> "Mbps 下行"
+        else -> "Mbps 上行"
+    }
     val phaseLabel = when (phase) {
         SpeedRunner.Phase.Ping -> "时延 · 抖动测速中"
+        SpeedRunner.Phase.Download -> "下行速率测速中（随网络波动）"
         SpeedRunner.Phase.Upload -> "上行速率测速中（随网络波动）"
         SpeedRunner.Phase.Done -> "测速完成"
         null -> if (running) "准备中…" else "点击开始网络基本性能测速"
@@ -120,10 +134,10 @@ fun SpeedTestScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        // ---- 实时上行火花线（体现波动）----
+        // ---- 实时吞吐火花线（当前相色，体现波动）----
         Sparkline(
             values = history,
-            color = c.brand,
+            color = accent,
             trackColor = c.surfaceMuted,
             modifier = Modifier
                 .fillMaxWidth()
@@ -132,22 +146,22 @@ fun SpeedTestScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        // ---- 指标磁贴 ----
+        // ---- 指标磁贴：时延 / 抖动 / 下行峰值 / 上行峰值 ----
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             StatTile("时延", fmt(sample?.rttMs, "%.0f"), "ms", c.good, Modifier.weight(1f))
             StatTile("抖动", fmt(sample?.jitterMs, "%.0f"), "ms", c.fair, Modifier.weight(1f))
+            StatTile("下行峰值", if (peakDown > 0f) "%.1f".format(peakDown) else "—", "Mbps", c.excellent, Modifier.weight(1f))
             StatTile("上行峰值", if (peakUp > 0f) "%.1f".format(peakUp) else "—", "Mbps", c.brand, Modifier.weight(1f))
-            StatTile("下行", "—", "待接入", c.neutral, Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(16.dp))
 
         // ---- 结论（测速完成后给判定，满足"每个场景一个结论"）----
         if (phase == SpeedRunner.Phase.Done) {
-            ConclusionCard(peakUp = peakUp, rttMs = sample?.rttMs, jitterMs = sample?.jitterMs)
+            ConclusionCard(peakDown = peakDown, peakUp = peakUp, rttMs = sample?.rttMs, jitterMs = sample?.jitterMs)
         }
 
         Spacer(Modifier.height(24.dp))
@@ -168,7 +182,7 @@ fun SpeedTestScreen(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "口径：应用层上行吞吐（socket 发送节奏≈真实网络上行速率）与 echo 往返时延；观测展示，不进 AQS。下行需服务端全速端点，后续接入。",
+            "口径：下行＝unpaced /download 排空实测吞吐（读到即到达字节）；上行＝应用层 socket 发送吞吐（≈真实上行）；时延＝echo 往返墙钟。均为观测展示，不进 AQS。",
             color = c.faint,
             fontSize = 11.sp,
         )
@@ -304,19 +318,22 @@ private fun androidx.compose.foundation.layout.RowScope.StatTile(
 }
 
 @Composable
-private fun ConclusionCard(peakUp: Float, rttMs: Double?, jitterMs: Double?) {
+private fun ConclusionCard(peakDown: Float, peakUp: Float, rttMs: Double?, jitterMs: Double?) {
     val c = AnebTheme.colors
-    // 简单判定门限（观测展示口径）：上行≥10 良好 / 时延≤60 低时延 / 抖动≤20 稳定
+    // 简单判定门限（观测展示口径）：下行≥20 / 上行≥10 良好；时延≤60 低时延；抖动≤20 稳定
+    val downOk = peakDown >= 20f
     val upOk = peakUp >= 10f
     val rttOk = (rttMs ?: 999.0) <= 60.0
     val jitOk = (jitterMs ?: 999.0) <= 20.0
+    val allOk = downOk && upOk && rttOk && jitOk
     val verdict = when {
-        upOk && rttOk && jitOk -> "网络基本性能优良：上行充足、时延低、连接稳定，适合实时交互类 AI 应用。"
-        !upOk && rttOk -> "时延低但上行偏弱：上传大文件/多模态输入可能偏慢，短交互体验良好。"
-        !rttOk && upOk -> "带宽尚可但时延偏高：首字响应会偏慢，弱网可能影响连续对话流畅度。"
-        else -> "网络承载偏弱：上行与时延均需改善，AI 交互可能出现明显等待与卡顿。"
+        allOk -> "网络基本性能优良：上下行充足、时延低、连接稳定，适合实时交互类 AI 应用（对话、编码、多模态）。"
+        !rttOk -> "时延偏高：首字响应(TTFT)会偏慢，弱网下连续对话流畅度受影响；带宽本身尚可。"
+        !downOk && upOk -> "下行偏弱：接收模型长回答/大输出可能偏慢，交互等待增多；上行与时延尚可。"
+        !upOk && downOk -> "上行偏弱：上传大文件/多模态输入可能偏慢；接收模型响应流畅，短交互体验良好。"
+        else -> "网络承载偏弱：上下行与时延均需改善，AI 交互可能出现明显等待与卡顿。"
     }
-    val head = if (upOk && rttOk && jitOk) c.excellent else if (upOk || rttOk) c.fair else c.poor
+    val head = if (allOk) c.excellent else if ((downOk || upOk) && rttOk) c.fair else c.poor
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -329,8 +346,8 @@ private fun ConclusionCard(peakUp: Float, rttMs: Double?, jitterMs: Double?) {
         Text(verdict, color = c.ink, fontSize = 13.sp)
         Spacer(Modifier.height(8.dp))
         Text(
-            "上行峰值 %.1f Mbps · 时延 %s ms · 抖动 %s ms".format(
-                peakUp, fmt(rttMs, "%.0f"), fmt(jitterMs, "%.0f"),
+            "下行峰值 %.1f · 上行峰值 %.1f Mbps · 时延 %s ms · 抖动 %s ms".format(
+                peakDown, peakUp, fmt(rttMs, "%.0f"), fmt(jitterMs, "%.0f"),
             ),
             color = c.muted,
             fontSize = 11.sp,

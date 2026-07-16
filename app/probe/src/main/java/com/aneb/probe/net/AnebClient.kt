@@ -418,6 +418,59 @@ class AnebClient(bound: BoundNetwork? = null) {
         }
     }
 
+    // -------------------------------------------------------------- download
+
+    data class DownloadResult(
+        val startNanos: Long,
+        /** body 读完/中断时刻；异常无值记 null（R-10） */
+        val bodyEndNanos: Long?,
+        val bytesRead: Long,
+        val httpCode: Int?,
+        val error: String?,
+    )
+
+    /**
+     * 基本性能模式：下行大对象排空。GET（含 ?bytes=N），按 256KB 读并逐块回调
+     * (累计已读字节, 打戳纳秒)——**读到的字节即真实到达的网络字节**（无上行那种写本地 socket
+     * buffer 的灌注偏差，是比上行更纯净的吞吐口径）。读完即丢（只测吞吐，不留内容）。
+     * 协程取消 → call.cancel() → 服务端随 request context 退出。观测用，不进 AQS。
+     */
+    suspend fun downloadDrain(
+        url: String,
+        onChunk: ((Long, Long) -> Unit)? = null,
+    ): DownloadResult {
+        val call = client.newCall(Request.Builder().url(url).get().build())
+        val startNanos = SystemClock.elapsedRealtimeNanos()
+        return try {
+            executeCancellable(call) { resp ->
+                if (!resp.isSuccessful) {
+                    DownloadResult(startNanos, null, 0L, resp.code, "http ${resp.code}")
+                } else {
+                    val source = checkNotNull(resp.body) { "empty body for 2xx" }.source()
+                    val readBuf = okio.Buffer()
+                    var total = 0L
+                    var err: String? = null
+                    try {
+                        while (true) {
+                            val n = source.read(readBuf, 262_144L) // 256KB/次
+                            if (n == -1L) break
+                            readBuf.clear() // 只测吞吐，读到即丢
+                            total += n
+                            onChunk?.invoke(total, SystemClock.elapsedRealtimeNanos())
+                        }
+                    } catch (e: IOException) {
+                        err = e.toString() // 取消/中断：保留已读字节，就地记错
+                    }
+                    DownloadResult(startNanos, SystemClock.elapsedRealtimeNanos(), total, resp.code, err)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e // 不吞取消（fail-closed §4.6/§4.7）
+        } catch (e: Exception) {
+            DownloadResult(startNanos, null, 0L, null, e.toString())
+        }
+    }
+
     // -------------------------------------------------------------- toolloop
 
     /**

@@ -18,15 +18,21 @@ import kotlin.math.abs
  *
  * 目标：用会**随网络真实波动**的指标（上行吞吐、时延）驱动 SpeedTest 级动态仪表。
  * - **Ping 阶段**：快速 echo → 实时 RTT / 抖动（随网络波动）。
+ * - **Download 阶段**：持续下载服务端 unpaced `/download?bytes=1GiB`，[AnebClient.downloadDrain]
+ *   逐块 onChunk → ~0.6s 滑窗算**实时下行吞吐**；读到即真实到达字节（比上行更纯净）。
  * - **Upload 阶段**：持续上传（循环大块到 /upload，socket 发送缓冲填满后写入节奏≈真实网络
  *   上行速率），[AnebClient.uploadBurst] 逐块 onChunk → ~0.6s 滑窗算**实时上行吞吐**（波动）。
- * - **Download**：需服务端 `/download` 全速端点（未接入）→ 暂 downMbps=null（后续迭代）。
  *
  * 观测/展示口径，非 AQS/KPI；claim scope 与 token 模式独立。纯 Flow，Compose 侧 collect 驱动仪表。
  */
 class SpeedRunner(private val client: AnebClient = AnebClient()) {
 
-    enum class Phase { Ping, Upload, Done }
+    enum class Phase { Ping, Download, Upload, Done }
+
+    private companion object {
+        /** 下行请求字节数 = 服务端 /download 上限 1GiB（正常网络 6s 内下不完，全程流式）。 */
+        const val DOWNLOAD_BYTES = 1L shl 30
+    }
 
     data class Sample(
         val phase: Phase,
@@ -56,20 +62,44 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             // 客户端往返墙钟＝网络 RTT（恒非空、随网络波动）；首个含 TCP/TLS 建连，丢弃避免偏高。
             // 不取 echo.rttUs（其依赖服务端 wire 时戳/时钟同步，speed 模式不做同步会为 null）。
             if (i > 0 && r != null && r.error == null) rtts.add(rttMs)
-            send(Sample(Phase.Ping, median(rtts), jitter(rtts), null, null, i.toFloat() / pingN * 0.35f))
+            send(Sample(Phase.Ping, median(rtts), jitter(rtts), null, null, i.toFloat() / pingN * 0.2f))
             delay(70)
         }
         val rttMed = median(rtts)
         val jit = jitter(rtts)
 
+        // ---- Download 阶段（~6s 持续下载 /download 排空，逐块实时测速）----
+        val dlBytes = AtomicLong(0)
+        val dlStartNs = System.nanoTime()
+        val dlDurNs = 6_000_000_000L
+        val dlJob = launch(Dispatchers.IO) {
+            runCatching {
+                client.downloadDrain("$base/api/v1/download?bytes=$DOWNLOAD_BYTES") { total, _ -> dlBytes.set(total) }
+            }
+        }
+        val dlWindow = ArrayDeque<Pair<Long, Long>>()
+        while (dlJob.isActive && System.nanoTime() - dlStartNs < dlDurNs) {
+            val now = System.nanoTime()
+            val b = dlBytes.get()
+            dlWindow.addLast(now to b)
+            while (dlWindow.size > 1 && now - dlWindow.first().first > 600_000_000L) dlWindow.removeFirst()
+            val dB = b - dlWindow.first().second
+            val dS = (now - dlWindow.first().first) / 1e9
+            val mbps = if (dlWindow.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
+            val prog = 0.2f + ((now - dlStartNs).toFloat() / dlDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
+            send(Sample(Phase.Download, rttMed, jit, null, mbps, prog.coerceIn(0f, 0.59f)))
+            delay(100)
+        }
+        dlJob.cancel() // 测够时长即取消 → 服务端随 request context 退出
+
         // ---- Upload 阶段（~6s 持续上传，逐块实时测速）----
         val bytes = AtomicLong(0)
         val chunk = ByteArray(4 * 1024 * 1024) // 4MB/次循环（零填充即可，服务端不校验内容）
         val upStartNs = System.nanoTime()
-        val durNs = 6_000_000_000L
+        val upDurNs = 6_000_000_000L
         val upJob = launch(Dispatchers.IO) {
             var acc = 0L
-            while (isActive && System.nanoTime() - upStartNs < durNs) {
+            while (isActive && System.nanoTime() - upStartNs < upDurNs) {
                 runCatching {
                     client.uploadBurst("$base/api/v1/upload?run=speed", chunk, chunkBytes = 65536) { total, _ ->
                         bytes.set(acc + total)
@@ -88,8 +118,8 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             val dB = b - window.first().second
             val dS = (now - window.first().first) / 1e9
             val mbps = if (window.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
-            val prog = 0.35f + ((now - upStartNs).toFloat() / durNs.toFloat()).coerceIn(0f, 1f) * 0.6f
-            send(Sample(Phase.Upload, rttMed, jit, mbps, null, prog.coerceIn(0f, 0.97f)))
+            val prog = 0.6f + ((now - upStartNs).toFloat() / upDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
+            send(Sample(Phase.Upload, rttMed, jit, mbps, null, prog.coerceIn(0f, 0.99f)))
             delay(100)
         }
         upJob.join()
