@@ -53,6 +53,8 @@ type Phase struct {
 	RateSchedule []RatePoint `json:"rate_schedule,omitempty"`
 	// TokensPerFrame：每个 SSE 帧合并的 token 数（frame-batching，§3.2）；省略/0/1=每 token 一帧（行为不变）。
 	TokensPerFrame int `json:"tokens_per_frame,omitempty"`
+	// ThinkInjections：流内 think 驻留（§3.2，reasoning 模型中途思考）；省略=无（行为不变）。
+	ThinkInjections []ThinkInjection `json:"think_injections,omitempty"`
 
 	// tool_loop
 	Rounds       int   `json:"rounds,omitempty"`
