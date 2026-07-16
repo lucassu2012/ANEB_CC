@@ -505,6 +505,21 @@ class TestEngine(private val context: Context) {
                 log("AQS_V02 run_id=$runId available=false reason=no_usable_continuity_in_24h")
             }
 
+            // ---------------- run 级 AQS Token（Profile 框架 §2.5，D-29，additive） ----------------
+            // 多模态 run（含 s3）走 MM 表；D1 在当前 profile 集缺 download_burst 时为 null →
+            // scoreToken 诚实返回 KPI_MISSING:D1（分 null 但工作量/口径照常落库，相位接入后自愈）。
+            // 工作量信号 = 冻结 profile phases 的确定性投影（facet4 双证据分类的输入 A）。
+            val tokenWeightsTableId = "WEIGHTS_TOKEN_MM"
+            val aqsToken = AqsScorer.scoreToken(composite, tokenWeightsTableId)
+            val tokenWorkload = AqsInputMapper.workloadFrom(loaded.profiles.values)
+            log(
+                "AQS_TOKEN run_id=$runId table=$tokenWeightsTableId " +
+                    "score=${aqsToken.score?.let { "%.1f".format(it) } ?: "null"} " +
+                    "veto=${aqsToken.vetoApplied} reason=${aqsToken.notComputableReason ?: "none"} " +
+                    "workload=up:${tokenWorkload.uplinkBytesPerRound}B,dl:${tokenWorkload.downlinkMediaBytes}B," +
+                    "stream:${tokenWorkload.tokenStreamLen},tool:${tokenWorkload.toolLoopRounds}"
+            )
+
             // ---------------- 结果上报（合同字段 + 400 errors 自检） ----------------
             val runEntity = baseRun(
                 runId, startedAtEpochMs, measureBase, modeStr, transportStr,
@@ -531,8 +546,13 @@ class TestEngine(private val context: Context) {
                 ipReachable = reach?.ip?.status,
                 ipReachMs = reach?.ip?.elapsedMs,
             )
-            // D-26：v0.2 有出分则 additive 写入 run.aqs_v02（含 C1/C2 子分，供结果页真实分解）
-            val body = ResultReporter.build(runEntity, scenarioReports, aqsResult, aqsV02)
+            // D-26：v0.2 有出分则 additive 写入 run.aqs_v02；D-29：Token 出分+工作量 additive 写入 run.aqs_token
+            val body = ResultReporter.build(
+                runEntity, scenarioReports, aqsResult, aqsV02,
+                aqsToken = aqsToken,
+                tokenWeightsTableId = tokenWeightsTableId,
+                tokenWorkload = tokenWorkload,
+            )
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size
             if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {
                 log("REPORT_SIZE_WARN bytes=$bodyBytes limit=${ResultReporter.MAX_REPORT_BYTES}")

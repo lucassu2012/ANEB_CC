@@ -127,6 +127,64 @@ object ResultAqsBreakdown {
         }.getOrNull()
     }
 
+    /**
+     * Token facet4 结论输入（`run.aqs_token` 落库数据，D-29）。
+     *
+     * @param subScores 分类用子分：aqs_token.sub_scores 非空用之；空（D1 未接入期不可计算）
+     *   回落 run.aqs（v0.1）子分——分类只用交集 KPI，诚实降级
+     * @param subScoresFromFallback 是否走了 v0.1 回落（UI 据此标注口径）
+     */
+    data class TokenConclusionInput(
+        val score: Double?,
+        val notComputableReason: String?,
+        val weightsTableId: String,
+        val subScores: Map<String, Double>,
+        val subScoresFromFallback: Boolean,
+        val workload: com.aneb.probe.scoring.TokenBehaviorClassifier.WorkloadSignal,
+    )
+
+    /**
+     * 解析 `run.aqs_token`（分数/子分/权重表/工作量）供 facet4 结论卡。节点缺失（旧 run）/
+     * 无 workload / 连回落子分都没有 → null（卡不渲染，R-10 不编造）。
+     */
+    fun tokenConclusionFromReportJson(reportJson: String?): TokenConclusionInput? {
+        if (reportJson.isNullOrBlank()) return null
+        return runCatching {
+            val root = json.parseToJsonElement(reportJson) as? JsonObject ?: return@runCatching null
+            val run = root["run"] as? JsonObject ?: return@runCatching null
+            val tok = run["aqs_token"] as? JsonObject ?: return@runCatching null
+            val wl = tok["workload"] as? JsonObject ?: return@runCatching null
+
+            fun subsOf(node: JsonObject?): Map<String, Double> =
+                (node?.get("sub_scores") as? JsonObject)?.mapNotNull { (k, v) ->
+                    (v as? JsonPrimitive)?.doubleOrNull?.let { k to it }
+                }?.toMap() ?: emptyMap()
+
+            val tokenSubs = subsOf(tok)
+            val fallback = tokenSubs.isEmpty()
+            val subs = if (fallback) subsOf(run["aqs"] as? JsonObject) else tokenSubs
+            if (subs.isEmpty()) return@runCatching null
+
+            TokenConclusionInput(
+                score = tok["score"]?.jsonPrimitive?.doubleOrNull,
+                notComputableReason = tok["not_computable_reason"]?.jsonPrimitive?.contentOrNull,
+                weightsTableId = tok["weights_table_id"]?.jsonPrimitive?.contentOrNull ?: "WEIGHTS_TOKEN_MM",
+                subScores = subs,
+                subScoresFromFallback = fallback,
+                workload = com.aneb.probe.scoring.TokenBehaviorClassifier.WorkloadSignal(
+                    uplinkBytesPerRound = wl["uplink_bytes_per_round"]?.jsonPrimitive?.doubleOrNull?.toLong() ?: 0L,
+                    peakToMeanRatio = wl["peak_to_mean_ratio"]?.jsonPrimitive?.doubleOrNull ?: 1.0,
+                    downlinkMediaBytes = wl["downlink_media_bytes"]?.jsonPrimitive?.doubleOrNull?.toLong() ?: 0L,
+                    tokenStreamLen = wl["token_stream_len"]?.jsonPrimitive?.doubleOrNull?.toInt() ?: 0,
+                    toolLoopRounds = wl["tool_loop_rounds"]?.jsonPrimitive?.doubleOrNull?.toInt() ?: 0,
+                    hasThinkPause = wl["has_think_pause"]?.jsonPrimitive?.booleanOrNull ?: false,
+                    shortContextMultiTurn = wl["short_context_multi_turn"]?.jsonPrimitive?.booleanOrNull ?: false,
+                    longStreamOrContinuous = wl["long_stream_or_continuous"]?.jsonPrimitive?.booleanOrNull ?: false,
+                ),
+            )
+        }.getOrNull()
+    }
+
     private fun parseAqs(aqs: JsonObject, version: String): Breakdown? {
         val subObj = aqs["sub_scores"] as? JsonObject ?: return null
         val subs: Map<String, Double> = subObj.mapNotNull { (k, v) ->

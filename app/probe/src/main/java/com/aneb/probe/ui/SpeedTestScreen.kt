@@ -238,7 +238,17 @@ fun ModeProfileStrip(profile: TestModeProfile) {
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            profile.metrics.forEach { m -> MetricChip(m) }
+            // v2（INV-3 单一事实源）：优先读权威 facet——facet3 动态呈现指标（高亮）在前，
+            // facet2 参与打分的静态指标在后（按名尽力去重）；facet 缺省的旧档回落展示投影。
+            if (profile.live.isNotEmpty() || profile.metricSpecs.isNotEmpty()) {
+                val dynamicNames = profile.live.map { it.label }.toSet()
+                profile.live.forEach { lm -> MetricChip(lm.label, dynamic = true) }
+                profile.metricSpecs
+                    .filter { it.scored && it.name !in dynamicNames }
+                    .forEach { m -> MetricChip(m.name, dynamic = false) }
+            } else {
+                profile.metrics.forEach { m -> MetricChip(m.name, dynamic = m.dynamic) }
+            }
         }
         Spacer(Modifier.height(6.dp))
         Text("填充色＝实时动态指标（随网络高频波动）", color = c.faint, fontSize = 10.sp)
@@ -246,10 +256,10 @@ fun ModeProfileStrip(profile: TestModeProfile) {
 }
 
 @Composable
-private fun MetricChip(m: ModeMetric) {
+private fun MetricChip(name: String, dynamic: Boolean) {
     val c = AnebTheme.colors
-    val bg = if (m.dynamic) c.brand else c.surfaceMuted
-    val fg = if (m.dynamic) Color(0xFF05121A) else c.muted
+    val bg = if (dynamic) c.brand else c.surfaceMuted
+    val fg = if (dynamic) Color(0xFF05121A) else c.muted
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(7.dp))
@@ -257,10 +267,10 @@ private fun MetricChip(m: ModeMetric) {
             .padding(horizontal = 8.dp, vertical = 5.dp),
     ) {
         Text(
-            m.name,
+            name,
             color = fg,
             fontSize = 11.sp,
-            fontWeight = if (m.dynamic) FontWeight.Bold else FontWeight.Medium,
+            fontWeight = if (dynamic) FontWeight.Bold else FontWeight.Medium,
         )
     }
 }

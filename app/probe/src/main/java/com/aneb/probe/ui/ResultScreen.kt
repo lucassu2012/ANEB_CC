@@ -439,6 +439,8 @@ private fun DetailedResultView(
     val breakdown = remember(reportJson) { ResultAqsBreakdown.fromReportJson(reportJson) }
     // v0.2 并列分解（run.aqs_v02，D-26）；无 continuity 数据 → null（正常 run 不显示）
     val breakdownV02 = remember(reportJson) { ResultAqsBreakdown.v02FromReportJson(reportJson) }
+    // Token facet4 结论（run.aqs_token，D-29）；旧 run 无节点 → null（不渲染）
+    val tokenConclusion = remember(reportJson) { ResultAqsBreakdown.tokenConclusionFromReportJson(reportJson) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp),
@@ -447,6 +449,7 @@ private fun DetailedResultView(
         item { LatencySection(latency) }
         item { AqsBreakdownSection(run, breakdown, scenarios) }
         breakdownV02?.let { bd -> item { AqsV02BreakdownSection(bd) } }
+        tokenConclusion?.let { tc -> item { TokenConclusionSection(tc) } }
         item { KpiDetailSection(run, scenarios) }
         item { RadioSection(radio) }
         item { ReachSection(run) }
@@ -678,6 +681,63 @@ private fun LatencySection(latency: ResultLatencySeries) {
 }
 
 // ---- AQS 子分与权重（组→KPI→贡献分，真实落库子分；无子分回退分级近似）----
+
+// ---- Token facet4 结论卡（行为特征 + 网络建议，D-29；PROFILE_FRAMEWORK §2.5）----
+
+/**
+ * 从 `run.aqs_token` 落库数据派生结论：[TokenScoringBridge.classifyAndRecommend]
+ * （双证据分类 + facet2 良锚建议行）。D-02：只消费落库子分 × 权重表单一事实源，不重算打分。
+ */
+@Composable
+private fun TokenConclusionSection(tc: ResultAqsBreakdown.TokenConclusionInput) {
+    val colors = AnebTheme.colors
+    val result = remember(tc) {
+        runCatching {
+            TokenScoringBridge.classifyAndRecommend(
+                TestModeProfiles.TOKEN_EXPERIENCE, tc.subScores, pureText = false, workload = tc.workload,
+            )
+        }.getOrNull()
+    } ?: return
+    val (findings, lines) = result
+    if (findings.isEmpty()) return
+
+    SectionLabel("行为特征与网络建议", trailing = "Token · ${tc.weightsTableId.removePrefix("WEIGHTS_TOKEN_")}")
+    SuiteCard(modifier = Modifier.padding(top = 8.dp)) {
+        findings.forEachIndexed { i, f ->
+            if (i > 0) Spacer(Modifier.height(10.dp))
+            val tagLabel = when (f.tag.name) {
+                "UPLINK_BURST" -> "上行突发需求"
+                "LOW_LATENCY" -> "低时延需求"
+                "DOWNLINK_BANDWIDTH" -> "下行大带宽需求"
+                else -> "稳定性需求"
+            }
+            val ok = f.satisfiedByNetwork
+            val band = if (ok) colors.excellent else colors.poor
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(tagLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.ink, modifier = Modifier.weight(1f))
+                Text(if (ok) "已满足" else "未满足", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = band)
+            }
+            Text(f.triggerEvidence, fontSize = 10.sp, color = colors.faint)
+            Text(
+                "绑定 ${f.bindingKpis.joinToString("/")} · 约束占比 ${"%.0f".format(f.intensity * 100)}%",
+                fontSize = 10.sp, color = colors.muted,
+            )
+        }
+        if (lines.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text("建议 SLA（良级门限 · 达 95%）", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.muted)
+            Spacer(Modifier.height(4.dp))
+            lines.forEach { line -> Text(line, fontSize = 11.sp, color = colors.ink) }
+        }
+        Spacer(Modifier.height(10.dp))
+        val caliber = buildString {
+            append("由落库工作量与子分派生（不重算打分）。")
+            if (tc.subScoresFromFallback) append("Token 表出分待 D1（download_burst）接入，暂以 v0.1 子分分类；")
+            tc.notComputableReason?.let { append("token_score=$it") }
+        }
+        Text(caliber, fontSize = 9.5.sp, color = colors.faint)
+    }
+}
 
 @Composable
 private fun AqsBreakdownSection(

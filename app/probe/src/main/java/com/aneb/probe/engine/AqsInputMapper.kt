@@ -3,6 +3,7 @@ package com.aneb.probe.engine
 import com.aneb.probe.scoring.KpiCalculator
 import com.aneb.probe.scoring.KpiResult
 import com.aneb.probe.scoring.KpiValue
+import com.aneb.probe.scoring.TokenBehaviorClassifier
 import com.aneb.probe.scoring.Validity
 
 /**
@@ -97,6 +98,41 @@ object AqsInputMapper {
             u2ToolLoopP95Ms = u2,
             d1GoodputMbps = d1,
             s1SessionSuccessRate = s1Kpi,
+        )
+    }
+
+    /** 「长流」判定门限（单条 token 流 ≥ 此 token 数 ⇒ 稳定性敏感，PROFILE_FRAMEWORK §2.5）。 */
+    const val LONG_STREAM_TOKENS = 300
+
+    /**
+     * 从冻结 profile 集派生**客观工作量信号**（facet4 双证据分类的输入 A，PROFILE_FRAMEWORK §2.5）。
+     * 纯函数、只读 phases 声明值（非测量值）——工作量是 profile 合同的确定性投影：
+     * - 上行/轮 = Σ upload_burst bytes；峰均比 = max/mean upload bytes（字节级突发度代理）；
+     * - 下行媒体 = Σ download_burst bytes（当前 profile 集无此相位 ⇒ 0，download_burst 接入后自动非零）；
+     * - 流长 = 最长单条 token_stream tokens；长流 ⇔ 流长 ≥ [LONG_STREAM_TOKENS]；
+     * - 多轮往返 ⇔ 含 tool_loop（rounds 求和）。
+     */
+    fun workloadFrom(profiles: Collection<ScenarioProfile>): TokenBehaviorClassifier.WorkloadSignal {
+        val phases = profiles.flatMap { it.phases }
+        val uploadBytes = phases.filter { it.type == ProfilePhase.TYPE_UPLOAD_BURST }.map { it.bytes }
+        val uplinkPerRound = uploadBytes.sum()
+        val peakToMean = if (uploadBytes.isEmpty()) 1.0 else {
+            val mean = uploadBytes.average()
+            if (mean > 0.0) uploadBytes.max() / mean else 1.0
+        }
+        val downlinkMedia = phases.filter { it.type == "download_burst" }.sumOf { it.bytes }
+        val maxStreamTokens = phases.filter { it.type == ProfilePhase.TYPE_TOKEN_STREAM }
+            .maxOfOrNull { it.tokens } ?: 0
+        val toolRounds = phases.filter { it.type == ProfilePhase.TYPE_TOOL_LOOP }.sumOf { it.rounds }
+        return TokenBehaviorClassifier.WorkloadSignal(
+            uplinkBytesPerRound = uplinkPerRound,
+            peakToMeanRatio = peakToMean,
+            downlinkMediaBytes = downlinkMedia,
+            tokenStreamLen = maxStreamTokens,
+            toolLoopRounds = toolRounds,
+            hasThinkPause = phases.any { it.type == ProfilePhase.TYPE_THINK_PAUSE },
+            shortContextMultiTurn = toolRounds > 0,
+            longStreamOrContinuous = maxStreamTokens >= LONG_STREAM_TOKENS,
         )
     }
 

@@ -35,6 +35,15 @@ object ResultReporter {
          * 服务端 validateResultContract 只校验必填字段、不拒新增字段（已读码确认）。
          */
         aqsV02: AqsScorer.AqsResult? = null,
+        /**
+         * Token 模式并列出分（Profile 框架 §2.5，additive）：非 null 时**附加**写入 `run.aqs_token`
+         * （分数/子分/权重表 id + 工作量数值块，纯数据不落文案——facet4 结论由 UI 从落库子分派生，
+         * D-02 不重算打分）。D1 缺失（当前 profile 集无 download_burst）时诚实记
+         * not_computable_reason=KPI_MISSING:D1，download_burst 接入后自愈出分。
+         */
+        aqsToken: AqsScorer.AqsResult? = null,
+        tokenWeightsTableId: String? = null,
+        tokenWorkload: com.aneb.probe.scoring.TokenBehaviorClassifier.WorkloadSignal? = null,
     ): String = buildJsonObject {
         // ---- 合同字段（顶层，const/枚举锁定） ----
         put("claim_scope", CLAIM_SCOPE)
@@ -76,6 +85,33 @@ object ResultReporter {
                     put("sub_scores", buildJsonObject {
                         aqsV02.subScores.forEach { (k, v) -> put(k, v) }
                     })
+                })
+            }
+            // Token 模式并列出分（D-29，additive）：分数/子分/权重表 + 工作量数值块（facet4 输入 A）。
+            // 纯数据合同——行为特征/建议文案由 UI 从这些落库数据派生（D-02 不重算），不冻结进档。
+            if (aqsToken != null) {
+                put("aqs_token", buildJsonObject {
+                    put("aqs_version", aqsToken.aqsVersion)
+                    put("score", aqsToken.score)
+                    put("low_confidence", aqsToken.lowConfidence)
+                    put("veto_applied", aqsToken.vetoApplied)
+                    put("not_computable_reason", aqsToken.notComputableReason)
+                    put("weights_table_id", tokenWeightsTableId)
+                    put("sub_scores", buildJsonObject {
+                        aqsToken.subScores.forEach { (k, v) -> put(k, v) }
+                    })
+                    if (tokenWorkload != null) {
+                        put("workload", buildJsonObject {
+                            put("uplink_bytes_per_round", tokenWorkload.uplinkBytesPerRound)
+                            put("peak_to_mean_ratio", tokenWorkload.peakToMeanRatio)
+                            put("downlink_media_bytes", tokenWorkload.downlinkMediaBytes)
+                            put("token_stream_len", tokenWorkload.tokenStreamLen)
+                            put("tool_loop_rounds", tokenWorkload.toolLoopRounds)
+                            put("has_think_pause", tokenWorkload.hasThinkPause)
+                            put("short_context_multi_turn", tokenWorkload.shortContextMultiTurn)
+                            put("long_stream_or_continuous", tokenWorkload.longStreamOrContinuous)
+                        })
+                    }
                 })
             }
         })
