@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -171,7 +172,7 @@ class MainActivity : ComponentActivity() {
                     // 持有 run 协程句柄，供首页"取消"按钮中断（cancel → CancellationException → finally running=false）
                     var runJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     // 网络基本性能模式（SpeedTest）：模式开关 + 独立 run 状态/实时样本/协程句柄
-                    var basicMode by rememberSaveable { mutableStateOf(false) }
+                    var selectedModeId by rememberSaveable { mutableStateOf(TestModeProfiles.TOKEN_EXPERIENCE.id) }
                     var speedRunning by remember { mutableStateOf(false) }
                     var speedSample by remember { mutableStateOf<SpeedRunner.Sample?>(null) }
                     var speedJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
@@ -323,15 +324,21 @@ class MainActivity : ComponentActivity() {
                                 // ---- 各 tab 根（显底栏）：测试=Home / 历史=History / 设置=Settings ----
                                 is Screen.Home -> when (tab) {
                                     MainTab.Test -> Column(modifier = Modifier.fillMaxSize()) {
-                                        // 模式开关（Token 体验 | 网络基本性能）——两模式共享；测量中隐藏，全屏专注
+                                        // 模式开关 + 模式信息条——由 TestModeProfiles.ALL 数据驱动（加模式=加 profile）；
+                                        // 两模式共享；测量中隐藏，全屏专注。
+                                        val basicMode = selectedModeId == TestModeProfiles.BASIC_NETWORK.id
                                         if (!running && !speedRunning) {
-                                            Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                                            Column(
+                                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                            ) {
                                                 TestModeSegments(
-                                                    basicSelected = basicMode,
+                                                    profiles = TestModeProfiles.ALL,
+                                                    selectedId = selectedModeId,
                                                     enabled = true,
-                                                    onSelectToken = { basicMode = false },
-                                                    onSelectBasic = { basicMode = true },
+                                                    onSelect = { selectedModeId = it },
                                                 )
+                                                ModeProfileStrip(TestModeProfiles.byId(selectedModeId))
                                             }
                                         }
                                         if (basicMode) {

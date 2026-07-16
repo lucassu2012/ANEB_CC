@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -189,13 +190,14 @@ fun SpeedTestScreen(
     }
 }
 
-/** 模式分段开关（Token 体验 | 网络基本性能）——由 MainActivity 在 Test tab 顶部共享渲染。 */
+/** 模式分段开关——由 [TestModeProfiles.ALL] **数据驱动**；MainActivity 在 Test tab 顶部共享渲染。
+ *  新增测试模式只需往 ALL 加一个 profile，本开关自动多一段。 */
 @Composable
 fun TestModeSegments(
-    basicSelected: Boolean,
+    profiles: List<TestModeProfile>,
+    selectedId: String,
     enabled: Boolean,
-    onSelectToken: () -> Unit,
-    onSelectBasic: () -> Unit,
+    onSelect: (String) -> Unit,
 ) {
     val c = AnebTheme.colors
     Row(
@@ -206,8 +208,60 @@ fun TestModeSegments(
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Segment("Token 体验", selected = !basicSelected, enabled = enabled, onClick = onSelectToken, modifier = Modifier.weight(1f))
-        Segment("网络基本性能", selected = basicSelected, enabled = enabled, onClick = onSelectBasic, modifier = Modifier.weight(1f))
+        profiles.forEach { p ->
+            Segment(
+                label = p.displayName,
+                selected = p.id == selectedId,
+                enabled = enabled,
+                onClick = { onSelect(p.id) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** 模式信息条：当前模式的副标 + 指标片（实时动态指标高亮着色）——数据源 [TestModeProfile]，
+ *  直观呈现 /goal 点 3 的“测哪些指标、哪些是动态的”。MainActivity 在测量前的静息态渲染。 */
+@Composable
+fun ModeProfileStrip(profile: TestModeProfile) {
+    val c = AnebTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.surface)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(profile.tagline, color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            profile.metrics.forEach { m -> MetricChip(m) }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("填充色＝实时动态指标（随网络高频波动）", color = c.faint, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun MetricChip(m: ModeMetric) {
+    val c = AnebTheme.colors
+    val bg = if (m.dynamic) c.brand else c.surfaceMuted
+    val fg = if (m.dynamic) Color(0xFF05121A) else c.muted
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(7.dp))
+            .background(bg)
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+    ) {
+        Text(
+            m.name,
+            color = fg,
+            fontSize = 11.sp,
+            fontWeight = if (m.dynamic) FontWeight.Bold else FontWeight.Medium,
+        )
     }
 }
 
