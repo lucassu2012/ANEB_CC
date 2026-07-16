@@ -202,8 +202,12 @@ object TokenBehaviorClassifier {
         TestBehaviorTag.STABILITY -> "稳定性→ITL/抖动/stall 条"
     }
 
-    private fun fmt(v: Double): String =
-        if (v == v.toLong().toDouble()) v.toLong().toString() else String.format("%.1f", v)
+    private fun fmt(v: Double): String = when {
+        v == v.toLong().toDouble() -> v.toLong().toString()
+        // <1 的小数（如卡顿率良锚 0.02）保留两位有效小数——%.1f 会把 0.02 显示成误导性的 "0.0"
+        kotlin.math.abs(v) < 1.0 -> String.format("%.2f", v).trimEnd('0').trimEnd('.')
+        else -> String.format("%.1f", v)
+    }
 
     private fun humanBytes(b: Long): String = when {
         b >= 1024L * 1024 * 1024 -> "${fmt(b / 1024.0 / 1024 / 1024)}GB"
