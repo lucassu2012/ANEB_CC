@@ -74,6 +74,34 @@ data class TtftSample(
 )
 
 /**
+ * 一次下行大对象拉取结果（D1，PROFILE_FRAMEWORK §2.2 BM-09 口径(b)：`/download` 无限速、
+ * identity、精确 Content-Length；字节×8/耗时）。2xx 口径——非 2xx 即失败样本，记 null 不记 0（R-10）。
+ *
+ * 与 [UploadResult] 同构（下行 goodput 是上行 goodput 的镜像口径）。**禁**用 token 流估带宽
+ * （token 流受服务端 pacing，BM-09 口径(a) NOT_MEASURABLE）。
+ *
+ * @param bytes 下行有效字节数（Content-Length）
+ * @param durationNanos 总耗时（请求发出 → 排空最后一字节）；失败记 null
+ * @param http2xx 是否收到 2xx（false 即失败样本，不进 D1 统计）
+ */
+data class DownloadResult(
+    val bytes: Long,
+    val durationNanos: Long?,
+    val http2xx: Boolean,
+)
+
+/**
+ * 一轮会话完成结果（S1，PROFILE_FRAMEWORK §2.2 BM-06：会话完成率=成功轮次/总轮次）。
+ * 「成功」是**传输完整性**口径（**非 AI 答案正确率**）：流未截断 ∧ gap≤1% ∧ 无 INVALID ∧ 上传 2xx，
+ * 由采集侧综合判定后传入布尔。R-10：无轮次样本时 S1 输出 value=null，绝不记 0。
+ *
+ * @param success 该轮是否达成传输完整性
+ */
+data class RoundOutcome(
+    val success: Boolean,
+)
+
+/**
  * 单个 KPI 的输出值（结果合同：值 nullable + 样本量 + 低置信标，R-10/R-29）。
  *
  * @param value KPI 值；失败/无有效样本一律 null，绝不记 0（R-10）
@@ -103,6 +131,8 @@ data class KpiValue(
  * @param uploadResults U1 输入
  * @param toolLoopSamples U2 输入
  * @param ttftSamples T1 输入
+ * @param downloadResults D1 输入（下行大对象拉取；PROFILE_FRAMEWORK §2.2 BM-09 口径(b)）
+ * @param roundOutcomes S1 输入（各轮传输完整性结论；PROFILE_FRAMEWORK §2.2 BM-06）
  * @param streamTruncated 流式阶段异常中断（5.3.8：判 INVALID(TRUNCATED)，中断样本不进统计）
  * @param externalInvalidReasons 外部守卫判定的无效原因（GUARD_FAILED/PATH_CHANGED/BUFFERING_SUSPECT 等，
  *   由测中持续监控守卫给出，本引擎只透传合并）
@@ -114,6 +144,8 @@ data class KpiInput(
     val uploadResults: List<UploadResult> = emptyList(),
     val toolLoopSamples: List<ToolLoopSample> = emptyList(),
     val ttftSamples: List<TtftSample> = emptyList(),
+    val downloadResults: List<DownloadResult> = emptyList(),
+    val roundOutcomes: List<RoundOutcome> = emptyList(),
     val streamTruncated: Boolean = false,
     val externalInvalidReasons: List<InvalidReason> = emptyList(),
 )
@@ -161,6 +193,16 @@ data class KpiResult(
     val u1GoodputExclSlowStartMbps: KpiValue,
     /** U2 工具循环时延 P95（轮次耗时 − 服务端 proc），ms */
     val u2ToolLoopP95Ms: KpiValue,
+    /**
+     * D1 下行 goodput（PROFILE_FRAMEWORK §2.2 BM-09 口径(b)：`/download` 无限速 2xx，逐次 P50），Mbps。
+     * 无下行样本时 value=null（默认；仅 Token 多模态模式提供 [KpiInput.downloadResults] 时非空）。
+     */
+    val d1GoodputMbps: KpiValue = KpiValue.empty("Mbps"),
+    /**
+     * S1 会话完成率（PROFILE_FRAMEWORK §2.2 BM-06：成功轮次/总轮次，传输完整性口径），ratio 0..1。
+     * 无轮次样本时 value=null（默认；仅 Token 模式提供 [KpiInput.roundOutcomes] 时非空）。
+     */
+    val s1SessionSuccessRate: KpiValue = KpiValue.empty("ratio"),
 )
 
 /**
@@ -198,7 +240,8 @@ data class KpiResult(
  *
  * **失败语义（R-10）**：失败/超时样本时延一律 null、绝不 0，也绝不参与统计；
  * 无任何有效样本的 KPI 输出 value=null（绝不 0）。样本数低于口径最小值
- * （U2<8、echo<10、U1<3、TTFT<3、ITL 配对<100）时出值但带 lowConfidence（R-29）。
+ * （U2<8、echo<10、U1<3、D1<3、TTFT<3、ITL 配对<100）时出值但带 lowConfidence（R-29）。
+ * S1（会话完成率）为轮次占比口径、不设最小样本门限（有轮次即出值，无轮次记 null）。
  *
  * **有效性 Gate**：gap > token 总数 1% → INVALID(GAP_EXCEEDED)；streamTruncated →
  * INVALID(TRUNCATED)；外部守卫原因透传 INVALID；gap>0 或任一 KPI lowConfidence →
@@ -223,6 +266,9 @@ object KpiCalculator {
     const val MIN_UPLOAD_SAMPLES: Int = 3
     const val MIN_TTFT_SAMPLES: Int = 3
     const val MIN_ITL_SAMPLES: Int = 100
+
+    /** D1 下行 goodput 口径最小样本量（PROFILE_FRAMEWORK §5：MIN_DOWNLOAD=3；低于即 lowConfidence，R-29） */
+    const val MIN_DOWNLOAD: Int = 3
 
     fun calculate(input: KpiInput): KpiResult {
         // ---- seq join 与 gap 统计（5.3.8：强制 seq join，禁位置配对）----
@@ -356,6 +402,22 @@ object KpiCalculator {
         val u2LowConf = loopMs.size < MIN_TOOL_LOOP_SAMPLES && loopMs.isNotEmpty()
         val u2 = KpiValue(percentileOrNull(loopMs, 0.95), "ms", loopMs.size, u2LowConf)
 
+        // ---- D1：下行 goodput（`/download` 无限速 2xx 口径，逐次取中位数；PROFILE_FRAMEWORK §2.2 BM-09(b)）----
+        val validDownloads = input.downloadResults.filter {
+            it.http2xx && it.durationNanos != null && it.durationNanos > 0
+        }
+        val d1List = validDownloads.map { goodputMbps(it.bytes, it.durationNanos!!) }
+        val d1LowConf = d1List.size < MIN_DOWNLOAD && d1List.isNotEmpty()
+        val d1 = KpiValue(percentileOrNull(d1List, 0.50), "Mbps", d1List.size, d1LowConf)
+
+        // ---- S1：会话完成率（成功轮次/总轮次，传输完整性口径；PROFILE_FRAMEWORK §2.2 BM-06）----
+        val s1 = if (input.roundOutcomes.isEmpty()) {
+            KpiValue.empty("ratio") // 无轮次样本 → null（R-10：绝不 0 顶替）
+        } else {
+            val rate = input.roundOutcomes.count { it.success }.toDouble() / input.roundOutcomes.size
+            KpiValue(rate, "ratio", input.roundOutcomes.size, lowConfidence = false)
+        }
+
         // ---- 有效性 Gate（fail-closed，5.3.8/R-10）----
         val invalidReasons = ArrayList<InvalidReason>()
         invalidReasons.addAll(input.externalInvalidReasons)
@@ -365,10 +427,11 @@ object KpiCalculator {
         }
         val noData = input.tokenSamples.isEmpty() && input.echoSamples.isEmpty() &&
             input.uploadResults.isEmpty() && input.toolLoopSamples.isEmpty() &&
-            input.ttftSamples.isEmpty()
+            input.ttftSamples.isEmpty() && input.downloadResults.isEmpty() &&
+            input.roundOutcomes.isEmpty()
         if (noData) invalidReasons.add(InvalidReason.NO_DATA)
 
-        val allKpis = listOf(t1, t2, t2Incl, t3, t3Incl, t4, n1, n2, u1, u1Excl, u2)
+        val allKpis = listOf(t1, t2, t2Incl, t3, t3Incl, t4, n1, n2, u1, u1Excl, u2, d1)
         val validity = when {
             invalidReasons.isNotEmpty() -> Validity.INVALID
             gapCount > 0 || allKpis.any { it.lowConfidence } -> Validity.VALID_LOW_CONFIDENCE
@@ -399,6 +462,8 @@ object KpiCalculator {
             u1GoodputMbps = gate(u1),
             u1GoodputExclSlowStartMbps = gate(u1Excl),
             u2ToolLoopP95Ms = gate(u2),
+            d1GoodputMbps = gate(d1),
+            s1SessionSuccessRate = gate(s1),
         )
     }
 
