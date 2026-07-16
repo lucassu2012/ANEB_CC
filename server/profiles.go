@@ -83,6 +83,21 @@ func (p *Profile) tokenStreamPhase(idx int) (*Phase, error) {
 	return nil, fmt.Errorf("profile %s: token_stream phase index %d not found (has %d)", p.ProfileID, idx, n)
 }
 
+// downloadBurstPhase 返回第 idx 个 download_burst phase（idx 从 0 计，只数 download_burst）。
+// download_burst 声明 TK-5 下行大对象拉取（PROFILE_FRAMEWORK §2.4/§3.1，接 /download 供 D1）。
+func (p *Profile) downloadBurstPhase(idx int) (*Phase, error) {
+	n := 0
+	for i := range p.Phases {
+		if p.Phases[i].Type == "download_burst" {
+			if n == idx {
+				return &p.Phases[i], nil
+			}
+			n++
+		}
+	}
+	return nil, fmt.Errorf("profile %s: download_burst phase index %d not found (has %d)", p.ProfileID, idx, n)
+}
+
 // loadProfiles 读取目录下全部 *.json 并解析为 Profile。
 // 解析失败任一文件即整体报错（profile 是两端共享合同，不允许静默跳过）。
 func loadProfiles(dir string) (map[string]*Profile, error) {
