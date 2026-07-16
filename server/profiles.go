@@ -47,6 +47,8 @@ type Phase struct {
 	// TtftInjectUs：首 token 前注入的确定性 TTFT 驻留（模拟 AI 排队/prefill/think，§3.2/§3.4）；
 	// 服务端 prelude 透出供 APP 从 T1 减去。省略=0=无注入（行为不变）。
 	TtftInjectUs int64 `json:"ttft_inject_us,omitempty"`
+	// RateSchedule：非平稳解码 TPS 曲线（上下文衰减，§3.2）；省略=常速 rate_tps（行为不变）。仅均匀模式生效。
+	RateSchedule []RatePoint `json:"rate_schedule,omitempty"`
 
 	// tool_loop
 	Rounds       int   `json:"rounds,omitempty"`

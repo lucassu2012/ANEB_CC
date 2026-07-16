@@ -258,10 +258,15 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		params.Seed = ph.Seed
 		params.Burst = ph.Burst
 		params.TtftInjectUs = ph.TtftInjectUs
+		params.RateSchedule = ph.RateSchedule
 		if ph.TokenBytes != nil {
 			params.Median = ph.TokenBytes.Median
 			params.Sigma = ph.TokenBytes.Sigma
 		}
+	}
+	// 非平稳解码曲线（§3.2）只由 profile 声明（非平稳性是模型属性，非 URL 临时旋钮）。
+	if err := validateRateSchedule(params.RateSchedule, params.Burst != nil); err != nil {
+		return params, err
 	}
 	// 显式参数覆盖（无 profile 时即直接指定路径）。
 	if s := q.Get("tokens"); s != "" {
@@ -307,6 +312,32 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 type errBadParam string
 
 func (e errBadParam) Error() string { return string(e) }
+
+// validateRateSchedule 校验非平稳解码 TPS 曲线（§3.2）：AtFrac∈[0,1] 非递减、
+// Tps∈[0.1,100000]（下限同 rate_tps，防慢速 DoS）。空曲线视为合法（=常速）。
+// burst 模式自有节奏，声明 rate_schedule 是矛盾配置，直接拒绝。
+func validateRateSchedule(sched []RatePoint, isBurst bool) error {
+	if len(sched) == 0 {
+		return nil
+	}
+	if isBurst {
+		return errBadParam("rate_schedule not supported for burst phases")
+	}
+	prevFrac := -1.0
+	for i, pt := range sched {
+		if pt.AtFrac < 0 || pt.AtFrac > 1 {
+			return errBadParam("rate_schedule[" + strconv.Itoa(i) + "].at_frac must be in [0,1]")
+		}
+		if pt.AtFrac < prevFrac {
+			return errBadParam("rate_schedule.at_frac must be non-decreasing")
+		}
+		if pt.Tps < 0.1 || pt.Tps > 100000 {
+			return errBadParam("rate_schedule[" + strconv.Itoa(i) + "].tps must be in [0.1,100000]")
+		}
+		prevFrac = pt.AtFrac
+	}
+	return nil
+}
 
 // 故障注入类型（P0-C13 前置；语义见 handleStream 循环内注释）。
 const (

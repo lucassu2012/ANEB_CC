@@ -32,6 +32,42 @@ type StreamParams struct {
 	// token 间间隔不变——只把 dwell 记进"起点→首 token"，不污染 ITL。服务端经 prelude
 	// 显式透出该值供 APP 从 T1 减去（补"减法项恒为 0"缺口）。默认 0 = 无注入、行为不变。
 	TtftInjectUs int64
+
+	// RateSchedule 是**非平稳解码 TPS 曲线**（设计 §3.2「上下文衰减 rate_schedule 非平稳」）：
+	// 按流内进度分段线性给出瞬时 TPS，逐 token 累积间隔——模拟真实 LLM 随上下文增长的解码变速
+	// （典型前快后慢）。nil/空 = 常速 RateTps（原逻辑，行为不变）。仅均匀模式生效（burst 自有节奏）。
+	RateSchedule []RatePoint
+}
+
+// RatePoint 是非平稳解码 TPS 曲线上的一个断点：流内进度 AtFrac∈[0,1] 处的瞬时 TPS。
+type RatePoint struct {
+	AtFrac float64 `json:"at_frac"`
+	Tps    float64 `json:"tps"`
+}
+
+// tpsAtSchedule 在**已按 AtFrac 升序**的曲线上分段线性求 frac 处 TPS；端点外 clamp。
+// 空曲线返回 fallback。调用方保证 sched 非空且已排序、Tps>0（streamParamsFromRequest 校验）。
+func tpsAtSchedule(sched []RatePoint, frac, fallback float64) float64 {
+	if len(sched) == 0 {
+		return fallback
+	}
+	if frac <= sched[0].AtFrac {
+		return sched[0].Tps
+	}
+	last := sched[len(sched)-1]
+	if frac >= last.AtFrac {
+		return last.Tps
+	}
+	for i := 1; i < len(sched); i++ {
+		a, b := sched[i-1], sched[i]
+		if frac <= b.AtFrac {
+			if b.AtFrac == a.AtFrac {
+				return b.Tps
+			}
+			return a.Tps + (frac-a.AtFrac)/(b.AtFrac-a.AtFrac)*(b.Tps-a.Tps)
+		}
+	}
+	return last.Tps // 不可达
 }
 
 // GenerateTokens 生成确定性的 token 时刻表与大小序列。
@@ -63,13 +99,32 @@ func GenerateTokens(p StreamParams) []TokenSpec {
 	}
 
 	if p.Burst == nil {
-		intervalUs := 1e6 / p.RateTps
+		if len(p.RateSchedule) == 0 {
+			// 常速路径（原逻辑）：间隔恒定 1/RateTps。
+			intervalUs := 1e6 / p.RateTps
+			for i := 0; i < p.Tokens; i++ {
+				specs[i] = TokenSpec{
+					// 整表右移 TtftInjectUs（首 token 前的注入 dwell，§3.4）；间隔不变。
+					SchedUs: int64(math.Round(float64(i)*intervalUs)) + p.TtftInjectUs,
+					Size:    drawSize(),
+				}
+			}
+			return specs
+		}
+		// 非平稳路径（§3.2）：按进度 frac=i/(N-1) 取瞬时 TPS，逐 token 累积间隔。
+		// drawSize() 仍每 token 一次、顺序不变——确定性与常速路径同源。
+		denom := float64(p.Tokens - 1)
+		if denom < 1 {
+			denom = 1
+		}
+		schedUs := 0.0
 		for i := 0; i < p.Tokens; i++ {
 			specs[i] = TokenSpec{
-				// 整表右移 TtftInjectUs（首 token 前的注入 dwell，§3.4）；间隔不变。
-				SchedUs: int64(math.Round(float64(i)*intervalUs)) + p.TtftInjectUs,
+				SchedUs: int64(math.Round(schedUs)) + p.TtftInjectUs,
 				Size:    drawSize(),
 			}
+			tps := tpsAtSchedule(p.RateSchedule, float64(i)/denom, p.RateTps)
+			schedUs += 1e6 / tps // 本 token 后的间隔由本 token 处的瞬时 TPS 决定
 		}
 		return specs
 	}
