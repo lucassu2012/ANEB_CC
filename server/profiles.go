@@ -53,12 +53,18 @@ type Phase struct {
 	RateSchedule []RatePoint `json:"rate_schedule,omitempty"`
 	// TokensPerFrame：每个 SSE 帧合并的 token 数（frame-batching，§3.2）；省略/0/1=每 token 一帧（行为不变）。
 	TokensPerFrame int `json:"tokens_per_frame,omitempty"`
+	// ThinkInjections：流内 think 驻留（§3.2，reasoning 模型中途思考）；省略=无（行为不变）。
+	ThinkInjections []ThinkInjection `json:"think_injections,omitempty"`
 
 	// tool_loop
 	Rounds       int   `json:"rounds,omitempty"`
 	UpBytes      int64 `json:"up_bytes,omitempty"`
 	DownBytes    int64 `json:"down_bytes,omitempty"`
 	ServerProcMs int   `json:"server_proc_ms,omitempty"`
+
+	// artifact_stream（§3.1，复用 Bytes/ChunkKB/Seed）：下行渐进生成节奏与类别。
+	CadenceBps    int64  `json:"cadence_bps,omitempty"`
+	ArtifactClass string `json:"artifact_class,omitempty"`
 }
 
 // Profile 是版本化场景定义（发布即冻结，修改必须升版本号）。
@@ -98,6 +104,21 @@ func (p *Profile) downloadBurstPhase(idx int) (*Phase, error) {
 		}
 	}
 	return nil, fmt.Errorf("profile %s: download_burst phase index %d not found (has %d)", p.ProfileID, idx, n)
+}
+
+// artifactStreamPhase 返回第 idx 个 artifact_stream phase（idx 从 0 计，只数 artifact_stream）。
+// artifact_stream 声明下行渐进生成内容（PROFILE_FRAMEWORK §3.1，接 /artifact_stream）。
+func (p *Profile) artifactStreamPhase(idx int) (*Phase, error) {
+	n := 0
+	for i := range p.Phases {
+		if p.Phases[i].Type == "artifact_stream" {
+			if n == idx {
+				return &p.Phases[i], nil
+			}
+			n++
+		}
+	}
+	return nil, fmt.Errorf("profile %s: artifact_stream phase index %d not found (has %d)", p.ProfileID, idx, n)
 }
 
 // loadProfiles 读取目录下全部 *.json 并解析为 Profile。

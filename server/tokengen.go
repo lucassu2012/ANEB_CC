@@ -47,6 +47,36 @@ type StreamParams struct {
 	// 替换全局写死的 median=120/sigma=0.6」）：非空时 drawSize 按加权直方图确定性抽样，取代 lognormal。
 	// nil/空 = lognormal(Median,Sigma)（默认，行为不变）。每 token 消耗 1 次 rng，与 lognormal 同源。
 	SizeHistogram []SizeBin
+
+	// ThinkInjections 是**流内 think 驻留**（§3.2「reasoning 模型 think 期间…替换现 think_pause 客户端固定常数」）：
+	// 在指定 seq 前注入确定性思考停顿——整表把 seq≥AtSeq 的 token 右移 DwellUs（可叠加多处）。
+	// 区别于 TtftInjectUs（首 token 前）、rate_schedule（渐变）：这是**流内离散停顿**（模拟推理模型中途思考）。
+	// 服务端把注入的 think seq/dwell 经 summary 透出，供 APP 归为 pause（不计网络 stall）。nil/空 = 无（行为不变）。
+	ThinkInjections []ThinkInjection
+}
+
+// ThinkInjection 描述一次流内 think 驻留：在 seq=AtSeq 前注入 DwellUs 微秒停顿。
+type ThinkInjection struct {
+	AtSeq   int   `json:"at_seq"`
+	DwellUs int64 `json:"dwell_us"`
+}
+
+// applyThinkInjections 把 seq≥AtSeq 的 token 右移累积 DwellUs（流内 think 停顿，§3.2）。
+// 只改时刻表、不改大小序列/rng——确定性不变。空注入原样返回。
+func applyThinkInjections(specs []TokenSpec, injs []ThinkInjection) []TokenSpec {
+	if len(injs) == 0 {
+		return specs
+	}
+	for i := range specs {
+		var shift int64
+		for _, in := range injs {
+			if in.AtSeq <= i {
+				shift += in.DwellUs
+			}
+		}
+		specs[i].SchedUs += shift
+	}
+	return specs
 }
 
 // SizeBin 是字节直方图的一个桶：字节数 Size 与相对权重 Weight（>0）。
@@ -147,7 +177,7 @@ func GenerateTokens(p StreamParams) []TokenSpec {
 					Size:    drawSize(),
 				}
 			}
-			return specs
+			return applyThinkInjections(specs, p.ThinkInjections)
 		}
 		// 非平稳路径（§3.2）：按进度 frac=i/(N-1) 取瞬时 TPS，逐 token 累积间隔。
 		// drawSize() 仍每 token 一次、顺序不变——确定性与常速路径同源。
@@ -164,7 +194,7 @@ func GenerateTokens(p StreamParams) []TokenSpec {
 			tps := tpsAtSchedule(p.RateSchedule, float64(i)/denom, p.RateTps)
 			schedUs += 1e6 / tps // 本 token 后的间隔由本 token 处的瞬时 TPS 决定
 		}
-		return specs
+		return applyThinkInjections(specs, p.ThinkInjections)
 	}
 
 	// burst 模式：簇内 cluster_tps，簇长几何分布（均值 1/p），簇间停顿均匀 [min,max] ms。
@@ -195,7 +225,7 @@ func GenerateTokens(p StreamParams) []TokenSpec {
 			t = last + pauseMs*1000.0
 		}
 	}
-	return specs
+	return applyThinkInjections(specs, p.ThinkInjections)
 }
 
 // geometric 返回 >=1 的几何分布样本（成功概率 p，均值 1/p）。

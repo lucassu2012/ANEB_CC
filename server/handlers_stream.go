@@ -225,6 +225,18 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	buf = strconv.AppendInt(buf, int64(frameK), 10)
 	buf = append(buf, `,"frames_flushed":`...)
 	buf = strconv.AppendInt(buf, int64(framesFlushed), 10)
+	// 流内 think 驻留透出（§3.2）：注入的 seq 与 dwell，供 APP 归为 pause（不计网络 stall）。
+	// 仅注入非空时输出（additive，默认 summary 字节级不变）。
+	if len(params.ThinkInjections) > 0 {
+		thinkSeqs := make([]int64, len(params.ThinkInjections))
+		thinkDwells := make([]int64, len(params.ThinkInjections))
+		for i, in := range params.ThinkInjections {
+			thinkSeqs[i] = int64(in.AtSeq)
+			thinkDwells[i] = in.DwellUs
+		}
+		buf = appendInt64Array(buf, `,"think_seqs":`, thinkSeqs)
+		buf = appendInt64Array(buf, `,"think_dwells_us":`, thinkDwells)
+	}
 	buf = appendInt64Array(buf, `,"flush_return_us":`, flushReturnUs)
 	buf = appendInt64Array(buf, `,"timer_late_us":`, timerLateUs)
 	buf = appendInt64Array(buf, `,"flush_block_us":`, flushBlockUs)
@@ -287,6 +299,7 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		params.TtftInjectUs = ph.TtftInjectUs
 		params.RateSchedule = ph.RateSchedule
 		params.TokensPerFrame = ph.TokensPerFrame
+		params.ThinkInjections = ph.ThinkInjections
 		if ph.TokenBytes != nil {
 			params.Median = ph.TokenBytes.Median
 			params.Sigma = ph.TokenBytes.Sigma
@@ -299,6 +312,10 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 	}
 	// 每模型字节直方图（§3.2）：桶字节须在 clamp 区间内、权重为正。
 	if err := validateSizeHistogram(params.SizeHistogram); err != nil {
+		return params, err
+	}
+	// 流内 think 驻留（§3.2）：at_seq∈[1,tokens)、dwell_us∈(0,maxThinkDwellUs]。
+	if err := validateThinkInjections(params.ThinkInjections, params.Tokens); err != nil {
 		return params, err
 	}
 	if s := q.Get("tokens_per_frame"); s != "" {
@@ -380,6 +397,23 @@ func validateRateSchedule(sched []RatePoint, isBurst bool) error {
 			return errBadParam("rate_schedule[" + strconv.Itoa(i) + "].tps must be in [0.1,100000]")
 		}
 		prevFrac = pt.AtFrac
+	}
+	return nil
+}
+
+// maxThinkDwellUs 是单次流内 think 驻留上限（10s，防单请求长挂）。
+const maxThinkDwellUs int64 = 10_000_000
+
+// validateThinkInjections 校验流内 think 驻留（§3.2）：at_seq∈[1,tokens)（seq 0 前的驻留归 TTFT）、
+// dwell_us∈(0,maxThinkDwellUs]。空合法（=无 think）。
+func validateThinkInjections(injs []ThinkInjection, tokens int) error {
+	for i, in := range injs {
+		if in.AtSeq < 1 || in.AtSeq >= tokens {
+			return errBadParam("think_injections[" + strconv.Itoa(i) + "].at_seq must be in [1," + strconv.Itoa(tokens) + ")")
+		}
+		if in.DwellUs <= 0 || in.DwellUs > maxThinkDwellUs {
+			return errBadParam("think_injections[" + strconv.Itoa(i) + "].dwell_us must be in (0," + strconv.FormatInt(maxThinkDwellUs, 10) + "]")
+		}
 	}
 	return nil
 }
