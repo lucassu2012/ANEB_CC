@@ -26,6 +26,12 @@ type StreamParams struct {
 	Median  float64 // token_bytes.median
 	Sigma   float64 // token_bytes.sigma
 	Burst   *Burst  // nil = 均匀 1/rate_tps
+
+	// TtftInjectUs 是首 token 前注入的确定性 TTFT 驻留（模拟 AI 排队/prefill/think，
+	// 设计 §3.2/§3.4）。整表统一右移该偏移：首 token 计划于 TtftInjectUs（而非 0），
+	// token 间间隔不变——只把 dwell 记进"起点→首 token"，不污染 ITL。服务端经 prelude
+	// 显式透出该值供 APP 从 T1 减去（补"减法项恒为 0"缺口）。默认 0 = 无注入、行为不变。
+	TtftInjectUs int64
 }
 
 // GenerateTokens 生成确定性的 token 时刻表与大小序列。
@@ -60,7 +66,8 @@ func GenerateTokens(p StreamParams) []TokenSpec {
 		intervalUs := 1e6 / p.RateTps
 		for i := 0; i < p.Tokens; i++ {
 			specs[i] = TokenSpec{
-				SchedUs: int64(math.Round(float64(i) * intervalUs)),
+				// 整表右移 TtftInjectUs（首 token 前的注入 dwell，§3.4）；间隔不变。
+				SchedUs: int64(math.Round(float64(i)*intervalUs)) + p.TtftInjectUs,
 				Size:    drawSize(),
 			}
 		}
@@ -85,7 +92,8 @@ func GenerateTokens(p StreamParams) []TokenSpec {
 		last := 0.0
 		for j := 0; j < clusterLen && i < p.Tokens; j++ {
 			sched := t + float64(j)*intraUs
-			specs[i] = TokenSpec{SchedUs: int64(math.Round(sched)), Size: drawSize()}
+			// 整表右移 TtftInjectUs（§3.4）；last/t 用未偏移的相对时刻累计，间隔不变。
+			specs[i] = TokenSpec{SchedUs: int64(math.Round(sched)) + p.TtftInjectUs, Size: drawSize()}
 			last = sched
 			i++
 		}

@@ -73,11 +73,15 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// R-20: prelude 注释帧——响应头后、首 token 前的服务端时戳锚点。
-	prelude := make([]byte, 0, 128)
+	prelude := make([]byte, 0, 160)
 	prelude = append(prelude, `: prelude {"srv_ts_us":`...)
 	prelude = strconv.AppendInt(prelude, nowMicros(), 10)
 	prelude = append(prelude, `,"anchor_wall_unix_ns":`...)
 	prelude = strconv.AppendInt(prelude, anchorWallUnixNs, 10)
+	// 注入的 TTFT 驻留（§3.4）：首 token 前的确定性服务端 dwell，供 APP 从 T1 减去
+	// （补"减法项恒为 0"缺口）。0 = 无注入。additive 字段，旧客户端忽略未知键。
+	prelude = append(prelude, `,"ttft_inject_us":`...)
+	prelude = strconv.AppendInt(prelude, params.TtftInjectUs, 10)
 	prelude = append(prelude, `,"observed":`...)
 	// strconv.AppendQuote 做 JSON 兼容转义（RemoteAddr 正常不含特殊字符，
 	// 但手拼 JSON 不做转义是脆弱模式，防御性统一）。
@@ -253,6 +257,7 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		params.RateTps = ph.RateTps
 		params.Seed = ph.Seed
 		params.Burst = ph.Burst
+		params.TtftInjectUs = ph.TtftInjectUs
 		if ph.TokenBytes != nil {
 			params.Median = ph.TokenBytes.Median
 			params.Sigma = ph.TokenBytes.Sigma
@@ -286,6 +291,15 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 			return params, errBadParam("invalid seed: " + s)
 		}
 		params.Seed = v
+	}
+	if s := q.Get("ttft_inject_us"); s != "" {
+		// 首 token 前注入的 TTFT 驻留（§3.4）。上限 10s：防单请求 goroutine 长挂
+		// （慢速拒绝服务面），与 rate_tps 下限同款纪律。负值无意义。
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil || v < 0 || v > 10_000_000 {
+			return params, errBadParam("invalid ttft_inject_us: " + s)
+		}
+		params.TtftInjectUs = v
 	}
 	return params, nil
 }
