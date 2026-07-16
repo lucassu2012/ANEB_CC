@@ -42,6 +42,35 @@ type StreamParams struct {
 	// 不影响 token 时刻表（GenerateTokens 忽略本字段），由 handler 在发送时按此合并 flush。
 	// 1/0 = 每 token 一帧（默认，行为不变）。
 	TokensPerFrame int
+
+	// SizeHistogram 是**每模型 token 字节经验分布**（§3.2「token 字节改为每模型 byte/token 直方图，
+	// 替换全局写死的 median=120/sigma=0.6」）：非空时 drawSize 按加权直方图确定性抽样，取代 lognormal。
+	// nil/空 = lognormal(Median,Sigma)（默认，行为不变）。每 token 消耗 1 次 rng，与 lognormal 同源。
+	SizeHistogram []SizeBin
+}
+
+// SizeBin 是字节直方图的一个桶：字节数 Size 与相对权重 Weight（>0）。
+type SizeBin struct {
+	Size   int     `json:"size"`
+	Weight float64 `json:"weight"`
+}
+
+// drawSizeFromHistogram 按累积权重确定性抽样一个桶的字节数（消耗 1 次 rng.Float64）。
+// 调用方保证 bins 非空、Weight>0、Size 已在 [tokenBytesMin,tokenBytesMax]（handler 校验）。
+func drawSizeFromHistogram(rng *rand.Rand, bins []SizeBin) int {
+	total := 0.0
+	for _, b := range bins {
+		total += b.Weight
+	}
+	u := rng.Float64() * total
+	acc := 0.0
+	for _, b := range bins {
+		acc += b.Weight
+		if u < acc {
+			return b.Size
+		}
+	}
+	return bins[len(bins)-1].Size // 浮点边界兜底
 }
 
 // RatePoint 是非平稳解码 TPS 曲线上的一个断点：流内进度 AtFrac∈[0,1] 处的瞬时 TPS。
@@ -92,6 +121,10 @@ func GenerateTokens(p StreamParams) []TokenSpec {
 	specs := make([]TokenSpec, p.Tokens)
 
 	drawSize := func() int {
+		// 每模型直方图优先（§3.2）；否则 lognormal(median,sigma)。两路各消耗 1 次 rng，确定性同源。
+		if len(p.SizeHistogram) > 0 {
+			return drawSizeFromHistogram(rng, p.SizeHistogram)
+		}
 		v := p.Median * math.Exp(p.Sigma*rng.NormFloat64())
 		n := int(math.Round(v))
 		if n < tokenBytesMin {

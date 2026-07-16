@@ -10,11 +10,13 @@ import (
 	"strings"
 )
 
-// TokenBytes 描述单 token 事件 payload 字节数的对数正态分布参数。
+// TokenBytes 描述单 token 事件 payload 字节数分布：默认对数正态(median,sigma)；
+// 若 Histogram 非空则改用每模型经验直方图（§3.2，取代全局 median=120/sigma=0.6）。
 type TokenBytes struct {
-	Dist   string  `json:"dist"`
-	Median float64 `json:"median"`
-	Sigma  float64 `json:"sigma"`
+	Dist      string    `json:"dist"`
+	Median    float64   `json:"median"`
+	Sigma     float64   `json:"sigma"`
+	Histogram []SizeBin `json:"histogram,omitempty"`
 }
 
 // Burst 描述突发簇节奏（S2 编码 Agent 流）。

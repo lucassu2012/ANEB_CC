@@ -290,10 +290,15 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		if ph.TokenBytes != nil {
 			params.Median = ph.TokenBytes.Median
 			params.Sigma = ph.TokenBytes.Sigma
+			params.SizeHistogram = ph.TokenBytes.Histogram
 		}
 	}
 	// 非平稳解码曲线（§3.2）只由 profile 声明（非平稳性是模型属性，非 URL 临时旋钮）。
 	if err := validateRateSchedule(params.RateSchedule, params.Burst != nil); err != nil {
+		return params, err
+	}
+	// 每模型字节直方图（§3.2）：桶字节须在 clamp 区间内、权重为正。
+	if err := validateSizeHistogram(params.SizeHistogram); err != nil {
 		return params, err
 	}
 	if s := q.Get("tokens_per_frame"); s != "" {
@@ -375,6 +380,24 @@ func validateRateSchedule(sched []RatePoint, isBurst bool) error {
 			return errBadParam("rate_schedule[" + strconv.Itoa(i) + "].tps must be in [0.1,100000]")
 		}
 		prevFrac = pt.AtFrac
+	}
+	return nil
+}
+
+// validateSizeHistogram 校验每模型字节直方图（§3.2）：桶字节 ∈ [tokenBytesMin,tokenBytesMax]、
+// 权重 > 0。空直方图合法（=沿用 lognormal）。
+func validateSizeHistogram(bins []SizeBin) error {
+	if len(bins) == 0 {
+		return nil
+	}
+	for i, b := range bins {
+		if b.Size < tokenBytesMin || b.Size > tokenBytesMax {
+			return errBadParam("size_histogram[" + strconv.Itoa(i) + "].size must be in [" +
+				strconv.Itoa(tokenBytesMin) + "," + strconv.Itoa(tokenBytesMax) + "]")
+		}
+		if b.Weight <= 0 {
+			return errBadParam("size_histogram[" + strconv.Itoa(i) + "].weight must be > 0")
+		}
 	}
 	return nil
 }
