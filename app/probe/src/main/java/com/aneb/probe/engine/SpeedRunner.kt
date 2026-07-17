@@ -1,7 +1,9 @@
 package com.aneb.probe.engine
 
+import android.net.Network
 import com.aneb.probe.net.AnebClient
 import com.aneb.probe.net.ReachabilityProbe
+import com.aneb.probe.net.UdpProbe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +20,9 @@ import kotlin.math.abs
  *
  * 目标：用会**随网络真实波动**的指标（上行吞吐、时延）驱动 SpeedTest 级动态仪表。
  * - **Ping 阶段**：快速 echo → 实时 RTT / 抖动（随网络波动）。
+ * - **UDP 应用探针**（Ping 后、Download 前，仅正常 [run]）：ANEB1 整包回显按 seq 对账 →
+ *   "UDP 未返回率"。口径：应用层探针未回显占比，**≠IP 丢包率**；现场协变量，不进任何分；
+ *   零回包/不可达＝"UDP 应用探针不可用"（null，R-10）。UDP 不受合成整形，[runShaped] 不做。
  * - **Download 阶段**：持续下载服务端 unpaced `/download?bytes=1GiB`，[AnebClient.downloadDrain]
  *   逐块 onChunk → ~0.6s 滑窗算**实时下行吞吐**；读到即真实到达字节（比上行更纯净）。
  * - **Upload 阶段**：持续上传（循环大块到 /upload，socket 发送缓冲填满后写入节奏≈真实网络
@@ -57,9 +62,24 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         /** 合成整形口径标记（weak-capacity-latency-v1，D-43）：true＝样本来自 [runShaped] 的
          * 服务端逐 run 隔离整形路径，展示必须标注"合成"，**绝不与正常 [run] 的样本/结论合并**。 */
         val shaped: Boolean = false,
+        /** UDP 未返回率（%）＝应用层 ANEB1 探针未回显占比，**≠IP 丢包率**；现场协变量，
+         * 不进任何分。零回包/不可达/探测失败均为 null＝"UDP 应用探针不可用"（R-10 绝不折 0/100）。 */
+        val udpUnreturnedPct: Double? = null,
+        /** UDP 探针回显 RTT 中位数（ms，发出→回显到达单调钟）；无成功样本 null（R-10）。 */
+        val udpRttMs: Double? = null,
     )
 
-    fun run(serverBase: String): Flow<Sample> = channelFlow {
+    /** 最近一次 [run] 的 UDP 探针原始结果（观测协变量；MainActivity 记 `UDP_PROBE` 日志用，
+     *  D-02 只读不重算）。run 起始清 null；探测失败保持 null。 */
+    @Volatile
+    var lastUdpProbeResult: UdpProbe.UdpProbeResult? = null
+        private set
+
+    /**
+     * @param network 已绑定的测量网络（R-01：防 VPN/代理污染）；null＝AUTO 不绑定
+     *   （与本模式 HTTP 路径的默认 [AnebClient] 同口径）。当前仅 UDP 探针消费。
+     */
+    fun run(serverBase: String, network: Network? = null): Flow<Sample> = channelFlow {
         // D-25：E-01 的 sslip 主机名在电信/部分网络被 DPI 做 SNI-keyed TLS RST（Connection reset）。
         // 直接选路 bare-IP 等价基址（同节点、同物理路径、观测口径不变）绕过；非 E-01 目标保持原样。
         val raw = serverBase.trim().trimEnd('/')
@@ -68,7 +88,15 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         // facet2 FAIL：应用层请求失败计数（非 2xx/IO 错误；主动取消不计）——观测口径
         val reqFailed = java.util.concurrent.atomic.AtomicInteger(0)
         val reqTotal = java.util.concurrent.atomic.AtomicInteger(0)
-        suspend fun emit(s: Sample) = send(s.copy(reqFailed = reqFailed.get(), reqTotal = reqTotal.get()))
+        // UDP 应用探针观测值（Ping 相位后填充；探测前/失败均 null——"UDP 应用探针不可用"，R-10）
+        var udpUnreturned: Double? = null
+        var udpRttMed: Double? = null
+        suspend fun emit(s: Sample) = send(
+            s.copy(
+                reqFailed = reqFailed.get(), reqTotal = reqTotal.get(),
+                udpUnreturnedPct = udpUnreturned, udpRttMs = udpRttMed,
+            )
+        )
 
         // ---- Ping 阶段（~1.7s，快速 echo；实时 RTT + 抖动）----
         val rtts = ArrayList<Double>()
@@ -87,6 +115,21 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         }
         val rttMed = median(rtts)
         val jit = jitter(rtts)
+
+        // ---- UDP 应用探针（Ping 后、Download 前；ANEB1 整包回显按 seq 对账）----
+        // 口径：UDP 未返回率＝应用层探针未回显占比，≠IP 丢包率；现场协变量，不进任何分。
+        // UDP 路径不受服务端合成整形（未整形现场协变量），故只在本正常 run 执行，[runShaped] 不做。
+        // 失败/不可达 → 字段保持 null（"UDP 应用探针不可用"，R-10），不影响主流程。
+        lastUdpProbeResult = null
+        runCatching {
+            val uri = java.net.URI(base)
+            val udpPort = uri.port.takeIf { it > 0 } ?: 443 // UDP 与 HTTPS 共端口（魔数分流）
+            val res = withContext(Dispatchers.IO) { UdpProbe(network).probe(uri.host, udpPort) }
+            lastUdpProbeResult = res
+            udpUnreturned = res.unreturnedPct
+            udpRttMed = res.rttMedianMs
+        }
+        emit(Sample(Phase.Ping, rttMed, jit, null, null, 0.2f))
 
         // ---- Download 阶段（~6s 持续下载 /download 排空，逐块实时测速）----
         val dlBytes = AtomicLong(0)
