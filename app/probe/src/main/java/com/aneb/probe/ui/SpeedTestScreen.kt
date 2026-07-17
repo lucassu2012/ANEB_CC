@@ -65,6 +65,11 @@ fun SpeedTestScreen(
     recoveryRunning: Boolean = false,
     onStartRecovery: () -> Unit = {},
     onCancelRecovery: () -> Unit = {},
+    // 弱网对照（weak-capacity-latency-v1 合成整形，D-43；合成口径，不并入正常结论）
+    shapedSample: SpeedRunner.Sample? = null,
+    shapedRunning: Boolean = false,
+    onStartShaped: () -> Unit = {},
+    onCancelShaped: () -> Unit = {},
 ) {
     val c = AnebTheme.colors
     // 实时吞吐火花线（当前相：下行/上行）+ 上下行峰值（每次起测清空）
@@ -85,6 +90,19 @@ fun SpeedTestScreen(
         if (history.size > 64) history.removeAt(0)
         sample?.upMbps?.toFloat()?.let { if (it > peakUp) peakUp = it }
         sample?.downMbps?.toFloat()?.let { if (it > peakDown) peakDown = it }
+    }
+    // 弱网对照（合成整形）run 的实测峰值（每次起测清空；与正常 run 峰值并排展示，绝不合并）
+    var shapedPeakUp by remember { mutableStateOf(0f) }
+    var shapedPeakDown by remember { mutableStateOf(0f) }
+    LaunchedEffect(shapedRunning) {
+        if (shapedRunning) {
+            shapedPeakUp = 0f
+            shapedPeakDown = 0f
+        }
+    }
+    LaunchedEffect(shapedSample) {
+        shapedSample?.upMbps?.toFloat()?.let { if (it > shapedPeakUp) shapedPeakUp = it }
+        shapedSample?.downMbps?.toFloat()?.let { if (it > shapedPeakDown) shapedPeakDown = it }
     }
 
     val phase = sample?.phase
@@ -184,6 +202,21 @@ fun SpeedTestScreen(
             speedRunning = running,
             onStart = onStartRecovery,
             onCancel = onCancelRecovery,
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        // ---- 弱网对照卡（weak-capacity-latency-v1 合成整形；合成口径，不并入正常结论）----
+        ShapedCompareCard(
+            s = shapedSample,
+            running = shapedRunning,
+            speedRunning = running,
+            normalPeakDown = peakDown,
+            normalPeakUp = peakUp,
+            shapedPeakDown = shapedPeakDown,
+            shapedPeakUp = shapedPeakUp,
+            onStart = onStartShaped,
+            onCancel = onCancelShaped,
         )
 
         Spacer(Modifier.height(16.dp))
@@ -491,6 +524,93 @@ private fun RecoveryCard(
         ) {
             Text(
                 if (running) "取消恢复子测" else "触发恢复子测",
+                color = if (speedRunning) c.faint else Color(0xFF05121A),
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+/** 弱网对照卡（weak-capacity-latency-v1；同三阶段走服务端逐 run 隔离整形路径 ↓3/↑1Mbps +120±30ms；
+ *  合成整形口径——对照仅并排展示，不并入正常测速结论/分数）。 */
+@Composable
+private fun ShapedCompareCard(
+    s: SpeedRunner.Sample?,
+    running: Boolean,
+    speedRunning: Boolean,
+    normalPeakDown: Float,
+    normalPeakUp: Float,
+    shapedPeakDown: Float,
+    shapedPeakUp: Float,
+    onStart: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val c = AnebTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.surface)
+            .padding(14.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("弱网对照（合成 3/1Mbps +120ms）", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (s?.phase == SpeedRunner.Phase.Done) {
+                Text("完成", color = c.excellent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        when {
+            s == null && !running -> Text(
+                "同三阶段测速经服务端逐 run 隔离整形路径（↓3/↑1Mbps，每请求 +120±30ms 确定性抖动），" +
+                    "与正常测速并排对照受控弱网体验（weak-capacity-latency-v1，合成口径，不并入正常结论）。",
+                color = c.faint, fontSize = 11.sp,
+            )
+            running && s?.phase != SpeedRunner.Phase.Done -> {
+                val phaseLabel = when (s?.phase) {
+                    SpeedRunner.Phase.Ping -> "整形时延探测中（+120±30ms）"
+                    SpeedRunner.Phase.Download -> "整形下行测速中（聚合 3Mbps 上限）"
+                    SpeedRunner.Phase.Upload -> "整形上行测速中（聚合 1Mbps 上限）"
+                    else -> "整形路径回执核验中…"
+                }
+                Text(phaseLabel, color = c.good, fontSize = 12.sp)
+                Text(
+                    "下行 ${fmt(s?.downMbps, "%.2f")} · 上行 ${fmt(s?.upMbps, "%.2f")} Mbps · RTT ${fmt(s?.rttMs, "%.0f")} ms",
+                    color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                )
+            }
+            s?.phase == SpeedRunner.Phase.Done -> {
+                // 对照行：正常峰值（本次会话已有正常 run 时）vs 整形实测峰值
+                val nd = if (normalPeakDown > 0f) "%.1f".format(normalPeakDown) else "—"
+                val nu = if (normalPeakUp > 0f) "%.1f".format(normalPeakUp) else "—"
+                val sd = if (shapedPeakDown > 0f) "%.2f".format(shapedPeakDown) else "—"
+                val su = if (shapedPeakUp > 0f) "%.2f".format(shapedPeakUp) else "—"
+                Text("正常峰值 ↓$nd / ↑$nu Mbps", color = c.ink, fontSize = 13.sp)
+                Text(
+                    "整形实测 ↓$sd / ↑$su Mbps · RTT ${fmt(s.rttMs, "%.0f")} ms",
+                    color = c.brand, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("合成整形口径,不并入正常结论", color = c.faint, fontSize = 10.sp)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        val btnColor = when {
+            running -> c.poor
+            speedRunning -> c.surfaceMuted
+            else -> c.brand
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(btnColor)
+                .clickable(enabled = !speedRunning) { if (running) onCancel() else onStart() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (running) "取消弱网对照" else "开始弱网对照",
                 color = if (speedRunning) c.faint else Color(0xFF05121A),
                 fontSize = 14.sp, fontWeight = FontWeight.Bold,
             )
