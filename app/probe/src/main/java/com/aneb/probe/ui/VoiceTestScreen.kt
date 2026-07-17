@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,11 +25,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.data.VoiceResultEntity
 import com.aneb.probe.engine.VoiceRunner
 import com.aneb.probe.scoring.AqsScorer
 import com.aneb.probe.scoring.KpiValue
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * AI 实时交互（语音）模式屏——[VoiceRunner] 的展示层（PROFILE_FRAMEWORK §4.1）。
@@ -45,6 +50,8 @@ fun VoiceTestScreen(
     contRunning: Boolean = false,
     onStartContinuity: () -> Unit = {},
     onCancelContinuity: () -> Unit = {},
+    /** 最近落库的语音记录（D-42），新→旧；空=无历史（不占位） */
+    recentVoice: List<VoiceResultEntity> = emptyList(),
 ) {
     val c = AnebTheme.colors
     val phase = sample?.phase
@@ -110,6 +117,12 @@ fun VoiceTestScreen(
         // ---- facet4 结论（scoreVoice：WEIGHTS_VOICE + M1>400ms 硬否决）----
         if (phase == VoiceRunner.Phase.Done) {
             VoiceConclusionCard(sample)
+        }
+
+        // ---- 最近语音记录（D-42）：只展示落库实测值，不重算分 ----
+        if (recentVoice.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            RecentVoiceSection(recentVoice)
         }
 
         Spacer(Modifier.height(24.dp))
@@ -250,6 +263,45 @@ private fun VoiceContinuityCard(
                 color = if (voiceRunning) c.faint else Color(0xFF05121A),
                 fontSize = 14.sp, fontWeight = FontWeight.Bold,
             )
+        }
+    }
+}
+
+/**
+ * 最近语音记录（D-42）：时间 + 口径 + 口到耳值，只展示 [VoiceResultEntity] 落库实测值，
+ * 不重算分。口到耳优先 v2 实测代理 [VoiceResultEntity.mouthEarProxyMs]，缺失退 v1 预算
+ * [VoiceResultEntity.mouthEarBudgetMs]，均无记 —（R-10 诚实缺席）。
+ */
+@Composable
+private fun RecentVoiceSection(records: List<VoiceResultEntity>) {
+    val c = AnebTheme.colors
+    val fmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.surface)
+            .padding(14.dp),
+    ) {
+        Text("最近语音记录", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        records.forEach { r ->
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(fmt.format(Date(r.tsEpochMs)), color = c.ink, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(
+                    if (r.caliber == VoiceRunner.SIM_CALIBER) "server-sim" else "paced-proxy",
+                    color = c.faint,
+                    fontSize = 10.sp,
+                )
+                Spacer(Modifier.width(10.dp))
+                val mouthEar = r.mouthEarProxyMs ?: r.mouthEarBudgetMs
+                Text(
+                    mouthEar?.let { "%.0f ms".format(it) } ?: "—",
+                    color = c.ink,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }

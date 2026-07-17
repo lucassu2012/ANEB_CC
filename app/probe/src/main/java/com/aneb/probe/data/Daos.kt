@@ -99,6 +99,16 @@ interface AbResultDao {
 }
 
 @Dao
+interface VoiceResultDao {
+    @Insert
+    suspend fun insert(result: VoiceResultEntity): Long
+
+    /** 最近 N 条，新→旧（D-42 最近记录展示；同刻并列时按 id 兜底） */
+    @Query("SELECT * FROM voice_result ORDER BY tsEpochMs DESC, id DESC LIMIT :limit")
+    suspend fun recent(limit: Int): List<VoiceResultEntity>
+}
+
+@Dao
 interface EnvEventDao {
     /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
     @Insert

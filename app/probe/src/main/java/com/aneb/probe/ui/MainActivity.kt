@@ -42,6 +42,7 @@ import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
+import com.aneb.probe.data.VoiceResultEntity
 import com.aneb.probe.engine.AbRunner
 import com.aneb.probe.engine.ContinuityRunner
 import com.aneb.probe.engine.SpeedRunner
@@ -359,6 +360,34 @@ class MainActivity : ComponentActivity() {
                                     voiceSample = null
                                     voiceRunner.run(serverUrl).collect { voiceSample = it }
                                 }
+                                // D-42 语音结果落库：仅 Done 样本入库——实测值原样落库（R-10：
+                                // null 不补 0），不落分数（展示时 AqsScorer 现算）。
+                                voiceSample?.takeIf { it.phase == VoiceRunner.Phase.Done }?.let { s ->
+                                    val rowId = withContext(Dispatchers.IO) {
+                                        db.voiceResultDao().insert(
+                                            VoiceResultEntity(
+                                                tsEpochMs = System.currentTimeMillis(),
+                                                caliber = s.caliber,
+                                                lowConfidence = s.lowConfidence,
+                                                rttMs = s.rttMs,
+                                                jitterMs = s.jitterMs,
+                                                upFrameJitterMs = s.upFrameJitterMs,
+                                                downFrameJitterMs = s.downFrameJitterMs,
+                                                mouthEarBudgetMs = s.mouthEarBudgetMs,
+                                                framesSent = s.framesSent,
+                                                framesRecv = s.framesRecv,
+                                                ttfbP50Ms = s.ttfbP50Ms,
+                                                ttfbP95Ms = s.ttfbP95Ms,
+                                                downNetJitterMs = s.downNetJitterMs,
+                                                mouthEarProxyMs = s.mouthEarProxyMs,
+                                                turnSwitchP50Ms = s.turnSwitchP50Ms,
+                                                bargeStopMaxMs = s.bargeStopMaxMs,
+                                                turnsOk = s.turnsOk,
+                                            )
+                                        )
+                                    }
+                                    addLog("VOICE_SAVED id=$rowId caliber=${s.caliber ?: "paced-proxy"}")
+                                }
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
@@ -455,6 +484,12 @@ class MainActivity : ComponentActivity() {
                                                 onCancelRecovery = { recoveryJob?.cancel() },
                                             )
                                         } else if (selectedModeId == TestModeProfiles.VOICE_REALTIME.id) {
+                                            // 最近语音记录（D-42）：voiceRunning 翻 false（run 结束）后重载
+                                            val recentVoice by produceState(
+                                                initialValue = emptyList<VoiceResultEntity>(), voiceRunning,
+                                            ) {
+                                                value = withContext(Dispatchers.IO) { db.voiceResultDao().recent(5) }
+                                            }
                                             VoiceTestScreen(
                                                 sample = voiceSample,
                                                 running = voiceRunning,
@@ -464,6 +499,7 @@ class MainActivity : ComponentActivity() {
                                                 contRunning = contRunning,
                                                 onStartContinuity = { startVoiceContinuity() },
                                                 onCancelContinuity = { contJob?.cancel() },
+                                                recentVoice = recentVoice,
                                             )
                                         } else {
                                             HomeRoute(
