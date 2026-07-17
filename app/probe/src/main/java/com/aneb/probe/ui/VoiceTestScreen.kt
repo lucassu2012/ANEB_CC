@@ -41,6 +41,10 @@ fun VoiceTestScreen(
     running: Boolean,
     onStart: () -> Unit,
     onCancel: () -> Unit,
+    contSample: VoiceRunner.Sample? = null,
+    contRunning: Boolean = false,
+    onStartContinuity: () -> Unit = {},
+    onCancelContinuity: () -> Unit = {},
 ) {
     val c = AnebTheme.colors
     val phase = sample?.phase
@@ -89,6 +93,17 @@ fun VoiceTestScreen(
             VoiceTile("下行帧抖动", sample?.downFrameJitterMs, "%.1f", "ms", c.excellent, Modifier.weight(1f))
             VoiceTile("口到耳预算", sample?.mouthEarBudgetMs, "%.0f", "ms", c.fair, Modifier.weight(1f))
         }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ---- 连续性 mini-run 卡（受控断连，D-41 预定；独立结论，不并入语音分）----
+        VoiceContinuityCard(
+            s = contSample,
+            running = contRunning,
+            voiceRunning = running,
+            onStart = onStartContinuity,
+            onCancel = onCancelContinuity,
+        )
 
         Spacer(Modifier.height(16.dp))
 
@@ -146,6 +161,96 @@ private fun androidx.compose.foundation.layout.RowScope.VoiceTile(
         Spacer(Modifier.height(4.dp))
         Text(value?.let { pattern.format(it) } ?: "—", color = accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(unit, color = c.faint, fontSize = 10.sp)
+    }
+}
+
+/**
+ * 连续性 mini-run 卡（受控断连，D-41 预定；镜像 SpeedTestScreen.RecoveryCard 卡型）：
+ * 服务端受控 WS 硬关（能力合同 §2）≠真实蜂窝断网；单次事件，观测口径，不进任何分，
+ * 恒 LOW/INCONCLUSIVE；与跨网迁移恢复（D-23）严格分口径。
+ */
+@Composable
+private fun VoiceContinuityCard(
+    s: VoiceRunner.Sample?,
+    running: Boolean,
+    voiceRunning: Boolean,
+    onStart: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val c = AnebTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.surface)
+            .padding(14.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("连续性 mini-run（受控断连）", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (s?.phase == VoiceRunner.Phase.Done) {
+                val complete = s.continuityDetectMs != null && s.continuityResumeMs != null
+                Text(
+                    if (complete) "完成" else "部分缺席",
+                    color = if (complete) c.excellent else c.neutral,
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        when {
+            s == null && !running -> Text(
+                "服务端受控 WS 硬关（能力合同 §2）：轮 1 跑完、其 turn_summary 发出后裸关 TCP，" +
+                    "测断连检出与新会话重建时长。单次事件，观测口径，不进任何分；与跨网迁移恢复(D-23)口径分开。",
+                color = c.faint, fontSize = 11.sp,
+            )
+            running && s?.phase != VoiceRunner.Phase.Done -> {
+                val phaseLabel = when (s?.phase) {
+                    VoiceRunner.Phase.Handshake -> "断连会话建立中…"
+                    VoiceRunner.Phase.Turns ->
+                        if (s.continuityDetectMs != null) "已检出断连，重建新会话中…"
+                        else "轮次运行中（收帧 ${s.framesRecv}）…"
+                    else -> "准备中…"
+                }
+                Text(phaseLabel, color = c.good, fontSize = 12.sp)
+                s?.continuityDetectMs?.let {
+                    Text("检出 %.0f ms".format(it), color = c.ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            s?.phase == VoiceRunner.Phase.Done -> {
+                Text(
+                    "检出 ${s.continuityDetectMs?.let { "%.0f ms".format(it) } ?: "—"} · " +
+                        "重建 ${s.continuityResumeMs?.let { "%.0f ms".format(it) } ?: "—"} · " +
+                        "LOW/INCONCLUSIVE（单次受控事件）",
+                    color = c.ink, fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "服务端受控 WS 硬关≠真实蜂窝断网；与跨网迁移恢复(D-23)口径分开",
+                    color = c.faint, fontSize = 10.sp,
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        val btnColor = when {
+            running -> c.poor
+            voiceRunning -> c.surfaceMuted
+            else -> c.brand
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(btnColor)
+                .clickable(enabled = !voiceRunning) { if (running) onCancel() else onStart() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (running) "取消连续性子测" else "触发连续性 mini-run",
+                color = if (voiceRunning) c.faint else Color(0xFF05121A),
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 

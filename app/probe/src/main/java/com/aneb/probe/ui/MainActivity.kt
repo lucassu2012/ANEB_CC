@@ -192,6 +192,10 @@ class MainActivity : ComponentActivity() {
                     var voiceRunning by remember { mutableStateOf(false) }
                     var voiceSample by remember { mutableStateOf<VoiceRunner.Sample?>(null) }
                     var voiceJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    // 语音连续性 mini-run（受控断连，D-41 预定）：独立于主语音测量的观测态
+                    var contRunning by remember { mutableStateOf(false) }
+                    var contSample by remember { mutableStateOf<VoiceRunner.Sample?>(null) }
+                    var contJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
                     fun addLog(line: String) {
                         android.util.Log.i("AnebProbe", line)
@@ -365,6 +369,32 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // 语音连续性 mini-run（受控断连；与主语音测量互斥；观测口径，恒 LOW/INCONCLUSIVE）
+                    fun startVoiceContinuity() {
+                        if (contRunning || voiceRunning) return
+                        contRunning = true
+                        contSample = null
+                        addLog(">>> VOICE_CONT(controlled-disconnect) -> $serverUrl")
+                        contJob = lifecycleScope.launch {
+                            try {
+                                voiceRunner.runSimContinuity(serverUrl).collect { contSample = it }
+                                contSample?.let {
+                                    addLog(
+                                        "VOICE_CONT detect_ms=${it.continuityDetectMs?.let { m -> "%.1f".format(m) } ?: "null"} " +
+                                            "resume_ms=${it.continuityResumeMs?.let { m -> "%.1f".format(m) } ?: "null"} " +
+                                            "confidence=LOW_INCONCLUSIVE",
+                                    )
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                addLog("VOICE_CONT_FAILED error=$e")
+                            } finally {
+                                contRunning = false
+                            }
+                        }
+                    }
+
                     LaunchedEffect(Unit) {
                         if (intentAutorun) {
                             intentAutorun = false
@@ -430,6 +460,10 @@ class MainActivity : ComponentActivity() {
                                                 running = voiceRunning,
                                                 onStart = { startVoiceTest() },
                                                 onCancel = { voiceJob?.cancel() },
+                                                contSample = contSample,
+                                                contRunning = contRunning,
+                                                onStartContinuity = { startVoiceContinuity() },
+                                                onCancelContinuity = { contJob?.cancel() },
                                             )
                                         } else {
                                             HomeRoute(

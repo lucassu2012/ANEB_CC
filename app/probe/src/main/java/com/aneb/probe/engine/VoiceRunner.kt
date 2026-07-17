@@ -64,6 +64,15 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
         val caliber: String? = null,
         /** 上行入队背压出现过（ws.queueSize>0）→ 低置信 */
         val lowConfidence: Boolean = false,
+        // ── 连续性 mini-run 尾部字段（D-41 预定；additive 默认 null，run()/runSim() 不受影响）──
+        /**
+         * 受控断连检出（ms）＝传输失败浮出（[RealtimeSimSession.TransportClosed].atUs）−
+         * 断连轮 turn_summary 客户端到达（同基客户端单调 us，两两相减免钟偏）；
+         * ~20s 未浮出 → null（R-10 诚实缺席）。
+         */
+        val continuityDetectMs: Double? = null,
+        /** 受控断连重建（ms）＝新会话 session_ready 客户端到达 − 失败浮出；检出缺席则 null（R-10） */
+        val continuityResumeMs: Double? = null,
     )
 
     companion object {
@@ -108,6 +117,54 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
                     expectedStopWithinMs = if (interrupted) 250 else null,
                 )
             },
+        )
+
+        /** 连续性 mini-run：受控断连轮 N（服务端跑完轮 N、发出其 turn_summary 后裸关 TCP；合同 0≤N<32） */
+        const val CONT_DISCONNECT_AFTER_TURN = 1
+
+        /** 连续性 mini-run 单轮量级（25 上行帧≈0.5s、40 下行帧≈0.8s——快跑取事件，不产 KPI 分位数） */
+        const val CONT_UPLINK_FRAMES = 25
+        const val CONT_DOWNLINK_FRAMES = 40
+
+        /**
+         * 连续性 mini-run 3 轮断连计划（D-41 预定）：复用 [defaultSimPlan] 形状（20ms×160B），
+         * 全轮非中断（barge 字段 null）；配合 `controlled_disconnect_after_turn=`
+         * [CONT_DISCONNECT_AFTER_TURN] 使用——轮 2 仅为保证断连点非计划末轮
+         * （服务端在轮 1 summary 发出后裸关，轮 2 永不运行）。字段逐项过合同限额
+         * （turns≤32、frame_ms∈[10,100]、帧数/字节/等待在界）。
+         */
+        fun continuitySimPlan(seed: Long): RealtimeWire.SessionPlan = RealtimeWire.SessionPlan(
+            sessionId = "voice-cont-${seed.toString(16)}",
+            seed = seed,
+            setupMs = 200.0,
+            frameMs = 20,
+            turns = (0 until 3).map { i ->
+                RealtimeWire.TurnPlan(
+                    turnId = "t$i", turnIndex = i, startAfterPreviousMs = 0,
+                    uplinkFrames = CONT_UPLINK_FRAMES, uplinkFrameBytes = FRAME_BYTES, responseWaitMs = 300,
+                    plannedDownlinkFrames = CONT_DOWNLINK_FRAMES, downlinkFrameBytes = FRAME_BYTES,
+                    interrupted = false,
+                )
+            },
+        )
+
+        /**
+         * 连续性 mini-run 重建计划（D-41 预定）：断连浮出后**全新会话**（新 session_id）单轮
+         * 计划，跑完该轮 + session_summary 证明会话可用；连接不带 disconnect 参数。
+         */
+        fun continuityResumePlan(seed: Long): RealtimeWire.SessionPlan = RealtimeWire.SessionPlan(
+            sessionId = "voice-cont-r-${seed.toString(16)}",
+            seed = seed,
+            setupMs = 200.0,
+            frameMs = 20,
+            turns = listOf(
+                RealtimeWire.TurnPlan(
+                    turnId = "t0", turnIndex = 0, startAfterPreviousMs = 0,
+                    uplinkFrames = CONT_UPLINK_FRAMES, uplinkFrameBytes = FRAME_BYTES, responseWaitMs = 300,
+                    plannedDownlinkFrames = CONT_DOWNLINK_FRAMES, downlinkFrameBytes = FRAME_BYTES,
+                    interrupted = false,
+                ),
+            ),
         )
 
         /**
@@ -357,6 +414,161 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    //  受控断连连续性 mini-run（D-41 预定）：controlled_disconnect_after_turn 口径
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * 语音连续性 mini-run：**服务端受控 WS 硬关**（TEST_SERVER_CAPABILITIES §2
+     * "连接级受控中断"），**非真实蜂窝断网**。序：[continuitySimPlan] 3 轮计划 +
+     * `controlled_disconnect_after_turn=1` 连接 → 跑轮 0..1（轮 1 的 turn_summary 合同
+     * 保证照发）→ 服务端裸关 TCP（无 close 帧）→ 客户端 onFailure 浮出
+     * [RealtimeSimSession.TransportClosed]（inbound channel 带因关闭）：
+     * - **检出** [Sample.continuityDetectMs]＝TransportClosed.atUs − 轮 1 turn_summary 到达
+     *   （同基客户端单调 us）；~20s 未浮出 → null（R-10 诚实缺席，不以超时值顶替）。
+     * - **重建** [Sample.continuityResumeMs]＝全新会话（[continuityResumePlan]，新 session_id、
+     *   无 disconnect 参数）session_ready 到达 − 失败浮出；随后跑完该轮 + session_summary
+     *   证明会话可用。检出缺席（无失败浮出锚点）则重建亦 null。
+     * 单次受控事件，观测口径，**不进任何分**（LOW/INCONCLUSIVE）；与 ContinuityRecovery
+     * （D-23 真实跨网迁移恢复）严格分口径，不可互相替代或比较。协议错误一律抛出
+     * （fail-closed，不产部分结论）。
+     */
+    fun runSimContinuity(serverBase: String): Flow<Sample> = channelFlow {
+        // D-25：E-01 sslip SNI-RST → bare-IP 等价基址（同 runSim）
+        val raw = serverBase.trim().trimEnd('/')
+        val base = ReachabilityProbe.deriveE01Pair(raw)?.second ?: raw
+
+        send(Sample(Phase.Handshake, null, null, null, null, null, 0, 0, 0.05f, caliber = SIM_CALIBER))
+        val plan = continuitySimPlan(seed = System.nanoTime())
+        var framesSentTotal = 0
+        var framesRecvTotal = 0
+        var closedAtUs: Long? = null
+        var detectMs: Double? = null
+
+        // ---- 断连会话：轮 0..1 → 轮 1 summary 后服务端裸关 → TransportClosed 浮出 ----
+        val session = client.realtimeSim(base, plan, disconnectAfterTurn = CONT_DISCONNECT_AFTER_TURN)
+        session.connect()
+        try {
+            val ready = awaitControlTimed(session, type = "session_ready", timeoutMs = 15_000).first
+            check(ready.sessionId == plan.sessionId) { "session_ready id mismatch: ${ready.sessionId}" }
+
+            var lastSummaryArrivalUs = 0L
+            for (i in 0..CONT_DISCONNECT_AFTER_TURN) {
+                val t = plan.turns[i]
+                val (recv, summaryArrivalUs) = driveTurn(session, plan.frameMs, t)
+                framesSentTotal += t.uplinkFrames
+                framesRecvTotal += recv
+                lastSummaryArrivalUs = summaryArrivalUs
+                send(
+                    Sample(
+                        Phase.Turns, null, null, null, null, null, framesSentTotal, framesRecvTotal,
+                        0.1f + (i + 1) * 0.2f, caliber = SIM_CALIBER,
+                    )
+                )
+            }
+
+            // 检出：下一次 receive 因裸关抛 TransportClosed；~20s 未浮出 → null（R-10）
+            closedAtUs = kotlinx.coroutines.withTimeoutOrNull(20_000) {
+                try {
+                    while (true) {
+                        session.inbound.receive() // 排空迷途消息直至传输终结（session_summary 合同上不再来）
+                    }
+                    @Suppress("UNREACHABLE_CODE")
+                    error("unreachable")
+                } catch (e: RealtimeSimSession.TransportClosed) {
+                    e.atUs
+                }
+            }
+            detectMs = closedAtUs?.let { (it - lastSummaryArrivalUs) / 1000.0 }
+            send(
+                Sample(
+                    Phase.Turns, null, null, null, null, null, framesSentTotal, framesRecvTotal, 0.6f,
+                    caliber = SIM_CALIBER, continuityDetectMs = detectMs,
+                )
+            )
+        } finally {
+            session.cancel()
+        }
+
+        // ---- 重建：全新 1 轮计划/新 session_id（无 disconnect 参数），跑完 + session_summary ----
+        val plan2 = continuityResumePlan(seed = System.nanoTime())
+        val session2 = client.realtimeSim(base, plan2)
+        session2.connect()
+        var resumeMs: Double? = null
+        try {
+            val (ready2, readyArrivalUs) = awaitControlTimed(session2, type = "session_ready", timeoutMs = 15_000)
+            check(ready2.sessionId == plan2.sessionId) { "session_ready id mismatch: ${ready2.sessionId}" }
+            resumeMs = closedAtUs?.let { (readyArrivalUs - it) / 1000.0 } // 检出缺席→无锚点，重建亦 null（R-10）
+            send(
+                Sample(
+                    Phase.Turns, null, null, null, null, null, framesSentTotal, framesRecvTotal, 0.75f,
+                    caliber = SIM_CALIBER, continuityDetectMs = detectMs, continuityResumeMs = resumeMs,
+                )
+            )
+            val t2 = plan2.turns.first()
+            val (recv2, _) = driveTurn(session2, plan2.frameMs, t2)
+            framesSentTotal += t2.uplinkFrames
+            framesRecvTotal += recv2
+            awaitControlTimed(session2, type = "session_summary", timeoutMs = 10_000) // 证明会话可用
+        } finally {
+            session2.cancel()
+        }
+        send(
+            Sample(
+                Phase.Done, null, null, null, null, null, framesSentTotal, framesRecvTotal, 1f,
+                caliber = SIM_CALIBER, continuityDetectMs = detectMs, continuityResumeMs = resumeMs,
+            )
+        )
+    }
+
+    /**
+     * 跑完一轮：turn_start → 绝对期限节奏上行（不累积漂移）→ speech_commit → 收下行帧直至
+     * turn_summary。与 [runSim] 轮循环同构（连续性计划全轮非中断，无 barge 分支）；
+     * summary.protocol_ok!=true 或 error 型即抛（fail-closed）。
+     * @return (本轮收帧数, turn_summary 客户端到达 us)
+     */
+    private suspend fun driveTurn(
+        session: RealtimeSimSession,
+        frameMs: Int,
+        t: RealtimeWire.TurnPlan,
+    ): Pair<Int, Long> {
+        session.sendText(RealtimeWire.jsonOut.encodeToString(RealtimeWire.TurnStart.serializer(), RealtimeWire.TurnStart(turnId = t.turnId, turnIndex = t.turnIndex)))
+        val payload = ByteArray(t.uplinkFrameBytes) { (it * 31 + 17).toByte() }
+        val t0 = android.os.SystemClock.elapsedRealtimeNanos()
+        for (seq in 0 until t.uplinkFrames) {
+            val lagNs = t0 + seq * frameMs * 1_000_000L - android.os.SystemClock.elapsedRealtimeNanos()
+            if (lagNs > 0) delay(lagNs / 1_000_000)
+            session.sendFrame(RealtimeWire.encodeUplink(t.turnIndex, seq, payload))
+        }
+        session.sendText(RealtimeWire.jsonOut.encodeToString(RealtimeWire.SpeechCommit.serializer(), RealtimeWire.SpeechCommit(turnId = t.turnId)))
+        var recv = 0
+        var summaryArrivalUs = 0L
+        kotlinx.coroutines.withTimeout(20_000) {
+            var done = false
+            while (!done) {
+                when (val m = session.inbound.receive()) {
+                    is RealtimeSimSession.In.Frame -> {
+                        val f = RealtimeWire.decodeDownlink(m.bytes, m.arrivalUs) ?: continue // 坏帧不入统计（R-10）
+                        if (f.turnIndex == t.turnIndex) recv++
+                    }
+                    is RealtimeSimSession.In.Text -> {
+                        val c = RealtimeWire.jsonIn.decodeFromString(RealtimeWire.InboundControl.serializer(), m.text)
+                        when (c.type) {
+                            "turn_summary" -> {
+                                check(c.protocolOk == true) { "protocol_ok=false turn=${t.turnIndex}" }
+                                summaryArrivalUs = m.arrivalUs
+                                done = true
+                            }
+                            "error" -> error("realtime-sim error: ${c.message}")
+                            else -> Unit // pong 等
+                        }
+                    }
+                }
+            }
+        }
+        return recv to summaryArrivalUs
+    }
+
     private class TurnLedger(
         val plan: RealtimeWire.TurnPlan,
         val commitEnqUs: Long,
@@ -369,13 +581,17 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
 
     /** 等待指定 type 的控制消息（跳过其它 TEXT；error 型即抛，fail-closed）。 */
     private suspend fun awaitControl(session: RealtimeSimSession, type: String, timeoutMs: Long): RealtimeWire.InboundControl =
+        awaitControlTimed(session, type, timeoutMs).first
+
+    /** 同 [awaitControl]，但连同客户端到达 us 一并返回（连续性 mini-run 重建打点需要）。 */
+    private suspend fun awaitControlTimed(session: RealtimeSimSession, type: String, timeoutMs: Long): Pair<RealtimeWire.InboundControl, Long> =
         kotlinx.coroutines.withTimeout(timeoutMs) {
             while (true) {
                 val m = session.inbound.receive()
                 if (m !is RealtimeSimSession.In.Text) continue
                 val c = RealtimeWire.jsonIn.decodeFromString(RealtimeWire.InboundControl.serializer(), m.text)
                 when (c.type) {
-                    type -> return@withTimeout c
+                    type -> return@withTimeout c to m.arrivalUs
                     "error" -> error("realtime-sim error: ${c.message}")
                     else -> Unit
                 }
