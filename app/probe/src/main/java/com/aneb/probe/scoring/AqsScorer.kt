@@ -142,6 +142,26 @@ object AqsScorer {
         "N2" to 0.20,
     )
 
+    /** 语音 v2 server-sim 口径版本（D-38；旧 [AQS_VERSION_VOICE] 不动）。 */
+    const val AQS_VERSION_VOICE_SIM: String = "aqs-voice-sim-v0.1"
+
+    /**
+     * 语音 v2 server-sim 权重表（D-38 §3；/realtime-sim 实测口径）：
+     * M1=口到耳实测代理 P50、M2=下行纯传输抖动 P95（sched_us 差分剥离）、M3=上行帧抖动
+     * （paced-proxy 并列保留）、M4=TTS-TTFB P50（剥服务端驻留）、M5=轮次切换 P50、
+     * M6=打断停帧 max。Σ=1.0 由单测守护。
+     */
+    val WEIGHTS_VOICE_SIM: Map<String, Double> = mapOf(
+        "M1" to 0.20,
+        "M2" to 0.15,
+        "M3" to 0.10,
+        "M4" to 0.15,
+        "M5" to 0.10,
+        "M6" to 0.10,
+        "N1" to 0.10,
+        "N2" to 0.10,
+    )
+
     /**
      * 单调锚点表：(KPI 值, 分数) 对，按值升序。端点外 clamp。
      * 门限数字全部来自 KPI 文档 5.2（agent-qoe-kpi v0.1，实验性）。
@@ -197,6 +217,15 @@ object AqsScorer {
     // M2/M3 帧间抖动（ms，低者优；下行/上行同锚，§4.1 抖动<30ms 达 95%）——与 N2 数值同
     // 但语义独立（帧到达间隔对名义 20ms 节奏的偏差 P95，非 RTT 分位差），单列防口径漂移
     internal val M_FRAME_JITTER_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 10.0 to 85.0, 30.0 to 70.0, 80.0 to 55.0, 240.0 to 0.0))
+
+    /** M4 TTS-TTFB（ms，D-38；语音首响远严于 token TTFT——对话自然度） */
+    internal val M4_TTFB_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 100.0 to 85.0, 250.0 to 70.0, 500.0 to 55.0, 1500.0 to 0.0))
+
+    /** M5 轮次切换（ms，D-38） */
+    internal val M5_TURN_SWITCH_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 150.0 to 85.0, 300.0 to 70.0, 600.0 to 55.0, 2000.0 to 0.0))
+
+    /** M6 打断停帧（ms，D-38；55 分档=默认 expected_stop_within_ms=250） */
+    internal val M6_STOP_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 80.0 to 85.0, 150.0 to 70.0, 250.0 to 55.0, 1000.0 to 0.0))
 
     /**
      * AQS 评分结果。
@@ -322,6 +351,57 @@ object AqsScorer {
         applyM1Veto = true,
     )
 
+    /**
+     * 语音 v2 server-sim 出分入口（D-38，additive；/realtime-sim 实测口径）：
+     * M1=口到耳实测代理、M2=下行纯传输抖动（sched_us 剥离）、M3=上行帧抖动（paced-proxy 并列）、
+     * M4=TTS-TTFB（剥服务端驻留）、M5=轮次切换、M6=打断停帧。[WEIGHTS_VOICE_SIM] 加权 +
+     * M1 口到耳硬否决（阈值复用 [M1_VETO_THRESHOLD_MS]，代理值语义同为口到耳 ms）。
+     * 旧 [scoreVoice]/[WEIGHTS_VOICE] 零改动（paced-proxy 口径继续可用）。
+     */
+    fun scoreVoiceSim(
+        n1RttMs: KpiValue,
+        n2JitterMs: KpiValue,
+        m1MouthEarProxyMs: KpiValue,
+        m2DownNetJitterMs: KpiValue,
+        m3UpFrameJitterMs: KpiValue,
+        m4TtfbMs: KpiValue,
+        m5TurnSwitchMs: KpiValue,
+        m6BargeStopMs: KpiValue,
+    ): AqsResult = scoreWith(
+        KpiResult(
+            validity = Validity.VALID,
+            invalidReasons = emptyList(),
+            seqMissingCount = 0,
+            seqDupCount = 0,
+            seqGapCount = 0,
+            expectedTokenCount = 0,
+            t1TtftMs = KpiValue.empty("ms"),
+            t2ItlP95Ms = KpiValue.empty("ms"),
+            t2ItlP95InclCoalescedMs = KpiValue.empty("ms"),
+            t3StallRate = KpiValue.empty("ratio"),
+            t3StallRateInclResume = KpiValue.empty("ratio"),
+            t4SevereStallRate = KpiValue.empty("ratio"),
+            t5ResumeP95Ms = KpiValue.empty("ms"),
+            t5ResumeLatenciesMs = emptyList(),
+            n1RttP50Ms = n1RttMs,
+            n2JitterMs = n2JitterMs,
+            u1GoodputMbps = KpiValue.empty("Mbps"),
+            u1GoodputExclSlowStartMbps = KpiValue.empty("Mbps"),
+            u2ToolLoopP95Ms = KpiValue.empty("ms"),
+        ),
+        extraInputs = mapOf(
+            "M1" to m1MouthEarProxyMs,
+            "M2" to m2DownNetJitterMs,
+            "M3" to m3UpFrameJitterMs,
+            "M4" to m4TtfbMs,
+            "M5" to m5TurnSwitchMs,
+            "M6" to m6BargeStopMs,
+        ),
+        weights = WEIGHTS_VOICE_SIM,
+        version = AQS_VERSION_VOICE_SIM,
+        applyM1Veto = true,
+    )
+
     private fun scoreWith(
         kpi: KpiResult,
         extraInputs: Map<String, KpiValue>,
@@ -383,6 +463,9 @@ object AqsScorer {
             "M1" to M1_ANCHORS,
             "M2" to M_FRAME_JITTER_ANCHORS,
             "M3" to M_FRAME_JITTER_ANCHORS,
+            "M4" to M4_TTFB_ANCHORS,
+            "M5" to M5_TURN_SWITCH_ANCHORS,
+            "M6" to M6_STOP_ANCHORS,
         )
         val subScores = inputs.mapValues { (id, v) -> anchorMaps.getValue(id).score(v.value!!) }
         var total = subScores.entries.sumOf { (id, s) -> s * weights.getValue(id) }

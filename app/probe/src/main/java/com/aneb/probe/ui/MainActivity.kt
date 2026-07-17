@@ -310,7 +310,17 @@ class MainActivity : ComponentActivity() {
                         addLog(">>> VOICE -> $serverUrl")
                         voiceJob = lifecycleScope.launch {
                             try {
-                                voiceRunner.run(serverUrl).collect { voiceSample = it }
+                                try {
+                                    // v2 server-sim 口径优先（D-38，/realtime-sim）
+                                    voiceRunner.runSim(serverUrl).collect { voiceSample = it }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    // 服务端不支持/协议失败 → 降级 v1 paced-proxy 口径并如实标注（不伪造 sim 数据）
+                                    addLog("VOICE_SIM_FAILED fallback=paced-proxy error=$e")
+                                    voiceSample = null
+                                    voiceRunner.run(serverUrl).collect { voiceSample = it }
+                                }
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {

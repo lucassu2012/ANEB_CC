@@ -49,16 +49,22 @@ fun VoiceTestScreen(
         VoiceRunner.Phase.Ping -> "时延基线测量中"
         VoiceRunner.Phase.Uplink -> "上行语音帧发送中（20ms 帧节奏）"
         VoiceRunner.Phase.Downlink -> "下行 TTS 帧流接收中（50fps）"
+        VoiceRunner.Phase.Handshake -> "实时会话建立中（WebSocket）"
+        VoiceRunner.Phase.Turns -> "多轮语音对话仿真中（8 轮·含打断）"
         VoiceRunner.Phase.Done -> "测量完成"
         null -> if (running) "准备中…" else "点击开始语音双工测量"
     }
-    // 主数值：相位相关（Ping→RTT；上/下行→帧计数；Done→口到耳预算）
+    // 主数值：相位相关（Ping→RTT；上/下行→帧计数；Turns→轮次帧计数；Done→口到耳）
     val (heroVal, heroUnit) = when (phase) {
         VoiceRunner.Phase.Ping -> (sample.rttMs?.let { "%.0f".format(it) } ?: "—") to "ms RTT"
         VoiceRunner.Phase.Uplink -> "${sample.framesSent}/${VoiceRunner.UPLINK_FRAMES}" to "上行帧"
         VoiceRunner.Phase.Downlink -> "${sample.framesRecv}/${VoiceRunner.DOWNLINK_FRAMES}" to "下行帧"
-        VoiceRunner.Phase.Done -> (sample.mouthEarBudgetMs?.let { "%.0f".format(it) } ?: "—") to "ms 口到耳预算"
-        null -> "—" to "口到耳预算"
+        VoiceRunner.Phase.Handshake -> "…" to "会话建立"
+        VoiceRunner.Phase.Turns -> "${sample.framesRecv}" to "下行帧（${sample.turnsOk} 轮 OK）"
+        VoiceRunner.Phase.Done ->
+            ((sample.mouthEarProxyMs ?: sample.mouthEarBudgetMs)?.let { "%.0f".format(it) } ?: "—") to
+                (if (sample.mouthEarProxyMs != null) "ms 口到耳(实测代理)" else "ms 口到耳预算")
+        null -> "—" to "口到耳"
     }
 
     Column(
@@ -148,13 +154,28 @@ private fun VoiceConclusionCard(sample: VoiceRunner.Sample) {
     val c = AnebTheme.colors
     val result = remember(sample) {
         runCatching {
-            AqsScorer.scoreVoice(
-                n1RttMs = KpiValue(sample.rttMs, "ms", 11, lowConfidence = false),
-                n2JitterMs = KpiValue(sample.jitterMs, "ms", 11, lowConfidence = false),
-                m1BudgetMs = KpiValue(sample.mouthEarBudgetMs, "ms", 1, lowConfidence = false),
-                m2DownFrameJitterMs = KpiValue(sample.downFrameJitterMs, "ms", sample.framesRecv, lowConfidence = false),
-                m3UpFrameJitterMs = KpiValue(sample.upFrameJitterMs, "ms", sample.framesSent, lowConfidence = false),
-            )
+            if (sample.caliber == VoiceRunner.SIM_CALIBER) {
+                // v2 server-sim 口径（D-38）：M1'=口到耳实测代理、M2'=sched_us 剥离纯传输抖动、
+                // M4/M5/M6 实测；lowConfidence 透传（上行背压）
+                AqsScorer.scoreVoiceSim(
+                    n1RttMs = KpiValue(sample.rttMs, "ms", 11, lowConfidence = sample.lowConfidence),
+                    n2JitterMs = KpiValue(sample.jitterMs, "ms", 11, lowConfidence = false),
+                    m1MouthEarProxyMs = KpiValue(sample.mouthEarProxyMs, "ms", sample.turnsOk, lowConfidence = sample.lowConfidence),
+                    m2DownNetJitterMs = KpiValue(sample.downNetJitterMs, "ms", sample.framesRecv, lowConfidence = false),
+                    m3UpFrameJitterMs = KpiValue(sample.upFrameJitterMs, "ms", sample.framesSent, lowConfidence = sample.lowConfidence),
+                    m4TtfbMs = KpiValue(sample.ttfbP50Ms, "ms", sample.turnsOk, lowConfidence = false),
+                    m5TurnSwitchMs = KpiValue(sample.turnSwitchP50Ms, "ms", (sample.turnsOk - 1).coerceAtLeast(0), lowConfidence = false),
+                    m6BargeStopMs = KpiValue(sample.bargeStopMaxMs, "ms", 2, lowConfidence = false),
+                )
+            } else {
+                AqsScorer.scoreVoice(
+                    n1RttMs = KpiValue(sample.rttMs, "ms", 11, lowConfidence = false),
+                    n2JitterMs = KpiValue(sample.jitterMs, "ms", 11, lowConfidence = false),
+                    m1BudgetMs = KpiValue(sample.mouthEarBudgetMs, "ms", 1, lowConfidence = false),
+                    m2DownFrameJitterMs = KpiValue(sample.downFrameJitterMs, "ms", sample.framesRecv, lowConfidence = false),
+                    m3UpFrameJitterMs = KpiValue(sample.upFrameJitterMs, "ms", sample.framesSent, lowConfidence = false),
+                )
+            }
         }.getOrNull()
     } ?: return
     val score = result.score
@@ -193,12 +214,15 @@ private fun VoiceConclusionCard(sample: VoiceRunner.Sample) {
         Spacer(Modifier.height(8.dp))
         Text(
             "子分 " + result.subScores.entries.joinToString(" · ") { "${it.key} ${"%.0f".format(it.value)}" } +
-                "（表 WEIGHTS_VOICE · ${AqsScorer.AQS_VERSION_VOICE}）",
+                "（表 ${if (sample.caliber == VoiceRunner.SIM_CALIBER) "WEIGHTS_VOICE_SIM" else "WEIGHTS_VOICE"} · ${result.aqsVersion}）",
             color = c.muted,
             fontSize = 10.sp,
         )
         Text(
-            "帧接收 ${sample.framesRecv}/${VoiceRunner.DOWNLINK_FRAMES}（TCP 重传掩盖真丢帧，仅计数参考）",
+            if (sample.caliber == VoiceRunner.SIM_CALIBER)
+                "帧接收 ${sample.framesRecv} · ${sample.turnsOk} 轮 protocol_ok（emitted 对账口径）"
+            else
+                "帧接收 ${sample.framesRecv}/${VoiceRunner.DOWNLINK_FRAMES}（TCP 重传掩盖真丢帧，仅计数参考）",
             color = c.faint,
             fontSize = 10.sp,
         )
