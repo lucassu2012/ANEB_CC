@@ -64,9 +64,16 @@ class ScenarioRunner(private val client: AnebClient) {
         val profileBytes: Long,
         val result: AnebClient.DownloadResult,
     ) {
-        /** D1 计时终点＝body 排空最后一字节（`/download` 无限速 2xx 口径）；失败 null（R-10） */
+        /**
+         * D1 计时终点＝body 排空最后一字节（`/download` 无限速 2xx 口径）；失败 null（R-10）。
+         * 服务器能力合同（TEST_SERVER_CAPABILITIES §3）：非 2xx、截断或**实收字节数与相位声明
+         * 不匹配**均记 null 不记 0——字节校验 fail-closed，静默短读不入统计。
+         */
         val durationNanos: Long? =
-            if (result.error == null && (result.httpCode ?: 0) in 200..299) {
+            if (result.error == null &&
+                (result.httpCode ?: 0) in 200..299 &&
+                (profileBytes <= 0 || result.bytesRead == profileBytes)
+            ) {
                 result.bodyEndNanos?.let { it - result.startNanos }
             } else {
                 null

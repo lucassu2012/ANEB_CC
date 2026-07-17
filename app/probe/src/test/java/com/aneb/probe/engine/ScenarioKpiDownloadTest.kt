@@ -68,6 +68,16 @@ class ScenarioKpiDownloadTest {
     }
 
     @Test
+    fun `实收字节与相位声明不匹配_判失败样本时长null(服务器能力合同字节校验)`() {
+        // 静默短读(无 error、2xx、但 bytesRead < profileBytes 10MiB)→ fail-closed 记 null
+        val shortRead = dl(index = 0, bytesRead = 4_096L, endNanos = 1_500_000_000L)
+        assertNull("字节不匹配必须记 null 不记 0", shortRead.durationNanos)
+
+        val input = ScenarioKpi.buildKpiInput(outcomeWith(shortRead), externalInvalidReasons = emptyList())
+        assertTrue(input.downloadResults.single().durationNanos == null)
+    }
+
+    @Test
     fun `无download相位_downloadResults为空_不影响既有输入`() {
         val input = ScenarioKpi.buildKpiInput(outcomeWith(), externalInvalidReasons = emptyList())
         assertTrue(input.downloadResults.isEmpty())
