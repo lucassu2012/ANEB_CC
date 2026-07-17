@@ -189,6 +189,10 @@ class MainActivity : ComponentActivity() {
                     var recoveryRunning by remember { mutableStateOf(false) }
                     var recoverySample by remember { mutableStateOf<SyntheticRecoveryRunner.Sample?>(null) }
                     var recoveryJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    // 弱网对照（weak-capacity-latency-v1 合成整形，D-43）：合成口径，不并入正常测速结论
+                    var shapedRunning by remember { mutableStateOf(false) }
+                    var shapedSample by remember { mutableStateOf<SpeedRunner.Sample?>(null) }
+                    var shapedJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     // 语音实时交互模式（§4.1）：独立 run 状态/实时样本/协程句柄
                     var voiceRunning by remember { mutableStateOf(false) }
                     var voiceSample by remember { mutableStateOf<VoiceRunner.Sample?>(null) }
@@ -297,7 +301,7 @@ class MainActivity : ComponentActivity() {
 
                     // 网络基本性能测速（独立于 token 引擎；实时样本驱动 SpeedTest 式仪表）
                     fun startSpeedTest() {
-                        if (speedRunning) return
+                        if (speedRunning || shapedRunning) return
                         speedRunning = true
                         speedSample = null
                         addLog(">>> SPEED -> $serverUrl")
@@ -337,6 +341,35 @@ class MainActivity : ComponentActivity() {
                                 addLog("RECOVERY_SYNTH_FAILED error=$e")
                             } finally {
                                 recoveryRunning = false
+                            }
+                        }
+                    }
+
+                    // 弱网对照（weak-capacity-latency-v1 合成整形；与正常测速互斥，观测口径不并入正常结论）
+                    fun startShapedTest() {
+                        if (shapedRunning || speedRunning) return
+                        shapedRunning = true
+                        shapedSample = null
+                        addLog(">>> SPEED_SHAPED(synthetic) -> $serverUrl")
+                        shapedJob = lifecycleScope.launch {
+                            try {
+                                var downPeak = 0.0
+                                var upPeak = 0.0
+                                speedRunner.runShaped(serverUrl).collect {
+                                    it.downMbps?.let { v -> if (v > downPeak) downPeak = v }
+                                    it.upMbps?.let { v -> if (v > upPeak) upPeak = v }
+                                    shapedSample = it
+                                }
+                                addLog(
+                                    "SPEED_SHAPED down_peak=${"%.2f".format(downPeak)} up_peak=${"%.2f".format(upPeak)} " +
+                                        "rtt=${shapedSample?.rttMs?.let { m -> "%.1f".format(m) } ?: "null"}",
+                                )
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                addLog("SPEED_SHAPED_FAILED error=$e")
+                            } finally {
+                                shapedRunning = false
                             }
                         }
                     }
@@ -482,6 +515,10 @@ class MainActivity : ComponentActivity() {
                                                 recoveryRunning = recoveryRunning,
                                                 onStartRecovery = { startRecoveryTest() },
                                                 onCancelRecovery = { recoveryJob?.cancel() },
+                                                shapedSample = shapedSample,
+                                                shapedRunning = shapedRunning,
+                                                onStartShaped = { startShapedTest() },
+                                                onCancelShaped = { shapedJob?.cancel() },
                                             )
                                         } else if (selectedModeId == TestModeProfiles.VOICE_REALTIME.id) {
                                             // 最近语音记录（D-42）：voiceRunning 翻 false（run 结束）后重载
