@@ -141,6 +141,9 @@ class AnebAccessibilityService : AccessibilityService() {
         val pkg = e.packageName?.toString() ?: return
         if (pkg == packageName) return // 自观察反馈环屏蔽（R-16）
         if (pkg == imePkg) return // IME 事件全豁免（键盘事件≠被观察业务；防打字期会话切段）
+        // systemui 豁免：状态栏时钟/通知的零星 CONTENT 事件会切断目标 App 观察会话
+        // （真机实证：systemui 单事件把豆包会话切成两段，破坏 v3 簇结构与锚点状态）。
+        if (pkg == "com.android.systemui") return
 
         when (e.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
@@ -222,7 +225,9 @@ class AnebAccessibilityService : AccessibilityService() {
         if (!BuildConfig.DEBUG) return
         val cls = event.className ?: "null"
         val desc = event.contentDescription?.let(::truncateForLog) ?: "null"
-        Log.d(
+        // Log.i 而非 Log.d：华为 EMUI 默认丢弃 D 级日志（真机实证 ADAPTER_EVT 恒不可见）；
+        // BuildConfig.DEBUG 门控已保证 release 无输出，I 级仅影响 debug 构建可见性。
+        Log.i(
             TAG,
             "ADAPTER_EVT type=click cls=$cls desc=$desc txt_len=${textLenOf(event)} pkg=$pkg",
         )
@@ -261,7 +266,8 @@ class AnebAccessibilityService : AccessibilityService() {
                 " confidence=${snap.confidence}" +
                 " reason=$reason" +
                 " ttft_send_ms=${snap.ttftSendMs?.let { "%.1f".format(it) } ?: "null"}" +
-                " anchor_source=${snap.anchorSource ?: "null"}",
+                " anchor_source=${snap.anchorSource ?: "null"}" +
+                " ttft_cluster_ms=${snap.ttftClusterMs?.let { "%.1f".format(it) } ?: "null"}",
         )
     }
 

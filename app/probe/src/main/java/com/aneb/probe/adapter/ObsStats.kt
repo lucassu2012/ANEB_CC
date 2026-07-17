@@ -41,6 +41,13 @@ class ObsSessionStats(
         /** 锚点来源标注：输入框清空启发式（send-anchor v1，[onInputBoxText]）。 */
         const val SOURCE_INPUT_CLEAR = "input_clear"
 
+        /**
+         * 簇分割静默阈值（send-anchor v3）：内容事件间隔 > 此值即分簇。取值依据（真机实证，
+         * D-52）：豆包发送后「用户气泡上屏」簇内间隔 ~8ms、流式响应簇内 ~100ms，两簇之间的
+         * 模型思考静默 >500ms——400ms 界稳分两簇且不误分流式簇。
+         */
+        const val CLUSTER_GAP_NANOS: Long = 400_000_000L
+
         private const val NONE = Long.MIN_VALUE
     }
 
@@ -71,6 +78,11 @@ class ObsSessionStats(
     private val sendRing = LongArray(SEND_HISTORY_CAPACITY)
     private var sendRingSize = 0
     private var sendRingNext = 0
+
+    // ── 簇分割 TTFT（send-anchor v3）状态：会话内内容事件流的首/次簇起点 ──
+    private var firstClusterStartNanos = NONE
+    private var secondClusterStartNanos = NONE
+    private var lastContentDeltaNanos = NONE
 
     /**
      * 热路径：记一次内容变化事件。仅打戳/环形写/计数，O(1) 零分配。
@@ -107,6 +119,12 @@ class ObsSessionStats(
             }
         }
         lastInputNonEmpty = textLen > 0
+        // v3.1：输入框活动重置簇状态——簇观察窗从最近输入活动之后起算，把「App 打开渲染簇」
+        // 排除在外（真机实证 D-52：不重置时首簇=打开渲染，ttft_cluster_ms=7184ms 语义混杂；
+        // 重置后=发送→用户气泡簇→思考静默→响应簇，语义纯净）。
+        firstClusterStartNanos = NONE
+        secondClusterStartNanos = NONE
+        lastContentDeltaNanos = NONE
     }
 
     /**
@@ -125,6 +143,20 @@ class ObsSessionStats(
      * 写入最近值 + 历史环形（≤[SEND_HISTORY_CAPACITY]）。无锚点则无操作。O(1) 零分配。
      */
     fun onContentDelta(tsNanos: Long) {
+        // ── 簇分割（send-anchor v3）：会话内内容事件按 >CLUSTER_GAP_NANOS 静默分簇。
+        // 发送场景下首簇≈用户气泡上屏（紧跟发送点击）、次簇首事件≈响应首增量——
+        // 首簇起→次簇起=ttft_cluster_ms（TTFT 簇代理）。只捕获会话内第一对簇（单次发送
+        // 观察场景）；非发送场景（滚动等）该值无发送语义——观察口径，恒 LOW/INCONCLUSIVE。
+        if (firstClusterStartNanos == NONE) {
+            firstClusterStartNanos = tsNanos
+        } else if (secondClusterStartNanos == NONE &&
+            lastContentDeltaNanos != NONE &&
+            tsNanos - lastContentDeltaNanos > CLUSTER_GAP_NANOS
+        ) {
+            secondClusterStartNanos = tsNanos
+        }
+        lastContentDeltaNanos = tsNanos
+
         val anchor = sendAnchorNanos
         if (anchor == NONE) return
         val delta = tsNanos - anchor
@@ -158,6 +190,11 @@ class ObsSessionStats(
         },
         ttftSendHistory = ttftSendHistory(),
         anchorSource = completedAnchorSource,
+        ttftClusterMs = if (firstClusterStartNanos == NONE || secondClusterStartNanos == NONE) {
+            null // R-10：不足两簇=未测，绝不折 0
+        } else {
+            (secondClusterStartNanos - firstClusterStartNanos) / 1_000_000.0
+        },
     )
 
     /** 历史环形 → 时间升序列表（仅快照时调用，不进热路径）。 */
@@ -214,6 +251,14 @@ data class AdapterObsSnapshot(
      * null（尚无完成锚点，与 ttftSendMs=null 同步）。
      */
     val anchorSource: String? = null,
+    /**
+     * **TTFT 簇代理**（send-anchor v3），ms：会话内内容事件按 >[ObsSessionStats.CLUSTER_GAP_NANOS]
+     * 静默分簇，首簇起（发送场景≈用户气泡上屏）→次簇起（≈响应首增量）。不依赖任何锚点事件
+     * （豆包发送按钮不派发 CLICKED、输入清空不发 TEXT_CHANGED——两代锚点均失效后的纯时戳结构法，
+     * D-52 真机实证簇结构）。只取会话内第一对簇；非发送场景无发送语义；不足两簇=null（R-10）；
+     * 恒 LOW/INCONCLUSIVE。
+     */
+    val ttftClusterMs: Double? = null,
 ) {
     val confidence: String get() = CONFIDENCE
 
