@@ -723,6 +723,30 @@ private fun TokenConclusionSection(tc: ResultAqsBreakdown.TokenConclusionInput) 
                 fontSize = 10.sp, color = colors.muted,
             )
         }
+        // S1 会话完成率（D-33 实测外显；旧 run 无字段不渲染，R-10）——BM-06 门限着色 99/97/95
+        tc.s1Rate?.let { rate ->
+            Spacer(Modifier.height(12.dp))
+            val s1Band = when {
+                tc.s1VetoApplied -> colors.poor
+                rate >= 0.99 -> colors.excellent
+                rate >= 0.97 -> colors.good
+                rate >= 0.95 -> colors.fair
+                else -> colors.poor
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("会话完成率 S1", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.ink, modifier = Modifier.weight(1f))
+                Text(
+                    "%.0f%%".format(rate * 100) + (tc.s1Rounds?.let { " · $it 轮" } ?: ""),
+                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = s1Band,
+                )
+            }
+            if (tc.s1VetoApplied) {
+                Text(
+                    "完成率触发软否决，总分已封顶（<95%→70 / <90%→54）",
+                    fontSize = 10.sp, color = colors.poor,
+                )
+            }
+        }
         if (lines.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Text("建议 SLA（良级门限 · 达 95%）", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.muted)

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
@@ -141,6 +142,12 @@ object ResultAqsBreakdown {
         val subScores: Map<String, Double>,
         val subScoresFromFallback: Boolean,
         val workload: com.aneb.probe.scoring.TokenBehaviorClassifier.WorkloadSignal,
+        /** S1 会话完成率（D-33 实测；旧 run 无字段=null 不渲染，R-10）。 */
+        val s1Rate: Double? = null,
+        /** S1 总轮次。 */
+        val s1Rounds: Int? = null,
+        /** S1 软否决已触发（<95% 封顶 70 / <90% 封顶 54）。 */
+        val s1VetoApplied: Boolean = false,
     )
 
     /**
@@ -171,6 +178,9 @@ object ResultAqsBreakdown {
                 weightsTableId = tok["weights_table_id"]?.jsonPrimitive?.contentOrNull ?: "WEIGHTS_TOKEN_MM",
                 subScores = subs,
                 subScoresFromFallback = fallback,
+                s1Rate = tok["s1_session_success_rate"]?.jsonPrimitive?.doubleOrNull,
+                s1Rounds = tok["s1_rounds"]?.jsonPrimitive?.intOrNull,
+                s1VetoApplied = tok["s1_veto_applied"]?.jsonPrimitive?.booleanOrNull ?: false,
                 workload = com.aneb.probe.scoring.TokenBehaviorClassifier.WorkloadSignal(
                     uplinkBytesPerRound = wl["uplink_bytes_per_round"]?.jsonPrimitive?.doubleOrNull?.toLong() ?: 0L,
                     peakToMeanRatio = wl["peak_to_mean_ratio"]?.jsonPrimitive?.doubleOrNull ?: 1.0,

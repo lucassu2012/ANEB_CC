@@ -44,6 +44,8 @@ object ResultReporter {
         aqsToken: AqsScorer.AqsResult? = null,
         tokenWeightsTableId: String? = null,
         tokenWorkload: com.aneb.probe.scoring.TokenBehaviorClassifier.WorkloadSignal? = null,
+        /** S1 会话完成率（D-33 实测；null 值=无遍数据不写字段，R-10）。 */
+        tokenS1: com.aneb.probe.scoring.KpiValue? = null,
     ): String = buildJsonObject {
         // ---- 合同字段（顶层，const/枚举锁定） ----
         put("claim_scope", CLAIM_SCOPE)
@@ -97,6 +99,13 @@ object ResultReporter {
                     put("veto_applied", aqsToken.vetoApplied)
                     put("not_computable_reason", aqsToken.notComputableReason)
                     put("weights_table_id", tokenWeightsTableId)
+                    // S1 完成率外显（D-33）：值+轮数+低置信+否决标——让 S1 否决在结果页可解释
+                    put("s1_veto_applied", aqsToken.s1VetoApplied)
+                    if (tokenS1?.value != null) {
+                        put("s1_session_success_rate", tokenS1.value)
+                        put("s1_rounds", tokenS1.sampleCount)
+                        put("s1_low_confidence", tokenS1.lowConfidence)
+                    }
                     put("sub_scores", buildJsonObject {
                         aqsToken.subScores.forEach { (k, v) -> put(k, v) }
                     })

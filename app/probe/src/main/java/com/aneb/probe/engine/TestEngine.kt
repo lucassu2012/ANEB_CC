@@ -552,6 +552,7 @@ class TestEngine(private val context: Context) {
                 aqsToken = aqsToken,
                 tokenWeightsTableId = tokenWeightsTableId,
                 tokenWorkload = tokenWorkload,
+                tokenS1 = composite.s1SessionSuccessRate,
             )
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size
             if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {

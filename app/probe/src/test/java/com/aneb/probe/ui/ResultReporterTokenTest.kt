@@ -79,6 +79,35 @@ class ResultReporterTokenTest {
         assertFalse("token 子分在场不走回落", tc.subScoresFromFallback)
         assertEquals(66.0, tc.subScores.getValue("D1"), 1e-9)
         assertEquals(workload, tc.workload)
+        // 未传 tokenS1 → S1 字段缺省（旧 run 兼容口径，R-10）
+        assertNull(tc.s1Rate)
+        assertFalse(tc.s1VetoApplied)
+    }
+
+    @Test
+    fun `往返_S1完成率外显_值轮次与否决标还原`() {
+        // D-33：1/3 遍 INVALID → S1=0.667 触发硬档否决；报文应完整还原 值/轮次/否决标
+        val vetoed = AqsScorer.AqsResult(
+            aqsVersion = AqsScorer.AQS_VERSION_TOKEN, kpiSetVersion = "agent-qoe-kpi-v0.2",
+            score = 54.0,
+            subScores = mapOf(
+                "T1" to 97.3, "T2" to 98.0, "T3" to 100.0, "U1" to 77.5,
+                "D1" to 66.0, "U2" to 77.8, "N1" to 75.1, "N2" to 81.6,
+            ),
+            vetoApplied = false, lowConfidence = false, notComputableReason = null,
+            s1VetoApplied = true,
+        )
+        val body = ResultReporter.build(
+            run = run(), scenarios = emptyList(), aqs = v01,
+            aqsToken = vetoed, tokenWeightsTableId = "WEIGHTS_TOKEN_MM", tokenWorkload = workload,
+            tokenS1 = com.aneb.probe.scoring.KpiValue(2.0 / 3.0, "ratio", 3, lowConfidence = false),
+        )
+        val tc = ResultAqsBreakdown.tokenConclusionFromReportJson(body)
+        assertNotNull(tc)
+        tc!!
+        assertEquals(2.0 / 3.0, tc.s1Rate!!, 1e-9)
+        assertEquals(3, tc.s1Rounds!!)
+        assertEquals(true, tc.s1VetoApplied)
     }
 
     @Test
