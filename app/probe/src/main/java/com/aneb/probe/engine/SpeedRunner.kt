@@ -231,9 +231,13 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         }
         dlJob.cancel()
 
-        // ---- Upload 阶段（~6s 循环上传，1MiB/次；整形 1Mbps 下在途块允许收尾超窗）----
+        // ---- Upload 阶段（~6s 循环上传，128KiB/次）----
+        // 合同计量口径（TEST_SERVER_CAPABILITIES §5）：只累计服务端回执确认的字节，
+        // 不把本机 socket 写入量当成线上 goodput——1Mbps 整形下 send buffer 一口吞下整块，
+        // 写口径瞬时窗口会虚高到链路裸速（真机实证 36 Mbps vs 标称 1）。故：无 onChunk 中间
+        // 计数、仅成功响应后整块入账、速率取自首请求起的全程均值（离散确认对滑窗不友好）。
         val bytes = AtomicLong(0)
-        val chunk = ByteArray(1 shl 20) // 1MiB/次（整形 1Mbps；每次循环经 urls.next 取新 seq）
+        val chunk = ByteArray(128 shl 10) // 128KiB/请求（整形 1Mbps 下含注入 RTT ~1.2s/个）
         val upStartNs = System.nanoTime()
         val upDurNs = 6_000_000_000L
         val upJob = launch(Dispatchers.IO) {
@@ -241,24 +245,22 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             while (isActive && System.nanoTime() - upStartNs < upDurNs) {
                 reqTotal.incrementAndGet()
                 val res = runCatching {
-                    client.uploadBurst(urls.next("upload"), chunk, chunkBytes = 65536) { total, _ ->
-                        bytes.set(acc + total)
-                    }
+                    client.uploadBurst(urls.next("upload"), chunk, chunkBytes = 65536)
                 }.getOrNull()
-                if (res != null && (res.error != null || (res.httpCode ?: 0) !in 200..299)) reqFailed.incrementAndGet()
+                val ok = res != null && res.error == null && (res.httpCode ?: 0) in 200..299
+                if (!ok) {
+                    reqFailed.incrementAndGet()
+                    continue // 失败块不入账（未获服务端确认的字节不算 goodput）
+                }
                 acc += chunk.size
                 bytes.set(acc)
             }
         }
-        val window = ArrayDeque<Pair<Long, Long>>()
         while (upJob.isActive) {
             val now = System.nanoTime()
             val b = bytes.get()
-            window.addLast(now to b)
-            while (window.size > 1 && now - window.first().first > 600_000_000L) window.removeFirst()
-            val dB = b - window.first().second
-            val dS = (now - window.first().first) / 1e9
-            val mbps = if (window.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
+            val dS = (now - upStartNs) / 1e9
+            val mbps = if (b > 0 && dS > 0.1) b * 8.0 / dS / 1e6 else null
             val prog = 0.6f + ((now - upStartNs).toFloat() / upDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
             emit(Sample(Phase.Upload, rttMed, jit, mbps, null, prog.coerceIn(0f, 0.99f)))
             delay(100)
