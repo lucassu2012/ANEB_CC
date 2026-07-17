@@ -73,16 +73,18 @@ class AdapterSpecTest {
         val s = parseAsset("doubao.json")
         assertEquals("doubao", s.id)
         assertEquals("com.larus.nova", s.packageName)
-        assertEquals(AdapterSpecLoader.STATUS_PENDING, s.status)
-        assertTrue("PENDING-VALIDATION 撤销前恒 true", s.pendingValidation)
+        // 2026-07-18 P40 装机实测后：包名/节点均已核实（D-50），状态不再 PENDING
+        assertEquals("VALIDATED-OBSERVED", s.status)
+        assertTrue("装机核实后 pendingValidation 撤销", !s.pendingValidation)
         assertEquals(
             listOf("TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_TEXT_CHANGED"),
             s.observeEvents,
         )
-        assertTrue("[COMMON] 待装机核实标注必须在", s.packageNote.contains("[COMMON]"))
-        // 节点规则占位：viewId 未定（真机回填）、className 为 [GUESS]
-        assertNull(s.responseNode.viewIdRegex)
-        assertEquals(AdapterSpecLoader.STATUS_PENDING, s.responseNode.status)
+        assertTrue("[KNOWN] 装机核实标注必须在", s.packageNote.contains("[KNOWN]"))
+        // 节点规则已实测回填（uiautomator dump 锚定，D-50）
+        assertEquals("com\\.larus\\.nova:id/message_list", s.responseNode.viewIdRegex)
+        assertEquals("VALIDATED-PARTIAL", s.responseNode.status)
+        assertEquals("com\\.larus\\.nova:id/input", s.inputNode.viewIdRegex)
     }
 
     // ---------- 用例 2：DeepSeek 规格解析 + 身份字段钉死（D-48 首批） ----------

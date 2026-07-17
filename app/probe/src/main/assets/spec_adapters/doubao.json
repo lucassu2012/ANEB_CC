@@ -5,22 +5,22 @@
     "display_name": "豆包",
     "app_id": "doubao-android",
     "package": "com.larus.nova",
-    "package_note": "[COMMON] 待装机核实：公开渠道普遍报告豆包 Android 包名为 com.larus.nova；P40 装机后以前台窗口实况（dumpsys window / ADAPTER_OBS 日志 pkg 字段）核实，不符即改此字段并升 PATCH 版本",
-    "status": "PENDING-VALIDATION",
+    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list 与前台窗口实况均为 com.larus.nova，对话页 Activity=com.larus.bmhome.chat.ChatActivity；ADAPTER_OBS 日志 pkg 字段实测命中（mode=doubao）",
+    "status": "VALIDATED-OBSERVED",
     "launch_hint": "由用户手动启动豆包并进入对话页；宿主为观察模式 only——绝不代启动 App、绝不 performAction/注入任何操作（动真实账号是用户红线）",
     "input_node": {
-      "view_id_regex": null,
+      "view_id_regex": "com\\.larus\\.nova:id/input",
       "class_name_regex": "android\\.widget\\.EditText",
       "text_regex": null,
-      "status": "PENDING-VALIDATION",
-      "note": "[GUESS] 对话输入框通常为 EditText；真机 uiautomator dump 后回填精确 view_id_regex 并撤销 PENDING-VALIDATION"
+      "status": "VALIDATED",
+      "note": "[KNOWN] 2026-07-18 P40 uiautomator dump 实测：输入框 view_id=com.larus.nova:id/input（容器 input_area_container/input_delegate）"
     },
     "response_node": {
-      "view_id_regex": null,
+      "view_id_regex": "com\\.larus\\.nova:id/message_list",
       "class_name_regex": "android\\.widget\\.TextView|androidx\\.recyclerview\\.widget\\.RecyclerView",
       "text_regex": null,
-      "status": "PENDING-VALIDATION",
-      "note": "[GUESS] 流式回复通常落在 RecyclerView 内 TextView；PENDING-VALIDATION 期间节点规则仅作标注计数、不作打点闸门（规则错误不得静默丢事件）"
+      "status": "VALIDATED-PARTIAL",
+      "note": "[KNOWN] 2026-07-18 P40 dump 实测：回复列表 view_id=com.larus.nova:id/message_list（容器 message_list_parent/sub_parent，chat 根=chat_root）。运行时 view_id 不评估（跨进程 getSource 开销，D-49 偏离 2）——规则作标注计数非闸门。首份实测基线（P40/5G，2026-07-18，流式响应『What is 5G』重新生成）：ADAPTER_OBS mode=doubao events=28 rule_matched=26 cadence_p50_ms=105.8（复测段 99.7，一致）——豆包 UI 层流式呈现节奏 p50≈100–106ms/增量，此为 P3 业务画像首个实测参数（UI 呈现口径，非网络 ITL）"
     },
     "observe_events": ["TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_TEXT_CHANGED"],
     "kpi_mapping": {
