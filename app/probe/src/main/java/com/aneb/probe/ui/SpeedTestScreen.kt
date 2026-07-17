@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,9 +39,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.data.SyntheticResultEntity
 import com.aneb.probe.engine.SpeedRunner
 import com.aneb.probe.engine.SyntheticRecoveryRunner
 import com.aneb.probe.ui.theme.AnebTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.max
@@ -70,6 +75,8 @@ fun SpeedTestScreen(
     shapedRunning: Boolean = false,
     onStartShaped: () -> Unit = {},
     onCancelShaped: () -> Unit = {},
+    /** 最近落库的合成子测记录（恢复/整形共表），新→旧；空=无历史（不占位） */
+    recentSynthetic: List<SyntheticResultEntity> = emptyList(),
 ) {
     val c = AnebTheme.colors
     // 实时吞吐火花线（当前相：下行/上行）+ 上下行峰值（每次起测清空）
@@ -252,6 +259,59 @@ fun SpeedTestScreen(
             color = c.faint,
             fontSize = 11.sp,
         )
+
+        // ---- 最近合成子测（恢复/整形）：只展示落库实测值，不重算（D-02）----
+        if (recentSynthetic.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            RecentSyntheticSection(recentSynthetic)
+        }
+    }
+}
+
+/**
+ * 最近合成子测记录：时间 + kind 标签（恢复/整形）+ 关键值 + 恒注 LOW/INCONCLUSIVE
+ * （落库 [SyntheticResultEntity.confidence] 原文）。只展示落库实测值，不重算（D-02）；
+ * 缺失值记 —（R-10 诚实缺席）。镜像 VoiceTestScreen 的 RecentVoiceSection。
+ */
+@Composable
+private fun RecentSyntheticSection(records: List<SyntheticResultEntity>) {
+    val c = AnebTheme.colors
+    val fmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.surface)
+            .padding(14.dp),
+    ) {
+        Text("最近合成子测", color = c.muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        records.forEach { r ->
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(fmt.format(Date(r.tsEpochMs)), color = c.ink, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                val isRecovery = r.kind == "recovery"
+                Text(
+                    if (isRecovery) "恢复" else "整形",
+                    color = if (isRecovery) c.good else c.brand,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.width(10.dp))
+                val value = if (isRecovery) {
+                    val meets = when (r.meetsTargets) {
+                        true -> "✓"
+                        false -> "✗"
+                        null -> "—"
+                    }
+                    "恢复 ${r.recoveryMs?.let { "%.0f".format(it) } ?: "—"} ms · meets $meets"
+                } else {
+                    "↓${r.shapedDownMbps?.let { "%.2f".format(it) } ?: "—"}/" +
+                        "↑${r.shapedUpMbps?.let { "%.2f".format(it) } ?: "—"} Mbps"
+                }
+                Text(value, color = c.ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(r.confidence, color = c.faint, fontSize = 9.5.sp)
+        }
     }
 }
 

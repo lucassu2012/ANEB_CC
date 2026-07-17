@@ -41,6 +41,7 @@ import com.aneb.probe.apiprobe.toLlmProvider
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
 import com.aneb.probe.data.ScenarioResultEntity
+import com.aneb.probe.data.SyntheticResultEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.data.VoiceResultEntity
 import com.aneb.probe.engine.AbRunner
@@ -335,6 +336,29 @@ class MainActivity : ComponentActivity() {
                                             "meets=${it.meetsTargets ?: "null"} confidence=LOW_INCONCLUSIVE",
                                     )
                                 }
+                                // 合成子测落库（镜像 D-42 手法）：仅 Done 样本入库——实测值原样
+                                // 落库（R-10：null 不补 0），恒注 LOW/INCONCLUSIVE，shaped 列置 null。
+                                recoverySample?.takeIf { it.phase == SyntheticRecoveryRunner.Phase.Done }?.let { s ->
+                                    val rowId = withContext(Dispatchers.IO) {
+                                        db.syntheticResultDao().insert(
+                                            SyntheticResultEntity(
+                                                tsEpochMs = System.currentTimeMillis(),
+                                                kind = "recovery",
+                                                confidence = s.confidence,
+                                                recoveryMs = s.recoveryMs,
+                                                outage503 = s.outageConfirmed,
+                                                postSuccess = s.postSuccess,
+                                                postTotal = s.postTotal,
+                                                rttP95Ms = s.postRttP95Ms,
+                                                meetsTargets = s.meetsTargets,
+                                                shapedDownMbps = null,
+                                                shapedUpMbps = null,
+                                                shapedRttMs = null,
+                                            )
+                                        )
+                                    }
+                                    addLog("RECOVERY_SAVED id=$rowId meets=${s.meetsTargets ?: "null"}")
+                                }
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
@@ -364,6 +388,30 @@ class MainActivity : ComponentActivity() {
                                     "SPEED_SHAPED down_peak=${"%.2f".format(downPeak)} up_peak=${"%.2f".format(upPeak)} " +
                                         "rtt=${shapedSample?.rttMs?.let { m -> "%.1f".format(m) } ?: "null"}",
                                 )
+                                // 合成子测落库（镜像 D-42 手法）：仅 Done 样本入库——落聚合峰值
+                                // downPeak/upPeak（0 峰＝无样本，R-10 落 null 不落 0）与完成态
+                                // Sample.rttMs，恒注 LOW/INCONCLUSIVE，recovery 列置 null。
+                                shapedSample?.takeIf { it.phase == SpeedRunner.Phase.Done }?.let { s ->
+                                    val rowId = withContext(Dispatchers.IO) {
+                                        db.syntheticResultDao().insert(
+                                            SyntheticResultEntity(
+                                                tsEpochMs = System.currentTimeMillis(),
+                                                kind = "shaped",
+                                                confidence = "LOW/INCONCLUSIVE(单次合成事件)",
+                                                recoveryMs = null,
+                                                outage503 = null,
+                                                postSuccess = null,
+                                                postTotal = null,
+                                                rttP95Ms = null,
+                                                meetsTargets = null,
+                                                shapedDownMbps = downPeak.takeIf { it > 0.0 },
+                                                shapedUpMbps = upPeak.takeIf { it > 0.0 },
+                                                shapedRttMs = s.rttMs,
+                                            )
+                                        )
+                                    }
+                                    addLog("SHAPED_SAVED id=$rowId down=${"%.2f".format(downPeak)} up=${"%.2f".format(upPeak)}")
+                                }
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {
@@ -506,6 +554,14 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                         if (selectedModeId == TestModeProfiles.BASIC_NETWORK.id) {
+                                            // 最近合成子测记录：recoveryRunning/shapedRunning 翻 false
+                                            // （run 结束、落库已完成）后重载；启动时首载
+                                            val recentSynthetic by produceState(
+                                                initialValue = emptyList<SyntheticResultEntity>(),
+                                                recoveryRunning, shapedRunning,
+                                            ) {
+                                                value = withContext(Dispatchers.IO) { db.syntheticResultDao().recent(10) }
+                                            }
                                             SpeedTestScreen(
                                                 sample = speedSample,
                                                 running = speedRunning,
@@ -519,6 +575,7 @@ class MainActivity : ComponentActivity() {
                                                 shapedRunning = shapedRunning,
                                                 onStartShaped = { startShapedTest() },
                                                 onCancelShaped = { shapedJob?.cancel() },
+                                                recentSynthetic = recentSynthetic,
                                             )
                                         } else if (selectedModeId == TestModeProfiles.VOICE_REALTIME.id) {
                                             // 最近语音记录（D-42）：voiceRunning 翻 false（run 结束）后重载
