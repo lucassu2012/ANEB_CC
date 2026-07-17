@@ -5,8 +5,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"strings"
 )
+
+// secretQueryKeys 是常见网关把凭据塞进 URL query 的键名（小写匹配）。
+var secretQueryKeys = map[string]bool{
+	"key": true, "api_key": true, "apikey": true,
+	"access_token": true, "token": true, "auth": true,
+}
+
+// SanitizeEndpoint 去除 URL 中的凭据后返回可安全写入 trace/provenance/日志的字符串：
+// 剥离 userinfo（user:pass@）与常见密钥 query 参数（值替换为 REDACTED）。
+// 解析失败则截到 '?' 前（宁可少信息也不泄密钥）。绝不把原始 URL 落地——trace/包
+// 会经 /profiles 公开透出。
+func SanitizeEndpoint(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		if i := strings.IndexByte(raw, '?'); i >= 0 {
+			return raw[:i] + "?[unparseable-redacted]"
+		}
+		return raw
+	}
+	u.User = nil
+	if q := u.Query(); len(q) > 0 {
+		for k := range q {
+			if secretQueryKeys[strings.ToLower(k)] {
+				q.Set(k, "REDACTED")
+			}
+		}
+		u.RawQuery = q.Encode()
+	}
+	return u.String()
+}
 
 // TraceMeta 是一次采集 run 的元数据（llmcap 写入 trace 首行，进 provenance.Source）。
 type TraceMeta struct {
@@ -56,12 +88,14 @@ func WriteTrace(w io.Writer, t Trace) error {
 	return nil
 }
 
-// ReadTrace 解析一份 trace JSONL。首行必须是 meta；token 行按出现顺序收集。
+// ReadTrace 解析一份 trace JSONL。**首行必须是 meta 且仅一条**；token 行按出现
+// 顺序收集。强制 meta 是证据链纪律（标定输入不许掺水）：token-only / 无 meta /
+// 多 meta（多 run 误 cat 进一个文件）一律报错，绝不静默出残缺来源的包。
 func ReadTrace(r io.Reader) (Trace, error) {
 	var t Trace
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	lineNo := 0
+	lineNo, metaSeen := 0, false
 	for sc.Scan() {
 		lineNo++
 		raw := sc.Bytes()
@@ -77,10 +111,20 @@ func ReadTrace(r io.Reader) (Trace, error) {
 			if line.TraceMeta == nil {
 				return t, fmt.Errorf("trace line %d: meta line without fields", lineNo)
 			}
+			if metaSeen {
+				return t, fmt.Errorf("trace line %d: duplicate meta (多 run 误合并入一文件？)", lineNo)
+			}
+			if len(t.Events) > 0 {
+				return t, fmt.Errorf("trace line %d: meta must be first line (token lines precede it)", lineNo)
+			}
 			t.Meta = *line.TraceMeta
+			metaSeen = true
 		case "token":
 			if line.TraceEvent == nil {
 				return t, fmt.Errorf("trace line %d: token line without fields", lineNo)
+			}
+			if !metaSeen {
+				return t, fmt.Errorf("trace line %d: token line before meta (first line must be meta)", lineNo)
 			}
 			t.Events = append(t.Events, *line.TraceEvent)
 		default:
@@ -90,8 +134,8 @@ func ReadTrace(r io.Reader) (Trace, error) {
 	if err := sc.Err(); err != nil {
 		return t, err
 	}
-	if t.Meta.CapturedAt == "" && len(t.Events) == 0 {
-		return t, fmt.Errorf("empty trace")
+	if !metaSeen {
+		return t, fmt.Errorf("trace has no meta line")
 	}
 	return t, nil
 }

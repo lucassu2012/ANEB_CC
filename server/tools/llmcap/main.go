@@ -38,6 +38,8 @@ func main() {
 	maxTokens := flag.Int("max-tokens", 600, "max_tokens cap (cost guard)")
 	key := flag.String("key", "", "API key (or env LLM_API_KEY); never written to output")
 	outPath := flag.String("o", "", "output trace JSONL file (required)")
+	allowTruncated := flag.Bool("allow-truncated", false,
+		"accept a stream that ended without finish_reason (default: warn + exit 1 — truncated runs pollute calibration)")
 	proxy := flag.String("proxy", "", "explicit HTTP proxy URL (empty = direct, system proxy DISABLED)")
 	timeout := flag.Duration("timeout", 180*time.Second, "overall request timeout")
 	flag.Parse()
@@ -81,15 +83,20 @@ func main() {
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
+	// 脱敏端点（剥 userinfo/密钥 query）——写入 trace/provenance/日志前，绝不落原始 URL
+	// （trace→包→/profiles 会公开透出，URL 内嵌密钥会一路泄漏）。
+	safeEndpoint := behaviorspec.SanitizeEndpoint(*endpoint)
+
 	anchor := time.Now() // 单调锚点：请求发出前（TTFT 口径起点，含连接建立——局限见 fitNote）
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("request: %v", err)
+		// url.Error 的 %v 会带完整 URL（含密钥）——只报脱敏端点。
+		log.Fatalf("request to %s failed (see network error class): %T", safeEndpoint, err)
 	}
 	defer resp.Body.Close()
 	respHdrUs := time.Since(anchor).Microseconds()
 	if resp.StatusCode != http.StatusOK {
-		log.Fatalf("unexpected status: %s", resp.Status)
+		log.Fatalf("unexpected status from %s: %s", safeEndpoint, resp.Status)
 	}
 
 	events, finish, skipped, err := behaviorspec.ParseOpenAIStream(resp.Body,
@@ -103,7 +110,7 @@ func main() {
 
 	t := behaviorspec.Trace{
 		Meta: behaviorspec.TraceMeta{
-			Endpoint:   *endpoint,
+			Endpoint:   safeEndpoint,
 			Model:      *model,
 			CapturedAt: anchor.UTC().Format(time.RFC3339),
 			RespHdrUs:  respHdrUs,
@@ -122,4 +129,11 @@ func main() {
 	}
 	fmt.Printf("captured %d token events -> %s (finish=%q resp_header=%.1fms)\n",
 		len(events), *outPath, finish, float64(respHdrUs)/1000)
+
+	// 流未见 finish_reason = 提前正常关闭（LB 空闲超时/服务端 abort）——run 被截断，
+	// TTFT/曲线/直方图会被残缺数据污染。默认拒绝进证据链（非零退出），显式 -allow-truncated 豁免。
+	if finish == "" && !*allowTruncated {
+		log.Fatalf("stream ended WITHOUT finish_reason — run is truncated; "+
+			"re-capture or pass -allow-truncated to accept (%s kept for inspection)", *outPath)
+	}
 }

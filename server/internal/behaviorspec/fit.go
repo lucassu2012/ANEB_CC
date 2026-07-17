@@ -47,10 +47,12 @@ type FitReport struct {
 
 	SegTpsMin, SegTpsMax float64 // 分段中位速的极值（非平稳性证据）
 	ScheduleUsed         bool    // 是否输出了 rate_schedule（max/min≥1.15）
+	ScheduleUnmeasured   bool    // 曲线**不可测**（run 过短 k<2 / 段内时刻并列）——区别于「近常速」
 
-	TokensPerFrame int // 聚簇众数（1=未见合帧）
-	ClampedBytes   int // wire 字节被 clamp 到 [TokenBytesMin,TokenBytesMax] 的事件数
-	ClampedSegTps  int // 段速越 [MinTps,MaxTps] 被 clamp 的段数（帧粘连/无节奏数据的诚实注记）
+	TokensPerFrame int  // 聚簇众数（1=未见合帧）
+	TpfAbandoned   bool // 众数超帧上限（>MaxTokensPerFrame）→ 判为快速流/采集粘连，未出 tokens_per_frame
+	ClampedBytes   int  // wire 字节被 clamp 到 [TokenBytesMin,TokenBytesMax] 的事件数
+	ClampedSegTps  int  // 段速越 [MinTps,MaxTps] 被 clamp 的段数（帧粘连/无节奏数据的诚实注记）
 }
 
 // Summary 输出人读拟合摘要（写入 Provenance.FitSummary）。
@@ -62,14 +64,21 @@ func (r *FitReport) Summary() string {
 		b.WriteString(" [注入值已 clamp 至 10s 上限]")
 	}
 	fmt.Fprintf(&b, "; TPS mean=%.2f cv=%.3f", r.MeanTps, r.TpsCv)
-	if r.ScheduleUsed {
+	switch {
+	case r.ScheduleUsed:
 		fmt.Fprintf(&b, "; 非平稳段速 [%.2f,%.2f] → rate_schedule", r.SegTpsMin, r.SegTpsMax)
-	} else {
+	case r.ScheduleUnmeasured:
+		b.WriteString("; 段速不可测（run 过短或到达时刻并列），未出 rate_schedule")
+	default:
 		fmt.Fprintf(&b, "; 段速 [%.2f,%.2f] 近常速（<%.0f%% 变幅），未出 rate_schedule",
 			r.SegTpsMin, r.SegTpsMax, (scheduleRatio-1)*100)
 	}
-	if r.TokensPerFrame > 1 {
-		fmt.Fprintf(&b, "; tokens_per_frame≈%d（到达聚簇众数）", r.TokensPerFrame)
+	switch {
+	case r.TpfAbandoned:
+		fmt.Fprintf(&b, "; 到达聚簇众数 %d 超帧上限 %d（快速流/采集粘连），未出 tokens_per_frame",
+			r.TokensPerFrame, MaxTokensPerFrame)
+	case r.TokensPerFrame > 1:
+		fmt.Fprintf(&b, "; tokens_per_frame=%d（到达聚簇众数）", r.TokensPerFrame)
 	}
 	if r.ClampedBytes > 0 {
 		fmt.Fprintf(&b, "; %d/%d 事件 wire 字节越界被 clamp", r.ClampedBytes, r.Tokens)
@@ -122,8 +131,8 @@ func Calibrate(traces []Trace, opts FitOptions) (*Model, *FitReport, error) {
 	if opts.ID == "" || opts.Version == "" {
 		return nil, nil, fmt.Errorf("calibrate: ID and Version are required")
 	}
-	if strings.Contains(opts.ID, "@") {
-		return nil, nil, fmt.Errorf("calibrate: ID must not contain '@' (reserved for id@version stamp)")
+	if strings.Contains(opts.ID, "@") || strings.Contains(opts.Version, "@") {
+		return nil, nil, fmt.Errorf("calibrate: ID/Version must not contain '@' (reserved for id@version stamp)")
 	}
 	if len(traces) == 0 {
 		return nil, nil, fmt.Errorf("calibrate: no traces")
@@ -140,6 +149,18 @@ func Calibrate(traces []Trace, opts FitOptions) (*Model, *FitReport, error) {
 	for i, t := range traces {
 		if len(t.Events) < 2 {
 			return nil, nil, fmt.Errorf("calibrate: run %d has %d token events (<2) — capture incomplete", i, len(t.Events))
+		}
+		// 全部拟合数学（TTFT=首事件、span=末−首、插值、聚簇间隔）都假设到达时刻单调非负。
+		// 乱序/负 trace（手编/拼接/损坏）若不拦，会静默出 Calibrated=true 的垃圾包——时序残缺
+		// 与形状残缺同样是掺水，一并 fail-fast。
+		if t.Events[0].ArrivalUs < 0 {
+			return nil, nil, fmt.Errorf("calibrate: run %d event 0 has negative arrival_us %d", i, t.Events[0].ArrivalUs)
+		}
+		for j := 1; j < len(t.Events); j++ {
+			if t.Events[j].ArrivalUs < t.Events[j-1].ArrivalUs {
+				return nil, nil, fmt.Errorf("calibrate: run %d arrival_us not monotonic at event %d (%d < %d) — corrupt/out-of-order trace",
+					i, j, t.Events[j].ArrivalUs, t.Events[j-1].ArrivalUs)
+			}
 		}
 	}
 
@@ -181,10 +202,14 @@ func Calibrate(traces []Trace, opts FitOptions) (*Model, *FitReport, error) {
 	schedule, segMin, segMax, segClamped := fitRateSchedule(traces, opts.Segments)
 	report.SegTpsMin, report.SegTpsMax = segMin, segMax
 	report.ClampedSegTps = segClamped
-	if segMin > 0 && segMax/segMin >= scheduleRatio {
+	switch {
+	case schedule == nil:
+		// 曲线不可测（run 过短 k<2 或段内时刻并列）——区别于「近常速」，诚实注记（红线 §3.4）。
+		report.ScheduleUnmeasured = true
+	case segMin > 0 && segMax/segMin >= scheduleRatio:
 		report.ScheduleUsed = true
-	} else {
-		schedule = nil
+	default:
+		schedule = nil // 测得但近常速：常速由 phase rate_tps 描述
 	}
 
 	// —— 字节直方图（wire 字节，clamp + 等宽合并）。
@@ -192,13 +217,16 @@ func Calibrate(traces []Trace, opts FitOptions) (*Model, *FitReport, error) {
 	report.ClampedBytes = clamped
 
 	// —— tokens_per_frame：聚簇众数。
+	// 众数 > 帧上限 = 「整段流粘成一簇」——真实成因几乎总是**快速均匀流**或采集路径缓冲，
+	// 而非 vendor 真在做 >64-token 巨帧批量。此时**放弃** tokens_per_frame（而非 clamp 到 64，
+	// 那会把均匀快流误标成巨帧突发、重放 wire 与 ground truth 截然相反——审查确认缺陷）。
 	report.TokensPerFrame = fitTokensPerFrame(traces, opts.CoalesceUs)
 	tpf := 0
-	if report.TokensPerFrame > 1 {
+	switch {
+	case report.TokensPerFrame > MaxTokensPerFrame:
+		report.TpfAbandoned = true // 判为快速流/粘连，不写旋钮
+	case report.TokensPerFrame > 1:
 		tpf = report.TokensPerFrame
-		if tpf > MaxTokensPerFrame {
-			tpf = MaxTokensPerFrame
-		}
 	}
 
 	m := &Model{

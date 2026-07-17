@@ -87,3 +87,12 @@ func TestParseOpenAIStreamEOFWithoutDone(t *testing.T) {
 		t.Fatalf("events=%d finish=%q", len(events), finish)
 	}
 }
+
+// 超长行（不受信端点不发换行的无界灌注）→ 报错而非无界缓冲 OOM。
+func TestParseOpenAIStreamRejectsOversizedLine(t *testing.T) {
+	huge := "data: " + strings.Repeat("x", maxSSELineBytes+10) // 无换行
+	_, _, _, err := ParseOpenAIStream(strings.NewReader(huge), seqNow())
+	if err == nil {
+		t.Fatal("oversized line must error, not buffer unbounded")
+	}
+}

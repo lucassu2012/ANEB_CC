@@ -3,8 +3,15 @@ package behaviorspec
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
+)
+
+// 面向**不受信网络端点**的防护上限（被劫持/故障的「OpenAI 兼容」端点可能狂灌）：
+const (
+	maxSSELineBytes = 4 << 20 // 单 SSE 行 4MB 上限（防不发换行的无界缓冲）
+	maxStreamEvents = 200_000 // 单流 token 事件硬顶（防无限 data 行 OOM）
 )
 
 // oaChunk 是 OpenAI 兼容 chat.completion.chunk 中本层关心的字段。
@@ -28,11 +35,20 @@ type oaChunk struct {
 //     静默错位，计数供采集器上报）。
 //   - `data: [DONE]` 或 EOF 正常收尾。
 func ParseOpenAIStream(r io.Reader, now func() int64) (events []TraceEvent, finishReason string, skipped int, err error) {
-	br := bufio.NewReaderSize(r, 64*1024)
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 0, 64*1024), maxSSELineBytes)
 	for {
-		line, readErr := br.ReadString('\n')
+		if !sc.Scan() {
+			if serr := sc.Err(); serr != nil {
+				if serr == bufio.ErrTooLong {
+					return events, finishReason, skipped, fmt.Errorf("SSE line exceeds %d bytes (untrusted endpoint?)", maxSSELineBytes)
+				}
+				return events, finishReason, skipped, serr
+			}
+			return events, finishReason, skipped, nil // EOF：正常收尾（部分 vendor 无 [DONE]）
+		}
 		arrival := now()
-		line = strings.TrimRight(line, "\r\n")
+		line := strings.TrimRight(sc.Text(), "\r")
 		if data, ok := strings.CutPrefix(line, "data: "); ok {
 			if data == "[DONE]" {
 				return events, finishReason, skipped, nil
@@ -43,6 +59,9 @@ func ParseOpenAIStream(r io.Reader, now func() int64) (events []TraceEvent, fini
 			} else if len(c.Choices) > 0 {
 				ch := c.Choices[0]
 				if ch.Delta.Content != "" {
+					if len(events) >= maxStreamEvents {
+						return events, finishReason, skipped, fmt.Errorf("stream exceeds %d token events (untrusted endpoint?)", maxStreamEvents)
+					}
 					events = append(events, TraceEvent{
 						Index:        len(events),
 						ArrivalUs:    arrival,
@@ -54,12 +73,6 @@ func ParseOpenAIStream(r io.Reader, now func() int64) (events []TraceEvent, fini
 					finishReason = *ch.FinishReason
 				}
 			}
-		}
-		if readErr != nil {
-			if readErr == io.EOF {
-				return events, finishReason, skipped, nil
-			}
-			return events, finishReason, skipped, readErr
 		}
 	}
 }

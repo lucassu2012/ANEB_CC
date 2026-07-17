@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -85,7 +86,10 @@ func applyBehaviorModelDefaults(m *BehaviorModel, params *StreamParams, tokenByt
 	if params.TokensPerFrame == 0 {
 		params.TokensPerFrame = m.TokensPerFrame
 	}
-	if len(params.RateSchedule) == 0 {
+	// rate_schedule 只在**均匀** phase 补：burst phase 自有簇节奏，validateRateSchedule
+	// 对 burst+非空曲线硬拒（且 GenerateTokens burst 路径本就忽略曲线）——真实标定包几乎
+	// 必含 rate_schedule，若无条件填入会让所有引用它的 burst phase(/stream) 全 400（审查确认）。
+	if len(params.RateSchedule) == 0 && params.Burst == nil {
 		params.RateSchedule = m.RateSchedule
 	}
 	// 字节模型：phase 声明了 token_bytes 就归 phase；否则由 pack 决定（直方图优先，其次 lognormal）。
@@ -121,8 +125,12 @@ func loadBehaviorModels(dir string) error {
 		if err != nil {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
+		// DisallowUnknownFields：手编包若旋钮名拼错（如 rate_shedule/ttft_inject_ms）应报错，
+		// 不静默丢弃成缺省（参数包是行为合同）。calibrate 产物字段名恒正确，不受影响。
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
 		var m BehaviorModel
-		if err := json.Unmarshal(data, &m); err != nil {
+		if err := dec.Decode(&m); err != nil {
 			return fmt.Errorf("parse %s: %w", path, err)
 		}
 		if err := validateBehaviorModel(&m); err != nil {
@@ -142,8 +150,9 @@ func validateBehaviorModel(m *BehaviorModel) error {
 	if m.ID == "" || m.Version == "" {
 		return fmt.Errorf("missing id or version")
 	}
-	if strings.Contains(m.ID, "@") {
-		return fmt.Errorf("id must not contain '@' (reserved for id@version stamp)")
+	// id 与 version 均禁 '@'：Stamp() 以 "id@version" 编码，任一侧含 '@' 会让下游印章解析歧义。
+	if strings.Contains(m.ID, "@") || strings.Contains(m.Version, "@") {
+		return fmt.Errorf("id/version must not contain '@' (reserved for id@version stamp)")
 	}
 	if m.TtftInjectUs < 0 || m.TtftInjectUs > behaviorspec.MaxTtftInjectUs {
 		return fmt.Errorf("ttft_inject_us out of range [0,%d]", behaviorspec.MaxTtftInjectUs)

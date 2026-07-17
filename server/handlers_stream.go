@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"aneb-server/internal/behaviorspec"
 )
 
 // stream 无 profile 时的默认参数。
@@ -334,13 +336,13 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 	if s := q.Get("tokens_per_frame"); s != "" {
 		// SSE frame-batching（§3.2）：每帧 token 数。上限 64（防单帧过大内存/时延突刺）。
 		v, err := strconv.Atoi(s)
-		if err != nil || v < 1 || v > 64 {
+		if err != nil || v < 1 || v > behaviorspec.MaxTokensPerFrame {
 			return params, errBadParam("invalid tokens_per_frame (want 1..64): " + s)
 		}
 		params.TokensPerFrame = v
 	}
 	// profile 声明的 tokens_per_frame 也须在界内（0=省略=默认每 token 一帧）。
-	if params.TokensPerFrame < 0 || params.TokensPerFrame > 64 {
+	if params.TokensPerFrame < 0 || params.TokensPerFrame > behaviorspec.MaxTokensPerFrame {
 		return params, errBadParam("tokens_per_frame out of range [0,64]")
 	}
 	// 显式参数覆盖（无 profile 时即直接指定路径）。
@@ -376,7 +378,7 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		// 首 token 前注入的 TTFT 驻留（§3.4）。上限 10s：防单请求 goroutine 长挂
 		// （慢速拒绝服务面），与 rate_tps 下限同款纪律。负值无意义。
 		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil || v < 0 || v > 10_000_000 {
+		if err != nil || v < 0 || v > behaviorspec.MaxTtftInjectUs {
 			return params, errBadParam("invalid ttft_inject_us: " + s)
 		}
 		params.TtftInjectUs = v
@@ -406,7 +408,7 @@ func validateRateSchedule(sched []RatePoint, isBurst bool) error {
 		if pt.AtFrac < prevFrac {
 			return errBadParam("rate_schedule.at_frac must be non-decreasing")
 		}
-		if pt.Tps < 0.1 || pt.Tps > 100000 {
+		if pt.Tps < behaviorspec.MinTps || pt.Tps > behaviorspec.MaxTps {
 			return errBadParam("rate_schedule[" + strconv.Itoa(i) + "].tps must be in [0.1,100000]")
 		}
 		prevFrac = pt.AtFrac

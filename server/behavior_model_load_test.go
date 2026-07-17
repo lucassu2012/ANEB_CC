@@ -67,6 +67,7 @@ func TestLoadBehaviorModelsRejectsInvalid(t *testing.T) {
 	}{
 		{"empty note", func(m *behaviorspec.Model) { m.Provenance.Note = " " }},
 		{"id with @", func(m *behaviorspec.Model) { m.ID = "a@b" }},
+		{"version with @", func(m *behaviorspec.Model) { m.Version = "v1@rc" }},
 		{"ttft over cap", func(m *behaviorspec.Model) { m.TtftInjectUs = behaviorspec.MaxTtftInjectUs + 1 }},
 		{"tpf over cap", func(m *behaviorspec.Model) { m.TokensPerFrame = behaviorspec.MaxTokensPerFrame + 1 }},
 		{"bad schedule", func(m *behaviorspec.Model) { m.RateSchedule = []RatePoint{{AtFrac: 2, Tps: 40}} }},
@@ -92,6 +93,81 @@ func TestLoadBehaviorModelsRejectsInvalid(t *testing.T) {
 	if err := loadBehaviorModels(dir); err == nil {
 		t.Fatal("malformed JSON must error")
 	}
+	// 未知字段（旋钮名拼错）→ DisallowUnknownFields 报错，不静默丢弃成缺省。
+	dir2 := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir2, "typo.json"),
+		[]byte(`{"id":"typo","version":"v1","rate_shedule":[],"provenance":{"note":"x"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadBehaviorModels(dir2); err == nil {
+		delete(behaviorModels, "typo")
+		t.Fatal("misspelled knob (unknown field) must error")
+	}
+}
+
+// 契约(1)：calibrate 的**含 rate_schedule / 合并直方图**产物必须免编辑通过服务器加载
+// ——手写断言（behaviorspec 包内）与服务器校验器（主包）分属两包，正是 INV-3 要防的漂移。
+// 直接把 Calibrate 输出喂 loadBehaviorModels，跨包钉死。
+func TestCalibrateOutputsLoadServerSide(t *testing.T) {
+	mk := func(n int, at func(int) int64, wb func(int) int) behaviorspec.Trace {
+		tr := behaviorspec.Trace{Meta: behaviorspec.TraceMeta{Endpoint: "http://e", Model: "m", CapturedAt: "2026-07-17T00:00:00Z"}}
+		for i := 0; i < n; i++ {
+			tr.Events = append(tr.Events, behaviorspec.TraceEvent{Index: i, ArrivalUs: at(i), WireBytes: wb(i), ContentBytes: 3})
+		}
+		return tr
+	}
+	// (a) 减速流 → 含 rate_schedule；(b) 宽字节分布 → 合并直方图。
+	decay := mk(101, func(i int) int64 {
+		if i <= 50 {
+			return 200_000 + int64(i)*10_000
+		}
+		return 700_000 + int64(i-50)*20_000
+	}, func(int) int { return 120 })
+	wide := mk(120, func(i int) int64 { return int64(i) * 25_000 }, func(i int) int { return 40 + i })
+
+	for name, tr := range map[string]behaviorspec.Trace{"schedule": decay, "merged-hist": wide} {
+		m, _, err := behaviorspec.Calibrate([]behaviorspec.Trace{tr}, behaviorspec.FitOptions{ID: "srv-" + name, Version: "v1"})
+		if err != nil {
+			t.Fatalf("%s calibrate: %v", name, err)
+		}
+		dir := t.TempDir()
+		writePack(t, dir, m)
+		if err := loadBehaviorModels(dir); err != nil {
+			t.Fatalf("%s: calibrate output must load server-side unedited: %v", name, err)
+		}
+		delete(behaviorModels, m.ID)
+	}
+}
+
+// HIGH：burst phase 引用含 rate_schedule 的包 → /stream 不得 400（包给 burst 补曲线是无效配置）。
+func TestBurstPhaseWithSchedulePackDoesNotBreakStream(t *testing.T) {
+	const id = "burst-sched-pack"
+	behaviorModels[id] = &behaviorspec.Model{
+		ID: id, Version: "v1",
+		RateSchedule: []RatePoint{{AtFrac: 0, Tps: 100}, {AtFrac: 1, Tps: 40}},
+		TtftInjectUs: 3000,
+		Provenance:   behaviorspec.Provenance{Calibrated: true, Note: "test"},
+	}
+	t.Cleanup(func() { delete(behaviorModels, id) })
+
+	prof := &Profile{ProfileID: "burst_prof", Version: "test@1",
+		Phases: []Phase{{Type: "token_stream", Tokens: 12, Seed: 3,
+			Burst:           &Burst{ClusterTps: 100, PauseMs: []int{5, 10}, ClusterGeomP: 0.4},
+			BehaviorModelID: id}}}
+	a := &app{profiles: map[string]*Profile{"burst_prof": prof}, dataDir: t.TempDir()}
+	srv := httptest.NewServer(a.routes())
+	defer srv.Close()
+
+	// 400 会让 fetchStream 直接 Fatal——能取到帧即证明未被 rate_schedule 校验拒绝。
+	frames := fetchStream(t, srv.URL+"/api/v1/stream?profile=burst_prof")
+	pre := parsePreludeBM(t, frames)
+	if pre.BehaviorModel != id+"@v1" {
+		t.Fatalf("stamp = %q", pre.BehaviorModel)
+	}
+	// burst phase 的 TTFT 注入仍生效（首 token 右移 3000）；rate_schedule 被跳过不报错。
+	if pre.TtftInjectUs != 3000 {
+		t.Fatalf("burst phase ttft = %d, want 3000 (pack applied)", pre.TtftInjectUs)
+	}
 }
 
 // ---- 端到端回路：mock OpenAI 端点 → 采集解析 → 拟合 → 包文件 → 服务器加载 → /stream 重放 ----
@@ -101,7 +177,8 @@ func TestLoadBehaviorModelsRejectsInvalid(t *testing.T) {
 // token 流重放（prelude 溯源印 + TTFT 注入生效）。
 func TestCalibrationPipelineEndToEnd(t *testing.T) {
 	// 1) mock OpenAI 兼容端点：role 帧 + 60 content 帧 + finish + [DONE]（无 sleep——
-	//    贯通性测试不依赖真实节奏；到达全聚一簇正好覆盖 tokens_per_frame 上限路径）。
+	//    贯通性测试只证明「采集→拟合→加载→重放」全链贯通，不校验拟合保真度；
+	//    保真度/边界路径由 behaviorspec/*_test.go + TestCalibrateOutputsLoadServerSide 确定性覆盖）。
 	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f := w.(http.Flusher)
 		w.Header().Set("Content-Type", "text/event-stream")
