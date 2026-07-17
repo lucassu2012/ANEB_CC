@@ -529,6 +529,53 @@ class AnebClient(bound: BoundNetwork? = null) {
         }
     }
 
+    // ------------------------------------------------------ synthetic probe
+
+    /**
+     * 合成弱网路径探针结果（D-40，weak-recovery-v1 等合同）。
+     * @param impairmentHeader 防伪回执 `X-Aneb-Synthetic-Impairment`（成功响应必须携带，缺失→INVALID）
+     * @param outageHeader 受控中断标记 `X-Aneb-Synthetic-Outage`（窗口内 503 携带 "active"）
+     */
+    data class SyntheticProbeResult(
+        val httpCode: Int?,
+        /** 请求发出→响应头收到 墙钟（ms）；传输失败 null（R-10） */
+        val wallMs: Double?,
+        val error: String?,
+        val impairmentHeader: String?,
+        val outageHeader: String?,
+        val body: String?,
+    )
+
+    /**
+     * 合成路径 POST 探针（echo/recovery 触发共用）：小体 POST，捕获回执头与墙钟。
+     * 观测口径（合成整形路径），不进 N1/AQS。
+     */
+    suspend fun syntheticPost(url: String, payload: String = "ping"): SyntheticProbeResult {
+        val call = client.newCall(
+            Request.Builder().url(url)
+                .post(payload.toRequestBody("text/plain".toMediaType()))
+                .build()
+        )
+        val t0 = SystemClock.elapsedRealtimeNanos()
+        return try {
+            executeCancellable(call) { resp ->
+                val wallMs = (SystemClock.elapsedRealtimeNanos() - t0) / 1e6
+                SyntheticProbeResult(
+                    httpCode = resp.code,
+                    wallMs = wallMs,
+                    error = null,
+                    impairmentHeader = resp.header("X-Aneb-Synthetic-Impairment"),
+                    outageHeader = resp.header("X-Aneb-Synthetic-Outage"),
+                    body = resp.body?.string()?.take(512),
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SyntheticProbeResult(null, null, e.toString(), null, null, null)
+        }
+    }
+
     // ---------------------------------------------------------- realtime-sim
 
     /**

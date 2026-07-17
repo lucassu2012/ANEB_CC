@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aneb.probe.engine.SpeedRunner
+import com.aneb.probe.engine.SyntheticRecoveryRunner
 import com.aneb.probe.ui.theme.AnebTheme
 import kotlin.math.ceil
 import kotlin.math.cos
@@ -59,6 +60,11 @@ fun SpeedTestScreen(
     running: Boolean,
     onStart: () -> Unit,
     onCancel: () -> Unit,
+    // 恢复子测（weak-recovery-v1 合成合同，D-40；独立结论恒 LOW/INCONCLUSIVE）
+    recoverySample: SyntheticRecoveryRunner.Sample? = null,
+    recoveryRunning: Boolean = false,
+    onStartRecovery: () -> Unit = {},
+    onCancelRecovery: () -> Unit = {},
 ) {
     val c = AnebTheme.colors
     // 实时吞吐火花线（当前相：下行/上行）+ 上下行峰值（每次起测清空）
@@ -168,6 +174,17 @@ fun SpeedTestScreen(
             StatTile("下行峰值", if (peakDown > 0f) "%.1f".format(peakDown) else "—", "Mbps", c.excellent, Modifier.weight(1f))
             StatTile("上行峰值", if (peakUp > 0f) "%.1f".format(peakUp) else "—", "Mbps", c.brand, Modifier.weight(1f))
         }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ---- 恢复子测卡（weak-recovery-v1 合成受控中断；独立结论，不并入测速分）----
+        RecoveryCard(
+            s = recoverySample,
+            running = recoveryRunning,
+            speedRunning = running,
+            onStart = onStartRecovery,
+            onCancel = onCancelRecovery,
+        )
 
         Spacer(Modifier.height(16.dp))
 
@@ -393,6 +410,91 @@ private fun androidx.compose.foundation.layout.RowScope.StatTile(
         Spacer(Modifier.height(4.dp))
         Text(value, color = accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(unit, color = c.faint, fontSize = 10.sp)
+    }
+}
+
+/** 恢复子测卡（weak-recovery-v1；受控 2s 中断→恢复时长+质量段；恒 LOW/INCONCLUSIVE）。 */
+@Composable
+private fun RecoveryCard(
+    s: SyntheticRecoveryRunner.Sample?,
+    running: Boolean,
+    speedRunning: Boolean,
+    onStart: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val c = AnebTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.surface)
+            .padding(14.dp),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("恢复子测（合成受控中断）", color = c.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (s?.phase == SyntheticRecoveryRunner.Phase.Done) {
+                val (label, col) = when (s.meetsTargets) {
+                    true -> "达标" to c.excellent
+                    false -> "未达标" to c.poor
+                    null -> "不可判" to c.neutral
+                }
+                Text(label, color = col, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        when {
+            s == null && !running -> Text(
+                "触发服务端 2s 请求不可用窗口，测本机恢复时长与恢复后质量（weak-recovery-v1，" +
+                    "独立结论，不并入测速分）。",
+                color = c.faint, fontSize = 11.sp,
+            )
+            running && s?.phase != SyntheticRecoveryRunner.Phase.Done -> {
+                val phaseLabel = when (s?.phase) {
+                    SyntheticRecoveryRunner.Phase.Baseline -> "基线整形探测中（↓5/↑2Mbps +80±20ms）"
+                    SyntheticRecoveryRunner.Phase.Arming -> "武装中断窗口…"
+                    SyntheticRecoveryRunner.Phase.Outage -> "中断中：已确认 ${s.outageConfirmed} 次 503(outage=active)"
+                    SyntheticRecoveryRunner.Phase.Quality -> "恢复后质量段 ${s.postSuccess}/${s.postTotal}"
+                    else -> "准备中…"
+                }
+                Text(phaseLabel, color = c.good, fontSize = 12.sp)
+                s?.recoveryMs?.let {
+                    Text("恢复用时 %.0f ms".format(it), color = c.ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            s?.phase == SyntheticRecoveryRunner.Phase.Done -> {
+                Text(
+                    "恢复 ${s.recoveryMs?.let { "%.0f ms".format(it) } ?: "—"} · 中断确认 ${s.outageConfirmed} 次 · " +
+                        "恢复后 ${s.postSuccess}/${s.postTotal} · RTT P95 ${s.postRttP95Ms?.let { "%.0f ms".format(it) } ?: "—"}",
+                    color = c.ink, fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${s.confidence} · 合成窗口≠真实断网/弱covering，与跨网迁移恢复(D-23)口径分开",
+                    color = c.faint, fontSize = 10.sp,
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        val btnColor = when {
+            running -> c.poor
+            speedRunning -> c.surfaceMuted
+            else -> c.brand
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(btnColor)
+                .clickable(enabled = !speedRunning) { if (running) onCancel() else onStart() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (running) "取消恢复子测" else "触发恢复子测",
+                color = if (speedRunning) c.faint else Color(0xFF05121A),
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 

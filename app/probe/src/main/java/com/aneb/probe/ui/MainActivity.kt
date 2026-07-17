@@ -45,6 +45,7 @@ import com.aneb.probe.data.TestRun
 import com.aneb.probe.engine.AbRunner
 import com.aneb.probe.engine.ContinuityRunner
 import com.aneb.probe.engine.SpeedRunner
+import com.aneb.probe.engine.SyntheticRecoveryRunner
 import com.aneb.probe.engine.TestEngine
 import com.aneb.probe.engine.VoiceRunner
 import com.aneb.probe.radio.GeoTrack
@@ -79,6 +80,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var continuityRunner: ContinuityRunner
     private lateinit var abRunner: AbRunner
     private lateinit var speedRunner: SpeedRunner
+    private lateinit var syntheticRecoveryRunner: SyntheticRecoveryRunner
     private lateinit var voiceRunner: VoiceRunner
     private lateinit var radioCollector: RadioCollector
     private lateinit var db: AnebDatabase
@@ -123,6 +125,7 @@ class MainActivity : ComponentActivity() {
         continuityRunner = ContinuityRunner(applicationContext)
         abRunner = AbRunner(applicationContext)
         speedRunner = SpeedRunner()
+        syntheticRecoveryRunner = SyntheticRecoveryRunner()
         voiceRunner = VoiceRunner()
         radioCollector = RadioCollector(this)
         db = AnebDatabase.get(applicationContext)
@@ -181,6 +184,10 @@ class MainActivity : ComponentActivity() {
                     var speedRunning by remember { mutableStateOf(false) }
                     var speedSample by remember { mutableStateOf<SpeedRunner.Sample?>(null) }
                     var speedJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    // 恢复子测（weak-recovery-v1 合成合同，D-40）：独立于测速的观测态
+                    var recoveryRunning by remember { mutableStateOf(false) }
+                    var recoverySample by remember { mutableStateOf<SyntheticRecoveryRunner.Sample?>(null) }
+                    var recoveryJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     // 语音实时交互模式（§4.1）：独立 run 状态/实时样本/协程句柄
                     var voiceRunning by remember { mutableStateOf(false) }
                     var voiceSample by remember { mutableStateOf<VoiceRunner.Sample?>(null) }
@@ -302,6 +309,33 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // 恢复子测（weak-recovery-v1 合成受控中断；观测口径，恒 LOW/INCONCLUSIVE）
+                    fun startRecoveryTest() {
+                        if (recoveryRunning || speedRunning) return
+                        recoveryRunning = true
+                        recoverySample = null
+                        addLog(">>> RECOVERY(synthetic) -> $serverUrl")
+                        recoveryJob = lifecycleScope.launch {
+                            try {
+                                syntheticRecoveryRunner.run(serverUrl).collect { recoverySample = it }
+                                recoverySample?.let {
+                                    addLog(
+                                        "RECOVERY_SYNTH recovery_ms=${it.recoveryMs?.let { m -> "%.1f".format(m) } ?: "null"} " +
+                                            "outage_503=${it.outageConfirmed} post=${it.postSuccess}/${it.postTotal} " +
+                                            "rtt_p95=${it.postRttP95Ms?.let { m -> "%.1f".format(m) } ?: "null"} " +
+                                            "meets=${it.meetsTargets ?: "null"} confidence=LOW_INCONCLUSIVE",
+                                    )
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                addLog("RECOVERY_SYNTH_FAILED error=$e")
+                            } finally {
+                                recoveryRunning = false
+                            }
+                        }
+                    }
+
                     // 语音双工测量（独立于 token 引擎；观测口径）
                     fun startVoiceTest() {
                         if (voiceRunning) return
@@ -385,6 +419,10 @@ class MainActivity : ComponentActivity() {
                                                 running = speedRunning,
                                                 onStart = { startSpeedTest() },
                                                 onCancel = { speedJob?.cancel() },
+                                                recoverySample = recoverySample,
+                                                recoveryRunning = recoveryRunning,
+                                                onStartRecovery = { startRecoveryTest() },
+                                                onCancelRecovery = { recoveryJob?.cancel() },
                                             )
                                         } else if (selectedModeId == TestModeProfiles.VOICE_REALTIME.id) {
                                             VoiceTestScreen(
