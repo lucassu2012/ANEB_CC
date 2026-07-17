@@ -376,6 +376,57 @@ data class AbResultEntity(
 )
 
 // ---------------------------------------------------------------------------
+// 语音模式测量结果（D-42：语音结果落库；PROFILE_FRAMEWORK §4.1 观测口径）
+// ---------------------------------------------------------------------------
+
+/**
+ * 语音模式单次测量结果（v12 新增表，additive；D-42）。
+ *
+ * - **观测口径，独立于 token AQS 各表**：v1 paced-proxy 与 v2 server-sim 两口径共用
+ *   一表，以 [caliber] 区分（null=v1 paced-proxy；v2 记 VoiceRunner.SIM_CALIBER 原文）。
+ *   只存 Done 样本的**实测值**——无 score 列，分数由 AqsScorer 展示时现算，绝不落库重算口径。
+ * - 指标字段全部可空：未测/样本不足记 null，禁 0/哨兵值（R-10：Sample 的 null 原样落库）。
+ */
+@Entity(tableName = "voice_result")
+data class VoiceResultEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** 落库时刻（epoch ms） */
+    val tsEpochMs: Long,
+    /** 口径标注（VoiceRunner.Sample.caliber）：null=v1 paced-proxy；v2 记 SIM_CALIBER 原文 */
+    val caliber: String?,
+    /** 上行入队背压出现过 → 低置信（v2）；v1 恒 false */
+    val lowConfidence: Boolean,
+    // ---- v1/v2 共用指标（Done 样本；null=未测/样本不足） ----
+    /** RTT P50（ms） */
+    val rttMs: Double?,
+    /** RTT 抖动（ms） */
+    val jitterMs: Double?,
+    /** 上行帧间抖动 P95（ms，M3；服务端 chunk_us 权威） */
+    val upFrameJitterMs: Double?,
+    /** 下行帧间抖动 P95（ms，M2；v2 Done 恒 null——由 [downNetJitterMs] 取代） */
+    val downFrameJitterMs: Double?,
+    /** 口到耳预算（ms，M1 DERIVED；v1 口径） */
+    val mouthEarBudgetMs: Double?,
+    val framesSent: Int?,
+    val framesRecv: Int?,
+    // ---- v2 server-sim 尾部指标（v1 行恒 null，D-38） ----
+    /** M4 TTS-TTFB P50（ms，已剥服务端驻留） */
+    val ttfbP50Ms: Double?,
+    /** M4 TTS-TTFB P95（ms） */
+    val ttfbP95Ms: Double?,
+    /** M2' 下行纯传输抖动 P95（ms，sched_us 差分剥离调度误差） */
+    val downNetJitterMs: Double?,
+    /** M1' 口到耳实测代理 P50（ms，PROXY） */
+    val mouthEarProxyMs: Double?,
+    /** M5 轮次切换 P50（ms） */
+    val turnSwitchP50Ms: Double?,
+    /** M6 打断停帧最大值（ms） */
+    val bargeStopMaxMs: Double?,
+    /** protocol_ok 轮数（诚实对账） */
+    val turnsOk: Int?,
+)
+
+// ---------------------------------------------------------------------------
 // 环境事件时间轴（设计文档 §7 EnvEvent：设备侧冻结 vs 链路缓冲归因的关键证据）
 // ---------------------------------------------------------------------------
 
