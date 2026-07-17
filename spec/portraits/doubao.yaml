@@ -1,0 +1,26 @@
+# ANEB spec — Profile 3 业务画像占位:豆包(首批 App 拍板 D-48;SYSTEM_DEV_PLAN §4.3/§5.1 Profile 3)
+#
+# ⚠️ 红线:画像采集完成前不得用于模拟参数宣称。
+#   本文件全部参数为 [GUESS]/null 占位;source_portrait = "PENDING-CAPTURE" 即机器可判的
+#   "未采集"标记——任何消费方读到该值必须拒绝将参数用于"模拟真实业务"的对外表述。
+#
+# capture_plan(计划 §4.3 业务画像采集,M3 里程碑):
+#   1. PCAPdroid(免 root)自有设备抓包:包时序/大小/方向/SNI/目的 IP → 拟合节奏与大小分布;
+#   2. mitmproxy 解密自有账号流量(若未做证书锁定)→ 真实 token 时序;
+#      证书锁定则退化为包时序/大小分析(精度足够拟合节奏参数,风险清单第 3 条);
+#   3. 提取:请求大小分布 / token 间隔分布 / 思考静默时长 / 工具调用节奏 / 会话时长 → 拟合为 Profile 参数;
+#   4. 副产品:真实入云 PoP/IP 清单(规划归因直接可用)。
+# 回填后:source_portrait 改为可追溯采集标识(如 doubao-app-capture-2026Q3)并升版本。
+schema_version: "1.0.0"
+app_id: doubao
+display_name: "豆包"
+source_portrait: "PENDING-CAPTURE"
+params:
+  # 以下全部 [GUESS]/null —— 待画像采集回填(M3);null 语义=未采集,禁编造初值(R-10 同源纪律)
+  request_size_bytes_dist: null
+  token_interval_ms_dist: null
+  think_pause_ms_dist: null
+  tool_loop_cadence: null
+  session_duration_s_dist: null
+  downlink_media_bytes_dist: null
+  pop_ip_list: null

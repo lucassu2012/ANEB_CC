@@ -1,0 +1,162 @@
+# ANEB spec — KPI 门限锚点表(机器可读化导出)
+# 来源(逐字导出): app/probe/src/main/java/com/aneb/probe/scoring/AqsScorer.kt
+#   门限数字来自 KPI 文档 5.2(agent-qoe-kpi v0.1/v0.2,实验性);补全锚点为实现内定义
+#   (优/良=85、良/可=70、可/差=55;低者优补 0→100 与 3×可差→0;高者优 U1/D1 见各表)。
+# 语义: points = [KPI 值, 分数] 对,按值严格升序;点间线性插值;越界 clamp 到端点分。
+# direction: lower_better(值越低分越高)/ higher_better(值越高分越高)。
+# 表名与 AqsScorer 字段名去 "_ANCHORS" 后缀一一对应(对拍单测按此映射)。
+# 对拍守护: SpecScoringParityTest —— 锚点逐点 + 相邻中点插值 + 越界 clamp 三重对拍。
+schema_version: "1.0.0"
+kpi_set_version: "agent-qoe-kpi-v0.1"
+anchors:
+  T1:
+    # TTFT 首字响应
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [200.0, 85.0]
+      - [500.0, 70.0]
+      - [1000.0, 55.0]
+      - [3000.0, 0.0]
+  T2:
+    # ITL P95(合帧组内只保留组首间隔的主口径)
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [100.0, 85.0]
+      - [200.0, 70.0]
+      - [400.0, 55.0]
+      - [1200.0, 0.0]
+  T3:
+    # 卡顿率(不含 resume_latency 主口径)
+    unit: ratio
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [0.005, 85.0]
+      - [0.02, 70.0]
+      - [0.05, 55.0]
+      - [0.15, 0.0]
+  N1:
+    # RTT P50
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [30.0, 85.0]
+      - [60.0, 70.0]
+      - [100.0, 55.0]
+      - [300.0, 0.0]
+  N2:
+    # RTT 抖动
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [10.0, 85.0]
+      - [30.0, 70.0]
+      - [80.0, 55.0]
+      - [240.0, 0.0]
+  U2:
+    # 工具循环 P95
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [150.0, 85.0]
+      - [300.0, 70.0]
+      - [600.0, 55.0]
+      - [1800.0, 0.0]
+  U1:
+    # 上行 goodput(含慢启动主口径,2xx 有效);高者优:0→0,可/差=1→55,良/可=5→70,优/良=20→85,100→100
+    unit: Mbps
+    direction: higher_better
+    points:
+      - [0.0, 0.0]
+      - [1.0, 55.0]
+      - [5.0, 70.0]
+      - [20.0, 85.0]
+      - [100.0, 100.0]
+  D1:
+    # 下行 goodput(PROFILE_FRAMEWORK §2.3/§5,结构同 U1;返回下行略高于上行+蜂窝下行利好,锚点整体高于 U1)
+    unit: Mbps
+    direction: higher_better
+    points:
+      - [0.0, 0.0]
+      - [2.0, 55.0]
+      - [8.0, 70.0]
+      - [25.0, 85.0]
+      - [100.0, 100.0]
+  C1:
+    # 会话中断率(agent-qoe-kpi v0.2 阶段二 C 组)
+    unit: ratio
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [0.005, 85.0]
+      - [0.02, 70.0]
+      - [0.05, 55.0]
+      - [0.15, 0.0]
+  C2:
+    # 切换恢复时间(恢复失败按 R-10 记 null → KPI_MISSING:C2,绝不以封顶值顶替)
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [1000.0, 85.0]
+      - [3000.0, 70.0]
+      - [10000.0, 55.0]
+      - [30000.0, 0.0]
+  M1:
+    # 口到耳(语音,§4.1 对话自然度红线;v1=预算合成 DERIVED / v2=实测代理 PROXY 同锚)
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [150.0, 85.0]
+      - [300.0, 70.0]
+      - [400.0, 55.0]
+      - [1200.0, 0.0]
+  M_FRAME_JITTER:
+    # 帧间抖动(kpi_ids: M2,M3 共用):帧到达间隔对名义 20ms 节奏的偏差 P95
+    # 与 N2 数值同但语义独立(非 RTT 分位差),单列防口径漂移
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [10.0, 85.0]
+      - [30.0, 70.0]
+      - [80.0, 55.0]
+      - [240.0, 0.0]
+  M4_TTFB:
+    # TTS-TTFB(D-38;语音首响远严于 token TTFT——对话自然度)
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [100.0, 85.0]
+      - [250.0, 70.0]
+      - [500.0, 55.0]
+      - [1500.0, 0.0]
+  M5_TURN_SWITCH:
+    # 轮次切换(D-38)
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [150.0, 85.0]
+      - [300.0, 70.0]
+      - [600.0, 55.0]
+      - [2000.0, 0.0]
+  M6_STOP:
+    # 打断停帧(D-38;55 分档=默认 expected_stop_within_ms=250)
+    unit: ms
+    direction: lower_better
+    points:
+      - [0.0, 100.0]
+      - [80.0, 85.0]
+      - [150.0, 70.0]
+      - [250.0, 55.0]
+      - [1000.0, 0.0]

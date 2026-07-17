@@ -1,0 +1,220 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "aneb-spec/schemas/result-run.schema.json",
+  "title": "ANEB run.report_body 结果上报体",
+  "description": "P1 客户端 /results 上报体(= Room report_body.body 原文)的 JSON Schema。锚定实况:生产者 app/probe/src/main/java/com/aneb/probe/engine/ResultReporter.kt,消费者 app/probe/src/main/java/com/aneb/probe/ui/ResultAqsBreakdown.kt 与 server/handlers_results.go(validateResultContract 只校验必填、不拒新增字段)。合同语义:未知字段容忍(additionalProperties: true——既有双端合同即容忍未知);可空字段=测量失败/未测/不可计算(R-10:null 绝不以 0/哨兵顶替)。spec schema_version 1.0.0。",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["claim_scope", "kpi_set", "aqs_version", "profile_versions", "schema_version", "run", "scenarios"],
+  "properties": {
+    "claim_scope": {
+      "const": "application_end_to_end_to_probe_node",
+      "description": "表述边界锁定:终端至指定仿真节点的应用层路径(禁止表述为 MOS/无线层评级/运营商全网评级/SLA)"
+    },
+    "kpi_set": { "type": "string", "description": "KPI 门限集版本(TestRun.kpiSet,如 agent-qoe-kpi-v0.1)" },
+    "aqs_version": { "type": "string", "description": "run 主分 AQS 版本(TestRun.aqsVersion,如 aqs-v0.1)" },
+    "profile_versions": { "type": "string", "description": "本 run 各场景 profile 版本串(横比按此分组)" },
+    "schema_version": {
+      "type": "string",
+      "description": "结果上报体 wire 合同版本(ResultReporter.SCHEMA_VERSION;当前 \"1.0\")。注意:独立于 spec 自身的语义化版本 1.0.0",
+      "examples": ["1.0"]
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["run_id", "started_at_epoch_ms", "mode", "scenario_order", "transport", "profile_source", "app_version_name", "app_version_code", "guard_metadata", "status", "aqs"],
+      "properties": {
+        "run_id": { "type": "string", "description": "UUIDv7(时间有序)" },
+        "started_at_epoch_ms": { "type": "integer" },
+        "mode": { "type": "string", "description": "quick / forensic" },
+        "scenario_order": { "type": "string", "description": "实际执行顺序(拉丁方证据),如 \"s1,s2,s3|s2,s3,s1\"" },
+        "transport": { "type": "string", "description": "auto / wifi / cellular" },
+        "profile_source": { "type": "string", "description": "profiles 来源:server / assets_fallback" },
+        "app_version_name": { "type": ["string", "null"] },
+        "app_version_code": { "type": ["integer", "null"] },
+        "guard_metadata": { "type": ["string", "null"], "description": "守卫元数据 JSON/KV 串" },
+        "status": { "type": ["string", "null"], "description": "completed / aborted:<reason>" },
+        "aqs": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["score", "low_confidence", "veto_applied", "not_computable_reason", "input_mapping", "sub_scores"],
+          "properties": {
+            "score": { "type": ["number", "null"], "description": "0-100 主分(aqs-v0.1);不可计算 null,绝不 0(R-10)" },
+            "low_confidence": { "type": "boolean" },
+            "veto_applied": { "type": "boolean", "description": "T4>1% 一票否决已触发(封顶 54)" },
+            "not_computable_reason": { "type": ["string", "null"], "description": "INVALID_SCENARIO:… / KPI_MISSING:…" },
+            "input_mapping": { "type": "string", "description": "AqsInputMapper.MAPPING_DESCRIPTION(输入口径说明)" },
+            "sub_scores": { "$ref": "#/definitions/subScores" }
+          }
+        },
+        "aqs_v02": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "v0.2 并列出分(D-26,additive;仅当 run 期有可用 continuity 数据时写入,含 C1/C2 子分)",
+          "required": ["aqs_version", "score", "low_confidence", "veto_applied", "not_computable_reason", "sub_scores"],
+          "properties": {
+            "aqs_version": { "type": "string", "examples": ["aqs-v0.2"] },
+            "score": { "type": ["number", "null"] },
+            "low_confidence": { "type": "boolean" },
+            "veto_applied": { "type": "boolean" },
+            "not_computable_reason": { "type": ["string", "null"] },
+            "sub_scores": { "$ref": "#/definitions/subScores" }
+          }
+        },
+        "aqs_token": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Token 模式并列出分(D-29,additive;纯数据不落文案,facet4 结论由 UI 从落库子分派生,D-02 不重算)",
+          "required": ["aqs_version", "score", "low_confidence", "veto_applied", "not_computable_reason", "weights_table_id", "s1_veto_applied", "sub_scores"],
+          "properties": {
+            "aqs_version": { "type": "string", "examples": ["aqs-token-v0.1"] },
+            "score": { "type": ["number", "null"], "description": "D1 缺失期诚实 null + KPI_MISSING:D1(自愈合同)" },
+            "low_confidence": { "type": "boolean" },
+            "veto_applied": { "type": "boolean" },
+            "not_computable_reason": { "type": ["string", "null"] },
+            "weights_table_id": { "type": ["string", "null"], "description": "WEIGHTS_TOKEN_MM / WEIGHTS_TOKEN_TXT(见 spec/scoring/weights.yaml)" },
+            "s1_veto_applied": { "type": "boolean", "description": "S1 软否决已触发(<0.95 封顶 70 / <0.90 封顶 54)" },
+            "s1_session_success_rate": { "type": "number", "description": "S1 会话完成率(D-33 实测;无遍数据时整组 s1_* 字段缺席,R-10)" },
+            "s1_rounds": { "type": "integer", "description": "S1 总轮次(轮=场景遍,D-33)" },
+            "s1_low_confidence": { "type": "boolean", "description": "总轮次 < S1_MIN_ROUNDS(3) 时 true(R-29)" },
+            "sub_scores": { "$ref": "#/definitions/subScores" },
+            "workload": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "工作量数值块(facet4 输入 A;冻结 phases 的确定性投影)",
+              "required": ["uplink_bytes_per_round", "peak_to_mean_ratio", "downlink_media_bytes", "token_stream_len", "tool_loop_rounds", "has_think_pause", "short_context_multi_turn", "long_stream_or_continuous"],
+              "properties": {
+                "uplink_bytes_per_round": { "type": "integer" },
+                "peak_to_mean_ratio": { "type": "number" },
+                "downlink_media_bytes": { "type": "integer" },
+                "token_stream_len": { "type": "integer" },
+                "tool_loop_rounds": { "type": "integer" },
+                "has_think_pause": { "type": "boolean" },
+                "short_context_multi_turn": { "type": "boolean" },
+                "long_stream_or_continuous": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/scenario" }
+    }
+  },
+  "definitions": {
+    "subScores": {
+      "type": "object",
+      "description": "KPI id → 0-100 子分(不可计算 run 为空对象;展示层据此走不可计算/分级近似分支,绝不以 0 顶替)",
+      "additionalProperties": { "type": "number" }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["profile_id", "profile_version", "repeat_index", "order_index", "validity", "invalid_reasons", "kpi", "clock", "network_snapshot", "parse", "buffering", "itl_histogram"],
+      "properties": {
+        "profile_id": { "type": "string" },
+        "profile_version": { "type": "string" },
+        "repeat_index": { "type": "integer", "description": "取证模式第几遍(0 起);快测恒 0" },
+        "order_index": { "type": "integer", "description": "run 内执行序号(拉丁方实际顺序证据)" },
+        "validity": {
+          "type": "string",
+          "enum": ["VALID", "VALID_LOW_CONFIDENCE", "INVALID"],
+          "description": "三态有效性(INVALID 场景 KPI 已被 gate 置 null)"
+        },
+        "invalid_reasons": { "type": "string", "description": "逗号分隔 InvalidReason 名称;空串=无" },
+        "kpi": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "KPI 值+分级(KpiGrading);值 null 时分级串亦 null(R-10)",
+          "required": ["t1_ttft_ms", "t2_itl_p95_ms", "t3_stall_rate", "t4_severe_stall_rate", "n1_rtt_p50_ms", "n2_jitter_ms", "u1_goodput_mbps", "u2_tool_loop_p95_ms", "seq_gap_count", "seq_dup_count"],
+          "properties": {
+            "t1_ttft_ms": { "type": ["number", "null"] },
+            "t1_grade": { "type": ["string", "null"] },
+            "t2_itl_p95_ms": { "type": ["number", "null"], "description": "主口径:合帧组内只保留组首间隔" },
+            "t2_grade": { "type": ["string", "null"] },
+            "t2_itl_p95_incl_coalesced_ms": { "type": ["number", "null"] },
+            "t3_stall_rate": { "type": ["number", "null"], "description": "主口径:不含 resume_latency(R-09)" },
+            "t3_grade": { "type": ["string", "null"] },
+            "t3_stall_rate_incl_resume": { "type": ["number", "null"] },
+            "t4_severe_stall_rate": { "type": ["number", "null"], "description": "一票否决输入(>0.01 封顶 54)" },
+            "t4_grade": { "type": ["string", "null"] },
+            "t5_resume_p95_ms": { "type": ["number", "null"], "description": "诊断项,不进 AQS(5.1)" },
+            "n1_rtt_p50_ms": { "type": ["number", "null"] },
+            "n1_grade": { "type": ["string", "null"] },
+            "n2_jitter_ms": { "type": ["number", "null"] },
+            "n2_grade": { "type": ["string", "null"] },
+            "u1_goodput_mbps": { "type": ["number", "null"], "description": "含慢启动主口径(2xx 有效 goodput)" },
+            "u1_grade": { "type": ["string", "null"] },
+            "u1_goodput_excl_slow_start_mbps": { "type": ["number", "null"] },
+            "u2_tool_loop_p95_ms": { "type": ["number", "null"] },
+            "u2_grade": { "type": ["string", "null"] },
+            "seq_gap_count": { "type": "integer" },
+            "seq_dup_count": { "type": "integer" }
+          }
+        },
+        "clock": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["offset_start_us", "offset_end_us", "drift_ppm", "offset_suspect"],
+          "properties": {
+            "offset_start_us": { "type": ["integer", "null"] },
+            "offset_end_us": { "type": ["integer", "null"] },
+            "drift_ppm": { "type": ["number", "null"] },
+            "offset_suspect": { "type": "boolean", "description": "|drift|>100ppm 或首尾任一端缺失(保守置疑,R-22)" }
+          }
+        },
+        "network_snapshot": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["transport", "capabilities", "interface", "server_observed_addr"],
+          "properties": {
+            "transport": { "type": ["string", "null"] },
+            "capabilities": { "type": ["string", "null"] },
+            "interface": { "type": ["string", "null"] },
+            "server_observed_addr": { "type": ["string", "null"], "description": "服务端观察到的客户端源 IP:port(路径对账)" }
+          }
+        },
+        "parse": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["parse_dur_us", "per_event_parse_us"],
+          "properties": {
+            "parse_dur_us": { "type": ["integer", "null"] },
+            "per_event_parse_us": { "type": ["number", "null"] }
+          }
+        },
+        "buffering": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "批化标注(P1-C08;R-05:仅标注与取证证据,服务端/下游不得据此改判 validity;未检测全 null)",
+          "required": ["score", "attribution", "sample_count"],
+          "properties": {
+            "score": { "type": ["number", "null"], "description": "连续批化分 [0,1]" },
+            "attribution": { "type": ["string", "null"], "description": "none/airlink_suspect/middlebox_suspect/…(小写)" },
+            "sample_count": { "type": ["integer", "null"] },
+            "sawtooth_ratio": { "type": ["number", "null"] },
+            "near_zero_arrival_ratio": { "type": ["number", "null"] },
+            "lag1_autocorrelation": { "type": ["number", "null"] },
+            "batch_count": { "type": ["integer", "null"] },
+            "best_grid_us": { "type": ["integer", "null"] },
+            "jank_overlap_ratio": { "type": ["number", "null"] }
+          }
+        },
+        "itl_histogram": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "ITL 对数分桶直方图(R-27 合同:桶界=对数网格 ∪ T2/T3/T4 门限锚点)",
+          "required": ["buckets_version", "edges_ms", "counts", "total"],
+          "properties": {
+            "buckets_version": { "type": "string", "examples": ["log2-1..8192+thresholds-v1"] },
+            "edges_ms": { "type": "array", "items": { "type": "number" } },
+            "counts": { "type": "array", "items": { "type": "integer" }, "description": "长度 = edges_ms 长度 + 1(首尾开区间)" },
+            "total": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}

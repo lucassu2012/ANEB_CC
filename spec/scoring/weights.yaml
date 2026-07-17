@@ -1,0 +1,80 @@
+# ANEB spec — AQS 权重表(机器可读化导出;spec 为单一事实源的治理面)
+# 来源(逐字导出): app/probe/src/main/java/com/aneb/probe/scoring/AqsScorer.kt
+# 对拍守护: app/probe/src/test/java/com/aneb/probe/spec/SpecScoringParityTest.kt
+#   —— 任何一侧改动而另一侧未跟进即红。本轮代码不反向引用本文件(导出+对拍,终态为代码引用 spec)。
+# 格式约束(受控 YAML 子集,勿超出): 2 空格缩进;整行注释;标量 key: value。
+# 每表 Σ 权重 = 1.0(对拍单测守护)。
+schema_version: "1.0.0"
+tables:
+  WEIGHTS:
+    # aqs v0.1 主表(KPI 文档 5.4 MVP 权重)
+    version_id: "aqs-v0.1"
+    weights:
+      T1: 0.20
+      T3: 0.20
+      T2: 0.15
+      U1: 0.15
+      U2: 0.10
+      N1: 0.10
+      N2: 0.10
+  WEIGHTS_V02:
+    # aqs v0.2(阶段二):由 WEIGHTS 全项 ×0.8 + C1 0.10 + C2 0.10 推导
+    # (代码内单一事实源即该推导式;本表为推导结果的展开,对拍取 1e-9 容差)
+    version_id: "aqs-v0.2"
+    weights:
+      T1: 0.16
+      T3: 0.16
+      T2: 0.12
+      U1: 0.12
+      U2: 0.08
+      N1: 0.08
+      N2: 0.08
+      C1: 0.10
+      C2: 0.10
+  WEIGHTS_TOKEN_MM:
+    # Token 体验·多模态(PROFILE_FRAMEWORK §2.5):抬升上下行(U1+D1=0.30)与 TTFT,压低 tool_loop
+    version_id: "aqs-token-v0.1"
+    weights:
+      T1: 0.18
+      T3: 0.15
+      T2: 0.12
+      U1: 0.15
+      D1: 0.15
+      U2: 0.05
+      N1: 0.10
+      N2: 0.10
+  WEIGHTS_TOKEN_TXT:
+    # Token 体验·纯文本(PROFILE_FRAMEWORK §2.5):U1/D1 为设计缺省不入表(INV-4),
+    # 与"测量失败(value=null)→KPI_MISSING"严格区分
+    version_id: "aqs-token-v0.1"
+    weights:
+      T1: 0.25
+      T3: 0.22
+      T2: 0.18
+      U2: 0.05
+      N1: 0.15
+      N2: 0.15
+  WEIGHTS_VOICE:
+    # 语音实时交互 v1 观测口径(PROFILE_FRAMEWORK §4.1):向 M 组+抖动倾斜,无吞吐加权项
+    # M1=口到耳预算(DERIVED);M2=下行帧间抖动 P95;M3=上行帧间抖动(服务端 chunk_us 权威)
+    version_id: "aqs-voice-v0.1"
+    weights:
+      M1: 0.30
+      M2: 0.20
+      M3: 0.15
+      N1: 0.15
+      N2: 0.20
+  WEIGHTS_VOICE_SIM:
+    # 语音 v2 server-sim 口径(D-38,/realtime-sim 实测):M1=口到耳实测代理 P50、
+    # M2=下行纯传输抖动 P95(sched_us 剥离)、M3=上行帧抖动(paced-proxy 并列)、
+    # M4=TTS-TTFB P50(剥服务端驻留)、M5=轮次切换 P50、M6=打断停帧 max
+    version_id: "aqs-voice-sim-v0.1"
+    weights:
+      M1: 0.20
+      M2: 0.15
+      M3: 0.10
+      M4: 0.15
+      M5: 0.10
+      M6: 0.10
+      N1: 0.10
+      N2: 0.10

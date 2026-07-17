@@ -1,0 +1,42 @@
+# ANEB spec — AQS 否决规则(机器可读化导出)
+# 来源(逐字导出): app/probe/src/main/java/com/aneb/probe/scoring/AqsScorer.kt 常量
+#   T4_VETO_THRESHOLD / T4_VETO_CAP / S1_VETO_SOFT_THRESHOLD / S1_VETO_SOFT_CAP /
+#   S1_VETO_HARD_THRESHOLD / S1_VETO_HARD_CAP / M1_VETO_THRESHOLD_MS。
+# 机制: 触发即 total = min(total, cap)(封顶,不参与加权);多否决可叠加取更严 cap。
+# 适用范围(代码 scoreWith 实况):
+#   - T4: 所有出分管线均求值(语音入口 T4 恒 empty→不触发);T4 缺失(null)不触发否决。
+#   - S1_SOFT / S1_HARD: 仅 Token 模式(applyS1Veto=true;scoreToken 入口);先判更严的硬档。
+#   - M1: 仅语音模式(applyM1Veto=true;scoreVoice / scoreVoiceSim 入口);
+#     cap 复用 T4_VETO_CAP=54.0(代码同一 min() 机制,veto 标志共用)。
+# 对拍守护: SpecScoringParityTest.veto_constants_parity —— 代码侧 VETO 常量全集必须被本文件覆盖。
+schema_version: "1.0.0"
+vetoes:
+  T4:
+    # 严重卡顿率一票否决(KPI 文档 5.4): T4 > 1% → AQS 封顶 54
+    metric: t4_severe_stall_rate
+    comparator: ">"
+    threshold: 0.01
+    cap: 54.0
+    kind: hard
+  S1_SOFT:
+    # 会话完成率软否决(PROFILE_FRAMEWORK §2.5,与 T4 同机制): S1 < 0.95 → 封顶 70
+    metric: s1_session_success_rate
+    comparator: "<"
+    threshold: 0.95
+    cap: 70.0
+    kind: soft
+  S1_HARD:
+    # 会话完成率硬否决: S1 < 0.90 → 封顶 54
+    metric: s1_session_success_rate
+    comparator: "<"
+    threshold: 0.90
+    cap: 54.0
+    kind: hard
+  M1:
+    # 口到耳硬否决(语音,§4.1「口到耳超红线一票否决」): M1 > 400ms → 封顶 54
+    # cap 复用 T4_VETO_CAP(代码 scoreWith: if (veto) total = min(total, T4_VETO_CAP))
+    metric: m1_mouth_ear_ms
+    comparator: ">"
+    threshold: 400.0
+    cap: 54.0
+    kind: hard
