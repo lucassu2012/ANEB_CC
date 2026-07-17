@@ -109,6 +109,16 @@ interface VoiceResultDao {
 }
 
 @Dao
+interface SyntheticResultDao {
+    @Insert
+    suspend fun insert(result: SyntheticResultEntity): Long
+
+    /** 最近 N 条，新→旧（最近合成子测展示；同刻并列时按 id 兜底） */
+    @Query("SELECT * FROM synthetic_result ORDER BY tsEpochMs DESC, id DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 10): List<SyntheticResultEntity>
+}
+
+@Dao
 interface EnvEventDao {
     /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
     @Insert

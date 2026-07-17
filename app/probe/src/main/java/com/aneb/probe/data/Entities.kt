@@ -427,6 +427,51 @@ data class VoiceResultEntity(
 )
 
 // ---------------------------------------------------------------------------
+// 合成子测结果（恢复子测 weak-recovery-v1 D-40 + 弱网整形对照 weak-capacity-latency-v1 D-43）
+// ---------------------------------------------------------------------------
+
+/**
+ * 合成子测单次结果（v13 新增表，additive）：恢复子测（[kind]="recovery"）与弱网整形对照
+ * （[kind]="shaped"）两类共用一表，以 [kind] 区分，各自不用的列置 null。
+ *
+ * - **合成口径，独立结论**：来自服务端受控合成合同（受控中断窗口 / 逐 run 隔离整形路径），
+ *   ≠ 真实断网/弱覆盖，绝不并入正常测速结论 / AQS 任何分；[confidence] 恒记
+ *   LOW/INCONCLUSIVE 标注（单次合成事件不外推）。
+ * - 只存 Done 样本的**实测值**，展示直接读落库值不重算（D-02）。
+ * - 指标字段全部可空：未测/不可判记 null，禁 0/哨兵值（R-10：Sample 的 null 原样落库）。
+ */
+@Entity(tableName = "synthetic_result")
+data class SyntheticResultEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** 落库时刻（epoch ms） */
+    val tsEpochMs: Long,
+    /** 子测类别：recovery（恢复子测）/ shaped（弱网整形对照） */
+    val kind: String,
+    /** 合同强制标注（如 "LOW/INCONCLUSIVE(单次合成事件)"）：单次合成事件不外推 */
+    val confidence: String,
+    // ---- recovery（kind="recovery"；shaped 行恒 null） ----
+    /** 恢复时长（ms，触发 202→首个成功 echo）；未恢复/未触发 null */
+    val recoveryMs: Double?,
+    /** 窗口内服务器确认的受控中断 503 次数（带 outage=active 头） */
+    val outage503: Int?,
+    /** 质量段成功数 */
+    val postSuccess: Int?,
+    /** 质量段总数 */
+    val postTotal: Int?,
+    /** 质量段 RTT P95（ms）；样本不足 null */
+    val rttP95Ms: Double?,
+    /** 是否满足合同质量目标；不可判 null */
+    val meetsTargets: Boolean?,
+    // ---- shaped（kind="shaped"；recovery 行恒 null） ----
+    /** 整形实测下行峰值（Mbps）；无样本 null */
+    val shapedDownMbps: Double?,
+    /** 整形实测上行峰值（Mbps）；无样本 null */
+    val shapedUpMbps: Double?,
+    /** 整形完成态 RTT（ms）；未测 null */
+    val shapedRttMs: Double?,
+)
+
+// ---------------------------------------------------------------------------
 // 环境事件时间轴（设计文档 §7 EnvEvent：设备侧冻结 vs 链路缓冲归因的关键证据）
 // ---------------------------------------------------------------------------
 

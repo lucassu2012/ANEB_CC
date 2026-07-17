@@ -20,6 +20,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ApiProbeResultEntity::class,
         AbResultEntity::class,
         VoiceResultEntity::class,
+        SyntheticResultEntity::class,
     ],
     // v3：P1-C05/C06 接线——TestRun 扩 run 级字段；新增 scenario_result / echo_sample；
     // token_event 增 scenarioKey/streamIndex 维度
@@ -37,7 +38,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      （真机硬切换拆除原绑定网后迁到新默认网恢复的样本数，两种 C2 语义，D-23，additive）
     // v12：D-42 语音结果落库——新增 voice_result（语音模式 Done 样本实测值，v1/v2 双口径
     //      共表以 caliber 区分；观测口径独立于 token AQS 各表，additive）
-    version = 12,
+    // v13：合成子测结果落库——新增 synthetic_result（恢复子测 D-40 / 弱网整形对照 D-43 的
+    //      Done 样本实测值共表，kind 区分；合成口径独立结论恒 LOW/INCONCLUSIVE，additive）
+    version = 13,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -52,6 +55,7 @@ abstract class AnebDatabase : RoomDatabase() {
     abstract fun apiProbeResultDao(): ApiProbeResultDao
     abstract fun abResultDao(): AbResultDao
     abstract fun voiceResultDao(): VoiceResultDao
+    abstract fun syntheticResultDao(): SyntheticResultDao
 
     companion object {
         @Volatile
@@ -265,6 +269,45 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v12 → v13 的全部语句（合成子测结果落库，additive；JVM 单测锚定存在性与
+         * additive-only）：新增 synthetic_result 表（无索引），不触碰既有表。SQL 与 KSP
+         * 生成的 AnebDatabase_Impl.createAllTables 严格一致（列序=字段声明序，affinity：
+         * Double→REAL、Int/Long/Boolean→INTEGER、String→TEXT），做法同 [MIGRATION_11_12]——
+         * Room 迁移后按 @Entity 期望 schema 逐列校验，偏差 fail-fast，不会静默错表。
+         * 指标列全部**可空、无默认值**（R-10：Sample 的 null 原样落库，禁 0/哨兵值）；
+         * recovery / shaped 两类共表以 kind 区分，各自不用的列置 null。
+         */
+        internal val MIGRATION_12_13_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `synthetic_result` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`tsEpochMs` INTEGER NOT NULL, " +
+                "`kind` TEXT NOT NULL, " +
+                "`confidence` TEXT NOT NULL, " +
+                "`recoveryMs` REAL, " +
+                "`outage503` INTEGER, " +
+                "`postSuccess` INTEGER, " +
+                "`postTotal` INTEGER, " +
+                "`rttP95Ms` REAL, " +
+                "`meetsTargets` INTEGER, " +
+                "`shapedDownMbps` REAL, " +
+                "`shapedUpMbps` REAL, " +
+                "`shapedRttMs` REAL)",
+        )
+
+        /**
+         * v12 → v13（合成子测结果落库，additive）：只建新表不动数据——已落库的历史取证
+         * 数据（v12 含 voice_result 及之前全部表）原样保留。人工验证步骤同 [MIGRATION_6_7]
+         * KDoc（覆盖安装后既有 run 可见、.schema synthetic_result 输出与本 CREATE 语句一致、
+         * 跑一次恢复子测/弱网对照 RECOVERY_SAVED / SHAPED_SAVED 落库成功、logcat 无
+         * Migration 异常）。
+         */
+        internal val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_12_13_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -273,10 +316,10 @@ abstract class AnebDatabase : RoomDatabase() {
                     "aneb-probe.db",
                 )
                     // v6 起 schema 变更必须写显式 Migration（历史数据是取证资产，
-                    // 不可静默丢弃）——v6→v7 / … / v11→v12 见上方（均 additive）。
+                    // 不可静默丢弃）——v6→v7 / … / v12→v13 见上方（均 additive）。
                     .addMigrations(
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-                        MIGRATION_11_12,
+                        MIGRATION_11_12, MIGRATION_12_13,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()
