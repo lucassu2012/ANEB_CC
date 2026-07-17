@@ -19,14 +19,15 @@ class AqsInputMapperD1S1Test {
     private fun mbps(v: Double?, n: Int = 5) = KpiValue(v, "Mbps", if (v == null) 0 else n, false)
     private fun ratio(v: Double?, n: Int) = KpiValue(v, "ratio", n, false)
 
-    /** 一份可控 KpiResult，默认全 VALID、基本 KPI 齐备；d1/s1 单独覆盖。 */
+    /** 一份可控 KpiResult，默认全 VALID、基本 KPI 齐备；d1/s1/validity 单独覆盖。 */
     private fun kpi(
         t1: Double? = 100.0, t2: Double? = 50.0, t3: Double? = 0.0, t4: Double? = 0.0,
         n1: Double? = 20.0, n2: Double? = 5.0, u1: Double? = 30.0, u2: Double? = 100.0,
         d1: KpiValue = mbps(null),
         s1: KpiValue = KpiValue.empty("ratio"),
+        validity: Validity = Validity.VALID,
     ): KpiResult = KpiResult(
-        validity = Validity.VALID, invalidReasons = emptyList(),
+        validity = validity, invalidReasons = emptyList(),
         seqMissingCount = 0, seqDupCount = 0, seqGapCount = 0, expectedTokenCount = 100,
         t1TtftMs = KpiValue(t1, "ms", 150, false),
         t2ItlP95Ms = KpiValue(t2, "ms", 150, false),
@@ -73,7 +74,8 @@ class AqsInputMapperD1S1Test {
     }
 
     @Test
-    fun `s1 null when no rounds anywhere`() {
+    fun `s1 derives from run validity when no per-round data (D-33)`() {
+        // 无逐轮数据的遍自身作为一轮：3 遍全 VALID → 1.0，总轮次 3（恰达全置信下限）
         val composite = AqsInputMapper.map(
             mapOf(
                 AqsInputMapper.S1 to listOf(kpi()),
@@ -81,7 +83,45 @@ class AqsInputMapperD1S1Test {
                 AqsInputMapper.S3 to listOf(kpi()),
             )
         )
-        assertNull(composite.s1SessionSuccessRate.value) // 无轮次 → null，绝不 0
+        assertEquals(1.0, composite.s1SessionSuccessRate.value!!, 1e-9)
+        assertEquals(3, composite.s1SessionSuccessRate.sampleCount)
+        assertEquals(false, composite.s1SessionSuccessRate.lowConfidence)
+    }
+
+    @Test
+    fun `s1 counts INVALID run in denominator as failed round (D-33)`() {
+        // 4 遍中 1 遍 INVALID → 3/4 = 0.75（修正旧聚合把失败遍排除在分母外的高估偏差）；
+        // VALID_LOW_CONFIDENCE 计成功
+        val composite = AqsInputMapper.map(
+            mapOf(
+                AqsInputMapper.S1 to listOf(kpi()),
+                AqsInputMapper.S2 to listOf(kpi(), kpi(validity = Validity.INVALID)),
+                AqsInputMapper.S3 to listOf(kpi(validity = Validity.VALID_LOW_CONFIDENCE)),
+            )
+        )
+        assertEquals(0.75, composite.s1SessionSuccessRate.value!!, 1e-9)
+        assertEquals(4, composite.s1SessionSuccessRate.sampleCount)
+    }
+
+    @Test
+    fun `s1 null only when no runs at all`() {
+        val composite = AqsInputMapper.map(emptyMap())
+        assertNull(composite.s1SessionSuccessRate.value) // 无任何遍 → null，绝不 0（R-10）
+    }
+
+    @Test
+    fun `scoreToken s1 veto fires from validity-derived rate (D-33)`() {
+        // 3 遍中 1 遍 INVALID → S1=2/3≈0.667 < 0.90 → 硬档否决封顶 54
+        val composite = AqsInputMapper.map(
+            mapOf(
+                AqsInputMapper.S1 to listOf(kpi(n1 = 20.0, n2 = 5.0)),
+                AqsInputMapper.S2 to listOf(kpi(t1 = 150.0, t2 = 80.0, u2 = 120.0)),
+                AqsInputMapper.S3 to listOf(kpi(u1 = 25.0, d1 = mbps(40.0), validity = Validity.INVALID)),
+            )
+        )
+        val r = AqsScorer.scoreToken(composite, "WEIGHTS_TOKEN_MM")
+        assertEquals(true, r.s1VetoApplied)
+        if (r.score != null) assertTrue("S1<0.90 应封顶 54", r.score!! <= 54.0)
     }
 
     @Test

@@ -67,8 +67,9 @@ object AqsInputMapper {
         val u2 = medianKpi(s2.map { it.u2ToolLoopP95Ms }, "ms")
         // D1 ← S3 下行大对象 goodput（Token 多模态专用；v0.1/v0.2 不含 D1，不影响既有合成分）
         val d1 = medianKpi(s3.map { it.d1GoodputMbps }, "Mbps")
-        // S1 ← 全场景成功轮次占比聚合（计数口径，非中位数；s1/s2/s3 为各场景遍列表）
-        val s1Kpi = aggregateSuccessRate(listOf(s1, s2, s3).flatten().map { it.s1SessionSuccessRate })
+        // S1 ← 全场景成功轮次占比（计数口径，非中位数；D-33 统一口径：有逐轮数据的遍用
+        // rate×count，无逐轮数据的遍自身作为一轮、成功=validity≠INVALID——INVALID 遍计入分母）
+        val s1Kpi = successRateFromRuns(listOf(s1, s2, s3).flatten())
 
         val all = listOf(t1, t2, t2Incl, t3, t3Incl, t4, n1, n2, u1, u1Excl, u2, d1)
         val anyLowConf = all.any { it.lowConfidence } ||
@@ -136,22 +137,42 @@ object AqsInputMapper {
         )
     }
 
+    /** S1 完成率全置信最小轮数（低于即 lowConfidence，R-29；快测 3 场景=3 轮恰好达标）。 */
+    const val S1_MIN_ROUNDS = 3
+
     /**
-     * 全场景成功轮次占比聚合（计数口径）：Σ成功轮次 / Σ总轮次，按各场景轮数加权。
-     * 完成率是计数占比、非分布分位——故不复用 [medianKpi]（会错误地对占比取中位数）。
-     * 无任何轮次样本 → value=null（R-10：绝不 0 顶替）。
+     * 全场景成功轮次占比（计数口径，D-33 统一语义）：Σ成功轮次 / Σ总轮次。
+     *
+     * - **有逐轮数据的遍**（[KpiResult.s1SessionSuccessRate] 非 null）：贡献 round(rate×count) 成功轮
+     *   /count 总轮（未来 roundOutcomes 细粒度接入即走此路）；
+     * - **无逐轮数据的遍**（含 INVALID 遍——gate 会把其 s1 置 null）：该遍自身作为**一轮会话**，
+     *   成功=传输完整性伞口径 `validity != INVALID`（BM-06：流截断/gap 超限/外部守卫全折叠在
+     *   validity；已知边界：上传 http 失败不置 INVALID，经 U1 null→KPI_MISSING 另行表达）。
+     *   **INVALID 遍计入分母**——修正旧聚合把失败遍排除在外导致完成率系统性高估的偏差。
+     *
+     * 完成率是计数占比、非分布分位——不复用 [medianKpi]。无任何遍 → value=null（R-10）。
      */
-    private fun aggregateSuccessRate(rates: List<KpiValue>): KpiValue {
-        val valid = rates.filter { it.value != null && it.sampleCount > 0 }
-        val totalRounds = valid.sumOf { it.sampleCount }
-        if (totalRounds == 0) return KpiValue.empty("ratio")
-        // 各场景成功轮次 = round(rate × count)，跨场景求和后除总轮次
-        val successRounds = valid.sumOf { Math.round(it.value!! * it.sampleCount) }
+    private fun successRateFromRuns(runs: List<KpiResult>): KpiValue {
+        if (runs.isEmpty()) return KpiValue.empty("ratio")
+        var totalRounds = 0
+        var successRounds = 0L
+        var lowConf = false
+        for (r in runs) {
+            val rate = r.s1SessionSuccessRate
+            if (rate.value != null && rate.sampleCount > 0) {
+                totalRounds += rate.sampleCount
+                successRounds += Math.round(rate.value * rate.sampleCount)
+                if (rate.lowConfidence) lowConf = true
+            } else {
+                totalRounds += 1
+                if (r.validity != Validity.INVALID) successRounds += 1
+            }
+        }
         return KpiValue(
             value = successRounds.toDouble() / totalRounds,
             unit = "ratio",
             sampleCount = totalRounds,
-            lowConfidence = valid.any { it.lowConfidence },
+            lowConfidence = lowConf || totalRounds < S1_MIN_ROUNDS,
         )
     }
 
