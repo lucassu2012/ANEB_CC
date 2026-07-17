@@ -59,6 +59,8 @@ func main() {
 	// 反斜杠不是路径分隔符，`..\profiles` 会被当成字面文件名导致启动失败。
 	profilesDir := flag.String("profiles", "../profiles", "profiles directory (versioned scenario JSON)")
 	dataDir := flag.String("data", "./data", "data directory (results JSONL)")
+	behaviorModelsDir := flag.String("behavior-models", "",
+		"behavior-model parameter-pack directory (*.json from tools/calibrate; empty = built-ins only)")
 	tlsCert := flag.String("tls-cert", "", "TLS certificate file (optional; default/LE cert for named SNI)")
 	tlsKey := flag.String("tls-key", "", "TLS key file (optional)")
 	// SNI 双通道：-tls-cert-ip/-tls-key-ip 指向自签 IP-SAN 证书（含 IP:120.79.148.0），
@@ -105,6 +107,17 @@ func main() {
 	}
 	for id, p := range profiles {
 		log.Printf("profile loaded: %s v%s (%d phases)", id, p.Version, len(p.Phases))
+	}
+
+	// §3.3 行为模型参数包目录（tools/calibrate 产物）：并入内置注册表，日志如实
+	// 标注 calibrated 与否——未标定包绝不冒充真实（红线 §3.4）。
+	if *behaviorModelsDir != "" {
+		if err := loadBehaviorModels(*behaviorModelsDir); err != nil {
+			log.Fatalf("load behavior models: %v", err)
+		}
+	}
+	for _, m := range behaviorModelList() {
+		log.Printf("behavior model: %s (provider=%q calibrated=%v)", m.Stamp(), m.Provider, m.Provenance.Calibrated)
 	}
 
 	a := &app{profiles: profiles, dataDir: *dataDir, allowInject: *allowInject, h3Enabled: *h3Enabled}

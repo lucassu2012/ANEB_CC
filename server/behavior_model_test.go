@@ -30,7 +30,7 @@ func TestBehaviorModelGenericIsHonestlyUncalibrated(t *testing.T) {
 		t.Fatalf("generic pack median/sigma = %v/%v, want %v/%v (single source of truth)",
 			m.Median, m.Sigma, defaultStreamMedian, defaultStreamSigma)
 	}
-	if got := m.stamp(); got != genericBehaviorModelID+"@v0" {
+	if got := m.Stamp(); got != genericBehaviorModelID+"@v0" {
 		t.Fatalf("stamp = %q, want %s@v0", got, genericBehaviorModelID)
 	}
 }
@@ -48,11 +48,11 @@ func TestLookupBehaviorModel(t *testing.T) {
 // nil stamp/receiver 安全：无 pack 时 applyDefaults 是 no-op、stamp 空。
 func TestBehaviorModelNilIsNoOp(t *testing.T) {
 	var m *BehaviorModel
-	if m.stamp() != "" {
+	if m.Stamp() != "" {
 		t.Fatal("nil pack stamp must be empty")
 	}
 	params := StreamParams{Median: 120, Sigma: 0.6}
-	m.applyDefaults(&params, false)
+	applyBehaviorModelDefaults(m, &params, false)
 	if params.Median != 120 || params.Sigma != 0.6 || params.TtftInjectUs != 0 ||
 		params.TokensPerFrame != 0 || len(params.RateSchedule) != 0 || params.BehaviorModelStamp != "" {
 		t.Fatalf("nil pack must not mutate params: %+v", params)
@@ -71,7 +71,7 @@ func TestBehaviorModelFillsUnsetKnobs(t *testing.T) {
 	}
 	// phase 未声明任何模型旋钮（全零/空、且无 token_bytes）→ pack 全量补齐。
 	params := StreamParams{Tokens: 10, RateTps: 40}
-	pack.applyDefaults(&params, false)
+	applyBehaviorModelDefaults(pack, &params, false)
 	if params.TtftInjectUs != 7_000 || params.TokensPerFrame != 4 {
 		t.Fatalf("pack ttft/frame not filled: %+v", params)
 	}
@@ -102,7 +102,7 @@ func TestBehaviorModelPhaseOverridesWin(t *testing.T) {
 		RateSchedule:   []RatePoint{{AtFrac: 0, Tps: 99}},
 		Median:         120, Sigma: 0.6,
 	}
-	pack.applyDefaults(&params, true) // tokenBytesSet=true：字节模型归 phase
+	applyBehaviorModelDefaults(pack, &params, true) // tokenBytesSet=true：字节模型归 phase
 	if params.TtftInjectUs != 3_000 {
 		t.Fatalf("phase ttft overridden by pack: %d", params.TtftInjectUs)
 	}

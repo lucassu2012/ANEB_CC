@@ -388,7 +388,8 @@ facet→条目：上行突发→上行条；下行大带宽→下行条；低时
 | 设计条款 | 落地 | 备注 |
 |---|---|---|
 | §3.3 行为模型参数包（**结构**） | server `behavior_model.go`：`BehaviorModel`/`Provenance` + 内置**未标定** `generic-uncalibrated@v0` 包；`Phase.behavior_model_id` 解析（pack 补默认、phase 恒胜）；prelude `behavior_model` 溯源印；`/profiles` 透出包+provenance | 纯 Go，additive/确定性/零回归；**逐 provider 标定值**仍待抓包（见下） |
+| §3.3 标定管线（**工具链**） | `internal/behaviorspec`（wire 类型/trace 格式/OpenAI SSE 解析/拟合，单源）+ `tools/llmcap`（真实 LLM 端点采集→trace JSONL）+ `tools/calibrate`（trace→已标定包 JSON，provenance 自动携带来源+拟合摘要）+ server `-behavior-models` 目录加载（校验同界，产物免编辑可部署） | 端到端回路已测（mock OpenAI→采集→拟合→加载→`/stream` 重放）；拟合口径局限固定入 `Note`（红线 §3.4） |
 
 ### 未覆盖（外部依赖）
 
-- **§3.3 逐模型标定值**（kimi/deepseek/qwen 的 TTFT/TPS/字节直方图**真实拟合参数**）：参数包**结构 + 注册表 + provenance + 解析/溯源全链已就绪并测**（见「待审」行），仅缺**已拟合数字**——需 `tools/capture` 真机抓包 + 拟合（E-03）；届时新增 `{kimi,deepseek,qwen}@vX` 包并置 `Provenance.Calibrated=true`（附 trace 出处/残差），框架**绝不**为未标定包声称真实性（红线 §3.4）。
+- **§3.3 逐 provider 标定值**（kimi/deepseek/qwen 的真实拟合参数）：**工具链全就绪**（上表「标定管线」行）——现在只差**真实端点访问**（API key + 可达网络，E-03）。就绪后流程：`llmcap -url <endpoint> -model <m> -o run{1..N}.jsonl`（多 run）→ `calibrate -id <provider-model> -provider <p> -o pack.json run*.jsonl` → `aneb-server -behavior-models <dir>`；产物自动 `Calibrated=true` 携 trace 来源/拟合摘要，框架**绝不**为未标定包声称真实性（红线 §3.4）。

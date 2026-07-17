@@ -317,7 +317,7 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		if err != nil {
 			return params, errBadParam(err.Error())
 		}
-		bm.applyDefaults(&params, ph.TokenBytes != nil)
+		applyBehaviorModelDefaults(bm, &params, ph.TokenBytes != nil)
 	}
 	// 非平稳解码曲线（§3.2）只由 profile 声明（非平稳性是模型属性，非 URL 临时旋钮）。
 	if err := validateRateSchedule(params.RateSchedule, params.Burst != nil); err != nil {
