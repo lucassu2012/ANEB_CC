@@ -89,18 +89,18 @@
 | M3 真实业务与语音 | 画像采集回填;Profile 3 首批适配器;Profile 4 语音回环 | 🟡 半:语音回环侧超额完成(WS 双工仿真+M1–M6 全实测);画像采集与适配器未动 |
 | M4 产品化 | UI+报告,非开发者可独立完成测试 | 🟡 部分超前:UI 已达标;报告自动生成有雏形(ReportFormat/ReportScreen);"非开发者独立完成"未验收 |
 
-## 7. 计划 §9 拍板项的现实状态
+## 7. 计划 §9 拍板项——**已全部落定(产品负责人 2026-07-17,D-48)**
 
-1. **P1 技术栈** → **已被现实回答:Kotlin 原生**(计划推荐 A;无线上下文/前台服务/Compose 全在用)。建议关闭。
-2. **P2 技术栈** → **已被现实回答:Go**(Codex 维护 0.7.0;计划的"瓶颈终态"直接到位)。建议关闭。
-3. **云平台与三级部署区域+试点城市** → **仍待拍板**(当前仅单实例 E-01=阿里云华南)。M2 的前置。
-4. **Profile 3 首批两个 App**(推荐豆包+DeepSeek)→ **仍待拍板**。M3 适配器的前置。
+1. **P1 技术栈 = Kotlin 原生** ✅ 关闭(按现实更新)。
+2. **P2 技术栈 = Go** ✅ 关闭(按现实更新;Codex 维护 aneb-server/0.7.0)。
+3. **部署形态 = 单实例 E-01** ✅ 拍板(放弃三级同城/区域/中心)。**影响**:M2 归因失去三级差分输入,归因改以单点参考端+多维协变量(无线上下文/UDP 未整形协变量/忙闲/双运营商)为主;计划 §2 架构图三级部署段按此收缩。
+4. **Profile 3 首批 App = 豆包 + DeepSeek** ✅ 拍板(计划推荐原案,一重一轻两档适配难度)。M3 适配器前置就位。
 
 ## 8. 沿计划架构的增量对齐路径(不推倒重来)[FRAME 建议]
 
 当前单仓(app+server/+profiles/+docs/)≈ 计划五仓的 monorepo 折叠,单人+AI 节奏下建议**先立 spec 目录、后拆仓**:
 
-- **对齐-1(可立即做,无外部依赖)**:仓内新建 `spec/` 目录 = aneb-spec 雏形——迁入 profiles/、新增结果 JSON Schema、KPI/权重表导出为机器可读 YAML(代码引用它而非反向)、schema_version 起版。客户端 TestModeProfile 改为解析 spec 数据(铁律 1 客户端侧补课)。
+- **对齐-1 ✅ 已完成(2026-07-17,D-48 拍板当日落地)**:`spec/` 目录已建(README 治理规则+schema_version 1.0.0 起版;profiles/server 权威副本;schemas/result-run.schema.json;scoring/ 三 YAML 逐字导出+SpecScoringParityTest 反射对拍防漂移,红测验证;portraits/ 豆包+DeepSeek 占位标 PENDING-CAPTURE)。客户端 Profile 已数据化(spec/profiles/client + assets 镜像+加载器 fail-safe 回退,公共 API 零破坏,ClientProfileDataParityTest 双份对拍;真机烟测:三模式屏正常、无 SPEC_PROFILE_FALLBACK)。本轮为"导出+对拍"形态,代码反向引用 spec 为终态留待后续。
 - **对齐-2(依赖拍板 3)**:三级部署脚本与区域实例 → M2 外场。
 - **对齐-3(依赖用户资源/拍板 4)**:业务画像采集(抓包→拟合→回填 descriptor,替换 [GUESS];副产品=真实入云 PoP 清单)+ Profile 3 首批适配器。
 - **对齐-4(持续)**:与 Codex 的服务端协作已天然符合"P2 按 P3 数据适配"模式(D-35/D-37 合同流程),spec 目录成型后把 TEST_SERVER_CAPABILITIES 与 profiles 的变更流程并入"先改 spec、后动代码"规则。
