@@ -76,10 +76,21 @@ class AnebAccessibilityService : AccessibilityService() {
     private var session: ObsSessionStats? = null
     private var lastEmitNanos = 0L
 
+    /** 默认输入法包名（onServiceConnected 时读 default_input_method）；其事件全豁免。 */
+    @Volatile
+    private var imePkg: String? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         val specs = AdapterSpecLoader.loadFromAssets(this)
         specsByPackage = specs.associate { it.packageName to SpecRuntime(it) }
+        // IME 包全事件豁免：键盘候选栏/布局的 CONTENT/TEXT 事件不属于被观察业务，
+        // 且会在打字期间把目标 App 会话切段、清掉 send-anchor 状态机
+        // （真机实证：百度输入法把 com.larus.nova 观察切成两段，ttft_send_ms 恒 null）。
+        imePkg = runCatching {
+            android.provider.Settings.Secure.getString(contentResolver, "default_input_method")
+                ?.substringBefore('/')
+        }.getOrNull()
         session = null
         lastEmitNanos = 0L
         running = true
@@ -96,10 +107,14 @@ class AnebAccessibilityService : AccessibilityService() {
         val now = SystemClock.elapsedRealtimeNanos()
         val pkg = e.packageName?.toString() ?: return
         if (pkg == packageName) return // 自观察反馈环屏蔽（R-16）
+        if (pkg == imePkg) return // IME 事件全豁免（键盘事件≠被观察业务；防打字期会话切段）
 
         when (e.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                switchSessionIfNeeded(pkg, now)
+                // 不切会话：IME（输入法键盘弹收）与瞬态窗口的 STATE 事件会在打点关键期
+                // （发送锚点武装后）误切会话、清掉状态机——真机实证：百度输入法窗口把
+                // com.larus.nova 观察切成 8/1/8 三段，ttft_send_ms 恒 null。会话只由
+                // CONTENT/TEXT 事件驱动开启/切换；真实切 App 后新前台必然很快有内容事件。
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,

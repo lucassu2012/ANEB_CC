@@ -5,15 +5,15 @@
     "display_name": "DeepSeek",
     "app_id": "deepseek-android",
     "package": "com.deepseek.chat",
-    "package_note": "[COMMON] 待装机核实：公开渠道普遍报告 DeepSeek 官方 Android 包名为 com.deepseek.chat；P40 装机后以前台窗口实况（dumpsys window / ADAPTER_OBS 日志 pkg 字段）核实，不符即改此字段并升 PATCH 版本",
-    "status": "PENDING-VALIDATION",
+    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list 与前台窗口实况均为 com.deepseek.chat，主页 Activity=com.deepseek.chat.MainActivity；ADAPTER_OBS pkg 字段实测命中（mode=deepseek）",
+    "status": "VALIDATED-OBSERVED",
     "launch_hint": "由用户手动启动 DeepSeek 并进入对话页；宿主为观察模式 only——绝不代启动 App、绝不 performAction/注入任何操作（动真实账号是用户红线）",
     "input_node": {
       "view_id_regex": null,
-      "class_name_regex": "android\\.widget\\.EditText",
+      "class_name_regex": ".*",
       "text_regex": null,
-      "status": "PENDING-VALIDATION",
-      "note": "[GUESS] 对话输入框通常为 EditText；真机 uiautomator dump 后回填精确 view_id_regex 并撤销 PENDING-VALIDATION"
+      "status": "VALIDATED-PARTIAL",
+      "note": "[KNOWN] 2026-07-18 P40 实测：DeepSeek 为 Compose/自绘 UI——uiautomator dump 无 EditText 节点，TEXT_CHANGED 事件 className 非标准控件类（首测 rule_matched=0、锚点不武装），故 class_name_regex 放宽为通配：所有 TEXT_CHANGED 进输入框长度轨，send-anchor 状态机以『长度非空→空』天然筛选发送清空（响应流文本长度只增不清零）。误检面（视图回收报空文本）如实承担，锚定值恒 LOW/INCONCLUSIVE"
     },
     "response_node": {
       "view_id_regex": null,

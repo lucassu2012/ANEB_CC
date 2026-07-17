@@ -94,7 +94,10 @@ class AdapterSpecTest {
         val s = parseAsset("deepseek.json")
         assertEquals("deepseek", s.id)
         assertEquals("com.deepseek.chat", s.packageName)
-        assertTrue(s.pendingValidation)
+        // 2026-07-18 P40 装机实测后：包名核实、Compose UI 通配输入规则（D-51）
+        assertEquals("VALIDATED-OBSERVED", s.status)
+        assertTrue("装机核实后 pendingValidation 撤销", !s.pendingValidation)
+        assertEquals(".*", s.inputNode.classNameRegex)
         assertEquals(setOf("first_delta", "delta_cadence"), s.kpiMapping.keys)
     }
 
