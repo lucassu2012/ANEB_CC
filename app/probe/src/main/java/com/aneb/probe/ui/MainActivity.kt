@@ -655,11 +655,16 @@ class MainActivity : ComponentActivity() {
         val runs by produceState(initialValue = emptyList<TestRun>()) {
             value = withContext(Dispatchers.IO) { db.testRunDao().all() }
         }
+        // 历史统一展示：语音记录混入历史列表（每次进入历史页 produceState 重启即刷新）
+        val voiceResults by produceState(initialValue = emptyList<VoiceResultEntity>()) {
+            value = withContext(Dispatchers.IO) { db.voiceResultDao().recent(100) }
+        }
         HistoryScreen(
             runs = runs,
             onOpen = onOpen,
             onGenerateReport = onGenerateReport,
             onBack = onBack,
+            voiceResults = voiceResults,
         )
     }
 

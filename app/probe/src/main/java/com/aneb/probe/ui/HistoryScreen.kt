@@ -25,6 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.TestRun
+import com.aneb.probe.data.VoiceResultEntity
+import com.aneb.probe.engine.VoiceRunner
 import com.aneb.probe.ui.components.GradeChip
 import com.aneb.probe.ui.components.pressable
 import com.aneb.probe.ui.theme.AnebElevation
@@ -40,9 +42,43 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
+ * 历史混排条目（历史页统一展示）：TestRun 与语音记录按时间降序混入同一列表。
+ * key 全列表唯一——run 用 runId，语音用 "voice-{id}"（LazyColumn key 合同）。
+ */
+sealed interface HistoryEntry {
+    /** LazyColumn key（全列表唯一） */
+    val key: String
+    /** 排序时刻（epoch ms，降序混排依据） */
+    val epochMs: Long
+
+    data class Run(val run: TestRun) : HistoryEntry {
+        override val key: String get() = run.runId
+        override val epochMs: Long get() = run.startedAtEpochMs
+    }
+
+    data class Voice(val result: VoiceResultEntity) : HistoryEntry {
+        override val key: String get() = "voice-${result.id}"
+        override val epochMs: Long get() = result.tsEpochMs
+    }
+}
+
+/** 历史页混排纯函数（抽出 Composable 便于单测）。 */
+object HistoryFeed {
+    /**
+     * TestRun + 语音记录按时间降序合成混合列表。
+     * sortedByDescending 稳定：同刻条目保持 run 在前、各自输入相对序（key 仍唯一）。
+     */
+    fun merge(runs: List<TestRun>, voice: List<VoiceResultEntity>): List<HistoryEntry> =
+        (runs.map { HistoryEntry.Run(it) } + voice.map { HistoryEntry.Voice(it) })
+            .sortedByDescending { it.epochMs }
+}
+
+/**
  * 历史页（重设计，设计稿 §历史，iOS 化）：Room TestRun 列表——每行 grade 色分数徽标（tabular）
  * + iOS soft grade chip + 时间/模式/传输 + 状态；点击进对应结果页，整卡按压缩放。
- * 数据全部来自 Room（本层不重算）。LazyColumn key 保留（runId）。
+ * 历史统一展示：语音记录（[VoiceResultEntity]）与 TestRun 按时间降序混排；语音行只展示
+ * 落库实测值、无详情页不可点击（D-02 不重算分）。数据全部来自 Room（本层不重算）。
+ * LazyColumn key 保留唯一（run=runId，语音="voice-{id}"）。
  */
 @Composable
 fun HistoryScreen(
@@ -50,12 +86,14 @@ fun HistoryScreen(
     onOpen: (String) -> Unit,
     onGenerateReport: () -> Unit,
     onBack: () -> Unit,
+    voiceResults: List<VoiceResultEntity> = emptyList(),
 ) {
     val colors = AnebTheme.colors
     val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.US)
+    val entries = HistoryFeed.merge(runs, voiceResults)
     Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(8.dp))
-        GlassHeader("测试历史 (${runs.size})", onBack) {
+        GlassHeader("测试历史 (${entries.size})", onBack) {
             Text(
                 text = "生成报告",
                 fontSize = 12.5.sp,
@@ -69,15 +107,18 @@ fun HistoryScreen(
                     .padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
-        if (runs.isEmpty()) {
+        if (entries.isEmpty()) {
             Text("暂无历史记录", color = colors.muted, modifier = Modifier.padding(top = 24.dp))
         }
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(top = 10.dp, bottom = 16.dp),
         ) {
-            items(count = runs.size, key = { i -> runs[i].runId }) { i ->
-                HistoryRow(runs[i], fmt, onOpen)
+            items(count = entries.size, key = { i -> entries[i].key }) { i ->
+                when (val entry = entries[i]) {
+                    is HistoryEntry.Run -> HistoryRow(entry.run, fmt, onOpen)
+                    is HistoryEntry.Voice -> VoiceHistoryRow(entry.result, fmt)
+                }
             }
         }
     }
@@ -145,6 +186,63 @@ private fun HistoryRow(run: TestRun, fmt: SimpleDateFormat, onOpen: (String) -> 
             )
         }
         Text("›", fontSize = 20.sp, color = colors.faint)
+    }
+}
+
+/**
+ * 语音记录历史行（镜像 [HistoryRow] 卡型，不可点击——语音无结果详情页）：
+ * 时间 + 「语音」标签 + 口径（[VoiceRunner.SIM_CALIBER]→server-sim，否则 paced-proxy）
+ * + 口到耳值（优先 [VoiceResultEntity.mouthEarProxyMs]，缺退 [VoiceResultEntity.mouthEarBudgetMs]，
+ * 均无显 —，R-10 诚实缺席）+ lowConfidence 色注。只展示落库实测值，不重算分（D-02）。
+ */
+@Composable
+private fun VoiceHistoryRow(result: VoiceResultEntity, fmt: SimpleDateFormat) {
+    val colors = AnebTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .shadow(AnebElevation.level1, AnebShapes.card, clip = false)
+            .clip(AnebShapes.card)
+            .background(colors.surface)
+            .border(1.dp, colors.hairline, AnebShapes.card)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(44.dp).clip(AnebShapes.tile).background(colors.surfaceMuted),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("语音", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.brand2)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (result.caliber == VoiceRunner.SIM_CALIBER) "server-sim" else "paced-proxy",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.ink,
+                )
+                if (result.lowConfidence) {
+                    Spacer(Modifier.width(6.dp))
+                    LowConfChip()
+                }
+            }
+            Text(
+                fmt.format(Date(result.tsEpochMs)),
+                fontSize = 11.5.sp,
+                color = colors.muted,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        val mouthEar = result.mouthEarProxyMs ?: result.mouthEarBudgetMs
+        Text(
+            "口到耳 " + (mouthEar?.let { "%.0f ms".format(it) } ?: "—"),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.ink,
+        )
     }
 }
 
