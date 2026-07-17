@@ -57,6 +57,7 @@ class AdapterSpecTest {
             "status": "PENDING-VALIDATION",
             "input_node": {},
             "response_node": {},
+            "send_button": {},
             "observe_events": ["TYPE_WINDOW_CONTENT_CHANGED"],
             "kpi_mapping": { $kpiKeys },
             "caliber_redlines": {
@@ -168,6 +169,38 @@ class AdapterSpecTest {
             assertTrue("$name r10 须声明 null 不折 0", s.caliber.r10.contains("null"))
             // kpi_mapping 每条都带 caliber 声明
             s.kpiMapping.values.forEach { assertTrue(it.caliber.isNotBlank()) }
+        }
+    }
+
+    // ---------- 用例 7：send_button 字段解析（send-anchor v2；两规格初值全 null + PENDING） ----------
+
+    @Test
+    fun `send_button parses from both specs with null regexes pending validation`() {
+        for (name in listOf("doubao.json", "deepseek.json")) {
+            val sb = parseAsset(name).sendButton
+            assertNull("$name send_button.view_id_regex 初值应为 null（待真机诊断回填）", sb.viewIdRegex)
+            assertNull("$name send_button.class_name_regex 初值应为 null", sb.classNameRegex)
+            assertNull("$name send_button.text_regex 初值应为 null", sb.textRegex)
+            assertNull("$name send_button.content_desc_regex 初值应为 null", sb.contentDescRegex)
+            assertEquals("$name send_button 待验证", "PENDING-VALIDATION", sb.status)
+            assertTrue(
+                "$name send_button.note 须标注待 ADAPTER_EVT 诊断回填",
+                sb.note.contains("ADAPTER_EVT"),
+            )
+        }
+    }
+
+    // ---------- 用例 8：send_button 为必填键——缺失即抛（严格模式 → 运行时 fail-safe） ----------
+
+    @Test
+    fun `missing send_button throws`() {
+        AdapterSpecLoader.parse(specJson()) // 底座含 send_button，合法
+        val withoutSendButton = specJson().replace("\"send_button\": {},", "")
+        try {
+            AdapterSpecLoader.parse(withoutSendButton)
+            fail("缺 send_button 键应抛（required 字段；运行时 ADAPTER_SPEC_FALLBACK → 空列表 → generic mode）")
+        } catch (expected: Exception) {
+            // 必填键闸门成立（四文件必须同步含 send_button）
         }
     }
 }

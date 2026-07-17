@@ -8,6 +8,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
+import com.aneb.probe.BuildConfig
 
 /**
  * Profile 3 真实 App 适配器宿主——无障碍**观察模式 only** 打点服务。
@@ -58,6 +59,11 @@ class AnebAccessibilityService : AccessibilityService() {
         /** 输入框判定正则（input_node.class_name_regex；坏正则/缺维度→null，宿主用兜底）。 */
         val inputClassNameRegex: Regex? = spec.inputNode.classNameRegex?.toRegexSafe()
 
+        // ── send-anchor v2：发送按钮点击匹配正则（send_button；仅事件自带字段，view_id 不评估）──
+        val sendBtnClassRegex: Regex? = spec.sendButton.classNameRegex?.toRegexSafe()
+        val sendBtnTextRegex: Regex? = spec.sendButton.textRegex?.toRegexSafe()
+        val sendBtnDescRegex: Regex? = spec.sendButton.contentDescRegex?.toRegexSafe()
+
         /** 廉价标注判定：只用事件自带 className/首条 text，不取节点。 */
         fun ruleMatch(event: AccessibilityEvent): Boolean {
             classNameRegex?.let { r ->
@@ -69,6 +75,33 @@ class AnebAccessibilityService : AccessibilityService() {
                 if (r.containsMatchIn(first)) return true
             }
             return false
+        }
+
+        /**
+         * 发送按钮点击判定（send-anchor v2）：**仅用 CLICKED 事件自带字段**
+         * （className / 首条 text / contentDescription），绝不取 event.source（R-16）。
+         * 语义=**已配置维度全部命中**（AND）——精确优先，避免泛按钮点击误武装 TTFT 测量；
+         * **无任何可评估维度（三正则全空）→ 恒不命中**（R-10 诚实缺席：无数据不猜测、不武装）。
+         * view_id_regex 需 getSource，观察最小开销路径不评估（留存备诊断回填）。
+         */
+        fun sendButtonMatch(event: AccessibilityEvent): Boolean {
+            var anyDimension = false
+            sendBtnClassRegex?.let { r ->
+                anyDimension = true
+                val cn = event.className ?: return false
+                if (!r.containsMatchIn(cn)) return false
+            }
+            sendBtnTextRegex?.let { r ->
+                anyDimension = true
+                val first = event.text.firstOrNull() ?: return false
+                if (!r.containsMatchIn(first)) return false
+            }
+            sendBtnDescRegex?.let { r ->
+                anyDimension = true
+                val desc = event.contentDescription ?: return false
+                if (!r.containsMatchIn(desc)) return false
+            }
+            return anyDimension
         }
     }
 
@@ -132,6 +165,16 @@ class AnebAccessibilityService : AccessibilityService() {
                     s.onContentDelta(now)
                 }
             }
+            AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                // send-anchor v2 点击锚点：先事件级诊断打点（DEBUG 门控，供真机反推发送按钮特征），
+                // 再按 send_button 规则用**事件自带**字段匹配（绝不 getSource）；命中→武装 send_anchor。
+                // 无规格 / 规格 send_button 全空 / 不匹配 → 不武装（R-10 诚实缺席），诊断日志仍已打。
+                logClickEvent(e, pkg)
+                val rt = specsByPackage[pkg]
+                if (rt != null && rt.sendButtonMatch(e)) {
+                    switchSessionIfNeeded(pkg, now).onSendAnchor(now)
+                }
+            }
             else -> return
         }
 
@@ -168,6 +211,29 @@ class AnebAccessibilityService : AccessibilityService() {
         return len
     }
 
+    /**
+     * 事件级诊断日志（send-anchor v2 关键交付；[BuildConfig.DEBUG] 门控，release 无输出）。
+     * 每个 CLICKED 事件打一行，供主会话真机反推豆包/DeepSeek 发送按钮的 className/contentDesc
+     * 特征后回填 spec send_button。**仅事件自带字段**：className + contentDescription（按钮无障碍
+     * 标签，如「发送」，截断防刷屏）+ 文本**长度** txt_len（不含内容——文本红线不变）+ pkg；
+     * 绝不取 event.source（R-16）。CONTENT/TEXT 事件量大不逐条打，仅 CLICKED。
+     */
+    private fun logClickEvent(event: AccessibilityEvent, pkg: String) {
+        if (!BuildConfig.DEBUG) return
+        val cls = event.className ?: "null"
+        val desc = event.contentDescription?.let(::truncateForLog) ?: "null"
+        Log.d(
+            TAG,
+            "ADAPTER_EVT type=click cls=$cls desc=$desc txt_len=${textLenOf(event)} pkg=$pkg",
+        )
+    }
+
+    /** 诊断日志文本截断（防长文本刷屏；仅用于事件自带 contentDescription，非用户内容）。 */
+    private fun truncateForLog(cs: CharSequence): String {
+        val s = cs.toString()
+        return if (s.length <= EVT_LOG_DESC_MAX) s else s.take(EVT_LOG_DESC_MAX) + "…"
+    }
+
     /** 前台包切换 → 结算旧会话（emit 终帧）并开新会话；同包返回现会话。 */
     private fun switchSessionIfNeeded(pkg: String, nowNanos: Long): ObsSessionStats {
         val cur = session
@@ -194,7 +260,8 @@ class AnebAccessibilityService : AccessibilityService() {
                 " cadence_p50_ms=${snap.cadenceP50Ms?.let { "%.1f".format(it) } ?: "null"}" +
                 " confidence=${snap.confidence}" +
                 " reason=$reason" +
-                " ttft_send_ms=${snap.ttftSendMs?.let { "%.1f".format(it) } ?: "null"}",
+                " ttft_send_ms=${snap.ttftSendMs?.let { "%.1f".format(it) } ?: "null"}" +
+                " anchor_source=${snap.anchorSource ?: "null"}",
         )
     }
 
@@ -203,6 +270,9 @@ class AnebAccessibilityService : AccessibilityService() {
 
         /** 统计输出节流间隔（5s；会话切换额外立即输出）。 */
         private const val EMIT_INTERVAL_NANOS = 5_000_000_000L
+
+        /** 事件级诊断日志 contentDescription 截断上限（防长文本刷屏，R-16；DEBUG only）。 */
+        private const val EVT_LOG_DESC_MAX = 40
 
         /**
          * 输入框判定兜底正则（generic mode / 规格缺 input_node.class_name_regex 时用；

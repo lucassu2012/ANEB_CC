@@ -35,6 +35,12 @@ class ObsSessionStats(
         /** 发送锚定 TTFT 历史保留条数（环形覆盖，任务书钉死 8）。 */
         const val SEND_HISTORY_CAPACITY = 8
 
+        /** 锚点来源标注：发送按钮点击（send-anchor v2，[onSendAnchor]）。 */
+        const val SOURCE_CLICK = "click"
+
+        /** 锚点来源标注：输入框清空启发式（send-anchor v1，[onInputBoxText]）。 */
+        const val SOURCE_INPUT_CLEAR = "input_clear"
+
         private const val NONE = Long.MIN_VALUE
     }
 
@@ -55,6 +61,12 @@ class ObsSessionStats(
 
     /** 最近一次**完成**的发送锚定 TTFT（纳秒）；NONE=尚无完成值（R-10 → null）。 */
     private var lastTtftSendNanos = NONE
+
+    /** 当前未闭合锚点来源（[SOURCE_CLICK]|[SOURCE_INPUT_CLEAR]）；null=无未闭合锚点。 */
+    private var pendingAnchorSource: String? = null
+
+    /** 最近一次**完成**锚点的来源（与 [lastTtftSendNanos] 配对，快照 anchorSource 暴露）；null=尚无完成值。 */
+    private var completedAnchorSource: String? = null
 
     private val sendRing = LongArray(SEND_HISTORY_CAPACITY)
     private var sendRingSize = 0
@@ -87,9 +99,25 @@ class ObsSessionStats(
      */
     fun onInputBoxText(textLen: Int, tsNanos: Long) {
         if (lastInputNonEmpty && textLen == 0) {
-            sendAnchorNanos = tsNanos // 非空→空：武装（覆盖旧未闭合锚点）
+            // click 优先（谁先武装算谁）：已有未闭合 click 锚点时 input-clear 不覆盖；否则武装/覆盖
+            // 旧未闭合 input-clear 锚点（v1 覆盖语义不变——现有锚点非 click 时行为零变）。
+            if (!(sendAnchorNanos != NONE && pendingAnchorSource == SOURCE_CLICK)) {
+                sendAnchorNanos = tsNanos // 非空→空：武装
+                pendingAnchorSource = SOURCE_INPUT_CLEAR
+            }
         }
         lastInputNonEmpty = textLen > 0
+    }
+
+    /**
+     * 热路径：**发送按钮点击**锚点（send-anchor v2；宿主按 send_button 规则用事件自带字段
+     * className/text/contentDescription 命中后调用，绝不取 event.source）。武装并**覆盖任何
+     * 旧未闭合锚点**（含 input-clear 锚点）；其后 click 锚点不被 input-clear 覆盖——click 优先于
+     * input-clear（谁先武装算谁：正常序列点击先于输入框清空）。O(1) 零分配；不读节点/文本（红线不变）。
+     */
+    fun onSendAnchor(tsNanos: Long) {
+        sendAnchorNanos = tsNanos
+        pendingAnchorSource = SOURCE_CLICK
     }
 
     /**
@@ -101,10 +129,12 @@ class ObsSessionStats(
         if (anchor == NONE) return
         val delta = tsNanos - anchor
         lastTtftSendNanos = delta
+        completedAnchorSource = pendingAnchorSource // 与 lastTtftSendNanos 配对（诊断用）
         sendRing[sendRingNext] = delta
         sendRingNext = (sendRingNext + 1) % SEND_HISTORY_CAPACITY
         if (sendRingSize < SEND_HISTORY_CAPACITY) sendRingSize++
         sendAnchorNanos = NONE
+        pendingAnchorSource = null
     }
 
     /** 聚合出不可变快照（仅节流/会话切换时调用；含排序，不进热路径）。 */
@@ -127,6 +157,7 @@ class ObsSessionStats(
             lastTtftSendNanos / 1_000_000.0
         },
         ttftSendHistory = ttftSendHistory(),
+        anchorSource = completedAnchorSource,
     )
 
     /** 历史环形 → 时间升序列表（仅快照时调用，不进热路径）。 */
@@ -177,6 +208,12 @@ data class AdapterObsSnapshot(
     val ttftSendMs: Double? = null,
     /** 历次完成的发送锚定 TTFT（最近 [ObsSessionStats.SEND_HISTORY_CAPACITY]=8 个环形，时间升序）。 */
     val ttftSendHistory: List<Double> = emptyList(),
+    /**
+     * 最近一次**完成**的发送锚定来源标注（与 [ttftSendMs] 配对，便于真机诊断哪套启发式在生效）：
+     * [ObsSessionStats.SOURCE_CLICK]（点击锚点 v2）| [ObsSessionStats.SOURCE_INPUT_CLEAR]（输入清空 v1）|
+     * null（尚无完成锚点，与 ttftSendMs=null 同步）。
+     */
+    val anchorSource: String? = null,
 ) {
     val confidence: String get() = CONFIDENCE
 

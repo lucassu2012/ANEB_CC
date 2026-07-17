@@ -105,6 +105,7 @@ object AdapterSpecLoader {
         @SerialName("launch_hint") val launchHint: String = "",
         @SerialName("input_node") val inputNode: NodeRuleDto,
         @SerialName("response_node") val responseNode: NodeRuleDto,
+        @SerialName("send_button") val sendButton: SendButtonRuleDto,
         @SerialName("observe_events") val observeEvents: List<String>,
         @SerialName("kpi_mapping") val kpiMapping: Map<String, KpiProxyDto>,
         @SerialName("caliber_redlines") val caliberRedlines: CaliberDto,
@@ -119,6 +120,7 @@ object AdapterSpecLoader {
             launchHint = launchHint,
             inputNode = inputNode.toModel(),
             responseNode = responseNode.toModel(),
+            sendButton = sendButton.toModel(),
             observeEvents = observeEvents,
             kpiMapping = kpiMapping.mapValues { (_, v) -> KpiProxy(v.proxyFor, v.caliber) },
             caliber = CaliberRedlines(
@@ -138,6 +140,26 @@ object AdapterSpecLoader {
         val note: String = "",
     ) {
         fun toModel() = NodeRule(viewIdRegex, classNameRegex, textRegex, status, note)
+    }
+
+    /**
+     * 发送按钮匹配规则 DTO（send-anchor v2 点击锚点；D-51 v1 input-clear 启发式失效后的方向）。
+     * 四正则维度均可空（缺=不启用该维度）；[contentDescRegex] 为按钮无障碍描述（如「发送」），
+     * 是 View/Compose 两栈发送按钮常见可匹配特征。CLICKED 事件仅用**事件自带**字段
+     * （className/text/contentDescription）匹配，绝不取 event.source（R-16，跨进程 IPC）——
+     * 故 [viewIdRegex] 运行时不评估，仅留存备真机诊断回填参考（同 response_node.view_id_regex）。
+     */
+    @Serializable
+    data class SendButtonRuleDto(
+        @SerialName("view_id_regex") val viewIdRegex: String? = null,
+        @SerialName("class_name_regex") val classNameRegex: String? = null,
+        @SerialName("text_regex") val textRegex: String? = null,
+        @SerialName("content_desc_regex") val contentDescRegex: String? = null,
+        val status: String = STATUS_PENDING,
+        val note: String = "",
+    ) {
+        fun toModel() =
+            SendButtonRule(viewIdRegex, classNameRegex, textRegex, contentDescRegex, status, note)
     }
 
     @Serializable
@@ -169,6 +191,7 @@ data class AdapterSpec(
     val launchHint: String,
     val inputNode: NodeRule,
     val responseNode: NodeRule,
+    val sendButton: SendButtonRule,
     val observeEvents: List<String>,
     val kpiMapping: Map<String, KpiProxy>,
     val caliber: CaliberRedlines,
@@ -176,6 +199,21 @@ data class AdapterSpec(
     /** 真机验证前恒 true——驱动的一切输出恒标 LOW/INCONCLUSIVE。 */
     val pendingValidation: Boolean get() = status == AdapterSpecLoader.STATUS_PENDING
 }
+
+/**
+ * 发送按钮匹配规则（send-anchor v2 点击锚点）。四正则维度均可空=不启用该维度；
+ * 全空 → 宿主 sendButtonMatch 恒不命中（R-10 诚实缺席：无数据不猜测、不武装）。
+ * [contentDescRegex]=按钮无障碍描述（如「发送」/「Send」）；[viewIdRegex] 需
+ * AccessibilityNodeInfo（getSource 跨进程），观察最小开销路径不评估（R-16），仅留存备诊断回填。
+ */
+data class SendButtonRule(
+    val viewIdRegex: String?,
+    val classNameRegex: String?,
+    val textRegex: String?,
+    val contentDescRegex: String?,
+    val status: String,
+    val note: String,
+)
 
 /**
  * 节点匹配规则（viewId/className/text 正则，均可空=不启用该维度）。

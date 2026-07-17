@@ -22,6 +22,14 @@
       "status": "PENDING-VALIDATION",
       "note": "[GUESS] 流式回复通常落在 RecyclerView 内 TextView；PENDING-VALIDATION 期间节点规则仅作标注计数、不作打点闸门（规则错误不得静默丢事件）"
     },
+    "send_button": {
+      "view_id_regex": null,
+      "class_name_regex": null,
+      "text_regex": null,
+      "content_desc_regex": null,
+      "status": "PENDING-VALIDATION",
+      "note": "[GUESS] send-anchor v2 点击锚点（TYPE_VIEW_CLICKED）：发送按钮特征待真机 ADAPTER_EVT 诊断日志（cls=/desc= 字段）反推回填。DeepSeek Compose/自绘 UI（D-51：TEXT_CHANGED 无 text 载荷，v1 input-clear 失效），className 非标准控件类，预期以 content_desc（如『发送』）为主匹配维度。四正则暂全 null → sendButtonMatch 不武装（R-10 不猜测、诚实缺席）；view_id_regex 运行时不评估（getSource 跨进程，R-16），仅留存备回填"
+    },
     "observe_events": ["TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_TEXT_CHANGED"],
     "kpi_mapping": {
       "first_delta": {
