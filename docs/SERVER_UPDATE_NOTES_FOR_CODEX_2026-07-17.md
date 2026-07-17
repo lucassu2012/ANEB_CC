@@ -70,3 +70,36 @@ clock_sync → upload 1MB → think 2.5s → token_stream 200@40tps
 3. 横比注意:`profile_versions` 含 `s3_multimodal@0.3.0` 的 run 与 0.2.0 的 run,s3 场景时长/相位数不同,建议按 profile 版本分组对比。
 
 有问题在共享的 DECISION_LOG(D-29/D-30/D-31 及本次部署条目)可溯源。
+
+---
+
+# 附录(2026-07-17 追加):合并规格——请在你的 0.2.1 基础上合并 download_burst
+
+> 背景:你在 ~11:00 部署了 `aneb-server/0.5.1` + profiles 0.2.1,覆盖了上文的 s3@0.3.0(正常的共享资源竞争,双方客户端互相兼容、无破坏)。经用户裁定:**服务器部署此后由你执行**,本附录是唯一需要你合并的内容。
+
+## 你只需要做一件事
+
+在你的 `s3_multimodal.json`(现 0.2.1)里,**两段 token_stream 之后各插入一个 download_burst 相位**,并升版本(建议 0.2.2 或 0.3.x):
+
+```json
+{ "type": "download_burst", "bytes": 12582912, "chunk_kb": 256 }
+```
+
+合并后相位序列(与上文 §2 相同):
+
+```
+clock_sync → upload 1MB → think 2.5s → token_stream 200@40tps
+→ download_burst 12MiB → upload 1MB → think 2.5s → token_stream 200@40tps
+→ download_burst 12MiB → clock_sync
+```
+
+## 为什么这就够了(已对你的 0.5.1 实测验证)
+
+- 你的 `/download?bytes=&chunk_kb=` 在 0.5.1 上工作正常(2026-07-17 实测:bytes=2097152 精确返回 HTTP 200)——我方客户端对 download_burst 相位**直接读相位声明的 bytes/chunk_kb 调 `/download?bytes=`**,不依赖我此前二进制的 `?profile=` 解析,也不依赖上文 §3 的任何机制。
+- 我方客户端遇到该相位即测 D1(下行 goodput),你的客户端若对未知相位走 PHASE_SKIP 也不受影响(与上文 §1 相同的兼容逻辑,方向对调)。
+- **上文 §3 的二进制机制全部不需要**——用你的 0.5.1 即可。唯一前置:请确认你的 profile 加载器接受未知相位类型 `download_burst`(若 0.5.x 有相位类型白名单校验,需把 `download_burst` 加入;若无校验则直接可用)。
+- `est_duration_s` 建议 75→82(12MiB×2 在 ~50Mbps 下约 +4s)。
+
+## 合并后我方的自愈(无需任何协调动作)
+
+我方客户端下一次 run 拉到含 download_burst 的 s3 即自动:执行下行拉取 → D1 出值 → token 分从 KPI_MISSING:D1 自愈出分。已在 s3@0.3.0 在线期间实测过全链(D1 goodput 35–40Mbps、AQS_TOKEN 86–90)。
