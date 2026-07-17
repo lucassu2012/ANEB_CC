@@ -32,6 +32,11 @@ import android.view.accessibility.AccessibilityManager
  *   未匹配任何规格 → **通用观察（generic mode）**：对任意前台包记录事件时戳流（机制验证路径）；
  * - 会话=前台包切换分段；时钟=SystemClock.elapsedRealtimeNanos 单调钟（与 KPI 事件同轴）；
  * - 每包统计 firstDeltaMs（观察启动→首内容变化）+ 变化间隔序列（最近 256 个环形）；
+ * - **发送锚定 TTFT（ttft_send_ms）**：TEXT_CHANGED 事件按自带 className 匹配规格
+ *   input_node.class_name_regex 分流（generic mode 兜底 EditText 正则）——输入框文本
+ *   非空→空即武装 send_anchor，其后首个非输入框内容变化闭合为一次锚定 TTFT。
+ *   **send-anchor=input-clear 启发式**：可能包含用户手动清空误检（观察口径无法区分），
+ *   恒 LOW/INCONCLUSIVE；无锚点/未闭合=null（R-10）；
  * - 输出：每 5s 或会话切换时打 KEY 日志
  *   `ADAPTER_OBS pkg=... events=N first_delta_ms=... cadence_p50_ms=...`，并发布
  *   @Volatile 只读快照 [latestSnapshot] 供 UI 读（D-02：展示层不重算）。
@@ -49,6 +54,9 @@ class AnebAccessibilityService : AccessibilityService() {
     private class SpecRuntime(val spec: AdapterSpec) {
         val classNameRegex: Regex? = spec.responseNode.classNameRegex?.toRegexSafe()
         val textRegex: Regex? = spec.responseNode.textRegex?.toRegexSafe()
+
+        /** 输入框判定正则（input_node.class_name_regex；坏正则/缺维度→null，宿主用兜底）。 */
+        val inputClassNameRegex: Regex? = spec.inputNode.classNameRegex?.toRegexSafe()
 
         /** 廉价标注判定：只用事件自带 className/首条 text，不取节点。 */
         fun ruleMatch(event: AccessibilityEvent): Boolean {
@@ -99,6 +107,15 @@ class AnebAccessibilityService : AccessibilityService() {
                 val s = switchSessionIfNeeded(pkg, now)
                 val rt = specsByPackage[pkg]
                 s.onEvent(now, ruleMatched = rt != null && rt.ruleMatch(e))
+                // 发送锚定分流：TEXT_CHANGED 且 className 命中输入框规则 → 输入框文本轨
+                // （send-anchor=input-clear 启发式）；其余（含 CONTENT_CHANGED）→ 内容变化轨。
+                if (e.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
+                    isInputBoxEvent(e, rt)
+                ) {
+                    s.onInputBoxText(textLenOf(e), now)
+                } else {
+                    s.onContentDelta(now)
+                }
             }
             else -> return
         }
@@ -115,6 +132,25 @@ class AnebAccessibilityService : AccessibilityService() {
         running = false
         Log.i(TAG, "ADAPTER_HOST_UNBOUND")
         return super.onUnbind(intent)
+    }
+
+    /**
+     * 输入框事件判定：仅用事件自带 className（绝不取 event.source，R-16）匹配当前规格
+     * input_node.class_name_regex；无规格（generic mode）或规格缺该维度/坏正则 → 兜底
+     * EditText 正则（数据缺失不瘫机制）。className 缺失 → 判非输入框。
+     */
+    private fun isInputBoxEvent(event: AccessibilityEvent, rt: SpecRuntime?): Boolean {
+        val cn = event.className ?: return false
+        val regex = rt?.inputClassNameRegex ?: GENERIC_INPUT_CLASS_REGEX
+        return regex.containsMatchIn(cn)
+    }
+
+    /** event.text 合计长度（零分配循环；只计长不读内容——文本红线不变）。 */
+    private fun textLenOf(event: AccessibilityEvent): Int {
+        var len = 0
+        val texts = event.text
+        for (i in texts.indices) len += texts[i]?.length ?: 0
+        return len
     }
 
     /** 前台包切换 → 结算旧会话（emit 终帧）并开新会话；同包返回现会话。 */
@@ -142,7 +178,8 @@ class AnebAccessibilityService : AccessibilityService() {
                 " first_delta_ms=${snap.firstDeltaMs ?: "null"}" +
                 " cadence_p50_ms=${snap.cadenceP50Ms?.let { "%.1f".format(it) } ?: "null"}" +
                 " confidence=${snap.confidence}" +
-                " reason=$reason",
+                " reason=$reason" +
+                " ttft_send_ms=${snap.ttftSendMs?.let { "%.1f".format(it) } ?: "null"}",
         )
     }
 
@@ -151,6 +188,12 @@ class AnebAccessibilityService : AccessibilityService() {
 
         /** 统计输出节流间隔（5s；会话切换额外立即输出）。 */
         private const val EMIT_INTERVAL_NANOS = 5_000_000_000L
+
+        /**
+         * 输入框判定兜底正则（generic mode / 规格缺 input_node.class_name_regex 时用；
+         * 数据缺失不瘫发送锚定机制）。一次编译（R-16）。
+         */
+        private val GENERIC_INPUT_CLASS_REGEX = Regex("android\\.widget\\.EditText")
 
         /** 服务是否已连接（诊断用；权威启用态请用 [isEnabled] 查系统）。 */
         @Volatile

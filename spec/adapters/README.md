@@ -33,6 +33,22 @@
 3. **R-10**：无事件 → first_delta / cadence 记 **null**，绝不折 0。
 4. **观察模式 only**：宿主绝不 performAction / 注入任何操作（动真实账号是用户红线）。
 
+## 发送锚定 TTFT（ttft_send_ms）口径——启发式声明
+
+会话级 first_delta（观察启动→首事件）之外，宿主另测**发送锚定 TTFT**：
+
+- **send_anchor = 输入框文本非空→空**（对话类 App 发送后输入框即清空）。判定仅用
+  TYPE_VIEW_TEXT_CHANGED 事件自带 className 匹配规格 `input_node.class_name_regex`
+  （generic mode / 规格缺该维度 → 兜底 `android\.widget\.EditText` 正则，数据缺失不瘫机制；
+  绝不取 event.source，R-16）；只计文本**长度**不读内容（文本红线不变）。
+- **锚定 TTFT = send_anchor → 其后首个非输入框内容变化事件**（TYPE_WINDOW_CONTENT_CHANGED
+  或非输入框 TEXT_CHANGED）间隔。多次发送逐次重新武装（覆盖=取消上一个未闭合锚点）；
+  历史保留最近 8 个完成值（环形）。
+- **启发式声明（如实）**：send-anchor=input-clear 是启发式——观察口径**无法区分**
+  "发送清空"与"用户手动清空"，锚定值可能包含手动清空误检。故其驱动的一切输出
+  **恒标 LOW/INCONCLUSIVE**，不构成测量宣称。
+- **R-10**：无发送锚点 / 锚点未闭合 → `ttft_send_ms` 记 **null**，绝不折 0。
+
 ## PENDING-VALIDATION 生命周期
 
 - 当前测试机（P40）未安装豆包/DeepSeek，账号是用户资源——`package` 字段为 [COMMON] 公开渠道

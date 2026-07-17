@@ -12,7 +12,11 @@ import kotlin.math.ceil
  * ## 口径（详见 spec/adapters/ 与 [AnebAccessibilityService] KDoc 双声明）
  * - firstDeltaMs ≈ 端到端 TTFT 代理（观察会话启动→首次内容变化），含 App 渲染，非网络口径；
  * - cadenceP50Ms ≈ 流式节奏代理（变化间隔 p50，最近 [RING_CAPACITY] 个间隔环形窗口）；
- * - R-10：无事件 → firstDeltaMs=null；不足一个间隔 → cadenceP50Ms=null，绝不折 0。
+ * - ttftSendMs ≈ **发送锚定 TTFT 代理**：send_anchor（输入框文本非空→空）→ 其后首个
+ *   非输入框内容变化事件。**send-anchor=input-clear 启发式**——观察口径无法区分"发送清空"
+ *   与"用户手动清空"，可能包含手动清空误检；如实声明，恒 LOW/INCONCLUSIVE；
+ * - R-10：无事件 → firstDeltaMs=null；不足一个间隔 → cadenceP50Ms=null；
+ *   无发送锚点/锚点未闭合 → ttftSendMs=null，绝不折 0。
  *
  * 线程模型：单写者（无障碍回调线程）调用 [onEvent]/[snapshot]；跨线程只经
  * [AdapterObsSnapshot]（不可变，@Volatile 发布）传递，本类自身不做同步。
@@ -27,6 +31,10 @@ class ObsSessionStats(
     companion object {
         /** 保留最近多少个变化间隔（环形覆盖，任务书钉死 256）。 */
         const val RING_CAPACITY = 256
+
+        /** 发送锚定 TTFT 历史保留条数（环形覆盖，任务书钉死 8）。 */
+        const val SEND_HISTORY_CAPACITY = 8
+
         private const val NONE = Long.MIN_VALUE
     }
 
@@ -37,6 +45,20 @@ class ObsSessionStats(
     private val ring = LongArray(RING_CAPACITY)
     private var ringSize = 0
     private var ringNext = 0
+
+    // ── 发送锚定 TTFT 状态机（send-anchor=input-clear 启发式，见类 KDoc 口径段）──
+    /** 上一次输入框文本是否非空（非空→空转变=锚点武装条件）。 */
+    private var lastInputNonEmpty = false
+
+    /** 当前未闭合锚点时戳；NONE=无锚点。重新武装即覆盖（=取消上一个未闭合锚点）。 */
+    private var sendAnchorNanos = NONE
+
+    /** 最近一次**完成**的发送锚定 TTFT（纳秒）；NONE=尚无完成值（R-10 → null）。 */
+    private var lastTtftSendNanos = NONE
+
+    private val sendRing = LongArray(SEND_HISTORY_CAPACITY)
+    private var sendRingSize = 0
+    private var sendRingNext = 0
 
     /**
      * 热路径：记一次内容变化事件。仅打戳/环形写/计数，O(1) 零分配。
@@ -56,6 +78,35 @@ class ObsSessionStats(
         lastEventNanos = nowNanos
     }
 
+    /**
+     * 热路径：输入框文本变化（宿主按事件 className 匹配 input_node.class_name_regex 分流）。
+     * 文本从非空→空 = **send_anchor 武装**（对话类 App 发送后输入框即清空的启发式；
+     * 用户手动清空同样武装——观察口径无法区分，如实声明，恒 LOW/INCONCLUSIVE）。
+     * 重复武装覆盖（=取消）上一个未闭合锚点。O(1) 零分配；只收文本**长度**不收内容
+     * （不读取、不存储任何文本内容的红线不变）。
+     */
+    fun onInputBoxText(textLen: Int, tsNanos: Long) {
+        if (lastInputNonEmpty && textLen == 0) {
+            sendAnchorNanos = tsNanos // 非空→空：武装（覆盖旧未闭合锚点）
+        }
+        lastInputNonEmpty = textLen > 0
+    }
+
+    /**
+     * 热路径：非输入框内容变化——闭合最近未闭合锚点得一次发送锚定 TTFT，
+     * 写入最近值 + 历史环形（≤[SEND_HISTORY_CAPACITY]）。无锚点则无操作。O(1) 零分配。
+     */
+    fun onContentDelta(tsNanos: Long) {
+        val anchor = sendAnchorNanos
+        if (anchor == NONE) return
+        val delta = tsNanos - anchor
+        lastTtftSendNanos = delta
+        sendRing[sendRingNext] = delta
+        sendRingNext = (sendRingNext + 1) % SEND_HISTORY_CAPACITY
+        if (sendRingSize < SEND_HISTORY_CAPACITY) sendRingSize++
+        sendAnchorNanos = NONE
+    }
+
     /** 聚合出不可变快照（仅节流/会话切换时调用；含排序，不进热路径）。 */
     fun snapshot(nowNanos: Long): AdapterObsSnapshot = AdapterObsSnapshot(
         pkg = pkg,
@@ -70,7 +121,22 @@ class ObsSessionStats(
         cadenceP50Ms = cadenceP50Ms(),
         sessionStartNanos = observeStartNanos,
         updatedAtNanos = nowNanos,
+        ttftSendMs = if (lastTtftSendNanos == NONE) {
+            null // R-10：无发送锚点/锚点未闭合=未测，绝不折 0
+        } else {
+            lastTtftSendNanos / 1_000_000.0
+        },
+        ttftSendHistory = ttftSendHistory(),
     )
+
+    /** 历史环形 → 时间升序列表（仅快照时调用，不进热路径）。 */
+    private fun ttftSendHistory(): List<Double> {
+        if (sendRingSize == 0) return emptyList()
+        val start = if (sendRingSize < SEND_HISTORY_CAPACITY) 0 else sendRingNext
+        return List(sendRingSize) { i ->
+            sendRing[(start + i) % SEND_HISTORY_CAPACITY] / 1_000_000.0
+        }
+    }
 
     /**
      * 最近秩 p50（nearest-rank，rank=ceil(p×n)——与 KpiCalculator.percentileOrNull 同约定）。
@@ -103,6 +169,14 @@ data class AdapterObsSnapshot(
     val cadenceP50Ms: Double?,
     val sessionStartNanos: Long,
     val updatedAtNanos: Long,
+    /**
+     * 发送锚定 TTFT 代理，ms：send_anchor（输入框非空→空）→ 其后首个非输入框内容变化；
+     * 取最近一次**完成**值。**send-anchor=input-clear 启发式**——可能包含用户手动清空误检
+     * （观察口径无法区分），恒 LOW/INCONCLUSIVE；无锚点/未闭合=null（R-10）。
+     */
+    val ttftSendMs: Double? = null,
+    /** 历次完成的发送锚定 TTFT（最近 [ObsSessionStats.SEND_HISTORY_CAPACITY]=8 个环形，时间升序）。 */
+    val ttftSendHistory: List<Double> = emptyList(),
 ) {
     val confidence: String get() = CONFIDENCE
 
