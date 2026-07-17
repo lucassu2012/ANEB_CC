@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0.0",
+  "adapter": {
+    "id": "doubao",
+    "display_name": "豆包",
+    "app_id": "doubao-android",
+    "package": "com.larus.nova",
+    "package_note": "[COMMON] 待装机核实：公开渠道普遍报告豆包 Android 包名为 com.larus.nova；P40 装机后以前台窗口实况（dumpsys window / ADAPTER_OBS 日志 pkg 字段）核实，不符即改此字段并升 PATCH 版本",
+    "status": "PENDING-VALIDATION",
+    "launch_hint": "由用户手动启动豆包并进入对话页；宿主为观察模式 only——绝不代启动 App、绝不 performAction/注入任何操作（动真实账号是用户红线）",
+    "input_node": {
+      "view_id_regex": null,
+      "class_name_regex": "android\\.widget\\.EditText",
+      "text_regex": null,
+      "status": "PENDING-VALIDATION",
+      "note": "[GUESS] 对话输入框通常为 EditText；真机 uiautomator dump 后回填精确 view_id_regex 并撤销 PENDING-VALIDATION"
+    },
+    "response_node": {
+      "view_id_regex": null,
+      "class_name_regex": "android\\.widget\\.TextView|androidx\\.recyclerview\\.widget\\.RecyclerView",
+      "text_regex": null,
+      "status": "PENDING-VALIDATION",
+      "note": "[GUESS] 流式回复通常落在 RecyclerView 内 TextView；PENDING-VALIDATION 期间节点规则仅作标注计数、不作打点闸门（规则错误不得静默丢事件）"
+    },
+    "observe_events": ["TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_TEXT_CHANGED"],
+    "kpi_mapping": {
+      "first_delta": {
+        "proxy_for": "端到端 TTFT 代理（观察会话启动→首次内容变化事件）",
+        "caliber": "无障碍打点≈帧级精度上界（约 16–33ms），含 App 渲染管线，非网络口径；与 Profile 2 服务端仿真口径严格分标，两者数值不可互比"
+      },
+      "delta_cadence": {
+        "proxy_for": "流式节奏代理（内容变化事件间隔序列 p50，最近 256 个间隔环形窗口）",
+        "caliber": "同 first_delta 口径声明；变化事件受系统事件合流/节流影响，仅作节奏代理，不构成 ITL 测量宣称"
+      }
+    },
+    "caliber_redlines": {
+      "claim_scope": "无障碍打点=端到端体验代理（含 App 渲染），≠网络口径；与 Profile 2 服务端仿真口径严格分标",
+      "confidence_ceiling": "本规格 PENDING-VALIDATION 撤销前，其驱动的一切输出恒标 LOW/INCONCLUSIVE，观察模式不构成测量宣称",
+      "r10": "无事件→first_delta/cadence 记 null，绝不以 0 或哨兵值顶替"
+    }
+  }
+}

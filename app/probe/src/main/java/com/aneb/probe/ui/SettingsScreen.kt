@@ -1,5 +1,7 @@
 package com.aneb.probe.ui
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -25,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,9 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.adapter.AdapterObsSnapshot
+import com.aneb.probe.adapter.AnebAccessibilityService
 import com.aneb.probe.engine.TestEngine
 import com.aneb.probe.ui.components.GlassChrome
 import com.aneb.probe.ui.components.SectionLabel
@@ -46,6 +52,7 @@ import com.aneb.probe.ui.theme.AnebElevation
 import com.aneb.probe.ui.theme.AnebShapes
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.AnebType
+import kotlinx.coroutines.delay
 
 /**
  * 设置页（设计稿 §设置，iOS 化）：服务器（bare-IP 默认 / sslip.io / 自定义）、模式（快测/取证）、
@@ -159,6 +166,95 @@ fun SettingsScreen(
                 showChevron = true,
                 onClick = onOpenReachBoard,
             )
+        }
+
+        // ---- Profile 3 适配器（观察模式）----
+        // 系统无障碍启用态 + 观察快照为 1s 只读轮询（系统状态查询，与测量语义正交，
+        // 故不经 MainActivity 状态提升）；快照是宿主 @Volatile 发布的不可变 data class，
+        // UI 只读不重算（D-02）；null 字段显示 "null" 不折 0（R-10）。
+        SectionLabel("Profile 3 适配器（观察模式）")
+        val context = LocalContext.current
+        var a11yEnabled by remember { mutableStateOf(false) }
+        var obsSnapshot by remember { mutableStateOf<AdapterObsSnapshot?>(null) }
+        LaunchedEffect(Unit) {
+            while (true) {
+                a11yEnabled = AnebAccessibilityService.isEnabled(context)
+                obsSnapshot = AnebAccessibilityService.latestSnapshot
+                delay(1_000)
+            }
+        }
+        GroupedCard {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("无障碍观察服务", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.ink)
+                    Text(
+                        "观察模式 only：仅记录事件时戳，绝不注入操作 · 端到端体验代理，非网络口径",
+                        fontSize = 11.5.sp,
+                        color = colors.muted,
+                    )
+                }
+                Text(
+                    if (a11yEnabled) "已启用" else "未启用",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (a11yEnabled) colors.excellent else colors.muted,
+                )
+            }
+            HairlineDivider()
+            if (!a11yEnabled) {
+                OptionRow(
+                    title = "去系统设置开启",
+                    subtitle = "系统设置 › 无障碍 › ANEB Profile 3 观察打点（只读）",
+                    selected = false,
+                    showChevron = true,
+                    onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    },
+                )
+            } else {
+                val snap = obsSnapshot
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                ) {
+                    if (snap == null) {
+                        Text(
+                            "暂无观察快照——切到任意前台 App 产生事件后回看（≤5s 节流刷新）",
+                            fontSize = 12.sp,
+                            color = colors.muted,
+                        )
+                    } else {
+                        Text(
+                            "${snap.pkg} · ${snap.specId ?: "generic（通用观察）"}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.ink,
+                        )
+                        Text(
+                            "事件 ${snap.events} · first_delta " +
+                                (snap.firstDeltaMs?.let { "${it}ms" } ?: "null") +
+                                " · 节奏p50 " +
+                                (snap.cadenceP50Ms?.let { "${it.toLong()}ms" } ?: "null"),
+                            fontSize = 12.sp,
+                            color = colors.muted,
+                        )
+                        Text(
+                            "恒标 ${snap.confidence}（观察模式不构成测量宣称）",
+                            fontSize = 11.sp,
+                            color = colors.faint,
+                        )
+                    }
+                }
+            }
         }
 
         // ---- 路测开关（隐私边界，危险项二次确认）----

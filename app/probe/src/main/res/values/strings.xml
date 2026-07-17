@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ANEB 网络测试</string>
+    <!-- Profile 3 适配器宿主（观察模式 only）：系统无障碍设置页展示文案 -->
+    <string name="adapter_obs_service_label">ANEB Profile 3 观察打点（只读）</string>
+    <string name="adapter_obs_service_description">仅记录前台应用内容变化的时间戳，用于端到端网络体验研究打点（观察模式）：不执行任何点击、输入或手势操作，不读取、不存储任何文本内容。</string>
     <color name="ic_launcher_background">#0A0E17</color>
 </resources>

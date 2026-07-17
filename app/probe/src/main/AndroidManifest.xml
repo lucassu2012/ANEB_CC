@@ -32,5 +32,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Profile 3 适配器宿主：无障碍观察打点服务（观察模式 only——绝不 performAction/
+             注入任何操作，不读取/存储文本内容；口径=端到端体验代理≠网络口径，详见
+             AnebAccessibilityService KDoc 与 spec/adapters/）。exported=true 但由系统签名
+             权限 BIND_ACCESSIBILITY_SERVICE 守护——仅系统 AccessibilityManagerService 可绑定。 -->
+        <service
+            android:name=".adapter.AnebAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true"
+            android:label="@string/adapter_obs_service_label">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
     </application>
 </manifest>
