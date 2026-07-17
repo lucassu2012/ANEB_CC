@@ -1,0 +1,503 @@
+{
+  "schema_version": "1.0.0",
+  "profiles": [
+    {
+      "id": "token_experience",
+      "displayName": "Token 体验",
+      "tagline": "AI 流式交互取证 → AQS 分",
+      "business": "从真实 AI 交互视角评估体验：首字快不快、吐字稳不稳、卡顿多不多——直接对应“用起来爽不爽”。",
+      "metrics": [
+        { "name": "Token 速率", "unit": "tok/s", "dynamic": true },
+        { "name": "字间时延 ITL", "unit": "ms", "dynamic": true },
+        { "name": "首字时延 TTFT", "unit": "ms", "dynamic": false },
+        { "name": "卡顿", "unit": "次", "dynamic": false }
+      ],
+      "conclusion": "多场景 KPI 加权 → AQS 分与分级（优/良/可/差）+ 取证明细视图。",
+      "version": "token-profile@0.3.0",
+      "businessType": {
+        "summary": "用户在 kimi/deepseek/qwen 对话框的多模态互动——上行 KB 文本、MB 文档、10MB 图、100MB 视频（大小可调、可多次）；下行返回文本/文档/图片/视频。ANEB 为模拟（非真实 API 接入），stimulus 由服务端行为模型确定性生成。",
+        "subScenarios": [
+          {
+            "code": "TK-1",
+            "title": "纯文本对话",
+            "uplink": "KB 文本（~2KB 单次微突发，chunk 2KB）",
+            "downlink": "稳态 token 流（40 tps，600 tok）",
+            "behaviorHint": ["LOW_LATENCY", "STABILITY"]
+          },
+          {
+            "code": "TK-2",
+            "title": "文档理解",
+            "uplink": "MB 文档（0.5–5MB，可多次，chunk 64KB）",
+            "downlink": "结构化摘要流（40–60 tps）",
+            "behaviorHint": ["UPLINK_BURST", "LOW_LATENCY"]
+          },
+          {
+            "code": "TK-3",
+            "title": "图片多模态",
+            "uplink": "10MB 图（上下行交替，可多次）",
+            "downlink": "视觉分析代码流（40 tps，200 tok×N）",
+            "behaviorHint": ["UPLINK_BURST", "STABILITY"]
+          },
+          {
+            "code": "TK-4",
+            "title": "视频多模态",
+            "uplink": "100MB 视频（持续大流，单次可调）",
+            "downlink": "文本流可夹图/视频返回",
+            "behaviorHint": ["UPLINK_BURST", "STABILITY"]
+          },
+          {
+            "code": "TK-5",
+            "title": "下行大对象",
+            "uplink": "KB 触发指令",
+            "downlink": "10–100MB 图/视频 bulk（走 /download，纳入 D1）",
+            "behaviorHint": ["DOWNLINK_BANDWIDTH"]
+          },
+          {
+            "code": "TK-6",
+            "title": "编码 Agent",
+            "uplink": "MB prompt(512KB) + 工具上行 8KB×8",
+            "downlink": "突发簇代码流(100tps，簇间 pause) + 工具下行 2KB×8",
+            "behaviorHint": ["LOW_LATENCY", "UPLINK_BURST", "STABILITY"]
+          }
+        ]
+      },
+      "metricSpecs": [
+        {
+          "id": "T1",
+          "name": "首Token时延 TTFT",
+          "unit": "ms",
+          "group": "T",
+          "definition": "prompt 末字节 → 首 token 首字节，减服务端已知注入 dwell（network-only 口径进 AQS）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 200.0, "good": 500.0, "fair": 1000.0, "poorFloor": 3000.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "T1_ANCHORS"
+        },
+        {
+          "id": "T2",
+          "name": "字间时延 ITL P95",
+          "unit": "ms",
+          "group": "T",
+          "definition": "校正 ITL=相邻到达间隔−flush 间隔+名义间隔，剔合帧伪 0 与 resume",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 100.0, "good": 200.0, "fair": 400.0, "poorFloor": 1200.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "T2_ANCHORS"
+        },
+        {
+          "id": "T3",
+          "name": "卡顿率",
+          "unit": "ratio",
+          "group": "T",
+          "definition": "校正 ITL>200ms 占比（样本集同 T2 主口径，不含 resume）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 0.005, "good": 0.02, "fair": 0.05, "poorFloor": 0.15, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "T3_ANCHORS"
+        },
+        {
+          "id": "T4",
+          "name": "严重卡顿率",
+          "unit": "ratio",
+          "group": "T",
+          "definition": "校正 ITL>1000ms 占比；>1% 一票否决封顶 54",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 0.0, "good": 0.002, "fair": 0.01, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "TPS",
+          "name": "TPS",
+          "unit": "tok/s",
+          "group": "BIZ",
+          "definition": "有效 TPS=已收 token/到达跨度，对照 offered=rate_tps（达成率辅助）",
+          "direction": "HIGHER_BETTER",
+          "target": { "excellent": 0.95, "good": 0.90, "fair": 0.80, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "PROXY",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "S1",
+          "name": "会话完成率",
+          "unit": "ratio",
+          "group": "S",
+          "definition": "成功轮次/总轮次；成功=流未截断∧gap≤1%∧无 INVALID∧上传 2xx（传输完整性口径，非 AI 正确率）",
+          "direction": "HIGHER_BETTER",
+          "target": { "excellent": 0.99, "good": 0.97, "fair": 0.95, "poorFloor": 0.90, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "TOKB",
+          "name": "Token/字节消耗",
+          "unit": "count",
+          "group": "BIZ",
+          "definition": "token 事件数 + Σlognormal 字节（确定性已知，不随网络变化）",
+          "direction": "HIGHER_BETTER",
+          "target": { "excellent": null, "good": null, "fair": null, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "DERIVED",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "U1",
+          "name": "上行 goodput",
+          "unit": "Mbps",
+          "group": "U",
+          "definition": "2xx 口径=字节×8/耗时，含慢启动主口径 + 剔慢启动并列口径",
+          "direction": "HIGHER_BETTER",
+          "target": {
+            "excellent": 20.0, "good": 5.0, "fair": 1.0, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD",
+            "perPayloadBand": {
+              "MB": { "excellent": 20.0, "good": 8.0, "fair": 5.0 },
+              "10MB": { "excellent": 25.0, "good": 12.0, "fair": 8.0 },
+              "100MB": { "excellent": 25.0, "good": 15.0, "fair": 10.0 }
+            }
+          },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "U1_ANCHORS"
+        },
+        {
+          "id": "D1",
+          "name": "下行 goodput",
+          "unit": "Mbps",
+          "group": "D",
+          "definition": "GET /download 无限速 2xx 有效字节×8/耗时，逐次 P50（token 流受 pacing 禁作带宽）",
+          "direction": "HIGHER_BETTER",
+          "target": {
+            "excellent": 25.0, "good": 8.0, "fair": 2.0, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD",
+            "perPayloadBand": {
+              "10MB": { "excellent": 20.0, "good": 12.0, "fair": 8.0 },
+              "100MB": { "excellent": 25.0, "good": 15.0, "fair": 10.0 }
+            }
+          },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "D1_ANCHORS"
+        },
+        {
+          "id": "N1",
+          "name": "RTT P50",
+          "unit": "ms",
+          "group": "N",
+          "definition": "echo 应用层往返 P50，剔服务端驻留(t2−t1)、剔 2–3 预热样本",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 30.0, "good": 60.0, "fair": 100.0, "poorFloor": 300.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "N1_ANCHORS"
+        },
+        {
+          "id": "N2",
+          "name": "抖动",
+          "unit": "ms",
+          "group": "N",
+          "definition": "RTT P95−P50（分位差口径，非逐包 IPDV）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 10.0, "good": 30.0, "fair": 80.0, "poorFloor": 240.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "N2_ANCHORS"
+        },
+        {
+          "id": "U2",
+          "name": "工具循环时延 P95",
+          "unit": "ms",
+          "group": "C",
+          "definition": "tool_loop 单轮 − 服务端 proc 的 P95（proc 优先用实测 X-Aneb-Trecv/Tsend）；仅 TK-6",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 150.0, "good": 300.0, "fair": 600.0, "poorFloor": 1800.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "U2_ANCHORS"
+        },
+        {
+          "id": "LOSS",
+          "name": "丢包代理",
+          "unit": "ratio",
+          "group": "N",
+          "definition": "代理 seqGap（TCP 下≈0）+ retrans_total 共变量；无独立门限（诊断/共变量）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": null, "good": null, "fair": null, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "NOT_MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        }
+      ],
+      "live": [
+        { "id": "tps", "label": "Token 速率", "unit": "tok/s", "source": "tokenRatePerSec", "render": "RUNNING_NUMBER", "windowMs": 1000, "refreshMs": 200 },
+        { "id": "rtt", "label": "RTT", "unit": "ms", "source": "rttMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 },
+        { "id": "itl", "label": "字间时延 ITL", "unit": "ms", "source": "itlRecentMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 },
+        { "id": "up", "label": "上行速率", "unit": "Mbps", "source": "liveUpMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
+        { "id": "aqs", "label": "AQS 运行分", "unit": "", "source": "aqsRunning", "render": "RUNNING_NUMBER", "windowMs": 0, "refreshMs": 0 }
+      ],
+      "scoring": {
+        "engine": "AqsScorer",
+        "weightsTableId": "WEIGHTS_TOKEN_MM",
+        "vetoRules": [
+          { "kpiId": "T4", "op": "gt", "threshold": 0.01, "cap": 54.0 },
+          { "kpiId": "S1", "op": "lt", "threshold": 0.95, "cap": 70.0 },
+          { "kpiId": "S1", "op": "lt", "threshold": 0.90, "cap": 54.0 }
+        ],
+        "renormalizeOnDesignDefault": true,
+        "gradeMapId": "aqsGrade",
+        "behaviorRuleId": "token_dual_evidence",
+        "recommendationTemplateId": "token_sla_recommendation"
+      }
+    },
+    {
+      "id": "basic_network",
+      "displayName": "网络基本性能",
+      "tagline": "SpeedTest 式上下行速率 + 时延",
+      "business": "评估这条网络的原始承载力：能否流畅收发大对象、时延是否够低——判断底层网络是否适合 AI 对话 / 编码 / 多模态。",
+      "metrics": [
+        { "name": "下行速率", "unit": "Mbps", "dynamic": true },
+        { "name": "上行速率", "unit": "Mbps", "dynamic": true },
+        { "name": "时延", "unit": "ms", "dynamic": true },
+        { "name": "抖动", "unit": "ms", "dynamic": false }
+      ],
+      "conclusion": "上下行 / 时延 / 抖动四门限 → 优良·尚可·偏弱，并给 AI 使用场景建议。",
+      "version": "basic-network-profile@0.1.0",
+      "businessType": {
+        "summary": "评估这条网络的原始承载力（不含 AI 语义）：裸测 /download·/upload·/echo，无 pacing 干扰、最纯净口径，判断底层网络是否适合 AI 对话/编码/多模态。",
+        "subScenarios": [
+          {
+            "code": "BN-1",
+            "title": "下行排空",
+            "uplink": "KB 触发",
+            "downlink": "unpaced /download 持续排空（读到即到达）",
+            "behaviorHint": ["DOWNLINK_BANDWIDTH"]
+          },
+          {
+            "code": "BN-2",
+            "title": "上行灌注",
+            "uplink": "应用层 socket 持续发送",
+            "downlink": "2xx 确认",
+            "behaviorHint": ["UPLINK_BURST"]
+          },
+          {
+            "code": "BN-3",
+            "title": "时延基线",
+            "uplink": "echo 小包",
+            "downlink": "echo 回包（剔驻留）",
+            "behaviorHint": ["LOW_LATENCY"]
+          }
+        ]
+      },
+      "metricSpecs": [
+        {
+          "id": "D1",
+          "name": "下行速率",
+          "unit": "Mbps",
+          "group": "D",
+          "definition": "GET /download 无限速 identity，字节×8/耗时（观测展示口径）",
+          "direction": "HIGHER_BETTER",
+          "target": { "excellent": 25.0, "good": 8.0, "fair": 2.0, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "U1",
+          "name": "上行速率",
+          "unit": "Mbps",
+          "group": "U",
+          "definition": "POST /upload 应用层 socket 发送吞吐（≈真实上行）",
+          "direction": "HIGHER_BETTER",
+          "target": { "excellent": 20.0, "good": 5.0, "fair": 1.0, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "N1",
+          "name": "时延 RTT",
+          "unit": "ms",
+          "group": "N",
+          "definition": "POST /echo 应用层往返 P50，剔服务端驻留(t2−t1)、剔预热",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 30.0, "good": 60.0, "fair": 100.0, "poorFloor": 300.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "N2",
+          "name": "抖动",
+          "unit": "ms",
+          "group": "N",
+          "definition": "RTT P95−P50（分位差口径，非逐包 IPDV）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 10.0, "good": 30.0, "fair": 80.0, "poorFloor": 240.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "FAIL",
+          "name": "请求失败率",
+          "unit": "ratio",
+          "group": "S",
+          "definition": "应用层请求非 2xx/IOException 占比",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 0.0, "good": 0.005, "fair": 0.01, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        }
+      ],
+      "live": [
+        { "id": "dl", "label": "下行速率", "unit": "Mbps", "source": "liveDownMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
+        { "id": "ul", "label": "上行速率", "unit": "Mbps", "source": "liveUpMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
+        { "id": "rtt", "label": "时延", "unit": "ms", "source": "rttMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 }
+      ],
+      "scoring": {
+        "engine": "ThresholdGrader",
+        "weightsTableId": "",
+        "vetoRules": [],
+        "renormalizeOnDesignDefault": false,
+        "gradeMapId": "fourThreshold",
+        "behaviorRuleId": "",
+        "recommendationTemplateId": "ai_scenario_fitness"
+      }
+    },
+    {
+      "id": "voice_realtime",
+      "displayName": "AI 实时交互",
+      "tagline": "GPT-Live 式语音双工 · 口到耳预算",
+      "business": "全双工语音对话（GPT-Live 式）：上行连续音频帧 + 下行 TTS 帧流——口到耳时延与帧抖动决定对话自然度，对连续性/抖动远比吞吐敏感。",
+      "metrics": [
+        { "name": "口到耳预算", "unit": "ms", "dynamic": true },
+        { "name": "帧间抖动", "unit": "ms", "dynamic": true },
+        { "name": "RTT", "unit": "ms", "dynamic": true },
+        { "name": "帧接收", "unit": "帧", "dynamic": false }
+      ],
+      "conclusion": "WEIGHTS_VOICE 加权出分（M 组+基线）+ M1>400ms 硬否决 → 优/良/可/差。",
+      "version": "voice-profile@0.1.0",
+      "businessType": {
+        "summary": "模拟 GPT-Live 语音互动的网络承载：20ms 帧节奏小包双工（Opus 量级 160B/帧）。上行=连续采集帧（uploadPaced→服务端 chunk_us），下行=TTS 帧流（/stream 50tps）。",
+        "subScenarios": [
+          {
+            "code": "VC-1",
+            "title": "连续对话",
+            "uplink": "20ms×160B 连续上行帧",
+            "downlink": "50fps TTS 帧流",
+            "behaviorHint": ["LOW_LATENCY", "STABILITY"]
+          },
+          {
+            "code": "VC-2",
+            "title": "打断插话",
+            "uplink": "barge-in 突发帧（未接入）",
+            "downlink": "TTS 停止+轮次切换（未接入）",
+            "behaviorHint": ["LOW_LATENCY"]
+          },
+          {
+            "code": "VC-3",
+            "title": "长时保活",
+            "uplink": "静音期心跳（未接入）",
+            "downlink": "持续会话（未接入）",
+            "behaviorHint": ["STABILITY"]
+          }
+        ]
+      },
+      "metricSpecs": [
+        {
+          "id": "M1",
+          "name": "口到耳预算",
+          "unit": "ms",
+          "group": "N",
+          "definition": "RTT_P50 + max(上/下行帧抖动 P95) + 编解码/播放缓冲名义常数 60ms（网络贡献的口到耳下界预算，非真实音频链路实测）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 150.0, "good": 300.0, "fair": 400.0, "poorFloor": 1200.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "DERIVED",
+          "scored": true,
+          "anchorRef": "M1_ANCHORS"
+        },
+        {
+          "id": "M2",
+          "name": "下行帧间抖动 P95",
+          "unit": "ms",
+          "group": "N",
+          "definition": "TTS 帧到达间隔对名义 20ms 的偏差绝对值 P95（客户端 arrivalNanos）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 10.0, "good": 30.0, "fair": 80.0, "poorFloor": 240.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "M_FRAME_JITTER_ANCHORS"
+        },
+        {
+          "id": "M3",
+          "name": "上行帧间抖动 P95",
+          "unit": "ms",
+          "group": "N",
+          "definition": "上行帧到达间隔对名义 20ms 的偏差绝对值 P95（服务端 chunk_us 权威；含客户端发送调度抖动，观测上界）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 10.0, "good": 30.0, "fair": 80.0, "poorFloor": 240.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "M_FRAME_JITTER_ANCHORS"
+        },
+        {
+          "id": "FRLOSS",
+          "name": "帧丢失",
+          "unit": "ratio",
+          "group": "N",
+          "definition": "TCP 重传掩盖真实丢帧——代理=期望−实收帧数（通常 0）；真丢帧需 UDP 媒体通道",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 0.0, "good": 0.01, "fair": 0.03, "poorFloor": null, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "NOT_MEASURABLE",
+          "scored": false,
+          "anchorRef": null
+        },
+        {
+          "id": "N1",
+          "name": "RTT P50",
+          "unit": "ms",
+          "group": "N",
+          "definition": "echo 应用层往返 P50（墙钟，丢建连首样本）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 30.0, "good": 60.0, "fair": 100.0, "poorFloor": 300.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "N1_ANCHORS"
+        },
+        {
+          "id": "N2",
+          "name": "抖动",
+          "unit": "ms",
+          "group": "N",
+          "definition": "RTT 相邻差中位（观测口径）",
+          "direction": "LOWER_BETTER",
+          "target": { "excellent": 10.0, "good": 30.0, "fair": 80.0, "poorFloor": 240.0, "slaPercentile": 0.95, "slaTargetLevel": "GOOD", "perPayloadBand": null },
+          "measurability": "MEASURABLE",
+          "scored": true,
+          "anchorRef": "N2_ANCHORS"
+        }
+      ],
+      "live": [
+        { "id": "m2e", "label": "口到耳预算", "unit": "ms", "source": "voice.mouthEarBudgetMs", "render": "RUNNING_NUMBER", "windowMs": 0, "refreshMs": 200 },
+        { "id": "fj", "label": "帧间抖动", "unit": "ms", "source": "voice.frameJitterMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 },
+        { "id": "rtt", "label": "RTT", "unit": "ms", "source": "rttMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 }
+      ],
+      "scoring": {
+        "engine": "AqsScorer",
+        "weightsTableId": "WEIGHTS_VOICE",
+        "vetoRules": [
+          { "kpiId": "M1", "op": "gt", "threshold": 400.0, "cap": 54.0 }
+        ],
+        "renormalizeOnDesignDefault": false,
+        "gradeMapId": "aqsGrade",
+        "behaviorRuleId": "voice_latency_stability",
+        "recommendationTemplateId": "voice_sla"
+      }
+    }
+  ]
+}

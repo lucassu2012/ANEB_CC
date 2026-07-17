@@ -183,9 +183,16 @@ data class VetoRule(val kpiId: String, val op: String, val threshold: Double, va
 //  模式表（数据驱动分段开关与信息条）
 // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 模式注册表。铁律 1「Profile 即数据」：权威数据 = `assets/spec_profiles/client_profiles.json`
+ * （spec 权威副本 `spec/profiles/client/client_profiles.json`，[TestModeProfileLoader] 解析），
+ * 下方硬编码 `FALLBACK_*` 降级为 fail-safe 兜底（解析失败/无 Context 时生效，
+ * KEY=SPEC_PROFILE_FALLBACK；对拍单测 ClientProfileDataParityTest 守护两份数据零漂移）。
+ * 公共入口 [ALL]/[TOKEN_EXPERIENCE]/[BASIC_NETWORK]/[VOICE_REALTIME]/[byId] 同名同型不变。
+ */
 object TestModeProfiles {
 
-    val BASIC_NETWORK = TestModeProfile(
+    private val FALLBACK_BASIC_NETWORK = TestModeProfile(
         id = "basic_network",
         displayName = "网络基本性能",
         tagline = "SpeedTest 式上下行速率 + 时延",
@@ -274,7 +281,7 @@ object TestModeProfiles {
         ),
     )
 
-    val TOKEN_EXPERIENCE = TestModeProfile(
+    private val FALLBACK_TOKEN_EXPERIENCE = TestModeProfile(
         id = "token_experience",
         displayName = "Token 体验",
         tagline = "AI 流式交互取证 → AQS 分",
@@ -468,7 +475,7 @@ object TestModeProfiles {
      * 20ms 帧流（已对部署服务器实证）。facet4 经 AqsScorer.scoreVoice（WEIGHTS_VOICE +
      * M1>400ms 硬否决）独立出分，不并入既有 AQS。
      */
-    val VOICE_REALTIME = TestModeProfile(
+    private val FALLBACK_VOICE_REALTIME = TestModeProfile(
         id = "voice_realtime",
         displayName = "AI 实时交互",
         tagline = "GPT-Live 式语音双工 · 口到耳预算",
@@ -562,8 +569,37 @@ object TestModeProfiles {
         ),
     )
 
-    /** 分段开关顺序即此表顺序。默认选中 [TOKEN_EXPERIENCE]（首页 token 体验）。 */
-    val ALL = listOf(TOKEN_EXPERIENCE, BASIC_NETWORK, VOICE_REALTIME)
+    /** 兜底注册表（顺序即分段开关顺序，与数据文件 profiles 顺序一致）。 */
+    private val FALLBACK: List<TestModeProfile> =
+        listOf(FALLBACK_TOKEN_EXPERIENCE, FALLBACK_BASIC_NETWORK, FALLBACK_VOICE_REALTIME)
 
-    fun byId(id: String): TestModeProfile = ALL.firstOrNull { it.id == id } ?: TOKEN_EXPERIENCE
+    /** 当前生效注册表：[initFrom] 成功 → assets 数据（权威）；否则 FALLBACK（fail-safe）。 */
+    @Volatile
+    private var registry: List<TestModeProfile> = FALLBACK
+
+    /**
+     * MainActivity.onCreate 经 applicationContext 注入（项目惯例，同 TestEngine(applicationContext)）。
+     * 解析失败/缺文件时保持 FALLBACK（[TestModeProfileLoader.loadFromAssets] 已打
+     * KEY=SPEC_PROFILE_FALLBACK 日志）；幂等，可重复调用。
+     */
+    fun initFrom(context: android.content.Context) {
+        registry = TestModeProfileLoader.loadFromAssets(context) ?: FALLBACK
+    }
+
+    // ── 公共 API：同名同型保留（val→自定义 getter），既有消费方零改动 ──────────
+
+    val TOKEN_EXPERIENCE: TestModeProfile
+        get() = registry.firstOrNull { it.id == "token_experience" } ?: FALLBACK_TOKEN_EXPERIENCE
+
+    val BASIC_NETWORK: TestModeProfile
+        get() = registry.firstOrNull { it.id == "basic_network" } ?: FALLBACK_BASIC_NETWORK
+
+    val VOICE_REALTIME: TestModeProfile
+        get() = registry.firstOrNull { it.id == "voice_realtime" } ?: FALLBACK_VOICE_REALTIME
+
+    /** 分段开关顺序即此表顺序。默认选中 [TOKEN_EXPERIENCE]（首页 token 体验）。 */
+    val ALL: List<TestModeProfile>
+        get() = registry
+
+    fun byId(id: String): TestModeProfile = registry.firstOrNull { it.id == id } ?: TOKEN_EXPERIENCE
 }

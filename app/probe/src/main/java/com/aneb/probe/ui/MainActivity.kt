@@ -123,6 +123,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 铁律 1：Profile 数据文件加载（assets 权威；失败回退硬编码兜底，KEY=SPEC_PROFILE_FALLBACK）
+        TestModeProfiles.initFrom(applicationContext)
         engine = TestEngine(applicationContext)
         continuityRunner = ContinuityRunner(applicationContext)
         abRunner = AbRunner(applicationContext)
