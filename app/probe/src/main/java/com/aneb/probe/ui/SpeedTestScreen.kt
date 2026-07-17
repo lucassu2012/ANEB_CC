@@ -90,9 +90,19 @@ fun SpeedTestScreen(
         SpeedRunner.Phase.Upload -> c.brand // 上行 = 系统蓝
         else -> c.excellent
     }
-    // 当前相主指标（下行相 downMbps / 上行相 upMbps）
-    val mainVal = if (isDownload) sample?.downMbps else sample?.upMbps
-    val phasePeak = if (isDownload) peakDown else peakUp
+    val isDone = phase == SpeedRunner.Phase.Done
+    // 当前相主指标（下行相 downMbps / 上行相 upMbps）；完成态收尾显**下行峰值**
+    // （对齐 SpeedTest 最终大数，不再显 0.0；无下行峰值退上行峰值）
+    val mainVal = when {
+        isDone -> peakDown.takeIf { it > 0f }?.toDouble() ?: peakUp.takeIf { it > 0f }?.toDouble()
+        isDownload -> sample?.downMbps
+        else -> sample?.upMbps
+    }
+    val phasePeak = when {
+        isDone -> if (peakDown > 0f) peakDown else peakUp
+        isDownload -> peakDown
+        else -> peakUp
+    }
     // 量程自适应：随当前相峰值上探，最小 20 Mbps，取整到 10
     val gaugeMax = max(20f, ceil((phasePeak * 1.15f) / 10f) * 10f)
     val targetFrac = if (isPing) {
@@ -106,10 +116,11 @@ fun SpeedTestScreen(
 
     val valueText = when {
         isPing -> sample?.rttMs?.let { "%.0f".format(it) } ?: "—"
-        else -> (mainVal ?: 0.0).let { "%.1f".format(it) }
+        else -> mainVal?.let { "%.1f".format(it) } ?: "—" // 无测量值显 —（R-10，不显活的 0.0）
     }
     val unit = when {
         isPing -> "ms 时延"
+        isDone -> if (peakDown > 0f) "Mbps 下行峰值" else "Mbps 上行峰值"
         isDownload -> "Mbps 下行"
         else -> "Mbps 上行"
     }

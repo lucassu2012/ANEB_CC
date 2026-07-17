@@ -529,6 +529,27 @@ class AnebClient(bound: BoundNetwork? = null) {
         }
     }
 
+    // ---------------------------------------------------------- realtime-sim
+
+    /**
+     * `/realtime-sim` 会话工厂（D-38，语音 server-sim 口径）：**复用本 client 的 OkHttpClient**，
+     * 自动继承三红线——NO_PROXY（D-16）、绑定网 socketFactory/Dns（R-01）、
+     * retryOnConnectionFailure(false)。禁止绕过本工厂自建 WS client。
+     */
+    fun realtimeSim(
+        base: String,
+        plan: RealtimeWire.SessionPlan,
+        disconnectAfterTurn: Int? = null,
+    ): RealtimeSimSession {
+        val wsUrl = base.trim().trimEnd('/')
+            .replaceFirst("https://", "wss://")
+            .replaceFirst("http://", "ws://") +
+            "/api/v1/realtime-sim" +
+            (disconnectAfterTurn?.let { "?controlled_disconnect_after_turn=$it" } ?: "")
+        val planJson = RealtimeWire.jsonOut.encodeToString(RealtimeWire.SessionPlan.serializer(), plan)
+        return RealtimeSimSession(client, wsUrl, planJson)
+    }
+
     // -------------------------------------------------------------- toolloop
 
     /**
