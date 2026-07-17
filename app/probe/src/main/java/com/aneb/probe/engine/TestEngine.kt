@@ -33,6 +33,7 @@ import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -90,6 +91,13 @@ class TestEngine(private val context: Context) {
          * 绝不进 /results 上报体（ResultReporter 无坐标字段，单测锚定）。
          */
         val driveTest: Boolean = false,
+        /**
+         * **调试弱网伴流**（非取证；仅 DEBUG，UI 门控）：`contend:N` 在 run 全程并行 N 条背景
+         * 下行大流（`/download` 无限速），对**接入链路**制造真实拥塞——时延/抖动/卡顿/吞吐真实
+         * 劣化（bufferbloat），无需 root。RSRP/SINR 是基带物理层测量、软件不可伪造，本法不动它们。
+         * 本次 run 打 WEAKNET_CONTEND 日志、标非取证证据。null=不注入。
+         */
+        val weakNet: String? = null,
     )
 
     fun run(config: RunConfig): Flow<String> = channelFlow {
@@ -289,6 +297,25 @@ class TestEngine(private val context: Context) {
                     val snap = rateSnap.copy(liveUpMbps = liveUpMbps, subPhase = currentSubPhase.get())
                     _telemetry.value = LiveTelemetry.derive(snap)
                     delay(TELEMETRY_SAMPLE_MS)
+                }
+            }
+
+            // ---------------- 调试弱网伴流（非取证；DEBUG 门控在 UI）----------------
+            // contend:N → N 条并行背景下行大流对接入链路制造真实拥塞（bufferbloat），
+            // 全程运行、随 collectors 在 finally 统一取消。用独立 client 免污染测量连接池。
+            val contendN = config.weakNet
+                ?.substringAfter("contend:", "")?.trim()?.toIntOrNull()?.coerceIn(1, 8)
+            if (contendN != null) {
+                log("WEAKNET_CONTEND streams=$contendN note=non_forensic_debug_contention")
+                val contendClient = AnebClient(bound)
+                repeat(contendN) {
+                    collectors += launch(Dispatchers.IO) {
+                        while (isActive) {
+                            runCatching {
+                                contendClient.downloadDrain("$measureBase/api/v1/download?bytes=1073741824")
+                            }
+                        }
+                    }
                 }
             }
 

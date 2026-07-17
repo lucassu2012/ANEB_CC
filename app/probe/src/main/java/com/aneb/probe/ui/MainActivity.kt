@@ -88,6 +88,7 @@ class MainActivity : ComponentActivity() {
     private var intentMode: TestEngine.Mode = TestEngine.Mode.QUICK
     private var intentTransport: TestEngine.TransportMode = TestEngine.TransportMode.AUTO
     private var intentInject: String? = null
+    private var intentWeakNet: String? = null
     private var intentDriveTest: Boolean = false
 
     private var intentContinuity: Boolean = false
@@ -147,6 +148,7 @@ class MainActivity : ComponentActivity() {
             else -> TestEngine.TransportMode.AUTO
         }
         intentInject = if (BuildConfig.DEBUG) intent?.getStringExtra("inject") else null
+        intentWeakNet = if (BuildConfig.DEBUG) intent?.getStringExtra("weaknet") else null
         intentDriveTest = intent?.getBooleanExtra("drive_test", false) == true
         maybeApiProbeAutorun()
 
@@ -213,6 +215,7 @@ class MainActivity : ComponentActivity() {
                                         transport = transport,
                                         inject = intentInject,
                                         driveTest = driveTest,
+                                        weakNet = intentWeakNet,
                                     )
                                 ).collect { line ->
                                     addLog(line)
@@ -422,7 +425,10 @@ class MainActivity : ComponentActivity() {
                                             }
                                             android.util.Log.i("AnebProbe", "DRIVE_TEST_TOGGLE enabled=$turningOn")
                                         },
-                                        injectActive = intentInject,
+                                        injectActive = listOfNotNull(
+                                            intentInject?.let { "inject=$it" },
+                                            intentWeakNet?.let { "weaknet=$it" },
+                                        ).joinToString(" ").ifBlank { null },
                                         onOpenApiProbe = { screen = Screen.ApiProbe },
                                         // 可达性看板已降为设置二级入口（下钻屏）。
                                         onOpenReachBoard = { screen = Screen.ReachBoard },
