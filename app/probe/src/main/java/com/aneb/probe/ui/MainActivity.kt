@@ -308,7 +308,19 @@ class MainActivity : ComponentActivity() {
                         addLog(">>> SPEED -> $serverUrl")
                         speedJob = lifecycleScope.launch {
                             try {
-                                speedRunner.run(serverUrl).collect { speedSample = it }
+                                // UDP 探针网络：speed 模式未做 requestNetwork 绑定（AUTO 口径，
+                                // 与本模式 HTTP 路径一致），传当前默认网 bindSocket 使 UDP 与
+                                // HTTP 测量走同一网络；未来引入绑定网时改传 bound.network。
+                                val net = getSystemService(android.net.ConnectivityManager::class.java)
+                                    ?.activeNetwork
+                                speedRunner.run(serverUrl, network = net).collect { speedSample = it }
+                                // UDP 未返回率＝应用层探针未回显占比，≠IP 丢包率；现场协变量不进分。
+                                // unreturned=null＝"UDP 应用探针不可用"（零回包/不可达，R-10 不折 0/100）
+                                val u = speedRunner.lastUdpProbeResult
+                                addLog(
+                                    "UDP_PROBE sent=${u?.sent ?: 0} recv=${u?.received ?: 0} " +
+                                        "unreturned=${u?.unreturnedPct?.let { p -> "%.1f%%".format(p) } ?: "null"}"
+                                )
                             } catch (e: CancellationException) {
                                 throw e
                             } catch (e: Exception) {

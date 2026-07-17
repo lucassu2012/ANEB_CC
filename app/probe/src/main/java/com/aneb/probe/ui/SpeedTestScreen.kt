@@ -189,7 +189,7 @@ fun SpeedTestScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        // ---- 指标磁贴：时延 / 抖动 / 下行峰值 / 上行峰值 ----
+        // ---- 指标磁贴：时延 / 抖动 / 下行峰值 / 上行峰值 / UDP 未返回 ----
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -198,6 +198,17 @@ fun SpeedTestScreen(
             StatTile("抖动", fmt(sample?.jitterMs, "%.0f"), "ms", c.fair, Modifier.weight(1f))
             StatTile("下行峰值", if (peakDown > 0f) "%.1f".format(peakDown) else "—", "Mbps", c.excellent, Modifier.weight(1f))
             StatTile("上行峰值", if (peakUp > 0f) "%.1f".format(peakUp) else "—", "Mbps", c.brand, Modifier.weight(1f))
+            // UDP 未返回率＝应用层 ANEB1 探针未回显占比，≠IP 丢包率；现场协变量，不进任何分。
+            // 值来自引擎 Sample（D-02 UI 不重算）；null 显 "—"；探针相位已跑过（越过 Ping）仍
+            // null → 副文案"探针不可用"（零回包/不可达≠全丢，不得宣称精确 IP 丢包率）。
+            val udpRan = phase == SpeedRunner.Phase.Download || phase == SpeedRunner.Phase.Upload || isDone
+            StatTile(
+                "UDP 未返回",
+                fmt(sample?.udpUnreturnedPct, "%.1f"),
+                if (udpRan && sample?.udpUnreturnedPct == null) "探针不可用" else "%",
+                c.neutral,
+                Modifier.weight(1f),
+            )
         }
 
         Spacer(Modifier.height(16.dp))
