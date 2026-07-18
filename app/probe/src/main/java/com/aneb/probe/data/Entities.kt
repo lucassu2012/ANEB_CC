@@ -619,6 +619,8 @@ data class AdapterObsEntity(
         private val LABEL_BY_SPEC_ID: Map<String, String> = mapOf(
             "doubao" to "豆包",
             "deepseek" to "DeepSeek",
+            "tongyi" to "通义千问",
+            "kimi" to "Kimi",
         )
 
         /** 规格 id 映射友好名；null/未知规格 → null（generic 不落库，此处防御性缺退到 pkg）。 */

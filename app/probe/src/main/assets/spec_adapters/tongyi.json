@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "adapter": {
+    "id": "tongyi",
+    "display_name": "通义千问",
+    "app_id": "tongyi-android",
+    "package": "com.aliyun.tongyi",
+    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list packages 命中 com.aliyun.tongyi，前台窗口实况确认为通义千问主对话 App；ADAPTER_OBS pkg 字段预期命中（mode=tongyi）。节点规则/发送锚点待真机 uiautomator dump + ADAPTER_EVT 诊断回填",
+    "status": "VALIDATED-OBSERVED",
+    "launch_hint": "由用户手动启动通义千问并进入对话页；宿主为观察模式 only——绝不代启动 App、绝不 performAction/注入任何操作（动真实账号是用户红线）",
+    "input_node": {
+      "view_id_regex": null,
+      "class_name_regex": null,
+      "text_regex": null,
+      "status": "PENDING-VALIDATION",
+      "note": "[GUESS] 输入框节点特征待真机 uiautomator dump 反推回填。通义千问疑似 View 系（原生 EditText 概率高），但真机确认前不猜测——三正则暂全 null，class_name_regex 亦 null 让宿主走 generic 兜底（所有 TEXT_CHANGED 进观察轨，规则不作打点闸门）；view_id_regex 运行时不评估（getSource 跨进程，R-16），仅留存备回填"
+    },
+    "response_node": {
+      "view_id_regex": null,
+      "class_name_regex": null,
+      "text_regex": null,
+      "status": "PENDING-VALIDATION",
+      "note": "[GUESS] 流式回复列表节点特征待真机 uiautomator dump 反推回填。通义千问疑似 View 系（RecyclerView 内 TextView 概率高），真机确认前不猜测——三正则暂全 null，PENDING-VALIDATION 期间节点规则仅作标注计数、不作打点闸门（规则错误不得静默丢事件）"
+    },
+    "send_button": {
+      "view_id_regex": null,
+      "class_name_regex": null,
+      "text_regex": null,
+      "content_desc_regex": null,
+      "status": "PENDING-VALIDATION",
+      "note": "[GUESS] send-anchor v2 点击锚点（TYPE_VIEW_CLICKED）：发送按钮特征待真机 ADAPTER_EVT 诊断日志（cls=/desc= 字段）反推回填。通义千问疑似 View 系，预期发送按钮 className/content_desc（如「发送」）可由 DEBUG 日志观测。四正则暂全 null → sendButtonMatch 不武装（R-10 不猜测、诚实缺席）；view_id_regex 运行时不评估（getSource 跨进程，R-16），仅留存备回填"
+    },
+    "observe_events": ["TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_TEXT_CHANGED"],
+    "kpi_mapping": {
+      "first_delta": {
+        "proxy_for": "端到端 TTFT 代理（观察会话启动→首次内容变化事件）",
+        "caliber": "无障碍打点≈帧级精度上界（约 16–33ms），含 App 渲染管线，非网络口径；与 Profile 2 服务端仿真口径严格分标，两者数值不可互比"
+      },
+      "delta_cadence": {
+        "proxy_for": "流式节奏代理（内容变化事件间隔序列 p50，最近 256 个间隔环形窗口）",
+        "caliber": "同 first_delta 口径声明；变化事件受系统事件合流/节流影响，仅作节奏代理，不构成 ITL 测量宣称"
+      }
+    },
+    "caliber_redlines": {
+      "claim_scope": "无障碍打点=端到端体验代理（含 App 渲染），≠网络口径；与 Profile 2 服务端仿真口径严格分标",
+      "confidence_ceiling": "本规格节点规则 PENDING-VALIDATION 撤销前，其驱动的一切输出恒标 LOW/INCONCLUSIVE，观察模式不构成测量宣称",
+      "r10": "无事件→first_delta/cadence 记 null，绝不以 0 或哨兵值顶替"
+    }
+  }
+}

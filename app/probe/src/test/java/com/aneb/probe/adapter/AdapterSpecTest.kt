@@ -106,7 +106,7 @@ class AdapterSpecTest {
 
     @Test
     fun `assets mirror and spec authoritative copies are byte identical`() {
-        for (name in listOf("doubao.json", "deepseek.json")) {
+        for (name in listOf("doubao.json", "deepseek.json", "tongyi.json", "kimi.json")) {
             assertArrayEquals(
                 "spec/adapters/$name 为单一事实源，assets 为运行时镜像——两份必须字节级一致",
                 repoFile("$specDir/$name").readBytes(),
@@ -155,7 +155,7 @@ class AdapterSpecTest {
 
     @Test
     fun `caliber redlines declared in both spec files`() {
-        for (name in listOf("doubao.json", "deepseek.json")) {
+        for (name in listOf("doubao.json", "deepseek.json", "tongyi.json", "kimi.json")) {
             val s = parseAsset(name)
             assertTrue("$name claim_scope 须声明非网络口径", s.caliber.claimScope.contains("网络口径"))
             assertTrue(
@@ -202,5 +202,46 @@ class AdapterSpecTest {
         } catch (expected: Exception) {
             // 必填键闸门成立（四文件必须同步含 send_button）
         }
+    }
+
+    // ---------- 用例 9：通义千问规格解析 + 身份字段钉死（画像扩采第 3 App） ----------
+
+    @Test
+    fun `tongyi asset parses with pinned identity`() {
+        val s = parseAsset("tongyi.json")
+        assertEquals("tongyi", s.id)
+        assertEquals("com.aliyun.tongyi", s.packageName)
+        // 包名已装机核实（pm list + 前台窗口）；节点规则待真机 dump/ADAPTER_EVT 回填
+        assertEquals("VALIDATED-OBSERVED", s.status)
+        assertTrue("[KNOWN] 装机核实标注必须在", s.packageNote.contains("[KNOWN]"))
+        assertEquals(
+            listOf("TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_TEXT_CHANGED"),
+            s.observeEvents,
+        )
+        // 骨架期节点/发送锚点规则：正则全 null + status PENDING-VALIDATION（generic 兜底出 TTFT）
+        assertNull("input_node.class_name_regex 待回填（null 走 generic）", s.inputNode.classNameRegex)
+        assertEquals("PENDING-VALIDATION", s.inputNode.status)
+        assertEquals("PENDING-VALIDATION", s.responseNode.status)
+        assertNull("send_button.content_desc_regex 初值应为 null", s.sendButton.contentDescRegex)
+        assertEquals("PENDING-VALIDATION", s.sendButton.status)
+    }
+
+    // ---------- 用例 10：Kimi 规格解析 + 身份字段钉死（画像扩采第 4 App） ----------
+
+    @Test
+    fun `kimi asset parses with pinned identity`() {
+        val s = parseAsset("kimi.json")
+        assertEquals("kimi", s.id)
+        // kimichat 主对话 App（非 kimiclaw）
+        assertEquals("com.moonshot.kimichat", s.packageName)
+        assertEquals("VALIDATED-OBSERVED", s.status)
+        assertTrue("[KNOWN] 装机核实标注必须在", s.packageNote.contains("[KNOWN]"))
+        // 骨架期节点/发送锚点规则：正则全 null + status PENDING-VALIDATION
+        assertNull("input_node.class_name_regex 待回填（null 走 generic）", s.inputNode.classNameRegex)
+        assertEquals("PENDING-VALIDATION", s.inputNode.status)
+        assertEquals("PENDING-VALIDATION", s.responseNode.status)
+        assertNull("send_button.class_name_regex 初值应为 null", s.sendButton.classNameRegex)
+        assertEquals("PENDING-VALIDATION", s.sendButton.status)
+        assertEquals(setOf("first_delta", "delta_cadence"), s.kpiMapping.keys)
     }
 }
