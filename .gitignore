@@ -23,6 +23,7 @@ server/tls/
 # misc
 .DS_Store
 Thumbs.db
+__pycache__/
 app/probe/build/
 
 
