@@ -1,5 +1,5 @@
 # ANEB Probe verify_all - phase 0 verification chain (ASCII-only for PS 5.1 compatibility)
-# Runs: server vet/build/test, profile JSON validation, app toolchain probe.
+# Runs: server vet/build/test, profile JSON validation, portrait red-line guard, app toolchain probe.
 # Writes: evidence/phase0/verify_all_<ts>.log (utf8) and regenerates evidence/phase0/sha256-manifest.txt
 # Exit code: 0 if no FAIL (NOT_EXECUTED allowed), 1 otherwise.
 
@@ -59,6 +59,31 @@ foreach ($f in $profileFiles) {
 }
 if ($profileFiles.Count -eq 0) { $profileErrors += 'no profile files found' }
 $log += Add-Result 'profiles-valid' $(if ($profileErrors.Count -eq 0) { 'PASS' } else { 'FAIL' }) $(if ($profileErrors.Count -eq 0) { "$($profileFiles.Count) profiles ok" } else { $profileErrors -join '; ' })
+
+# --- Profile-3 portrait red-line guard (D-62): params gate intact, no caliber overclaim ---
+# check_redline.py exit: 0=all invariants hold (PASS) / 1=violation(s) (FAIL) / 2=env gap
+# (pyyaml missing or no yaml found) -> NOT_EXECUTED (honest, per this script's philosophy).
+$py = $null
+foreach ($c in @('python', 'python3', 'py')) { try { $py = (Get-Command $c -ErrorAction Stop).Source; break } catch {} }
+$redlineScript = Join-Path $repo 'spec\portraits\check_redline.py'
+if ($py -and (Test-Path $redlineScript)) {
+    $out = & $py $redlineScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- portraits-redline (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'portraits-redline' 'PASS' 'check_redline.py'
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'portraits-redline' 'NOT_EXECUTED' (($out -split "`n" | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'portraits-redline' 'FAIL' 'red-line violation(s); see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $redlineScript)) { $missing += 'check_redline.py' }
+    $log += Add-Result 'portraits-redline' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
 
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}

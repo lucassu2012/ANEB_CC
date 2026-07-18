@@ -58,6 +58,19 @@ class ApiProbe(private val context: Context) {
         val apiKey: String,
     )
 
+    /**
+     * Profile-2 校准 observation 发射口（**预留实采** seam）：仅当 [run] 收到本 sink 且探针
+     * **干净成功**时，才用 [TokenObservationExport] 生成隐私最小化 observation 并回调 [emit]
+     * （去向由调用方决定——JSONL 文件/上传，数据集落地=PO 决策项）。不传本 sink = 对照列
+     * 探针零行为变化。[datasetSecret]/[subject] 仅用于派生 subject_group_id，绝不入库/导出/日志。
+     */
+    class ObservationSink(
+        val datasetSecret: ByteArray,
+        val subject: String,
+        val workloadKind: TokenObservationExport.WorkloadKind = TokenObservationExport.WorkloadKind.TEXT,
+        val emit: suspend (String) -> Unit,
+    )
+
     private val timingFactory = TimingEventListener.Factory()
     private val sseReader = SseReader()
 
@@ -75,7 +88,11 @@ class ApiProbe(private val context: Context) {
      *
      * @param log 行日志回调（已保证不含 key）
      */
-    suspend fun run(config: Config, log: suspend (String) -> Unit): ApiProbeResultEntity {
+    suspend fun run(
+        config: Config,
+        observationSink: ObservationSink? = null,
+        log: suspend (String) -> Unit,
+    ): ApiProbeResultEntity {
         val key = config.apiKey
         fun clean(s: String?): String? = ApiKeyRedactor.redact(s, key)
 
@@ -197,6 +214,41 @@ class ApiProbe(private val context: Context) {
                 "claim_scope=${entity.claimScope} " +
                 "error=${entity.error?.replace(' ', '_') ?: "none"}"
         )
+
+        // Profile-2 校准 observation（预留实采）：仅探针**干净成功**且调用方传入 sink 时发射。
+        // 无 sink = 对照列探针零行为变化；数据集密钥/主体/去向落地 = PO 决策项（#5）。
+        if (observationSink != null) {
+            val observation = if (error == null && p != null) {
+                TokenObservationExport.fromProbeOutputs(
+                    observationId = TokenObservationExport.observationId(config.provider.id, startedAtEpochMs),
+                    subjectGroupId = TokenObservationExport.subjectGroupId(
+                        observationSink.datasetSecret, observationSink.subject,
+                    ),
+                    workloadKind = observationSink.workloadKind,
+                    requestBodyBytes = bodyJson.toByteArray(Charsets.UTF_8).size,
+                    ttftMs = k?.ttftMs,
+                    outputTokens = p.outputTokens,
+                    tokenEventCount = k?.tokenEventCount ?: 0,
+                    arrivals = p.arrivals,
+                    responseArtifactBytes = totalBytes,
+                )
+            } else {
+                null
+            }
+            if (observation != null) {
+                observationSink.emit(observation)
+                log(
+                    "APIPROBE_OBSERVATION generated=true " +
+                        "workload=${observationSink.workloadKind.id} " +
+                        "token_events=${k?.tokenEventCount ?: 0}"
+                )
+            } else {
+                log(
+                    "APIPROBE_OBSERVATION generated=false " +
+                        "reason=${if (error != null) "probe_not_clean" else "insufficient_data"}"
+                )
+            }
+        }
         return entity
     }
 
