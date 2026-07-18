@@ -46,6 +46,19 @@
 > **PO 裁定（2026-07-18）**：授权推进 `AUTHORIZED_TOKEN_CAPTURE_SPEC` 全部 8 项。
 > 授权 = 批准沿此路径推进；下列标 `[待PO给值]` 的项仍需 PO 在实采前提供**具体值**（账号/密钥托管位置/subject 定义/范围），标 `[已批]` 的项据此执行。
 
+### 3.0 PO 已定值（2026-07-18 第二轮，据此执行）
+
+| 项 | 决定 |
+|---|---|
+| ① 授权基础/账号 | 主用 **智谱 GLM `glm-4-flash`（免费档）**；GLM 覆盖不了的场景用 **Kimi（199 订阅=Kimi Code，Anthropic 协议 `api.kimi.com/coding`）**。**key 由 PO 亲自在 App 内填**（Claude 不经手明文，红线）。 |
+| ② 用途 | ✅ PO 确认 = 为校准仿真（`behavior_model_calibration`）。 |
+| ③ datasetSecret 托管 | **App 自管**：懒生成 32 字节随机密钥存 `ApiKeyStore` 加密 prefs（AES256-GCM/Keystore），仅设备内、绝不导出/入库/入日志；轮换=清 App 数据。Claude 全程不接触密钥值。 |
+| ④ subject | `<provider.id>-<model>`（如 `openai_compat-glm-4-flash`）——同模型多次采集归一个 subject，训练/留出按模型分组防泄漏。原始值经 HMAC 变 `subject_group_id`，绝不入库。 |
+| ⑤ 采集范围 | 时间窗 `2026-07`；地域桶 `CN-华东`（省级粗）；设备类别 `Android 旗舰/P40Pro·5G+WiFi`；采集方法 `ANEB App 内 API 直调流式探针`。（均写入 dataset manifest，非单条 observation。） |
+| ⑥ workload | **先只做 text**（现在即可采、最快出首个 validated 模型）；多模态（image/document/video）作后续单独批（需多模态请求体+媒体样本+更烧钱，部分家不支持）。 |
+| ⑦ 去向 | observation JSONL 落 App 私有 `filesDir/observations/`，经 `adb run-as` 拉取后交 Codex `prepare-token-dataset`；observation 已隐私最小化（无 prompt/content/key），出境风险仅数字统计。 |
+| ⑧ 保留 | `content_retained=false`（契约保证不留原文）；派生统计随数据集版本保留，轮换密钥即断关联。 |
+
 启动真机实采**前**，逐项状态：
 
 1. **[NEEDS-PO] 授权基础**：用哪个账号/订阅采集？合法来源声明（自有账号/获授权）。

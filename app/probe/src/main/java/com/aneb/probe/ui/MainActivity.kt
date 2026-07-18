@@ -36,8 +36,11 @@ import com.aneb.probe.apiprobe.ApiKeyStore
 import com.aneb.probe.apiprobe.ApiProbe
 import com.aneb.probe.apiprobe.ApiProbeReport
 import com.aneb.probe.apiprobe.LlmProvider
+import com.aneb.probe.apiprobe.ObservationJsonlWriter
 import com.aneb.probe.apiprobe.ProviderPresets
+import com.aneb.probe.apiprobe.TokenObservationExport
 import com.aneb.probe.apiprobe.toLlmProvider
+import java.io.File
 import com.aneb.probe.data.AdapterObsEntity
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
@@ -997,8 +1000,19 @@ class MainActivity : ComponentActivity() {
                     running = true
                     lifecycleScope.launch {
                         try {
+                            // Profile-2 校准 observation 落地（PO 授权 2026-07-18；口径=API 直调≠消费App画像）：
+                            // 每次干净成功的探针 → 一条隐私最小化 observation 追加到 App 私有 filesDir/observations/。
+                            // datasetSecret 由 ApiKeyStore 自管（不经手明文）；subject=<provider>-<model>。
+                            val obsWriter = ObservationJsonlWriter(File(applicationContext.filesDir, "observations"))
+                            val obsSink = ApiProbe.ObservationSink(
+                                datasetSecret = keyStore.datasetSecret(),
+                                subject = "${provider.id}-$model",
+                                workloadKind = TokenObservationExport.WorkloadKind.TEXT,
+                                emit = { obs -> withContext(Dispatchers.IO) { obsWriter.append(obs, provider.id) } },
+                            )
                             ApiProbe(applicationContext).run(
-                                ApiProbe.Config(provider, baseUrl, model, key)
+                                ApiProbe.Config(provider, baseUrl, model, key),
+                                obsSink,
                             ) { line -> withContext(Dispatchers.Main) { addLog(line) } }
                             resultsVersion++
                         } catch (e: CancellationException) {

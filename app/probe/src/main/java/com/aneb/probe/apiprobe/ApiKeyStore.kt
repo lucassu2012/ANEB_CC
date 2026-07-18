@@ -66,6 +66,23 @@ class ApiKeyStore(context: Context) {
     /** E-03 就绪判定：无 key 时探针入口禁用置灰（缺 key 降级设计，主线不受阻）。 */
     fun hasKey(): Boolean = apiKey() != null
 
+    /**
+     * 数据集专用 HMAC 密钥（Profile-2 校准去标识化，PO 决策③=App 自管）：懒生成 32 字节随机密钥
+     * 存本 [prefs]（首选加密），仅设备内使用；**绝不导出/入库/入日志**——observation 只含其 HMAC
+     * 产物 subject_group_id。轮换 = 清 App 数据。
+     */
+    fun datasetSecret(): ByteArray {
+        prefs.getString(KEY_DATASET_SECRET, null)?.takeIf { it.isNotBlank() }?.let { return hexToBytes(it) }
+        val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        prefs.edit().putString(KEY_DATASET_SECRET, bytesToHex(bytes)).apply()
+        return bytes
+    }
+
+    private fun bytesToHex(b: ByteArray): String = b.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+
+    private fun hexToBytes(s: String): ByteArray =
+        ByteArray(s.length / 2) { ((s[it * 2].digitToInt(16) shl 4) + s[it * 2 + 1].digitToInt(16)).toByte() }
+
     var provider: LlmProvider
         get() = LlmProvider.fromId(prefs.getString(KEY_PROVIDER, null))
         set(value) = prefs.edit().putString(KEY_PROVIDER, value.id).apply()
@@ -92,6 +109,7 @@ class ApiKeyStore(context: Context) {
         const val KEY_PROVIDER = "provider"
         const val KEY_BASE_URL = "base_url"
         const val KEY_MODEL = "model"
+        const val KEY_DATASET_SECRET = "dataset_secret"
     }
 }
 
