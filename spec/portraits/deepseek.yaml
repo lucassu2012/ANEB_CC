@@ -33,11 +33,13 @@ observed_ui_layer:
   captured: true
   source: "aneb-a11y-observe-2026-07-18"    # 无障碍观察(ADAPTER_OBS/adapter_obs 落库),非抓包
   ui_stack: "compose"                        # 自绘 Compose(思考期播放生成动画 → v3 簇分割失效,需 v4)
-  ttft_ui_ms: 500                            # 端到端 TTFT 代理;v4 事件密度谱(QUIC/TLS 两问一致)
-  ttft_method: "v4-density"
-  cadence_ui_ms: null                        # 同帧突发合流(事件 p50≈0.1–0.4ms),非逐帧节奏,不作 cadence 宣称
+  ttft_ui_ms: "500–1234"                     # 端到端 TTFT 代理,随问题复杂度：简单 QUIC/TLS 短问答 ~500ms(v4 density);
+                                             #   复杂 OSI 七层长问答 ~1234ms(思考更久,更有代表性,D-60)
+  ttft_method: "v3-cluster + v4-density"     # 长回复(events 810)下 v3 簇分割也检出(cluster 1234/density 1100 接近互证);
+                                             #   短问答(events ~200)时 v3=null 仅 v4 出值——**回复长度影响检测质量**
+  cadence_ui_ms: null                        # 同帧突发合流(事件 p50≈0.0–0.4ms),非逐帧节奏,不作 cadence 宣称
   caliber: "UI 呈现口径,含 App 渲染,≠网络 ITL/TTFT;与 Profile 2 服务端仿真严格分标;恒 LOW/INCONCLUSIVE"
-  runs: "P40/5G,DeepSeek 快速模式免费档,2026-07-18(D-55)"
+  runs: "P40/5G,DeepSeek 快速模式免费档,2026-07-18(D-55 短问答 + D-60 长回复 id=6)"
 
 # ── observed_network_layer(D-57 PCAPdroid 抓包实测；网络传输层，部分）─────────
 # ⚠️ 本次抓包窗口未对 DeepSeek 发消息（仅豆包发），故仅采到**背景连接**（APM/DNS），
