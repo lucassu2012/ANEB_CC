@@ -122,9 +122,14 @@ class ObsSessionStats(
         // v3.1：输入框活动重置簇状态——簇观察窗从最近输入活动之后起算，把「App 打开渲染簇」
         // 排除在外（真机实证 D-52：不重置时首簇=打开渲染，ttft_cluster_ms=7184ms 语义混杂；
         // 重置后=发送→用户气泡簇→思考静默→响应簇，语义纯净）。
-        firstClusterStartNanos = NONE
-        secondClusterStartNanos = NONE
-        lastContentDeltaNanos = NONE
+        // v3.2：仅**有内容**的输入活动（textLen>0，真实打字）重置——len=0 的输入轨事件
+        // （DeepSeek Compose 无 text 载荷的 TEXT_CHANGED 走通配规则进输入轨）不得在响应期
+        // 反复误重置簇窗，否则 Compose 栈 ttft_cluster 永不闭合。
+        if (textLen > 0) {
+            firstClusterStartNanos = NONE
+            secondClusterStartNanos = NONE
+            lastContentDeltaNanos = NONE
+        }
     }
 
     /**
