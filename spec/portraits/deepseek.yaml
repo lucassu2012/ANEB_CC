@@ -32,6 +32,45 @@ params:
   downlink_media_bytes_dist: null
   pop_ip_list: null
 
+# -- params_fit_approx (D-62; methodology: PARAMS_FIT_METHODOLOGY.md) --
+# WARN: approximate / non-simulation-grade; does NOT unlock params gate
+#   (source_portrait stays PENDING-CAPTURE, params all null).
+#   keep_pending=true fields must not be used for distribution/simulation claims.
+#   caliber in {direct, order-of-magnitude, ui-proxy, none}.
+params_fit_approx:
+  gates_params: false
+  source_portrait_unlocked: false
+  fields:
+    request_size_bytes_dist:
+      value: "~13.8KB/轮(量级锚点,mitm 活跃 38.5KB;请求+响应聚合,未拆上行,非分布)"
+      caliber: order-of-magnitude
+      keep_pending: true
+    token_interval_ms_dist:
+      value: "PENDING(mitm 无明文 token;UI cadence null,Compose 同帧合流 p50≈0–0.4ms 为渲染节奏≠网络ITL)"
+      caliber: none
+      keep_pending: true
+    think_pause_ms_dist:
+      value: "PENDING(TTFT 500–1234ms 为 UI 首字延迟含渲染,非推理停顿)"
+      caliber: none
+      keep_pending: true
+    tool_loop_cadence:
+      value: "PENDING(三层均无工具循环观测)"
+      caliber: none
+      keep_pending: true
+    session_duration_s_dist:
+      value: "PENDING(events_longreply=810 为 UI 事件计数≠时长口径)"
+      caliber: none
+      keep_pending: true
+    downlink_media_bytes_dist:
+      value: "PENDING(仅文本流式响应~13.8KB/轮,无媒体下行观测;不得以文本字节冒充媒体)"
+      caliber: none
+      keep_pending: true
+    pop_ip_list:
+      value: "已修正 OVERCLAIM→keep_pending=true:SNI 端点保留为网络层 direct 证据(自有 chat.deepseek.com/hif-dliq.deepseek.com;zztfly CDN cdn-api-auth/cfgc;火山 apmplus/gator.volces.com),但仅采到 SNI 主机名未解析 IP,待 DNS 解析出原始 IP 再脱 PENDING"
+      caliber: direct
+      keep_pending: true
+
+
 # ── observed_ui_layer(D-55 无障碍观察实测)──────────────────────────────────
 # ⚠️ 口径分层:本段=无障碍事件观察的 UI 呈现层代理(含 App 渲染),与上段网络/token 层
 #   params 严格分标(计划铁律 3 / D 红线),不可互标、不可互填;恒 LOW/INCONCLUSIVE。

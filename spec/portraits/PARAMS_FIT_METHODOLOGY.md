@@ -1,0 +1,65 @@
+# Profile-3 Portrait Params Fitting Methodology (D-62)
+
+> observation -> Profile params honest approximate fit. RED LINE: params gate NOT unlocked (params all null, source_portrait=PENDING-CAPTURE); approx values live only in params_fit_approx. Adversarial audit caught 2 overclaims (doubao downlink_media / deepseek pop_ip, both corrected).
+
+## Schema record decision
+
+决策:不翻门控。`params:` 七字段全部保持 null,`source_portrait` 仍为 "PENDING-CAPTURE"(与仓内 tongyi.yaml/doubao.yaml 现状一致)。近似拟合值不得写回 params(写回=消费方可拿去"模拟真实业务"对外宣称=严重违规)。改为新增一个与 observed_ui_layer/observed_network_layer 平级的独立段 params_fit_approx,段头显式声明"近似/非模拟级/口径分层/不解禁门控"。该段仅承载观测锚点,不构成分布,keep_pending=true 的字段禁止对外作分布/仿真表述。
+
+YAML 结构(建议追加到各 App 的 *.yaml,params 段之后):
+
+params_fit_approx:
+  # ⚠️ 近似拟合段——非模拟级(non-simulation-grade)、口径分层、不解禁 params 门控。
+  # 铁律:本段存在≠params 可填;source_portrait 仍 PENDING-CAPTURE。
+  # caliber∈{direct, order-of-magnitude, ui-proxy, none};keep_pending=true 的字段
+  # 不得对外作分布宣称,不得被 Profile 2 服务端仿真当真实业务口径引用。
+  _meta:
+    non_simulation_grade: true
+    gates_params: false          # 本段不解禁 params=null 门控
+    unlocks_source_portrait: false
+    caliber_legend:
+      direct: "同层直采(如网络层 IP/字节),精度受样本限,恒 LOW"
+      order-of-magnitude: "仅量级锚点,聚合/未拆分,非分布,keep_pending=true"
+      ui-proxy: "UI 呈现层代理(含 App 渲染),显式 ≠网络ITL/推理停顿,keep_pending=true"
+      none: "无同口径直采源→PENDING,不落值(R-10 诚实缺席)"
+  fields:
+    <field_name>:
+      value: <观测锚点 或 "PENDING">
+      caliber: <direct|order-of-magnitude|ui-proxy|none>
+      source_layer: <network|ui|api|none>
+      keep_pending: <bool>       # true=不脱 PENDING
+      confidence: <LOW|INCONCLUSIVE>
+      cross_caliber_note: "本值不得跨层/跨口径/跨产品互填"
+      note: <披露越界残留风险,如'合计非纯上行'/'文本非媒体'/'SNI主机名非解析POP IP'>
+
+## Fitting methodology
+
+观测→参数拟合方法学(三层口径 + caliber 分级):
+
+1) 口径分层来源映射(铁律3,不可互填):
+   - 网络传输层(SNI/IP/字节)→ 只填 pop_ip_list、request_size_bytes_dist(量级)、downlink_media_bytes_dist(需真媒体字节)。
+   - UI 呈现层(含 App 渲染,a11y/cadence/TTFT)→ 至多作 ui-proxy 填 token_interval_ms_dist,且必须显式标 ≠网络ITL;绝不填 think_pause/网络字节。
+   - API token 层(明文时序)→ 免 root mitm 确认拿不到(D-61),故 token_interval/think_pause 对全部消费 App 无同层直采源。且跨产品不可借(Kimi Code k2.7 API ≠ Kimi App)。
+
+2) caliber 分级规则:
+   - direct:字段与来源同层且为事实型直采(如网络层 IP:port)。IP 已解析→可 keep_pending=false(tongyi/kimi);仅采到 SNI 主机名未解析 IP→caliber 仍 direct 但 keep_pending=true(doubao/deepseek)。
+   - order-of-magnitude:同层字节但聚合/未拆上行/未含完整流式体→仅量级锚点,keep_pending=true(doubao/deepseek request_size)。
+   - ui-proxy:UI 层代理网络时序,keep_pending=true + 显式≠网络ITL(doubao~100ms/tongyi~66ms token_interval)。
+   - none:无同口径来源→PENDING,不落值。
+
+3) PENDING 判据(满足任一即保持 PENDING/keep_pending=true):
+   - 无同层直采源(R-10 诚实缺席);
+   - 仅有跨层/跨口径/跨产品代理(UI cadence→网络ITL、TTFT→思考停顿、文本字节→媒体字节、事件计数→时长、k2.7 API→App);
+   - 字段规范内容缺席(如 pop_ip_list 规范=解析后 POP IP,仅有 SNI 主机名即缺席);
+   - 加密聚合不可切分为字段语义(kimi 7003 非标长连+jpush)。
+   样本少(每 App 数次)→ 一律 LOW/INCONCLUSIVE,禁止升 order-of-magnitude 以上。
+
+## PENDING gaps (what is needed to fill)
+
+- token_interval_ms_dist(全 4 App 保持 PENDING):根因是免 root mitm 拿不到明文 token 时序(D-61)。补齐需 root/TLS keylog 抓包解密,或 App 明文 token 事件源。当前仅 doubao(~100ms)/tongyi(~66ms)有 UI-proxy 弱锚(≠网络ITL),deepseek/kimi 连 UI cadence 都为 null。
+- think_pause_ms_dist(全 4 App):同 root mitm 阻塞;须能区分流内思考停顿 vs 端到端 TTFT(现有 TTFT 均含网络+App 渲染)。补齐需明文流式 token 时间戳。
+- tool_loop_cadence(全 4 App):四者均消费聊天 App,无工具编排。补齐需在具备工具调用/Agentic 场景下新增一维观测(tool-call 事件序列采集),消费聊天口径可能永久 PENDING/不适用。
+- session_duration_s_dist(全 4 App):现仅 per-turn 时序,无会话边界埋点。补齐需会话级 instrumentation(会话开始/结束事件),而非 per-turn 或 UI 事件计数换算。
+- downlink_media_bytes_dist(全 4 App):无真实媒体字节隔离。补齐需真媒体场景(图片/文件/音频)+ 端点级字节隔离;doubao frontier5 audio-ws-lq 音频 WS 已存在但未做字节隔离,是最近的可补采点;禁止以文本下行冒充媒体。
+- request_size_bytes_dist:doubao/deepseek 有 order-of-magnitude(需隔离纯上行才能脱聚合);tongyi 需采到完整流式响应体(现 partial);kimi 需可解密切分 per-request(现加密聚合不可切)。
+- pop_ip_list:doubao(4 SNI 主机名)与 deepseek(SNI 主机名+第三方 CDN/遥测端点)需 DNS 解析出原始 POP IP 才能 keep_pending=false;tongyi/kimi 已有真实 IP,其中 kimi 的'华为云广州段/自有 IM'轻推断需多点复采确认 ASN/地理归属。
