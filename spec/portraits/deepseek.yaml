@@ -24,3 +24,17 @@ params:
   session_duration_s_dist: null
   downlink_media_bytes_dist: null
   pop_ip_list: null
+
+# ── observed_ui_layer(D-55 无障碍观察实测)──────────────────────────────────
+# ⚠️ 口径分层:本段=无障碍事件观察的 UI 呈现层代理(含 App 渲染),与上段网络/token 层
+#   params 严格分标(计划铁律 3 / D 红线),不可互标、不可互填;恒 LOW/INCONCLUSIVE。
+#   网络层 params 仍 PENDING-CAPTURE(需 PCAPdroid 抓包);本段仅证 UI 呈现层已采。
+observed_ui_layer:
+  captured: true
+  source: "aneb-a11y-observe-2026-07-18"    # 无障碍观察(ADAPTER_OBS/adapter_obs 落库),非抓包
+  ui_stack: "compose"                        # 自绘 Compose(思考期播放生成动画 → v3 簇分割失效,需 v4)
+  ttft_ui_ms: 500                            # 端到端 TTFT 代理;v4 事件密度谱(QUIC/TLS 两问一致)
+  ttft_method: "v4-density"
+  cadence_ui_ms: null                        # 同帧突发合流(事件 p50≈0.1–0.4ms),非逐帧节奏,不作 cadence 宣称
+  caliber: "UI 呈现口径,含 App 渲染,≠网络 ITL/TTFT;与 Profile 2 服务端仿真严格分标;恒 LOW/INCONCLUSIVE"
+  runs: "P40/5G,DeepSeek 快速模式免费档,2026-07-18(D-55)"

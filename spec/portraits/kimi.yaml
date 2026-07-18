@@ -1,0 +1,39 @@
+# ANEB spec — Profile 3 业务画像:Kimi(画像扩采第 4 App,D-56;SYSTEM_DEV_PLAN §4.3/§5.1）
+#
+# ⚠️ 红线:网络层 params 采集完成前不得用于模拟参数宣称。
+#   params 段全 [GUESS]/null 占位;source_portrait = "PENDING-CAPTURE"（网络层未采）。
+#
+# ⚠️ observed_ui_layer.captured = false —— **UI 呈现层观察方法对本 App 不适配**（诚实记录）：
+#   Kimi K2.6 复杂 Compose UI 事件流结构使三种 TTFT 方法均不可靠（D-56 真机实证）：
+#     - v1 input-clear 锚点武装但 ttft_send=33.5ms（=气泡上屏延迟，非响应首字）；
+#     - v3 簇分割 ttft_cluster=54558ms（54s，事件流跨度错配脏值，已被 30s 合理性上界抑制为 null）；
+#     - v4 密度谱 ttft_density=null（同帧突发合流，无可辨密度跃变）。
+#   结论:无障碍事件测 TTFT 非万能——依赖 App 事件流结构;Kimi 待 v5 方法或改抓包口径。
+#   诚实缺席优于错值（R-10）：不填任何 UI 层 TTFT 数值。
+#
+# capture_plan（网络层，M3）：同 doubao.yaml——PCAPdroid 抓包（Kimi 网络层画像仍可采，
+#   与 UI 层观察不适配无关）。
+schema_version: "1.0.0"
+app_id: kimi
+display_name: "Kimi"
+source_portrait: "PENDING-CAPTURE"
+params:
+  # 网络/token 层——全 [GUESS]/null，待画像采集回填（M3）；null=未采集，禁编造（R-10）
+  request_size_bytes_dist: null
+  token_interval_ms_dist: null
+  think_pause_ms_dist: null
+  tool_loop_cadence: null
+  session_duration_s_dist: null
+  downlink_media_bytes_dist: null
+  pop_ip_list: null
+
+# ── observed_ui_layer(D-56：方法不适配，诚实 false)──────────────────────────
+observed_ui_layer:
+  captured: false                            # 三种 TTFT 方法均不适配（见文件头注）；UI 层未得可信画像
+  source: "aneb-a11y-observe-2026-07-18(不适配)"
+  ui_stack: "compose"                        # 原生 MainActivity + 复杂 Compose（同帧合流，事件 p50≈0.4ms）
+  ttft_ui_ms: null                           # 不可靠→null（R-10 诚实缺席，绝不填 54558 脏值）
+  ttft_method: "none-applicable"
+  cadence_ui_ms: null
+  caliber: "方法边界：无障碍事件测 TTFT 依赖 App 事件流结构，Kimi 复杂 UI 不适配；待 v5 或抓包"
+  runs: "P40/5G,Kimi 会员账户,2026-07-18(D-56)"
