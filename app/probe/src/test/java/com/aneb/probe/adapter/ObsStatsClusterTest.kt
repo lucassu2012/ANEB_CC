@@ -13,7 +13,11 @@ import org.junit.Test
  */
 class ObsStatsClusterTest {
 
-    private fun stats() = ObsSessionStats(pkg = "t", specId = null, observeStartNanos = 0L)
+    private fun stats() = ObsSessionStats(pkg = "t", specId = null, observeStartNanos = 0L).also {
+        // D-56 发送场景门控：模拟会话曾有真实输入活动（打字），使 TTFT 代理获发送语义。
+        // 时戳 -1 早于所有用例的正时戳，onInputBoxText 不落桶、仅置位+重置簇窗（无副作用）。
+        it.onInputBoxText(1, -1L)
+    }
 
     private val ms = 1_000_000L
 
@@ -64,5 +68,23 @@ class ObsStatsClusterTest {
             t += 100
         }
         assertNull(s.snapshot(t * ms).ttftClusterMs)
+    }
+
+    @Test
+    fun `cluster gap over sanity ceiling is suppressed to null`() {
+        // D-56：Kimi 型脏值——两簇间隔 54s（>30s 上界）→ sane() 抑制为 null（诚实缺席优于错值）。
+        val s = stats()
+        s.onContentDelta(1_000 * ms) // 首簇起
+        s.onContentDelta(55_000 * ms) // 静默 54s → 次簇起；簇跨度 54000ms > 30000ms 上界
+        assertNull("超 30s 合理性上界的簇 TTFT 应抑制为 null", s.snapshot(56_000 * ms).ttftClusterMs)
+    }
+
+    @Test
+    fun `no input activity gates cluster to null`() {
+        // D-56 发送场景门控：无输入活动（直接构造，不经 stats() 的注入）→ cluster null。
+        val s = ObsSessionStats(pkg = "t", specId = null, observeStartNanos = 0L)
+        s.onContentDelta(1_000 * ms)
+        s.onContentDelta(1_616 * ms) // 静默 616ms → 两簇成立，但无输入活动
+        assertNull("非发送场景（无输入活动）TTFT 门控为 null", s.snapshot(2_000 * ms).ttftClusterMs)
     }
 }

@@ -21,7 +21,11 @@ import org.junit.Test
  */
 class ObsStatsDensityTest {
 
-    private fun stats() = ObsSessionStats(pkg = "t", specId = null, observeStartNanos = 0L)
+    private fun stats() = ObsSessionStats(pkg = "t", specId = null, observeStartNanos = 0L).also {
+        // D-56 发送场景门控：模拟会话曾有真实输入活动（打字），使 TTFT 代理获发送语义。
+        // 时戳 -1 早于所有用例的正时戳，onInputBoxText 不落桶、仅置位+重置簇窗（无副作用）。
+        it.onInputBoxText(1, -1L)
+    }
 
     private val ms = 1_000_000L
 

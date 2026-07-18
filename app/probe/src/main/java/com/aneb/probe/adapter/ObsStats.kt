@@ -111,7 +111,19 @@ class ObsSessionStats(
         /** 密度谱跃变 TTFT 来源标注（[AdapterObsSnapshot.densityAnchorSource]），检出跃变时取此值。 */
         const val SOURCE_DENSITY = "density"
 
+        /**
+         * TTFT 代理合理性上界（D-56）：30_000ms。任何 TTFT 代理（send/cluster/density）超此值即判
+         * **结构不适配脏值** → null（不落脏值,R-10 诚实缺席优于错值）。取值依据：真实 AI 首字延迟
+         * 含推理类深度思考现实上界约十余秒,30s 留足余量;超 30s 必是事件流结构错配（真机实证：Kimi
+         * K2.6 复杂 Compose UI ttft_cluster=54558ms=54s 明显非首字,三方法均不适配该 App）。
+         */
+        const val TTFT_CEILING_MS = 30_000.0
+
         private const val NONE = Long.MIN_VALUE
+
+        /** TTFT 代理合理性过滤：null 或 >[TTFT_CEILING_MS] → null（脏值抑制，D-56）。 */
+        private fun sane(ttftMs: Double?): Double? =
+            if (ttftMs == null || ttftMs > TTFT_CEILING_MS) null else ttftMs
     }
 
     private var firstEventNanos = NONE
@@ -151,6 +163,12 @@ class ObsSessionStats(
     // 原点=簇首 [firstClusterStartNanos]（发送后首个内容事件，与 v3 簇首同一锚点，输入活动一并
     // 重置）。热路径仅一次除法+一次自增（R-16 O(1) 零分配）；滑窗聚合/基线偏离检测全在 [snapshot]。
     private val densityBucket = IntArray(DENSITY_BUCKET_COUNT)
+
+    // ── 发送场景门控（D-56）：会话内曾有真实输入活动（textLen>0 打字）才认定「发送对话场景」，
+    // TTFT 代理（cluster/density）方有发送语义。防非发送场景脏值——真机实证：generic 探路千问
+    // （无规格,输入未匹配→簇窗未重置）ttft_cluster=16145ms、Kimi 纯滚动 ttft_density=500ms 均为
+    // 「无发送却出 TTFT」的脏值,门控后诚实 null（R-10）。有规格发消息（input_node 匹配打字）正常置位。
+    private var sawInputActivity = false
 
     /**
      * 热路径：记一次内容变化事件。仅打戳/环形写/计数，O(1) 零分配。
@@ -202,6 +220,7 @@ class ObsSessionStats(
             // v3.2 守卫延伸至 v4：仅 textLen>0（真实打字）重置——响应期 len=0 的输入轨事件
             // （DeepSeek 无 text 载荷 TEXT_CHANGED）不清窗，否则密度谱永不闭合。
             densityBucket.fill(0)
+            sawInputActivity = true // D-56：真实打字=发送对话场景，TTFT 代理由此获发送语义
         }
     }
 
@@ -258,7 +277,9 @@ class ObsSessionStats(
 
     /** 聚合出不可变快照（仅节流/会话切换时调用；含排序，不进热路径）。 */
     fun snapshot(nowNanos: Long): AdapterObsSnapshot {
-        val densityMs = ttftDensityMs(nowNanos) // 密度谱聚合一次，与来源标注配对
+        // D-56 发送场景门控：无真实输入活动（非发送场景）→ TTFT 代理诚实 null，绝不出脏值。
+        // 再过合理性上界 sane()：超 30s 的结构错配脏值（如 Kimi 54558ms）一并抑制为 null。
+        val densityMs = sane(if (sawInputActivity) ttftDensityMs(nowNanos) else null)
         return AdapterObsSnapshot(
         pkg = pkg,
         specId = specId,
@@ -275,14 +296,16 @@ class ObsSessionStats(
         ttftSendMs = if (lastTtftSendNanos == NONE) {
             null // R-10：无发送锚点/锚点未闭合=未测，绝不折 0
         } else {
-            lastTtftSendNanos / 1_000_000.0
+            sane(lastTtftSendNanos / 1_000_000.0) // 合理性上界（D-56）
         },
         ttftSendHistory = ttftSendHistory(),
         anchorSource = completedAnchorSource,
-        ttftClusterMs = if (firstClusterStartNanos == NONE || secondClusterStartNanos == NONE) {
-            null // R-10：不足两簇=未测，绝不折 0
+        ttftClusterMs = if (!sawInputActivity || firstClusterStartNanos == NONE ||
+            secondClusterStartNanos == NONE
+        ) {
+            null // R-10：非发送场景（D-56 门控）/不足两簇=未测，绝不折 0
         } else {
-            (secondClusterStartNanos - firstClusterStartNanos) / 1_000_000.0
+            sane((secondClusterStartNanos - firstClusterStartNanos) / 1_000_000.0) // 上界（D-56）
         },
         ttftDensityMs = densityMs, // v4 密度跃变 TTFT 代理（null=数据不足/无跃变，R-10）
         densityAnchorSource = if (densityMs == null) null else SOURCE_DENSITY,
