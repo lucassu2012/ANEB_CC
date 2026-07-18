@@ -41,9 +41,12 @@
 - **口径标注落 manifest 层**（`calibration-dataset-v1`：授权基础/用途/时间窗/地域桶/设备类别/采集方法），**不落单条 observation**（其 `additionalProperties=false`）。
 - **验证门限**（流水线 §4，仅约束行为模型、不进 ANEB 网络评分）：每 workload ≥20 train + ≥10 holdout；payload/处理等待/输出 token/间隔的 P50·P95 相对误差 ≤20%；PAUSE(>200ms) 占比绝对误差 ≤0.05；FAST/NORMAL/PAUSE Markov 转移矩阵每行 TVD ≤0.15。
 
-## 3. PO 决策项（gate 真实采集；对齐流水线 §7 + §3）——**均待 PO 拍板**
+## 3. PO 决策项（gate 真实采集；对齐流水线 §7 + §3）——**2026-07-18 PO 已授权推进全部 8 项**
 
-启动真机实采**前**，Product Owner 必须逐项裁定（`[NEEDS-PO]`）：
+> **PO 裁定（2026-07-18）**：授权推进 `AUTHORIZED_TOKEN_CAPTURE_SPEC` 全部 8 项。
+> 授权 = 批准沿此路径推进；下列标 `[待PO给值]` 的项仍需 PO 在实采前提供**具体值**（账号/密钥托管位置/subject 定义/范围），标 `[已批]` 的项据此执行。
+
+启动真机实采**前**，逐项状态：
 
 1. **[NEEDS-PO] 授权基础**：用哪个账号/订阅采集？合法来源声明（自有账号/获授权）。
 2. **[NEEDS-PO] 用途**：确认含 `behavior_model_calibration`（manifest 硬要求）。
@@ -58,6 +61,6 @@
 
 - ✅ 接口 seam 已建并验证（18 单测 + 跨端契约符合性 2/2 + 无 sink 零行为变化）。
 - ✅ `check_redline.py` 已接入本地门禁 `verify_all.ps1`（`portraits-redline` 检查，PASS 实测）。
-- ⏸ **未启动真实采集**：等 PO 决策 1–8 + P40 设备从异常锁定解除（`SHARED_TEST_STATUS.md` 握手）。
+- 🟡 **PO 已授权 8 项（2026-07-18）**；实采仍待：(a) PO 提供 `[待PO给值]` 具体值（账号/密钥托管/subject/范围/去向/保留）；(b) P40 设备可用（PO 称手机侧可用、不等 Codex——但 `SHARED_TEST_STATUS.md` 现为异常锁定，状态机不允许 Claude 从异常锁定合法转换，解锁方式待 PO 定，见下）。
 - ⏭ 探针目前单 workload（text）；多 workload matrix + 首个 validated 模型均在 PO 提供授权派生统计之后（流水线 §7）。
 - ⚠️ 在真实数据到位前，继续用 hypothesis Profile 做网络测量**允许**，但对外只能称"产品假设驱动的可重复仿真"（流水线 §1/§7）。
