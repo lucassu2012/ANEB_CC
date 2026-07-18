@@ -38,3 +38,17 @@ observed_ui_layer:
   cadence_ui_ms: null                        # 同帧突发合流(事件 p50≈0.1–0.4ms),非逐帧节奏,不作 cadence 宣称
   caliber: "UI 呈现口径,含 App 渲染,≠网络 ITL/TTFT;与 Profile 2 服务端仿真严格分标;恒 LOW/INCONCLUSIVE"
   runs: "P40/5G,DeepSeek 快速模式免费档,2026-07-18(D-55)"
+
+# ── observed_network_layer(D-57 PCAPdroid 抓包实测；网络传输层，部分）─────────
+# ⚠️ 本次抓包窗口未对 DeepSeek 发消息（仅豆包发），故仅采到**背景连接**（APM/DNS），
+#   对话主连接未捕获 → dialog_channel PENDING（下次抓包时发消息补）；口径分层同 doubao.yaml。
+observed_network_layer:
+  captured: "partial"                           # 仅背景连接;对话主连接待补
+  source: "aneb-pcapdroid-capture-2026-07-18"
+  cloud: "火山引擎 volces.com（字节体系）"
+  dialog_channel: null                          # 对话主连接未在本次抓包窗口捕获（未发消息）
+  endpoints:
+    - "apmplus.volces.com（火山引擎 APM / DNS 上报，背景）"
+  dialog_bytes_order: null
+  caliber: "网络传输层(仅云归属/背景连接);TLS 加密无明文 token;恒 LOW/INCONCLUSIVE"
+  runs: "P40/WiFi,抓包 2026-07-18(D-57，仅背景)"

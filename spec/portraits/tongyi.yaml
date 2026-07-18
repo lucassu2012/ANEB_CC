@@ -32,3 +32,20 @@ observed_ui_layer:
   cadence_ui_ms: 66                          # 流式呈现节奏 p50(WebView 栈,介于 View 100ms/Compose 同帧之间)
   caliber: "UI 呈现口径,含 App 渲染,≠网络 ITL/TTFT;与 Profile 2 服务端仿真严格分标;恒 LOW/INCONCLUSIVE"
   runs: "P40/5G,千问免费档,2026-07-18(D-56)"
+
+# ── observed_network_layer(D-57 PCAPdroid 抓包实测；网络传输层）─────────────
+# ⚠️ 口径分层同 doubao.yaml：TLS 加密无明文 token;仅采入云拓扑/IP/字节量级。
+observed_network_layer:
+  captured: "partial"                           # 采到 HTTPS/TLS 到 quark.cn + 实测 IP;对话主连接量级偏小
+  source: "aneb-pcapdroid-capture-2026-07-18"
+  cloud: "阿里 / UC 夸克 upaas.quark.cn"
+  dialog_channel: "HTTPS/TLS 443"
+  endpoints:
+    - "unpm-upaas.quark.cn（HTTPS，~1.8KB）"
+    - "ucdc.upaas.quark.cn（TLS）"
+  dest_ips:                                      # 真实入云 IP（PoP，归因直接可用）
+    - "110.253.191.12"
+    - "114.250.44.6"
+  dialog_bytes_order: "采样连接 ~0.3–1.8KB（未含完整流式响应体，量级偏小）"
+  caliber: "网络传输层(SNI/IP/字节);TLS 加密无明文 token;拓扑+IP 采到,分布未完整拟合;恒 LOW/INCONCLUSIVE"
+  runs: "P40/WiFi,抓包 2026-07-18(D-57)"

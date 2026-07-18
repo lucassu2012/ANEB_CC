@@ -37,3 +37,19 @@ observed_ui_layer:
   cadence_ui_ms: null
   caliber: "方法边界：无障碍事件测 TTFT 依赖 App 事件流结构，Kimi 复杂 UI 不适配；待 v5 或抓包"
   runs: "P40/5G,Kimi 会员账户,2026-07-18(D-56)"
+
+# ── observed_network_layer(D-57 PCAPdroid 抓包实测；网络传输层，部分）─────────
+# ⚠️ 本次抓包窗口未对 Kimi 发消息（仅豆包发），故仅采到**背景连接**（推送/DNS），
+#   对话主连接未捕获 → dialog_channel PENDING（下次抓包时发消息补）；口径分层同 doubao.yaml。
+observed_network_layer:
+  captured: "partial"                           # 仅背景连接（大量极光推送）;对话主连接待补
+  source: "aneb-pcapdroid-capture-2026-07-18"
+  cloud: "极光推送 jpush（第三方 IM/push）+ 自有 easytomessage.com"
+  dialog_channel: null                          # 对话主连接未在本次抓包窗口捕获（未发消息）
+  endpoints:
+    - "sis.jpush.io / sis-ipv6.jpush.cn / s.jpush.cn（极光推送 DNS/长连，背景）"
+    - "UDP 19000 → jpush（推送长连）"
+    - "easytomessage.com（自有 IM 相关，背景）"
+  dialog_bytes_order: null
+  caliber: "网络传输层(仅背景推送连接);对话主连接及云归属待抓包补;恒 LOW/INCONCLUSIVE"
+  runs: "P40/WiFi,抓包 2026-07-18(D-57，仅背景)"

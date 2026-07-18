@@ -45,12 +45,29 @@ UI 呈现层端到端 TTFT 与流式节奏——**ANEB 首次拥有真实 AI App
 
 **Kimi 如实记为方法边界**：三法均不可靠，诚实 null 优于接受 54558ms 脏值（R-10）。
 
+## 3.5 网络层画像（D-57 PCAPdroid 抓包，新增）
+
+用 PCAPdroid（免 root 模拟 VPN，观察模式只读 SNI/IP/字节，不解密）采到 4 App 的**真实入云拓扑**
+（计划 §4.3「真实入云 PoP/IP 清单」，归因直接可用）——不同大模型 App 用不同云基础设施：
+
+| App | 云基础设施 | 对话主通道（实测） | 入云端点/IP |
+|---|---|---|---|
+| 豆包 | 字节自有 `*.doubao.com` | **WebSocket + HTTPS API** | wss100-normal-lq / api5-normal-hl / frontier5-audio-ws-lq（音频）;单轮 ~10–18KB |
+| 千问 | 阿里/UC 夸克 `upaas.quark.cn` | HTTPS/TLS 443 | unpm-upaas / ucdc.upaas;IP 110.253.191.12 / 114.250.44.6 |
+| DeepSeek | 火山引擎 `volces.com`（字节系） | 待补（本次仅背景） | apmplus.volces.com（APM/DNS） |
+| Kimi | 极光推送 `jpush` + 自有 | 待补（本次仅背景） | sis.jpush.* / UDP 19000 / easytomessage.com |
+
+**口径边界**：抓包 = 网络传输层（SNI/IP/字节），**TLS 加密下无明文 token 时序**——`params` 的
+token_interval/think_pause 仍 PENDING（需 mitm 解密或保持 UI 层）。豆包/千问抓到对话主连接（发过消息），
+DeepSeek/Kimi 仅背景连接（本次未发消息）。权威数据在 portraits 的 `observed_network_layer` 段。
+**发现印证**：豆包对话走 WebSocket——与我方语音 realtime-sim 的 WebSocket 仿真方向一致（D-38）。
+
 ## 4. 数据可回溯性
 
-- 权威画像数据：`spec/portraits/{doubao,deepseek,tongyi,kimi}.yaml` → `observed_ui_layer` 段；
+- 权威画像数据：`spec/portraits/{doubao,deepseek,tongyi,kimi}.yaml` → `observed_ui_layer` + `observed_network_layer` 两段；
 - 落库记录：Room `adapter_obs` 表（D-54），历史页「AI体验」行可视（豆包/千问 id 1/4 等）；
-- 决策实录：DECISION_LOG D-49~D-56；
-- 采集机制：`adapter/AnebAccessibilityService`（观察模式 only，绝不 performAction）。
+- 决策实录：DECISION_LOG D-49~D-57；
+- 采集机制：`adapter/AnebAccessibilityService`（UI 层，观察模式 only 绝不 performAction）+ PCAPdroid（网络层，只读不解密）。
 
 ## 5. 后续（网络层 + 更多 App）
 

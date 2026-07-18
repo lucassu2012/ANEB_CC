@@ -38,3 +38,22 @@ observed_ui_layer:
   cadence_ui_ms: 100                         # 流式呈现节奏 p50(累计 8 轮 99.7–111.6ms 稳定)
   caliber: "UI 呈现口径,含 App 渲染,≠网络 ITL/TTFT;与 Profile 2 服务端仿真严格分标;恒 LOW/INCONCLUSIVE"
   runs: "P40/5G,豆包免费档,2026-07-18(D-52/D-54)"
+
+# ── observed_network_layer(D-57 PCAPdroid 抓包实测；网络传输层）─────────────
+# ⚠️ 口径分层:本段=网络传输层观察(SNI/目的域名/端口/字节量级)。TLS 加密下**无明文 token
+#   时序**——params 的 token_interval/think_pause 仍 PENDING(需 mitm 解密或保持 UI 层)。
+#   与 observed_ui_layer / params 三层并列、严格分标。source_portrait 仍 PENDING-CAPTURE
+#   (仅采到入云拓扑+字节量级,未做完整分布拟合)。
+observed_network_layer:
+  captured: "full"                             # 抓包时发消息→对话主连接完整捕获
+  source: "aneb-pcapdroid-capture-2026-07-18"
+  cloud: "字节自有 *.doubao.com"
+  dialog_channel: "WebSocket(wss) + HTTPS API" # 对话主通道:实测走 WebSocket + HTTPS
+  endpoints:                                    # 真实入云 SNI(PoP)
+    - "wss100-normal-lq.doubao.com（对话 WebSocket，单轮 ~17.6KB）"
+    - "api5-normal-hl.doubao.com（对话 API，~9.8KB）"
+    - "frontier5-audio-ws-lq.doubao.com（音频 WebSocket，实时语音链路）"
+    - "log.doubao.com（日志上报）"
+  dialog_bytes_order: "单轮对话 ~10–18KB（上下行合计，含 TLS 开销）"
+  caliber: "网络传输层(SNI/IP/字节);TLS 加密无明文 token;拓扑+量级非精确分布拟合;恒 LOW/INCONCLUSIVE"
+  runs: "P40/WiFi,抓包 2026-07-18(D-57)"
