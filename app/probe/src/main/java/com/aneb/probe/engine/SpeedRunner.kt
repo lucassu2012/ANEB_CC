@@ -12,7 +12,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.math.abs
 
 /**
  * 网络基本性能模式（SpeedTest 同款）运行器——**独立于 token 测量引擎**（[TestEngine]），
@@ -110,11 +109,11 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             // 客户端往返墙钟＝网络 RTT（恒非空、随网络波动）；首个含 TCP/TLS 建连，丢弃避免偏高。
             // 不取 echo.rttUs（其依赖服务端 wire 时戳/时钟同步，speed 模式不做同步会为 null）。
             if (i > 0 && r != null && r.error == null) rtts.add(rttMs)
-            emit(Sample(Phase.Ping, median(rtts), jitter(rtts), null, null, i.toFloat() / pingN * 0.2f))
+            emit(Sample(Phase.Ping, SpeedSampleMath.median(rtts), SpeedSampleMath.jitter(rtts), null, null, i.toFloat() / pingN * 0.2f))
             delay(70)
         }
-        val rttMed = median(rtts)
-        val jit = jitter(rtts)
+        val rttMed = SpeedSampleMath.median(rtts)
+        val jit = SpeedSampleMath.jitter(rtts)
 
         // ---- UDP 应用探针（Ping 后、Download 前；ANEB1 整包回显按 seq 对账）----
         // 口径：UDP 未返回率＝应用层探针未回显占比，≠IP 丢包率；现场协变量，不进任何分。
@@ -148,11 +147,7 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         while (dlJob.isActive && System.nanoTime() - dlStartNs < dlDurNs) {
             val now = System.nanoTime()
             val b = dlBytes.get()
-            dlWindow.addLast(now to b)
-            while (dlWindow.size > 1 && now - dlWindow.first().first > 600_000_000L) dlWindow.removeFirst()
-            val dB = b - dlWindow.first().second
-            val dS = (now - dlWindow.first().first) / 1e9
-            val mbps = if (dlWindow.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
+            val mbps = SpeedSampleMath.windowMbps(dlWindow, now, b)
             val prog = 0.2f + ((now - dlStartNs).toFloat() / dlDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
             emit(Sample(Phase.Download, rttMed, jit, null, mbps, prog.coerceIn(0f, 0.59f)))
             delay(100)
@@ -182,11 +177,7 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         while (upJob.isActive) {
             val now = System.nanoTime()
             val b = bytes.get()
-            window.addLast(now to b)
-            while (window.size > 1 && now - window.first().first > 600_000_000L) window.removeFirst()
-            val dB = b - window.first().second
-            val dS = (now - window.first().first) / 1e9
-            val mbps = if (window.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
+            val mbps = SpeedSampleMath.windowMbps(window, now, b)
             val prog = 0.6f + ((now - upStartNs).toFloat() / upDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
             emit(Sample(Phase.Upload, rttMed, jit, mbps, null, prog.coerceIn(0f, 0.99f)))
             delay(100)
@@ -241,11 +232,11 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             if (r == null || r.error != null) reqFailed.incrementAndGet()
             // 与 run() 同口径：客户端往返墙钟；首个含 TCP/TLS 建连，丢弃避免偏高
             if (i > 0 && r != null && r.error == null) rtts.add(rttMs)
-            emit(Sample(Phase.Ping, median(rtts), jitter(rtts), null, null, i.toFloat() / SHAPED_PING_N * 0.2f))
+            emit(Sample(Phase.Ping, SpeedSampleMath.median(rtts), SpeedSampleMath.jitter(rtts), null, null, i.toFloat() / SHAPED_PING_N * 0.2f))
             delay(70)
         }
-        val rttMed = median(rtts)
-        val jit = jitter(rtts)
+        val rttMed = SpeedSampleMath.median(rtts)
+        val jit = SpeedSampleMath.jitter(rtts)
 
         // ---- Download 阶段（~6s 排空 8MiB 有界下行；整形 3Mbps 下 6s 收 ~2.25MB，收不完即取消）----
         val dlBytes = AtomicLong(0)
@@ -263,11 +254,7 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         while (dlJob.isActive && System.nanoTime() - dlStartNs < dlDurNs) {
             val now = System.nanoTime()
             val b = dlBytes.get()
-            dlWindow.addLast(now to b)
-            while (dlWindow.size > 1 && now - dlWindow.first().first > 600_000_000L) dlWindow.removeFirst()
-            val dB = b - dlWindow.first().second
-            val dS = (now - dlWindow.first().first) / 1e9
-            val mbps = if (dlWindow.size >= 2 && dS > 0.1) dB * 8.0 / dS / 1e6 else null
+            val mbps = SpeedSampleMath.windowMbps(dlWindow, now, b)
             val prog = 0.2f + ((now - dlStartNs).toFloat() / dlDurNs.toFloat()).coerceIn(0f, 1f) * 0.4f
             emit(Sample(Phase.Download, rttMed, jit, null, mbps, prog.coerceIn(0f, 0.59f)))
             delay(100)
@@ -310,18 +297,6 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
         }
         upJob.join()
         emit(Sample(Phase.Done, rttMed, jit, null, null, 1f))
-    }
-
-    private fun median(xs: List<Double>): Double? {
-        if (xs.isEmpty()) return null
-        val s = xs.sorted()
-        val n = s.size
-        return if (n % 2 == 1) s[n / 2] else (s[n / 2 - 1] + s[n / 2]) / 2.0
-    }
-
-    private fun jitter(xs: List<Double>): Double? {
-        if (xs.size < 2) return null
-        return median(xs.zipWithNext { a, b -> abs(b - a) })
     }
 }
 
