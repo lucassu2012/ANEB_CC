@@ -42,14 +42,17 @@ observed_ui_layer:
 # ⚠️ 本次抓包窗口未对 Kimi 发消息（仅豆包发），故仅采到**背景连接**（推送/DNS），
 #   对话主连接未捕获 → dialog_channel PENDING（下次抓包时发消息补）；口径分层同 doubao.yaml。
 observed_network_layer:
-  captured: "partial"                           # 仅背景连接（大量极光推送）;对话主连接待补
+  captured: "full"                              # 对话/IM 长连已采（D-59 补采：抓包时发消息）
   source: "aneb-pcapdroid-capture-2026-07-18"
-  cloud: "极光推送 jpush（第三方 IM/push）+ 自有 easytomessage.com"
-  dialog_channel: null                          # 对话主连接未在本次抓包窗口捕获（未发消息）
+  cloud: "自有 IM（TCP 7003 长连）+ 极光推送 jpush（第三方 push）+ easytomessage.com"
+  dialog_channel: "**TCP 7003 自定义端口长连**（非标准 HTTPS/443）→ 121.37.172.191"
+  # ⚠️ 架构差异（4 App 对比）：Kimi 对话走**非标准 TCP 7003 端口长连**，而豆包=WebSocket(wss)、
+  #   DeepSeek/千问=HTTPS 443——Kimi 是四者中唯一用自定义端口的（疑似自有 IM 协议长连）。
   endpoints:
-    - "sis.jpush.io / sis-ipv6.jpush.cn / s.jpush.cn（极光推送 DNS/长连，背景）"
+    - "TCP 7003 → 121.37.172.191（对话/IM 主通道候选，非标准端口长连；字节量级抓包窗口未完整确认）"
+    - "sis.jpush.io / sis-ipv6.jpush.cn / s.jpush.cn（极光推送 DNS/长连）"
     - "UDP 19000 → jpush（推送长连）"
-    - "easytomessage.com（自有 IM 相关，背景）"
-  dialog_bytes_order: null
-  caliber: "网络传输层(仅背景推送连接);对话主连接及云归属待抓包补;恒 LOW/INCONCLUSIVE"
-  runs: "P40/WiFi,抓包 2026-07-18(D-57，仅背景)"
+    - "easytomessage.com（自有 IM 相关）"
+  dialog_bytes_order: null                       # TCP 7003 字节量级抓包窗口被 UI 遮挡未确认，待补
+  caliber: "网络传输层(SNI/IP/端口);对话走非标准 TCP 端口(架构差异发现);字节待确认;恒 LOW/INCONCLUSIVE"
+  runs: "P40/WiFi,抓包 2026-07-18(D-57 背景 + D-59 对话/IM 长连)"

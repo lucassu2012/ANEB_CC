@@ -53,13 +53,14 @@ UI 呈现层端到端 TTFT 与流式节奏——**ANEB 首次拥有真实 AI App
 | App | 云基础设施 | 对话主通道（实测） | 入云端点/IP |
 |---|---|---|---|
 | 豆包 | 字节自有 `*.doubao.com` | **WebSocket + HTTPS API** | wss100-normal-lq / api5-normal-hl / frontier5-audio-ws-lq（音频）;单轮 ~10–18KB |
-| 千问 | 阿里/UC 夸克 `upaas.quark.cn` | HTTPS/TLS 443 | unpm-upaas / ucdc.upaas;IP 110.253.191.12 / 114.250.44.6 |
-| DeepSeek | 火山引擎 `volces.com`（字节系） | 待补（本次仅背景） | apmplus.volces.com（APM/DNS） |
-| Kimi | 极光推送 `jpush` + 自有 | 待补（本次仅背景） | sis.jpush.* / UDP 19000 / easytomessage.com |
+| 千问 | 阿里/UC 夸克 `upaas.quark.cn` | **HTTPS/TLS 443** | unpm-upaas / ucdc.upaas;IP 110.253.191.12 / 114.250.44.6 |
+| DeepSeek | 自有 `deepseek.com` + 火山 `volces.com` | **HTTPS 443**（chat.deepseek.com，~13.8KB/轮） | chat.deepseek.com / hif-dliq;监控走火山 apmplus/gator.volces.com |
+| Kimi | 自有 IM + 极光 `jpush` | **TCP 7003 自定义端口长连**（→121.37.172.191） | 极光 sis/s.jpush.* + UDP 19000 + easytomessage.com |
 
-**口径边界**：抓包 = 网络传输层（SNI/IP/字节），**TLS 加密下无明文 token 时序**——`params` 的
-token_interval/think_pause 仍 PENDING（需 mitm 解密或保持 UI 层）。豆包/千问抓到对话主连接（发过消息），
-DeepSeek/Kimi 仅背景连接（本次未发消息）。权威数据在 portraits 的 `observed_network_layer` 段。
+**四种对话通道架构（D-57+D-59 抓包实测，4 App 全采到对话主连接）**：豆包=WebSocket、千问/DeepSeek=HTTPS 443、
+**Kimi=非标准 TCP 7003 端口长连**（四者中唯一，疑似自有 IM 协议）——不同大模型 App 的对话传输架构差异显著。
+**口径边界**：抓包 = 网络传输层（SNI/IP/端口/字节），**TLS 加密下无明文 token 时序**——`params` 的
+token_interval/think_pause 仍 PENDING（需 mitm 解密或保持 UI 层）。权威数据在 portraits 的 `observed_network_layer` 段。
 **发现印证**：豆包对话走 WebSocket——与我方语音 realtime-sim 的 WebSocket 仿真方向一致（D-38）。
 
 ## 4. 数据可回溯性

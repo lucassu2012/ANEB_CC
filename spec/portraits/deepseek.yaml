@@ -43,12 +43,15 @@ observed_ui_layer:
 # ⚠️ 本次抓包窗口未对 DeepSeek 发消息（仅豆包发），故仅采到**背景连接**（APM/DNS），
 #   对话主连接未捕获 → dialog_channel PENDING（下次抓包时发消息补）；口径分层同 doubao.yaml。
 observed_network_layer:
-  captured: "partial"                           # 仅背景连接;对话主连接待补
+  captured: "full"                              # 对话主连接已采（D-59 补采：抓包时发消息）
   source: "aneb-pcapdroid-capture-2026-07-18"
-  cloud: "火山引擎 volces.com（字节体系）"
-  dialog_channel: null                          # 对话主连接未在本次抓包窗口捕获（未发消息）
-  endpoints:
-    - "apmplus.volces.com（火山引擎 APM / DNS 上报，背景）"
-  dialog_bytes_order: null
-  caliber: "网络传输层(仅云归属/背景连接);TLS 加密无明文 token;恒 LOW/INCONCLUSIVE"
-  runs: "P40/WiFi,抓包 2026-07-18(D-57，仅背景)"
+  cloud: "自有 deepseek.com + 火山引擎 volces.com（字节体系，APM/监控）"
+  dialog_channel: "HTTPS 443（chat.deepseek.com）"
+  endpoints:                                    # 真实入云 SNI
+    - "chat.deepseek.com（对话主通道，HTTPS 单轮 ~13.8KB）"
+    - "hif-dliq.deepseek.com（DeepSeek 自有子域）"
+    - "apmplus.volces.com（火山 APM 上报，~7.9KB）"
+    - "gator.volces.com（火山监控/日志，~15KB）"
+  dialog_bytes_order: "单轮对话 ~13.8KB（chat.deepseek.com，HTTPS，含 TLS 开销）"
+  caliber: "网络传输层(SNI/字节);TLS 加密无明文 token;拓扑+量级;恒 LOW/INCONCLUSIVE"
+  runs: "P40/WiFi,抓包 2026-07-18(D-57 背景 + D-59 对话主)"
