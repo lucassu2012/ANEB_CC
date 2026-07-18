@@ -17,6 +17,13 @@ display_name: "DeepSeek App"
 source_portrait: "PENDING-CAPTURE"
 params:
   # 以下全部 [GUESS]/null —— 待画像采集回填(M3);null 语义=未采集,禁编造初值(R-10 同源纪律)
+  # ⚠️ mitm 明文 token 层已尝试并**确认不可得**(D-61,2026-07-18):PCAPdroid+mitm addon(Mitmproxy 11.0.0)
+  #   免 root 装 CA 至**用户证书库**(CA 确已成功安装,后经手动清理);对话主连接 chat.deepseek.com HTTPS 443
+  #   (活跃 38.5KB,含真实 token 响应)显**闭锁=未解密**,cdn-api-auth.zztfly.com HTTPS 显**错误**;
+  #   全 App HTTPS 443 均未解密(仅 DNS 明文)。根因:Android 7+(API24+)默认不信任**用户库** CA + 疑似证书
+  #   锁定 → 免 root 软件 mitm 拿不到 token 明文(需 root 装系统库 CA 且 App 无 pinning 方可,本设备/主流 App 不成立)。
+  #   **印证计划 §4.3 预判**:证书锁定/信任壁垒 → 退化为包时序/大小分析(已由 observed_network_layer 采得)。
+  #   token_interval/think_pause 等仍 PENDING(靠 UI 层 cadence 代理 + 网络层字节量级近似,非明文直采)。
   request_size_bytes_dist: null
   token_interval_ms_dist: null
   think_pause_ms_dist: null
@@ -50,7 +57,9 @@ observed_network_layer:
   cloud: "自有 deepseek.com + 火山引擎 volces.com（字节体系，APM/监控）"
   dialog_channel: "HTTPS 443（chat.deepseek.com）"
   endpoints:                                    # 真实入云 SNI
-    - "chat.deepseek.com（对话主通道，HTTPS 单轮 ~13.8KB）"
+    - "chat.deepseek.com（对话主通道，HTTPS 单轮 ~13.8KB / mitm 抓包活跃 38.5KB）"
+    - "cdn-api-auth.zztfly.com（CDN/鉴权端点，HTTPS ~12KB；mitm 显错误=疑似 pinning，D-61 发现）"
+    - "cfgc.zztfly.com（配置下发端点，HTTPS ~13.4KB，D-61 发现）"
     - "hif-dliq.deepseek.com（DeepSeek 自有子域）"
     - "apmplus.volces.com（火山 APM 上报，~7.9KB）"
     - "gator.volces.com（火山监控/日志，~15KB）"
