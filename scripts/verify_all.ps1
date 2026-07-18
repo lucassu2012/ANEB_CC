@@ -85,6 +85,29 @@ if ($py -and (Test-Path $redlineScript)) {
     $log += Add-Result 'portraits-redline' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- Profile-3 portrait red-line guard SELF-TEST (D-65): reflex tests guard the guard ---
+# Runs the self-contained reflex runner (no pytest needed). exit: 0=all reflex tests pass /
+# 1=a red/green reflex failed (guard weakened or a rule regressed) -> FAIL.
+$redlineTest = Join-Path $repo 'spec\portraits\test_check_redline.py'
+if ($py -and (Test-Path $redlineTest)) {
+    Push-Location (Join-Path $repo 'spec\portraits')
+    $out = & $py $redlineTest 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    Pop-Location
+    $log += "--- portraits-redline-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'portraits-redline-unit' 'PASS' (($out -split "`n" | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'portraits-redline-unit' 'FAIL' 'reflex test(s) failed; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $redlineTest)) { $missing += 'test_check_redline.py' }
+    $log += Add-Result 'portraits-redline-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
