@@ -12,11 +12,14 @@ from check_redline import check_portrait, check_cross_file, PARAM_FIELDS
 
 def _valid_pending():
     """Minimal valid PENDING portrait (doubao-style: pop_ip direct+hostname awaiting DNS)."""
-    fields = {k: {"value": "PENDING(no same-caliber source)", "caliber": "none", "keep_pending": True}
+    fields = {k: {"value": "PENDING(no same-caliber source)", "caliber": "none", "keep_pending": True,
+                  "source_layer": "none", "confidence": "NONE", "note": "pending"}
               for k in PARAM_FIELDS}
-    # pop_ip is the infra-fact field: caliber=direct (R16), value non-PENDING (R12), still pending DNS
+    # pop_ip is the infra-fact field: caliber=direct (R16), value non-PENDING (R12), still pending DNS.
+    # R18: direct => source_layer=network, confidence=LOW.
     fields["pop_ip_list"] = {"value": "host.example.com (SNI hostname, DNS pending)",
-                             "caliber": "direct", "keep_pending": True}
+                             "caliber": "direct", "keep_pending": True,
+                             "source_layer": "network", "confidence": "LOW", "note": "infra fact"}
     return {
         "schema_version": "1.0.0",
         "source_portrait": "PENDING-CAPTURE",
@@ -30,7 +33,8 @@ def _valid_escaped_popip():
     """tongyi-style valid: pop_ip escaped PENDING with real IP + evidence backlink."""
     d = _valid_pending()
     d["params_fit_approx"]["fields"]["pop_ip_list"] = {
-        "value": "110.253.191.12, 114.250.44.6 (resolved POP IP)", "caliber": "direct", "keep_pending": False}
+        "value": "110.253.191.12, 114.250.44.6 (resolved POP IP)", "caliber": "direct", "keep_pending": False,
+        "source_layer": "network", "confidence": "LOW", "note": "resolved IP"}
     d["observed_network_layer"] = {"endpoints": ["upaas.quark.cn 110.253.191.12", "114.250.44.6"]}
     return d
 
@@ -139,6 +143,33 @@ def test_R17_no_evidence_backlink_caught():
     d = _valid_escaped_popip()
     d["observed_network_layer"] = {"endpoints": ["upaas.quark.cn (hostname only, no IP)"]}
     assert _has(check_cross_file({"x": d}), "R17")
+
+
+def test_R18_missing_provenance_caught():
+    d = _valid_pending(); del d["params_fit_approx"]["fields"]["think_pause_ms_dist"]["confidence"]
+    assert _has(check_portrait("x", d), "R18")
+
+
+def test_R18_inconsistent_source_layer_caught():
+    # caliber=none requires source_layer=none; declaring network is provenance drift
+    d = _valid_pending()
+    d["params_fit_approx"]["fields"]["think_pause_ms_dist"]["source_layer"] = "network"
+    assert _has(check_portrait("x", d), "R18")
+
+
+def test_R18_bad_confidence_enum_caught():
+    d = _valid_pending()
+    d["params_fit_approx"]["fields"]["pop_ip_list"]["confidence"] = "HIGH"  # not in {LOW, NONE}
+    assert _has(check_portrait("x", d), "R18")
+
+
+def test_R18_uiproxy_requires_ui_source_layer():
+    # ui-proxy caliber must carry source_layer=ui (not network) — cross-check with caliber
+    d = _valid_pending()
+    d["params_fit_approx"]["fields"]["token_interval_ms_dist"].update(
+        {"value": "~100ms (UI cadence)", "caliber": "ui-proxy",
+         "source_layer": "network", "confidence": "LOW", "note": "x"})
+    assert _has(check_portrait("x", d), "R18")
 
 
 if __name__ == "__main__":

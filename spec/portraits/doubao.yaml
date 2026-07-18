@@ -38,30 +38,51 @@ params_fit_approx:
       value: "~10–18KB/turn(量级锚点;上下行合计,未隔离纯请求/上行;非分布)"
       caliber: order-of-magnitude
       keep_pending: true
+      source_layer: network
+      confidence: LOW
+      note: "aggregate order-of-magnitude, not a distribution"
     token_interval_ms_dist:
       value: "~100ms(UI cadence,ui-proxy,显式≠网络ITL)"
       caliber: ui-proxy
       keep_pending: true
+      source_layer: ui
+      confidence: LOW
+      note: "UI cadence proxy, not network ITL"
     think_pause_ms_dist:
       value: "PENDING(无明文 token 时序;TTFT 1984ms 为首token前整体UI时延含网络+服务端,非流内思考停顿)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     tool_loop_cadence:
       value: "PENDING(消费对话 App,无 tool-loop 观测)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     session_duration_s_dist:
       value: "PENDING(仅采 per-turn 时序,无会话时长观测)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     downlink_media_bytes_dist:
       value: "PENDING(已修正 OVERCLAIM:观测下行~17.6KB 为文本流式非媒体,本次媒体实测=0;frontier5 audio-ws-lq 未做字节隔离。不得以文本下行冒充媒体)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     pop_ip_list:
       value: "wss100.doubao.com / api5.doubao.com / frontier5.doubao.com / log.doubao.com(4 SNI 端点,自有 doubao.com 基础设施;当前为 SNI 主机名级,具体 POP IP 解析待补)"
       caliber: direct
       keep_pending: true
+      source_layer: network
+      confidence: LOW
+      note: "direct network-layer fact"
 
 
 # ── observed_ui_layer(D-52/D-54 无障碍观察实测)──────────────────────────────

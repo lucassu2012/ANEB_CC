@@ -33,30 +33,51 @@ params_fit_approx:
       value: "PENDING(网络层有混合对话字节 ~0.3–1.8KB 弱信号但请求+响应混合、未含完整流式体、量级偏小,保守保持 PENDING)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     token_interval_ms_dist:
       value: "~66ms(UI cadence,ui-proxy,显式≠网络ITL;WebView 栈)"
       caliber: ui-proxy
       keep_pending: true
+      source_layer: ui
+      confidence: LOW
+      note: "UI cadence proxy, not network ITL"
     think_pause_ms_dist:
       value: "PENDING(TTFT=1203ms 为端到端首字代理、cadence=66ms 为渲染节奏,均非思考停顿同层观测)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     tool_loop_cadence:
       value: "PENDING(消费 App,三口径无工具循环证据)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     session_duration_s_dist:
       value: "PENDING(无会话时长采样;a11y 按前台包切换分段非时长分布)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     downlink_media_bytes_dist:
       value: "PENDING(无下行媒体字节采样,dialog_bytes_order 量级偏小且未含完整流式体)"
       caliber: none
       keep_pending: true
+      source_layer: none
+      confidence: NONE
+      note: "no same-layer source (PENDING)"
     pop_ip_list:
       value: "110.253.191.12, 114.250.44.6(阿里·UC夸克 upaas.quark.cn,HTTPS 443;真实入云 PoP,归因直接可用)——唯一 IP 级完整落值字段"
       caliber: direct
       keep_pending: false
+      source_layer: network
+      confidence: LOW
+      note: "direct network-layer fact"
 
 
 # ── observed_ui_layer(D-56 无障碍观察实测)──────────────────────────────────

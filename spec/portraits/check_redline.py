@@ -37,6 +37,11 @@ Invariants:
   R16 pop_ip_list.caliber == direct for ALL portraits (infra-fact field caliber fixed, 防漂移).
   R17 keep_pending == false pop_ip requires an IP literal in the SAME file's observed_network_layer
       (traceability: value <-> evidence-segment backlink).
+  R18 every fit field carries provenance metadata source_layer / confidence / note, AND that
+      metadata is consistent with caliber (spine-3 #8): source_layer in {network, ui, none},
+      confidence in {LOW, NONE}; caliber none => (none, NONE), ui-proxy => (ui, LOW),
+      direct|order-of-magnitude => (network, LOW). Keeps provenance from drifting off the fit's
+      real strength/layer (confidence is LOW-at-best per methodology §1.2).
 """
 import sys, os, glob, re
 
@@ -50,6 +55,16 @@ PARAM_FIELDS = ["request_size_bytes_dist", "token_interval_ms_dist", "think_paus
 CALIBERS = {"direct", "order-of-magnitude", "ui-proxy", "none"}
 CALIBER_NON_PENDING = {"direct", "order-of-magnitude", "ui-proxy"}  # R12: these must not be PENDING
 NETWORK_TIMING = {"token_interval_ms_dist", "think_pause_ms_dist"}  # must never be direct/OoM (cross-layer)
+SOURCE_LAYERS = {"network", "ui", "none"}          # R18: provenance layer of a fit value
+CONFIDENCE = {"LOW", "NONE"}                        # R18: LLM-portrait confidence is LOW-at-best (§1.2)
+# R18: caliber -> (expected source_layer, expected confidence). Provenance must track caliber so the
+# metadata cannot silently drift off the fit's real strength/layer.
+CALIBER_PROVENANCE = {
+    "none": ("none", "NONE"),
+    "ui-proxy": ("ui", "LOW"),
+    "order-of-magnitude": ("network", "LOW"),
+    "direct": ("network", "LOW"),
+}
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 IPV6 = re.compile(r"\b(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}\b")
@@ -119,6 +134,17 @@ def check_portrait(app, d):
             if name == "pop_ip_list":
                 bad(_has_ip(val), "R14",
                     f"pop_ip keep_pending=false but value has no IP literal (SNI hostname != resolved POP IP): {val[:60]}")
+        # R18 — provenance metadata present AND consistent with caliber (traceability §1.5;
+        # confidence LOW-at-best per §1.2, NONE for PENDING/none-caliber fields).
+        prov_missing = [k for k in ("source_layer", "confidence", "note") if k not in fl]
+        bad(not prov_missing, "R18", f"{name} missing provenance keys {prov_missing}")
+        sl = fl.get("source_layer"); conf = fl.get("confidence")
+        bad(sl in SOURCE_LAYERS, "R18", f"{name} source_layer={sl} not in {sorted(SOURCE_LAYERS)}")
+        bad(conf in CONFIDENCE, "R18", f"{name} confidence={conf} not in {sorted(CONFIDENCE)}")
+        exp = CALIBER_PROVENANCE.get(cal)
+        if exp is not None:
+            bad(sl == exp[0], "R18", f"{name} caliber={cal} requires source_layer={exp[0]} (got {sl})")
+            bad(conf == exp[1], "R18", f"{name} caliber={cal} requires confidence={exp[1]} (got {conf})")
     return v
 
 
@@ -173,7 +199,7 @@ def main():
         for x in violations:
             print("  -", x)
         return 1
-    print("OK: all red-line invariants hold (R1-R17: params gate intact, no caliber overclaim).")
+    print("OK: all red-line invariants hold (R1-R18: params gate intact, no caliber overclaim, provenance consistent).")
     return 0
 
 
