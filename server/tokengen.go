@@ -3,12 +3,14 @@ package main
 import (
 	"math"
 	"math/rand"
+
+	"aneb-server/internal/behaviorspec"
 )
 
-// token 大小 clamp 区间（字节）。
+// token 大小 clamp 区间（字节）——单一事实源在 behaviorspec（标定拟合层共用同一边界）。
 const (
-	tokenBytesMin = 30
-	tokenBytesMax = 2000
+	tokenBytesMin = behaviorspec.TokenBytesMin
+	tokenBytesMax = behaviorspec.TokenBytesMax
 )
 
 // TokenSpec 是时刻表中的一个 token：计划发出时刻（相对流起点的微秒偏移）与 payload 字节数。
@@ -53,6 +55,11 @@ type StreamParams struct {
 	// 区别于 TtftInjectUs（首 token 前）、rate_schedule（渐变）：这是**流内离散停顿**（模拟推理模型中途思考）。
 	// 服务端把注入的 think seq/dwell 经 summary 透出，供 APP 归为 pause（不计网络 stall）。nil/空 = 无（行为不变）。
 	ThinkInjections []ThinkInjection
+
+	// BehaviorModelStamp 是已解析行为模型参数包的 "id@version" 溯源印（§3.3）；
+	// 非测量输入、不进 GenerateTokens，仅供 handler 经 prelude 透出、盖入结果溯源。
+	// 空=未引用 pack。
+	BehaviorModelStamp string
 }
 
 // ThinkInjection 描述一次流内 think 驻留：在 seq=AtSeq 前注入 DwellUs 微秒停顿。
@@ -79,11 +86,9 @@ func applyThinkInjections(specs []TokenSpec, injs []ThinkInjection) []TokenSpec 
 	return specs
 }
 
-// SizeBin 是字节直方图的一个桶：字节数 Size 与相对权重 Weight（>0）。
-type SizeBin struct {
-	Size   int     `json:"size"`
-	Weight float64 `json:"weight"`
-}
+// SizeBin 是字节直方图的一个桶——类型定义下沉 behaviorspec（wire/包文件/拟合共用），
+// 此处别名保持主包既有引用不变（完全同一类型，json tag 不变）。
+type SizeBin = behaviorspec.SizeBin
 
 // drawSizeFromHistogram 按累积权重确定性抽样一个桶的字节数（消耗 1 次 rng.Float64）。
 // 调用方保证 bins 非空、Weight>0、Size 已在 [tokenBytesMin,tokenBytesMax]（handler 校验）。
@@ -103,11 +108,8 @@ func drawSizeFromHistogram(rng *rand.Rand, bins []SizeBin) int {
 	return bins[len(bins)-1].Size // 浮点边界兜底
 }
 
-// RatePoint 是非平稳解码 TPS 曲线上的一个断点：流内进度 AtFrac∈[0,1] 处的瞬时 TPS。
-type RatePoint struct {
-	AtFrac float64 `json:"at_frac"`
-	Tps    float64 `json:"tps"`
-}
+// RatePoint 是非平稳解码 TPS 曲线断点——类型定义下沉 behaviorspec，此处别名（同上）。
+type RatePoint = behaviorspec.RatePoint
 
 // tpsAtSchedule 在**已按 AtFrac 升序**的曲线上分段线性求 frac 处 TPS；端点外 clamp。
 // 空曲线返回 fallback。调用方保证 sched 非空且已排序、Tps>0（streamParamsFromRequest 校验）。

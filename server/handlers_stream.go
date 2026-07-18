@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"aneb-server/internal/behaviorspec"
 )
 
 // stream 无 profile 时的默认参数。
@@ -82,6 +84,12 @@ func (a *app) handleStream(w http.ResponseWriter, r *http.Request) {
 	// （补"减法项恒为 0"缺口）。0 = 无注入。additive 字段，旧客户端忽略未知键。
 	prelude = append(prelude, `,"ttft_inject_us":`...)
 	prelude = strconv.AppendInt(prelude, params.TtftInjectUs, 10)
+	// 行为模型溯源印（§3.3）：仅 profile 引用了 pack 时透出，供客户端盖入结果溯源。
+	// additive——未引用 pack 则 prelude 字节级不变，旧客户端忽略未知键。
+	if params.BehaviorModelStamp != "" {
+		prelude = append(prelude, `,"behavior_model":`...)
+		prelude = strconv.AppendQuote(prelude, params.BehaviorModelStamp)
+	}
 	prelude = append(prelude, `,"observed":`...)
 	// strconv.AppendQuote 做 JSON 兼容转义（RemoteAddr 正常不含特殊字符，
 	// 但手拼 JSON 不做转义是脆弱模式，防御性统一）。
@@ -305,6 +313,13 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 			params.Sigma = ph.TokenBytes.Sigma
 			params.SizeHistogram = ph.TokenBytes.Histogram
 		}
+		// §3.3 行为模型参数包：为 phase 未声明的模型旋钮补 pack 默认（phase 恒胜），
+		// 并记 id@version 溯源印。省略 behavior_model_id ⇒ bm=nil ⇒ 行为不变。
+		bm, err := lookupBehaviorModel(ph.BehaviorModelID)
+		if err != nil {
+			return params, errBadParam(err.Error())
+		}
+		applyBehaviorModelDefaults(bm, &params, ph.TokenBytes != nil)
 	}
 	// 非平稳解码曲线（§3.2）只由 profile 声明（非平稳性是模型属性，非 URL 临时旋钮）。
 	if err := validateRateSchedule(params.RateSchedule, params.Burst != nil); err != nil {
@@ -321,13 +336,13 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 	if s := q.Get("tokens_per_frame"); s != "" {
 		// SSE frame-batching（§3.2）：每帧 token 数。上限 64（防单帧过大内存/时延突刺）。
 		v, err := strconv.Atoi(s)
-		if err != nil || v < 1 || v > 64 {
+		if err != nil || v < 1 || v > behaviorspec.MaxTokensPerFrame {
 			return params, errBadParam("invalid tokens_per_frame (want 1..64): " + s)
 		}
 		params.TokensPerFrame = v
 	}
 	// profile 声明的 tokens_per_frame 也须在界内（0=省略=默认每 token 一帧）。
-	if params.TokensPerFrame < 0 || params.TokensPerFrame > 64 {
+	if params.TokensPerFrame < 0 || params.TokensPerFrame > behaviorspec.MaxTokensPerFrame {
 		return params, errBadParam("tokens_per_frame out of range [0,64]")
 	}
 	// 显式参数覆盖（无 profile 时即直接指定路径）。
@@ -363,7 +378,7 @@ func (a *app) streamParamsFromRequest(r *http.Request) (StreamParams, error) {
 		// 首 token 前注入的 TTFT 驻留（§3.4）。上限 10s：防单请求 goroutine 长挂
 		// （慢速拒绝服务面），与 rate_tps 下限同款纪律。负值无意义。
 		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil || v < 0 || v > 10_000_000 {
+		if err != nil || v < 0 || v > behaviorspec.MaxTtftInjectUs {
 			return params, errBadParam("invalid ttft_inject_us: " + s)
 		}
 		params.TtftInjectUs = v
@@ -393,7 +408,7 @@ func validateRateSchedule(sched []RatePoint, isBurst bool) error {
 		if pt.AtFrac < prevFrac {
 			return errBadParam("rate_schedule.at_frac must be non-decreasing")
 		}
-		if pt.Tps < 0.1 || pt.Tps > 100000 {
+		if pt.Tps < behaviorspec.MinTps || pt.Tps > behaviorspec.MaxTps {
 			return errBadParam("rate_schedule[" + strconv.Itoa(i) + "].tps must be in [0.1,100000]")
 		}
 		prevFrac = pt.AtFrac
