@@ -345,7 +345,8 @@ class AnebAccessibilityService : AccessibilityService() {
                 " reason=$reason" +
                 " ttft_send_ms=${snap.ttftSendMs?.let { "%.1f".format(it) } ?: "null"}" +
                 " anchor_source=${snap.anchorSource ?: "null"}" +
-                " ttft_cluster_ms=${snap.ttftClusterMs?.let { "%.1f".format(it) } ?: "null"}",
+                " ttft_cluster_ms=${snap.ttftClusterMs?.let { "%.1f".format(it) } ?: "null"}" +
+                " ttft_density_ms=${snap.ttftDensityMs?.let { "%.1f".format(it) } ?: "null"}",
         )
         return snap
     }

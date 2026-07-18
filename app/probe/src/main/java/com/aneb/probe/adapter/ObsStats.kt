@@ -48,6 +48,69 @@ class ObsSessionStats(
          */
         const val CLUSTER_GAP_NANOS: Long = 400_000_000L
 
+        // ── 密度谱 TTFT（v4，事件密度谱——纯时戳统计，不依赖静默/锚点/节点）常量 ──
+        // 选型=方案 A（密度基线偏离法）：把发送后内容事件流按步桶化为前缀直方图 → 组滑窗密度谱
+        // → 取发送后前 K 窗中位数为基线 → 首个相对基线结构性跃变窗 = 响应起点候选。补 v3 簇分割在
+        // 「思考期播放生成动画」栈（DeepSeek：持续 CONTENT、cadence~0.1ms 同帧合流、无 >400ms
+        // 静默 → ttftClusterMs=null）的缺口（D-52/D-53）。
+
+        /**
+         * 密度谱步进/桶粒度：100ms。取值依据：D-52 真机豆包流式响应 token 到达 ~100ms/字，一桶
+         * ≈一 token 间隔，足以把「思考稳态→响应」的密度跃变定位到 ~100ms 分辨率。
+         */
+        const val DENSITY_STEP_NANOS: Long = 100_000_000L
+
+        /**
+         * 密度谱滑动窗宽（以步进为单位）：2 步 = 200ms（任务书示例窗宽）。取值依据：200ms 窗跨
+         * ~2 个响应 token 间隔，平滑单事件抖动而不糊掉跃变点。窗 w[i]=Σ bucket[i..i+此值-1]，相邻窗
+         * 重叠一步（步进<窗宽）→ 跃变点 ~100ms 分辨率。
+         */
+        const val DENSITY_WINDOW_STEPS = 2
+
+        /**
+         * 密度谱桶数（前缀直方图，**非**环形覆盖）：128 桶 × 100ms = 12.8s 观察跨度。取值依据：
+         * 覆盖推理类 App 现实「思考+首字」时长上限；超出即诚实 null（R-10 不猜），不无限扩内存
+         * （128 int = 512B/会话）。
+         */
+        const val DENSITY_BUCKET_COUNT = 128
+
+        /**
+         * 密度谱基线窗数 K：取发送后前 5 个滑窗密度**中位数**为「发送后初始稳态」基线。取值依据：
+         * 中位数对「气泡上屏」单窗突发鲁棒（气泡突发 ≤1 窗，5 窗中位数不受其抬高），5 窗又足够短，
+         * 能在任何合理响应到达前锁定思考稳态。
+         */
+        const val DENSITY_BASELINE_WINDOWS = 5
+
+        /**
+         * 密度谱上跃倍率：某窗密度 ≥ 基线 ×2 判结构性上跃（静止思考→响应，豆包型：思考期 UI 静止
+         * 无内容事件、基线≈0，响应流上屏 → 密度自 0 抬升）。取值依据：2× 是保守、无歧义的倍增，
+         * 远超同帧合流抖动。
+         */
+        const val DENSITY_JUMP_UP_FACTOR = 2
+
+        /**
+         * 密度谱下跃倍率倒数：某窗密度 ≤ 基线 ×0.5（整数判据 密度×此值 ≤ 基线）判结构性下跃
+         * （高频思考动画→低频响应 token，DeepSeek 型：动画 cadence~0.1ms 高密度 → 响应 ~100ms 低密度）。
+         * 与上跃对称的减半判据。
+         */
+        const val DENSITY_JUMP_DOWN_FACTOR_INV = 2
+
+        /**
+         * 密度谱下跃最小基线：基线 <4 时不做下跃判定。取值依据：低计数下的「减半」是 ±1~2 事件噪声、
+         * 非结构性；仅当思考动画基线足够高（≥4 事件/窗）时，减半到响应 token 才是可信信号（不为出数
+         * 降低判据可信度——判据触发不了就诚实 null）。
+         */
+        const val DENSITY_MIN_BASELINE_FOR_DROP = 4
+
+        /**
+         * 密度谱静默基线下的响应起跃最小计数：基线=0（静止思考，豆包型思考期无内容事件）时，首个
+         * 密度 ≥2 事件的窗判响应起点。取值依据：200ms 窗内 ≥2 事件区分真实流式起点与孤立杂事件。
+         */
+        const val DENSITY_MIN_JUMP_COUNT = 2
+
+        /** 密度谱跃变 TTFT 来源标注（[AdapterObsSnapshot.densityAnchorSource]），检出跃变时取此值。 */
+        const val SOURCE_DENSITY = "density"
+
         private const val NONE = Long.MIN_VALUE
     }
 
@@ -83,6 +146,11 @@ class ObsSessionStats(
     private var firstClusterStartNanos = NONE
     private var secondClusterStartNanos = NONE
     private var lastContentDeltaNanos = NONE
+
+    // ── 密度谱 TTFT（v4）状态：内容事件按 [DENSITY_STEP_NANOS] 步桶落桶（前缀直方图），窗格
+    // 原点=簇首 [firstClusterStartNanos]（发送后首个内容事件，与 v3 簇首同一锚点，输入活动一并
+    // 重置）。热路径仅一次除法+一次自增（R-16 O(1) 零分配）；滑窗聚合/基线偏离检测全在 [snapshot]。
+    private val densityBucket = IntArray(DENSITY_BUCKET_COUNT)
 
     /**
      * 热路径：记一次内容变化事件。仅打戳/环形写/计数，O(1) 零分配。
@@ -129,6 +197,11 @@ class ObsSessionStats(
             firstClusterStartNanos = NONE
             secondClusterStartNanos = NONE
             lastContentDeltaNanos = NONE
+            // v4：密度谱窗格与簇首同源，输入活动一并清桶重置（下次内容事件重设窗格原点）。清桶
+            // 在低频输入路径（非内容 delta 热路径），128 int fill 可忽略；R-16 热路径口径不变。
+            // v3.2 守卫延伸至 v4：仅 textLen>0（真实打字）重置——响应期 len=0 的输入轨事件
+            // （DeepSeek 无 text 载荷 TEXT_CHANGED）不清窗，否则密度谱永不闭合。
+            densityBucket.fill(0)
         }
     }
 
@@ -162,6 +235,15 @@ class ObsSessionStats(
         }
         lastContentDeltaNanos = tsNanos
 
+        // ── 密度谱（v4）：以簇首 firstClusterStartNanos 为窗格原点落桶计数。上方簇块保证此刻
+        // firstClusterStartNanos 已非 NONE（首事件即置位，落桶 idx=0）。O(1)：一次除法+一次自增，
+        // 不依赖静默/锚点——DeepSeek 型思考期播放动画（持续 CONTENT、无 >400ms 静默、v3 簇分割
+        // 失效）也照常入桶，把「思考稳态→响应」的密度结构性跃变留待 snapshot 检测。超出桶跨度
+        // （>12.8s）的事件不落桶（对应 snapshot 侧诚实 null，不猜）。
+        val densityAnchor = firstClusterStartNanos
+        val bucketIdx = ((tsNanos - densityAnchor) / DENSITY_STEP_NANOS).toInt()
+        if (bucketIdx in 0 until DENSITY_BUCKET_COUNT) densityBucket[bucketIdx]++
+
         val anchor = sendAnchorNanos
         if (anchor == NONE) return
         val delta = tsNanos - anchor
@@ -175,7 +257,9 @@ class ObsSessionStats(
     }
 
     /** 聚合出不可变快照（仅节流/会话切换时调用；含排序，不进热路径）。 */
-    fun snapshot(nowNanos: Long): AdapterObsSnapshot = AdapterObsSnapshot(
+    fun snapshot(nowNanos: Long): AdapterObsSnapshot {
+        val densityMs = ttftDensityMs(nowNanos) // 密度谱聚合一次，与来源标注配对
+        return AdapterObsSnapshot(
         pkg = pkg,
         specId = specId,
         events = eventCount,
@@ -200,7 +284,10 @@ class ObsSessionStats(
         } else {
             (secondClusterStartNanos - firstClusterStartNanos) / 1_000_000.0
         },
-    )
+        ttftDensityMs = densityMs, // v4 密度跃变 TTFT 代理（null=数据不足/无跃变，R-10）
+        densityAnchorSource = if (densityMs == null) null else SOURCE_DENSITY,
+        )
+    }
 
     /** 历史环形 → 时间升序列表（仅快照时调用，不进热路径）。 */
     private fun ttftSendHistory(): List<Double> {
@@ -221,6 +308,59 @@ class ObsSessionStats(
         val sorted = ring.copyOf(ringSize).apply { sort() }
         val rank = ceil(0.5 * ringSize).toInt().coerceIn(1, ringSize)
         return sorted[rank - 1] / 1_000_000.0
+    }
+
+    /**
+     * 密度谱（v4）TTFT 代理：把发送后内容事件流按 [DENSITY_STEP_NANOS] 桶化为前缀直方图，组成
+     * [DENSITY_WINDOW_STEPS] 步宽的滑窗密度谱，取发送后前 [DENSITY_BASELINE_WINDOWS] 窗密度中位数
+     * 为「发送后初始稳态」基线，返回**首个相对基线结构性跃变窗**距簇首的偏移（ms）。
+     *
+     * 选型=**方案 A（密度基线偏离法，任务书推荐）**：纯整数运算、无浮点累积，比 CUSUM 变点检测更
+     * 简单稳健。检出双向——上跃（≥基线×[DENSITY_JUMP_UP_FACTOR]，静止思考→响应；基线=0 时改用绝对
+     * 下限 [DENSITY_MIN_JUMP_COUNT]）与下跃（≤基线×0.5，高频思考动画→低频响应 token，仅当基线
+     * ≥[DENSITY_MIN_BASELINE_FOR_DROP] 才判，避免低计数噪声）。锚点=簇首 [firstClusterStartNanos]
+     * （发送后首内容事件，与 v3 同锚），不依赖静默/发送锚点/节点——纯时戳密度统计。
+     *
+     * **诚实边界**：启发式，密度跃变≠精确首字；发送场景外无发送语义；恒 LOW/INCONCLUSIVE；完整
+     * 滑窗数 <[DENSITY_BASELINE_WINDOWS]+1（数据不足）或全程无跃变（纯稳态）→ null（R-10 绝不折 0，
+     * 不为出数降低判据可信度）。仅 [snapshot] 调用（含桶求和/排序，不进热路径）。
+     */
+    private fun ttftDensityMs(nowNanos: Long): Double? {
+        val anchor = firstClusterStartNanos
+        if (anchor == NONE) return null // 无内容事件=未测（R-10）
+        val elapsed = nowNanos - anchor
+        if (elapsed < 0) return null
+        // 已完整流逝的步桶数（桶 k 覆盖 [k,k+1)×step，其末端 ≤ elapsed 才算完整、密度可信；末个
+        // 未满桶不计入 → 快照落在窗中途不会把半个窗读成假下跃）。
+        val completeSteps = minOf(DENSITY_BUCKET_COUNT, (elapsed / DENSITY_STEP_NANOS).toInt())
+        // 滑窗 w[i]=Σ bucket[i..i+WINDOW_STEPS-1]，需连续 WINDOW_STEPS 个完整桶
+        val windowCount = completeSteps - DENSITY_WINDOW_STEPS + 1
+        if (windowCount < DENSITY_BASELINE_WINDOWS + 1) return null // 数据不足=未测（R-10）
+        // 基线=前 K 窗密度中位数（nearest-rank p50，与 [cadenceP50Ms] 同约定；中位数抗气泡突发单窗）
+        val baseWins = IntArray(DENSITY_BASELINE_WINDOWS) { windowDensity(it) }
+        baseWins.sort()
+        val rank = ceil(0.5 * DENSITY_BASELINE_WINDOWS).toInt().coerceIn(1, DENSITY_BASELINE_WINDOWS)
+        val baseline = baseWins[rank - 1]
+        // 从第 K 窗起扫首个结构性跃变窗（纯整数比较，Long 防溢出）
+        for (i in DENSITY_BASELINE_WINDOWS until windowCount) {
+            val d = windowDensity(i)
+            val jump = if (baseline == 0) {
+                d >= DENSITY_MIN_JUMP_COUNT // 静止思考(豆包型)后响应上跃（基线×倍率退化为绝对下限）
+            } else {
+                d.toLong() >= baseline.toLong() * DENSITY_JUMP_UP_FACTOR || // 上跃 ≥2×
+                    (baseline >= DENSITY_MIN_BASELINE_FOR_DROP && // 下跃 ≤0.5×（d×2 ≤ baseline）
+                        d.toLong() * DENSITY_JUMP_DOWN_FACTOR_INV <= baseline.toLong())
+            }
+            if (jump) return (i * (DENSITY_STEP_NANOS / 1_000_000L)).toDouble() // 窗 i 起点距簇首偏移
+        }
+        return null // 全程无跃变=纯稳态=未测（R-10 绝不折 0）
+    }
+
+    /** 滑窗 i 的事件密度=其覆盖的 [DENSITY_WINDOW_STEPS] 个连续步桶计数之和（仅 [snapshot] 调用）。 */
+    private fun windowDensity(i: Int): Int {
+        var sum = 0
+        for (k in 0 until DENSITY_WINDOW_STEPS) sum += densityBucket[i + k]
+        return sum
     }
 }
 
@@ -264,6 +404,22 @@ data class AdapterObsSnapshot(
      * 恒 LOW/INCONCLUSIVE。
      */
     val ttftClusterMs: Double? = null,
+    /**
+     * **密度谱 TTFT 代理**（v4），ms：内容事件按滑动时间窗密度谱统计（步进
+     * [ObsSessionStats.DENSITY_STEP_NANOS]/窗宽 [ObsSessionStats.DENSITY_WINDOW_STEPS] 步），取
+     * 发送后前 [ObsSessionStats.DENSITY_BASELINE_WINDOWS] 窗中位数为初始稳态基线，返回首个相对基线
+     * 结构性跃变窗距簇首的偏移。**不靠静默/锚点/节点，纯时戳密度**——补 v3 簇分割 [ttftClusterMs]
+     * 在「思考期播放生成动画」栈（DeepSeek：持续 CONTENT 无 >400ms 静默、ttftClusterMs=null）的缺口
+     * （D-52/D-53）。启发式，密度跃变≠精确首字；发送场景外无义；数据不足/无跃变=null（R-10）；恒
+     * LOW/INCONCLUSIVE。v3 [ttftClusterMs] 与 v4 两法并存（豆包走 v3、DeepSeek 走 v4，快照都带，
+     * UI/落库可择优）。
+     */
+    val ttftDensityMs: Double? = null,
+    /**
+     * 密度谱跃变来源标注（与 [ttftDensityMs] 配对）：[ObsSessionStats.SOURCE_DENSITY]="density"
+     * （检出密度跃变）| null（无跃变/数据不足，与 ttftDensityMs=null 同步）。
+     */
+    val densityAnchorSource: String? = null,
 ) {
     val confidence: String get() = CONFIDENCE
 
