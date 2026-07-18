@@ -63,11 +63,14 @@ class ApiProbe(private val context: Context) {
      * **干净成功**时，才用 [TokenObservationExport] 生成隐私最小化 observation 并回调 [emit]
      * （去向由调用方决定——JSONL 文件/上传，数据集落地=PO 决策项）。不传本 sink = 对照列
      * 探针零行为变化。[datasetSecret]/[subject] 仅用于派生 subject_group_id，绝不入库/导出/日志。
+     *
+     * **workload_kind 不在此声明**（finding #2, D-64）：observation 的 workload 由 [run] 的
+     * `workload` 参**单一决定**——同一值既构造请求体又标注 observation，二者不可能分叉。旧版
+     * 本类曾带独立 `workloadKind` 默认值，可致 body=text 却标 image 的错标，已移除。
      */
     class ObservationSink(
         val datasetSecret: ByteArray,
         val subject: String,
-        val workloadKind: TokenObservationExport.WorkloadKind = TokenObservationExport.WorkloadKind.TEXT,
         val emit: suspend (String) -> Unit,
     )
 
@@ -84,12 +87,19 @@ class ApiProbe(private val context: Context) {
         .build()
 
     /**
-     * 执行一次探针。永不抛出（除协程取消）：失败以 error 字段入库返回（R-10 语义）。
+     * 执行一次探针。运行期失败（网络/IO/解析）永不抛出：以 error 字段入库返回（R-10 语义）。
+     * **唯一例外（除协程取消）**：[workload] 为探针尚未实现真实请求体的类型（当前仅 TEXT）时，
+     * [requestBodyJson] 抛 IllegalArgumentException——这是编程错误（配置了未实现的多模态探针），
+     * 非运行期数据缺失，与 [TokenObservationExport.buildObservation] 对非法格式抛错同理。
      *
+     * @param workload 本次探针的输入类型（finding #2, D-64）：**同时**决定请求体构造与 observation
+     *   的 workload_kind 标注，杜绝 body 与标注分叉。当前仅 [TokenObservationExport.WorkloadKind.TEXT]
+     *   有真实请求体；多模态待端点规格落地后在 [requestBodyJson] 扩展。
      * @param log 行日志回调（已保证不含 key）
      */
     suspend fun run(
         config: Config,
+        workload: TokenObservationExport.WorkloadKind = TokenObservationExport.WorkloadKind.TEXT,
         observationSink: ObservationSink? = null,
         log: suspend (String) -> Unit,
     ): ApiProbeResultEntity {
@@ -115,7 +125,7 @@ class ApiProbe(private val context: Context) {
         }
         val base = config.baseUrl.trim().trimEnd('/')
         val url = base + endpointPath(config.provider)
-        val bodyJson = requestBodyJson(config.provider, config.model)
+        val bodyJson = requestBodyJson(config.provider, config.model, workload)
         val requestBuilder = Request.Builder()
             .url(url)
             .post(bodyJson.toRequestBody("application/json".toMediaType()))
@@ -225,7 +235,7 @@ class ApiProbe(private val context: Context) {
                 TokenObservationExport.fromProbeOutputs(
                     observationId = TokenObservationExport.observationId(config.provider.id, startedAtEpochMs, sgid),
                     subjectGroupId = sgid,
-                    workloadKind = observationSink.workloadKind,
+                    workloadKind = workload, // finding #2: 与 requestBodyJson 同源（同一 workload），不取 sink 字段
                     requestBodyBytes = bodyJson.toByteArray(Charsets.UTF_8).size,
                     ttftMs = k?.ttftMs,
                     outputTokens = p.outputTokens,
@@ -240,7 +250,7 @@ class ApiProbe(private val context: Context) {
                 observationSink.emit(observation)
                 log(
                     "APIPROBE_OBSERVATION generated=true " +
-                        "workload=${observationSink.workloadKind.id} " +
+                        "workload=${workload.id} " +
                         "token_events=${k?.tokenEventCount ?: 0}"
                 )
             } else {
@@ -302,18 +312,34 @@ class ApiProbe(private val context: Context) {
             LlmProvider.OPENAI_COMPAT -> "/chat/completions"
         }
 
-        /** 请求体构造（纯函数，单测锚定 max_tokens 硬顶与固定 prompt）。 */
-        fun requestBodyJson(provider: LlmProvider, model: String): String = when (provider) {
-            LlmProvider.ANTHROPIC ->
-                """{"model":${jsonStr(model)},"max_tokens":$MAX_TOKENS,"stream":true,""" +
-                    """"messages":[{"role":"user","content":${jsonStr(PROMPT)}}]}"""
+        /**
+         * 请求体构造（纯函数，单测锚定 max_tokens 硬顶与固定 prompt）。
+         *
+         * [workload] 与 observation 的 workload_kind **同源**（finding #2, D-64）：同一 workload
+         * 既在此构造请求体、又在 [run] 标注 observation。当前仅 text 有真实请求体；多模态
+         * （image/document/video）无端点规格，**绝不投机用 text 冒充其标注** → 显式拒绝，
+         * 留待多模态请求体落地时在此扩展。默认 TEXT 保持既有 2 参调用有效。
+         */
+        fun requestBodyJson(
+            provider: LlmProvider,
+            model: String,
+            workload: TokenObservationExport.WorkloadKind = TokenObservationExport.WorkloadKind.TEXT,
+        ): String {
+            require(workload == TokenObservationExport.WorkloadKind.TEXT) {
+                "multimodal probe body not implemented; workload must be TEXT (got ${workload.id})"
+            }
+            return when (provider) {
+                LlmProvider.ANTHROPIC ->
+                    """{"model":${jsonStr(model)},"max_tokens":$MAX_TOKENS,"stream":true,""" +
+                        """"messages":[{"role":"user","content":${jsonStr(PROMPT)}}]}"""
 
-            // 不带 temperature：各 OpenAI 兼容服务商约束不一（如 Moonshot kimi-k2.6 仅接受
-            // temperature=1，显式传 0 会 400 invalid_temperature），延迟探针不依赖确定性输出，
-            // 走服务端默认值兼容面最大。
-            LlmProvider.OPENAI_COMPAT ->
-                """{"model":${jsonStr(model)},"max_tokens":$MAX_TOKENS,"stream":true,""" +
-                    """"messages":[{"role":"user","content":${jsonStr(PROMPT)}}]}"""
+                // 不带 temperature：各 OpenAI 兼容服务商约束不一（如 Moonshot kimi-k2.6 仅接受
+                // temperature=1，显式传 0 会 400 invalid_temperature），延迟探针不依赖确定性输出，
+                // 走服务端默认值兼容面最大。
+                LlmProvider.OPENAI_COMPAT ->
+                    """{"model":${jsonStr(model)},"max_tokens":$MAX_TOKENS,"stream":true,""" +
+                        """"messages":[{"role":"user","content":${jsonStr(PROMPT)}}]}"""
+            }
         }
 
         private fun jsonStr(s: String): String = buildString {

@@ -38,7 +38,6 @@ import com.aneb.probe.apiprobe.ApiProbeReport
 import com.aneb.probe.apiprobe.LlmProvider
 import com.aneb.probe.apiprobe.ObservationJsonlWriter
 import com.aneb.probe.apiprobe.ProviderPresets
-import com.aneb.probe.apiprobe.TokenObservationExport
 import com.aneb.probe.apiprobe.toLlmProvider
 import java.io.File
 import com.aneb.probe.data.AdapterObsEntity
@@ -1007,12 +1006,13 @@ class MainActivity : ComponentActivity() {
                             val obsSink = ApiProbe.ObservationSink(
                                 datasetSecret = keyStore.datasetSecret(),
                                 subject = "${provider.id}-$model",
-                                workloadKind = TokenObservationExport.WorkloadKind.TEXT,
                                 emit = { obs -> withContext(Dispatchers.IO) { obsWriter.append(obs, provider.id) } },
                             )
+                            // workload 默认 TEXT（探针请求体恒 text）；observation 的 workload_kind
+                            // 由此 run 参单一决定，与请求体同源（finding #2, D-64）。
                             ApiProbe(applicationContext).run(
                                 ApiProbe.Config(provider, baseUrl, model, key),
-                                obsSink,
+                                observationSink = obsSink,
                             ) { line -> withContext(Dispatchers.Main) { addLog(line) } }
                             resultsVersion++
                         } catch (e: CancellationException) {
