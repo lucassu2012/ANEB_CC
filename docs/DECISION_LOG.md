@@ -85,6 +85,8 @@
 
 | D-67 | 2026-07-19 | **spine-4 §4.1 首切（SpeedTest 动态化蓝图「锁无关先行」）：抽取 `engine/SpeedSampleMath` 纯函数 + JVM 单测**。`median/jitter` 迁出 `SpeedRunner` 私有;下行 run/上行 run/整形下行 三处逐位相同的 0.6s 滑窗吞吐内联块统一为 `SpeedSampleMath.windowMbps` 单一事实源。**行为逐位零变**（`run/runShaped/Sample` 签名与产出不变;runShaped 上行「全程均值」口径故意保留不走滑窗——1Mbps 整形下滑窗虚高问题,见 SpeedRunner 注释）。新增 `SpeedSampleMathTest` 9 例（中位/抖动/滑窗淘汰/R-10 不足则 null 绝不折 0）。全绿 **585**（576→+9,0 fail）。commit **2016b92**。**协同注记**:v3 会话落地;spine-4 §4.1 剩余=GaugeMath（触 SpeedTestScreen/HomeScreen）+§5 golden tests+§4.2 facet3 source 悬空修复——**lane 认领以共享 DECISION_LOG+跨会话消息为准,避免 v2/v3 重复**。 | engine/{SpeedRunner,SpeedSampleMath}+SpeedSampleMathTest(9);spine4 蓝图 §4.1/§7;LiveTelemetry.derive 抽取先例;R-10;commit 2016b92 |
 
+| D-68 | 2026-07-19 | **spine-4 §4.1 第二切：抽取 `ui/GaugeMath` 纯函数 + JVM 单测（composable 只留绘制,数值全走纯函数）**。`autoGaugeMax`（量程自适应 峰值×1.15 取整到10 下限20,原 SpeedTestScreen L138）/`gaugeFraction`（null→0 不显"满",R-10）/`pingFraction`（null→0 不显"优",R-10；0..200ms 越低越满）/`peak`（单调累积,null 保持,四处峰值统一）/`sparklineNormalize`（vmax 归一下限1,<2 点→空,原 Sparkline 内联）/`itlToSmoothness`（1-itl/1000 clamp 0.05..1,原 HomeScreen L384）。接线:SpeedTestScreen 峰值×4/量程/指针分数/火花线归一、HomeScreen RunningSparkline——**行为逐位零变**,两屏 composable 签名不动。新增 `GaugeMathTest` 10 例。全绿 **595**（585→+10,0 fail）。commit 见本行。**协同注记**:v2 已按 PO「暂停 C 树写码」裁定让出 spine-1/spine-4 lane（见共享记忆 ctree-collision-pause-protocol）,本项在让出 lane 内落地,提交前 git log 复核无并发新提交。§4.1 主抽取至此完成;spine-4 剩余=§5 DynamismVisibilityGoldenTest/Facet3SourceResolvableTest+§4.2 facet3 source 悬空修复（🟢）→ 之后即 PO/设备阻。 | ui/{GaugeMath,SpeedTestScreen,HomeScreen}+GaugeMathTest(10);spine4 蓝图 §4.1/§7;D-67;R-10 |
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。

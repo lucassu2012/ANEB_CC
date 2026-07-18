@@ -46,9 +46,7 @@ import com.aneb.probe.ui.theme.AnebTheme
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.ceil
 import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.sin
 
 /**
@@ -95,8 +93,8 @@ fun SpeedTestScreen(
         val v = (sample?.downMbps ?: sample?.upMbps)?.toFloat() ?: return@LaunchedEffect
         history.add(v)
         if (history.size > 64) history.removeAt(0)
-        sample?.upMbps?.toFloat()?.let { if (it > peakUp) peakUp = it }
-        sample?.downMbps?.toFloat()?.let { if (it > peakDown) peakDown = it }
+        peakUp = GaugeMath.peak(peakUp, sample?.upMbps?.toFloat())
+        peakDown = GaugeMath.peak(peakDown, sample?.downMbps?.toFloat())
     }
     // 弱网对照（合成整形）run 的实测峰值（每次起测清空；与正常 run 峰值并排展示，绝不合并）
     var shapedPeakUp by remember { mutableStateOf(0f) }
@@ -108,8 +106,8 @@ fun SpeedTestScreen(
         }
     }
     LaunchedEffect(shapedSample) {
-        shapedSample?.upMbps?.toFloat()?.let { if (it > shapedPeakUp) shapedPeakUp = it }
-        shapedSample?.downMbps?.toFloat()?.let { if (it > shapedPeakDown) shapedPeakDown = it }
+        shapedPeakUp = GaugeMath.peak(shapedPeakUp, shapedSample?.upMbps?.toFloat())
+        shapedPeakDown = GaugeMath.peak(shapedPeakDown, shapedSample?.downMbps?.toFloat())
     }
 
     val phase = sample?.phase
@@ -135,13 +133,12 @@ fun SpeedTestScreen(
         else -> peakUp
     }
     // 量程自适应：随当前相峰值上探，最小 20 Mbps，取整到 10
-    val gaugeMax = max(20f, ceil((phasePeak * 1.15f) / 10f) * 10f)
+    val gaugeMax = GaugeMath.autoGaugeMax(phasePeak)
     val targetFrac = if (isPing) {
         // ping 阶段：RTT→0..1（0..200ms，越低越满）；无测量值保持 0（R-10：null 不驱动几何显示为"满/优"）
-        val r = sample?.rttMs
-        if (r == null) 0f else (1f - (r.toFloat() / 200f)).coerceIn(0f, 1f)
+        GaugeMath.pingFraction(sample?.rttMs)
     } else {
-        ((mainVal ?: 0.0).toFloat() / gaugeMax).coerceIn(0f, 1f)
+        GaugeMath.gaugeFraction(mainVal, gaugeMax)
     }
     val frac by animateFloatAsState(targetFrac, tween(220), label = "speedFrac")
 
@@ -479,14 +476,14 @@ private fun SpeedGauge(frac: Float, valueText: String, unit: String, phaseLabel:
 private fun Sparkline(values: List<Float>, color: Color, trackColor: Color, modifier: Modifier = Modifier) {
     Canvas(modifier.clip(RoundedCornerShape(10.dp))) {
         drawLine(trackColor, Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 2f)
-        if (values.size < 2) return@Canvas
-        val vmax = max(1f, values.max())
-        val n = values.size
+        val norm = GaugeMath.sparklineNormalize(values)
+        if (norm.isEmpty()) return@Canvas
+        val n = norm.size
         val dx = size.width / (n - 1).toFloat()
-        var prev = Offset(0f, size.height - (values[0] / vmax) * size.height)
+        var prev = Offset(0f, size.height - norm[0] * size.height)
         for (i in 1 until n) {
             val x = dx * i
-            val y = size.height - (values[i] / vmax) * size.height
+            val y = size.height - norm[i] * size.height
             val cur = Offset(x, y)
             drawLine(color, prev, cur, strokeWidth = 4f, cap = StrokeCap.Round)
             prev = cur

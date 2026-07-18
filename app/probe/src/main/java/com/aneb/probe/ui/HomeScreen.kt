@@ -381,7 +381,7 @@ private fun RunningGauge(frac: Float, centerVal: String, centerLabel: String, up
 private fun RunningSparkline(telemetry: LiveTelemetry, uploading: Boolean) {
     val colors = AnebTheme.colors
     val pts = if (uploading) emptyList() else telemetry.itlRecentMs
-    val norm = if (pts.size < 2) emptyList() else pts.takeLast(40).map { (1.0 - it / 1000.0).coerceIn(0.05, 1.0).toFloat() }
+    val norm = if (pts.size < 2) emptyList() else pts.takeLast(40).map { GaugeMath.itlToSmoothness(it) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("流式平滑度", fontSize = 9.5.sp, color = if (uploading) colors.faint else colors.muted)
