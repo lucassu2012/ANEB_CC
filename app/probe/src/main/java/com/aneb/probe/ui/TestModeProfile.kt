@@ -206,7 +206,7 @@ object TestModeProfiles {
         ),
         conclusion = "上下行 / 时延 / 抖动四门限 → 优良·尚可·偏弱，并给 AI 使用场景建议。",
         // ── v2 4-facet（PROFILE_FRAMEWORK §4.2）──────────────────────────
-        version = "basic-network-profile@0.1.0",
+        version = "basic-network-profile@0.1.1",
         businessType = BusinessType(
             summary = "评估这条网络的原始承载力（不含 AI 语义）：裸测 /download·/upload·/echo，" +
                 "无 pacing 干扰、最纯净口径，判断底层网络是否适合 AI 对话/编码/多模态。",
@@ -266,8 +266,10 @@ object TestModeProfiles {
             ),
         ),
         live = listOf(
-            LiveMetric("dl", "下行速率", "Mbps", "liveDownMbps", LiveRender.GAUGE, windowMs = 0, refreshMs = 300),
-            LiveMetric("ul", "上行速率", "Mbps", "liveUpMbps", LiveRender.GAUGE, windowMs = 0, refreshMs = 300),
+            // source=SpeedRunner.Sample 语义字段（§4.2 修复：曾悬空声明 liveDownMbps/liveUpMbps，
+            // 而本模式数据面是 Sample 非 LiveTelemetry；闸门=DynamicMetricSelection.resolveSource）
+            LiveMetric("dl", "下行速率", "Mbps", "downMbps", LiveRender.GAUGE, windowMs = 0, refreshMs = 300),
+            LiveMetric("ul", "上行速率", "Mbps", "upMbps", LiveRender.GAUGE, windowMs = 0, refreshMs = 300),
             LiveMetric("rtt", "时延", "ms", "rttMs", LiveRender.WAVEFORM, windowMs = 2000, refreshMs = 200),
         ),
         // 网络综合性能独立输出：四门限分级 + AI 场景建议，不并入 Token AQS。

@@ -265,7 +265,7 @@
         { "name": "抖动", "unit": "ms", "dynamic": false }
       ],
       "conclusion": "上下行 / 时延 / 抖动四门限 → 优良·尚可·偏弱，并给 AI 使用场景建议。",
-      "version": "basic-network-profile@0.1.0",
+      "version": "basic-network-profile@0.1.1",
       "businessType": {
         "summary": "评估这条网络的原始承载力（不含 AI 语义）：裸测 /download·/upload·/echo，无 pacing 干扰、最纯净口径，判断底层网络是否适合 AI 对话/编码/多模态。",
         "subScenarios": [
@@ -355,8 +355,8 @@
         }
       ],
       "live": [
-        { "id": "dl", "label": "下行速率", "unit": "Mbps", "source": "liveDownMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
-        { "id": "ul", "label": "上行速率", "unit": "Mbps", "source": "liveUpMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
+        { "id": "dl", "label": "下行速率", "unit": "Mbps", "source": "downMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
+        { "id": "ul", "label": "上行速率", "unit": "Mbps", "source": "upMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
         { "id": "rtt", "label": "时延", "unit": "ms", "source": "rttMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 }
       ],
       "scoring": {
