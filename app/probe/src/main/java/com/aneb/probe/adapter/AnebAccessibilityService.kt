@@ -260,7 +260,11 @@ class AnebAccessibilityService : AccessibilityService() {
                 ruleMatchedEvents = snap.ruleMatchedEvents,
                 firstDeltaMs = snap.firstDeltaMs,
                 cadenceP50Ms = snap.cadenceP50Ms,
-                ttftClusterMs = snap.ttftClusterMs,
+                // 端到端 TTFT 代理择优（D-55）：v3 簇分割优先、v4 密度谱兜底——二者口径同轴
+                // （发送→响应首字，含渲染，UI 呈现口径，恒 LOW/INCONCLUSIVE），互补覆盖不同 UI 栈：
+                // 豆包(View 系,思考期静止)→cluster 有值;DeepSeek(Compose,思考期动画)→cluster=null、
+                // density 有值。历史页 TTFT 展示此择优列，两栈 App 均可回溯。
+                ttftClusterMs = snap.ttftClusterMs ?: snap.ttftDensityMs,
                 ttftSendMs = snap.ttftSendMs,
                 anchorSource = snap.anchorSource,
                 confidence = snap.confidence,
