@@ -21,6 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AbResultEntity::class,
         VoiceResultEntity::class,
         SyntheticResultEntity::class,
+        AdapterObsEntity::class,
     ],
     // v3：P1-C05/C06 接线——TestRun 扩 run 级字段；新增 scenario_result / echo_sample；
     // token_event 增 scenarioKey/streamIndex 维度
@@ -40,7 +41,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      共表以 caliber 区分；观测口径独立于 token AQS 各表，additive）
     // v13：合成子测结果落库——新增 synthetic_result（恢复子测 D-40 / 弱网整形对照 D-43 的
     //      Done 样本实测值共表，kind 区分；合成口径独立结论恒 LOW/INCONCLUSIVE，additive）
-    version = 13,
+    // v14：Profile 3 观察数据落库——新增 adapter_obs（无障碍观察会话快照，只落规格匹配会话；
+    //      观察=端到端体验代理≠网络口径，独立于 AQS 各表，恒 LOW/INCONCLUSIVE，additive）
+    version = 14,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -56,6 +59,7 @@ abstract class AnebDatabase : RoomDatabase() {
     abstract fun abResultDao(): AbResultDao
     abstract fun voiceResultDao(): VoiceResultDao
     abstract fun syntheticResultDao(): SyntheticResultDao
+    abstract fun adapterObsDao(): AdapterObsDao
 
     companion object {
         @Volatile
@@ -308,6 +312,46 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v13 → v14 的全部语句（Profile 3 观察数据落库，additive；JVM 单测锚定存在性与
+         * additive-only）：新增 adapter_obs 表（无索引），不触碰既有表。SQL 与 KSP 生成的
+         * AnebDatabase_Impl.createAllTables 严格一致（列序=字段声明序，affinity：
+         * Double→REAL、Int/Long/Boolean→INTEGER、String→TEXT），做法同 [MIGRATION_12_13]——
+         * Room 迁移后按 @Entity 期望 schema 逐列校验，偏差 fail-fast，不会静默错表。
+         * NOT NULL 恰 6 列（id/tsEpochMs/pkg/events/ruleMatchedEvents/confidence）；指标列全部
+         * **可空、无默认值**（R-10：Snapshot 的 null 原样落库，禁 0/哨兵值）。只落规格匹配会话
+         * （specId!=null），generic 观察不落库（宿主侧过滤，见 AnebAccessibilityService）。
+         */
+        internal val MIGRATION_13_14_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `adapter_obs` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`tsEpochMs` INTEGER NOT NULL, " +
+                "`pkg` TEXT NOT NULL, " +
+                "`specId` TEXT, " +
+                "`appLabel` TEXT, " +
+                "`events` INTEGER NOT NULL, " +
+                "`ruleMatchedEvents` INTEGER NOT NULL, " +
+                "`firstDeltaMs` INTEGER, " +
+                "`cadenceP50Ms` REAL, " +
+                "`ttftClusterMs` REAL, " +
+                "`ttftSendMs` REAL, " +
+                "`anchorSource` TEXT, " +
+                "`confidence` TEXT NOT NULL)",
+        )
+
+        /**
+         * v13 → v14（Profile 3 观察数据落库，additive）：只建新表不动数据——已落库的历史取证
+         * 数据（v13 含 synthetic_result 及之前全部表）原样保留。人工验证步骤同 [MIGRATION_6_7]
+         * KDoc（覆盖安装后既有 run 可见、.schema adapter_obs 输出与本 CREATE 语句一致、
+         * 用户手动进入豆包/DeepSeek 观察后切前台包 ADAPTER_OBS_SAVED 落库成功、logcat 无
+         * Migration 异常）。
+         */
+        internal val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_13_14_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -316,10 +360,10 @@ abstract class AnebDatabase : RoomDatabase() {
                     "aneb-probe.db",
                 )
                     // v6 起 schema 变更必须写显式 Migration（历史数据是取证资产，
-                    // 不可静默丢弃）——v6→v7 / … / v12→v13 见上方（均 additive）。
+                    // 不可静默丢弃）——v6→v7 / … / v13→v14 见上方（均 additive）。
                     .addMigrations(
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-                        MIGRATION_11_12, MIGRATION_12_13,
+                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()

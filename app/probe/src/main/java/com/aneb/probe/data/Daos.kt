@@ -119,6 +119,16 @@ interface SyntheticResultDao {
 }
 
 @Dao
+interface AdapterObsDao {
+    @Insert
+    suspend fun insert(e: AdapterObsEntity): Long
+
+    /** 最近 N 条，新→旧（历史混排展示；同刻并列时按 id 兜底） */
+    @Query("SELECT * FROM adapter_obs ORDER BY tsEpochMs DESC, id DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 20): List<AdapterObsEntity>
+}
+
+@Dao
 interface EnvEventDao {
     /** 环境事件低频（热/省电/切卡/路径），可逐条写；批量接口供 phase 末统一落库 */
     @Insert

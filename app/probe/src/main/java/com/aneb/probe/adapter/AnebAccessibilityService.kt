@@ -9,6 +9,15 @@ import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import com.aneb.probe.BuildConfig
+import com.aneb.probe.data.AdapterObsEntity
+import com.aneb.probe.data.AnebDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 
 /**
  * Profile 3 真实 App 适配器宿主——无障碍**观察模式 only** 打点服务。
@@ -113,6 +122,21 @@ class AnebAccessibilityService : AccessibilityService() {
     @Volatile
     private var imePkg: String? = null
 
+    // ── 观察快照落库（R-16：回调热路径仅 trySend，DB 写在 IO 消费协程；onDestroy 取消）──
+    /** 落库协程作用域（SupervisorJob 隔离单次失败；onDestroy 取消）。 */
+    private val persistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** 轻量落库队列：热路径 trySend 快照行，消费协程串行 DB 写；满则丢最旧（不阻塞回调）。 */
+    private val obsPersistChannel = Channel<AdapterObsEntity>(
+        capacity = OBS_PERSIST_CAPACITY,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    override fun onCreate() {
+        super.onCreate()
+        startObsPersistConsumer()
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         val specs = AdapterSpecLoader.loadFromAssets(this)
@@ -195,6 +219,55 @@ class AnebAccessibilityService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
+    override fun onDestroy() {
+        obsPersistChannel.close()
+        persistScope.cancel()
+        super.onDestroy()
+    }
+
+    /** 启动落库消费协程（onCreate 一次；串行消费 channel 做 DB 写，与回调热路径解耦）。 */
+    private fun startObsPersistConsumer() {
+        persistScope.launch {
+            val dao = AnebDatabase.get(applicationContext).adapterObsDao()
+            for (row in obsPersistChannel) {
+                runCatching { dao.insert(row) }
+                    .onSuccess { id ->
+                        Log.i(TAG, "ADAPTER_OBS_SAVED id=$id app=${row.appLabel ?: row.pkg}")
+                    }
+                    .onFailure { e ->
+                        Log.i(TAG, "ADAPTER_OBS_SAVE_FAIL err=${e.javaClass.simpleName}")
+                    }
+            }
+        }
+    }
+
+    /**
+     * 观察快照落库入队（R-16：回调热路径仅本方法——构造不可变行 + [Channel.trySend]，无 IO/无阻塞；
+     * DB 写在 [persistScope] 的 IO 消费协程）。只落**规格匹配**（specId!=null）且**有实质观察**
+     * （events≥[PERSIST_MIN_EVENTS]）的会话快照——generic 通用观察 / 碎快照不落库（避免系统 App
+     * 噪声与海量碎行）；channel 满时 DROP_OLDEST（丢最旧不阻塞回调）。tsEpochMs 于此刻取墙钟。
+     */
+    private fun enqueuePersist(snap: AdapterObsSnapshot?) {
+        val specId = snap?.specId ?: return // generic（specId=null）不落库
+        if (snap.events < PERSIST_MIN_EVENTS) return
+        obsPersistChannel.trySend(
+            AdapterObsEntity(
+                tsEpochMs = System.currentTimeMillis(),
+                pkg = snap.pkg,
+                specId = specId,
+                appLabel = AdapterObsEntity.appLabelFor(specId),
+                events = snap.events,
+                ruleMatchedEvents = snap.ruleMatchedEvents,
+                firstDeltaMs = snap.firstDeltaMs,
+                cadenceP50Ms = snap.cadenceP50Ms,
+                ttftClusterMs = snap.ttftClusterMs,
+                ttftSendMs = snap.ttftSendMs,
+                anchorSource = snap.anchorSource,
+                confidence = snap.confidence,
+            ),
+        )
+    }
+
     /**
      * 输入框事件判定：仅用事件自带 className（绝不取 event.source，R-16）匹配当前规格
      * input_node.class_name_regex；无规格（generic mode）或规格缺该维度/坏正则 → 兜底
@@ -243,17 +316,22 @@ class AnebAccessibilityService : AccessibilityService() {
     private fun switchSessionIfNeeded(pkg: String, nowNanos: Long): ObsSessionStats {
         val cur = session
         if (cur != null && cur.pkg == pkg) return cur
-        if (cur != null) emit(nowNanos, reason = "session_switch")
+        // 会话切换：结算旧会话终帧（emit 打日志+发布快照）并把快照入落库队列（规格匹配+实质
+        // 观察才落，见 enqueuePersist；R-16：此处仅 trySend，DB 写在 IO 消费协程）。
+        if (cur != null) enqueuePersist(emit(nowNanos, reason = "session_switch"))
         val specId = specsByPackage[pkg]?.spec?.id
         val next = ObsSessionStats(pkg = pkg, specId = specId, observeStartNanos = nowNanos)
         session = next
         return next
     }
 
-    /** 节流聚合出口：快照发布（@Volatile）+ KEY 日志。null 打 "null"（R-10 不折 0）。 */
-    private fun emit(nowNanos: Long, reason: String) {
+    /**
+     * 节流聚合出口：快照发布（@Volatile）+ KEY 日志。null 打 "null"（R-10 不折 0）。
+     * 返回本次快照（供会话切换落库入队复用，避免二次 snapshot 排序开销）；无会话返回 null。
+     */
+    private fun emit(nowNanos: Long, reason: String): AdapterObsSnapshot? {
         lastEmitNanos = nowNanos
-        val snap = session?.snapshot(nowNanos) ?: return
+        val snap = session?.snapshot(nowNanos) ?: return null
         latestSnapshot = snap
         Log.i(
             TAG,
@@ -269,6 +347,7 @@ class AnebAccessibilityService : AccessibilityService() {
                 " anchor_source=${snap.anchorSource ?: "null"}" +
                 " ttft_cluster_ms=${snap.ttftClusterMs?.let { "%.1f".format(it) } ?: "null"}",
         )
+        return snap
     }
 
     companion object {
@@ -276,6 +355,12 @@ class AnebAccessibilityService : AccessibilityService() {
 
         /** 统计输出节流间隔（5s；会话切换额外立即输出）。 */
         private const val EMIT_INTERVAL_NANOS = 5_000_000_000L
+
+        /** 落库触发最小事件数（会话切换时该会话 events≥此值才落库，避免海量碎快照）。 */
+        private const val PERSIST_MIN_EVENTS = 5L
+
+        /** 落库队列容量（满则 DROP_OLDEST；观察快照低频，32 足够缓冲突发切换）。 */
+        private const val OBS_PERSIST_CAPACITY = 32
 
         /** 事件级诊断日志 contentDescription 截断上限（防长文本刷屏，R-16；DEBUG only）。 */
         private const val EVT_LOG_DESC_MAX = 40

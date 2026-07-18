@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aneb.probe.data.AdapterObsEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.data.VoiceResultEntity
 import com.aneb.probe.engine.VoiceRunner
@@ -42,8 +43,8 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
- * 历史混排条目（历史页统一展示）：TestRun 与语音记录按时间降序混入同一列表。
- * key 全列表唯一——run 用 runId，语音用 "voice-{id}"（LazyColumn key 合同）。
+ * 历史混排条目（历史页统一展示）：TestRun / 语音记录 / 观察记录按时间降序混入同一列表。
+ * key 全列表唯一——run 用 runId，语音用 "voice-{id}"，观察用 "obs-{id}"（LazyColumn key 合同）。
  */
 sealed interface HistoryEntry {
     /** LazyColumn key（全列表唯一） */
@@ -60,16 +61,27 @@ sealed interface HistoryEntry {
         override val key: String get() = "voice-${result.id}"
         override val epochMs: Long get() = result.tsEpochMs
     }
+
+    data class Adapter(val obs: AdapterObsEntity) : HistoryEntry {
+        override val key: String get() = "obs-${obs.id}"
+        override val epochMs: Long get() = obs.tsEpochMs
+    }
 }
 
 /** 历史页混排纯函数（抽出 Composable 便于单测）。 */
 object HistoryFeed {
     /**
-     * TestRun + 语音记录按时间降序合成混合列表。
-     * sortedByDescending 稳定：同刻条目保持 run 在前、各自输入相对序（key 仍唯一）。
+     * TestRun + 语音记录 + 观察记录按时间降序合成混合列表。
+     * sortedByDescending 稳定：同刻条目保持拼接序（run → 语音 → 观察）、各自输入相对序（key 仍唯一）。
      */
-    fun merge(runs: List<TestRun>, voice: List<VoiceResultEntity>): List<HistoryEntry> =
-        (runs.map { HistoryEntry.Run(it) } + voice.map { HistoryEntry.Voice(it) })
+    fun merge(
+        runs: List<TestRun>,
+        voice: List<VoiceResultEntity>,
+        adapterObs: List<AdapterObsEntity> = emptyList(),
+    ): List<HistoryEntry> =
+        (runs.map { HistoryEntry.Run(it) } +
+            voice.map { HistoryEntry.Voice(it) } +
+            adapterObs.map { HistoryEntry.Adapter(it) })
             .sortedByDescending { it.epochMs }
 }
 
@@ -87,10 +99,11 @@ fun HistoryScreen(
     onGenerateReport: () -> Unit,
     onBack: () -> Unit,
     voiceResults: List<VoiceResultEntity> = emptyList(),
+    adapterObs: List<AdapterObsEntity> = emptyList(),
 ) {
     val colors = AnebTheme.colors
     val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.US)
-    val entries = HistoryFeed.merge(runs, voiceResults)
+    val entries = HistoryFeed.merge(runs, voiceResults, adapterObs)
     Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(8.dp))
         GlassHeader("测试历史 (${entries.size})", onBack) {
@@ -118,6 +131,7 @@ fun HistoryScreen(
                 when (val entry = entries[i]) {
                     is HistoryEntry.Run -> HistoryRow(entry.run, fmt, onOpen)
                     is HistoryEntry.Voice -> VoiceHistoryRow(entry.result, fmt)
+                    is HistoryEntry.Adapter -> AdapterHistoryRow(entry.obs, fmt)
                 }
             }
         }
@@ -239,6 +253,70 @@ private fun VoiceHistoryRow(result: VoiceResultEntity, fmt: SimpleDateFormat) {
         val mouthEar = result.mouthEarProxyMs ?: result.mouthEarBudgetMs
         Text(
             "口到耳 " + (mouthEar?.let { "%.0f ms".format(it) } ?: "—"),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.ink,
+        )
+    }
+}
+
+/**
+ * 观察记录历史行（镜像 [VoiceHistoryRow] 卡型，不可点击——观察无结果详情页）：
+ * [AdapterObsEntity.appLabel]（豆包/DeepSeek 友好名，缺退 pkg）+「AI体验」标签 + 关键值
+ * （TTFT 簇代理 [AdapterObsEntity.ttftClusterMs] 优先，缺退首增量 [AdapterObsEntity.firstDeltaMs]，
+ * 均无显 —，R-10 诚实缺席）+ cadence 副行 + 恒 LOW/INCONCLUSIVE（观察口径红线）色注。
+ * 只展示落库实测值，不重算（D-02）；观察=端到端体验代理≠网络口径。
+ */
+@Composable
+private fun AdapterHistoryRow(obs: AdapterObsEntity, fmt: SimpleDateFormat) {
+    val colors = AnebTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .shadow(AnebElevation.level1, AnebShapes.card, clip = false)
+            .clip(AnebShapes.card)
+            .background(colors.surface)
+            .border(1.dp, colors.hairline, AnebShapes.card)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(44.dp).clip(AnebShapes.tile).background(colors.surfaceMuted),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("AI体验", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = colors.brand2)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    obs.appLabel ?: obs.pkg,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.ink,
+                )
+                // 观察模式恒 LOW/INCONCLUSIVE（规格 PENDING-VALIDATION 撤销前口径红线）
+                Spacer(Modifier.width(6.dp))
+                LowConfChip()
+            }
+            Text(
+                "${fmt.format(Date(obs.tsEpochMs))} · AI体验",
+                fontSize = 11.5.sp,
+                color = colors.muted,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Text(
+                "cadence " + (obs.cadenceP50Ms?.let { "%.0f ms".format(it) } ?: "—"),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = colors.faint,
+            )
+        }
+        // 关键值：TTFT 簇代理优先，缺退观察启动→首增量（均无显 —，R-10）
+        val ttft = obs.ttftClusterMs ?: obs.firstDeltaMs?.toDouble()
+        Text(
+            "TTFT " + (ttft?.let { "%.0f ms".format(it) } ?: "—"),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = colors.ink,

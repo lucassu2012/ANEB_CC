@@ -38,6 +38,7 @@ import com.aneb.probe.apiprobe.ApiProbeReport
 import com.aneb.probe.apiprobe.LlmProvider
 import com.aneb.probe.apiprobe.ProviderPresets
 import com.aneb.probe.apiprobe.toLlmProvider
+import com.aneb.probe.data.AdapterObsEntity
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.Exporter
 import com.aneb.probe.data.ScenarioResultEntity
@@ -730,12 +731,17 @@ class MainActivity : ComponentActivity() {
         val voiceResults by produceState(initialValue = emptyList<VoiceResultEntity>()) {
             value = withContext(Dispatchers.IO) { db.voiceResultDao().recent(100) }
         }
+        // 观察记录（Profile 3 无障碍观察快照）混入历史列表——只落规格匹配会话，恒 LOW/INCONCLUSIVE
+        val adapterObs by produceState(initialValue = emptyList<AdapterObsEntity>()) {
+            value = withContext(Dispatchers.IO) { db.adapterObsDao().recent(100) }
+        }
         HistoryScreen(
             runs = runs,
             onOpen = onOpen,
             onGenerateReport = onGenerateReport,
             onBack = onBack,
             voiceResults = voiceResults,
+            adapterObs = adapterObs,
         )
     }
 

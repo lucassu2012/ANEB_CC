@@ -570,3 +570,58 @@ data class RadioSampleEntity(
     /** fix 水平精度（米）；无精度信息 null */
     val accuracyM: Double? = null,
 )
+
+// ---------------------------------------------------------------------------
+// Profile 3 无障碍观察快照落库（观察=端到端体验代理≠网络口径；恒 LOW/INCONCLUSIVE）
+// ---------------------------------------------------------------------------
+
+/**
+ * 无障碍观察会话快照落库行（v14 新增表，additive；镜像 D-42/D-45 观测口径持久化）。
+ *
+ * - **观察口径，独立结论**：无障碍打点=端到端体验代理（含 App 渲染，≈帧级上界），
+ *   ≠网络口径、≠ Profile 2 服务端仿真口径，绝不并入 AQS 任何分 / 不进 /results 上报；
+ *   [confidence] 恒记 LOW/INCONCLUSIVE（真实适配器规格 PENDING-VALIDATION 撤销前口径红线）。
+ * - **只落规格匹配会话**（[specId] != null）：generic 通用观察不落库（避免系统 App 噪声）；
+ *   落库触发在会话切换且该会话有实质观察（events≥阈值）时，见 AnebAccessibilityService。
+ * - 指标字段全部可空：无事件/不足样本记 null，禁 0/哨兵值（R-10：Snapshot 的 null 原样落库）。
+ * - 展示直接读落库值不重算（D-02）；本行**不含任何文本内容**（观察模式只计时/计数红线不变）。
+ */
+@Entity(tableName = "adapter_obs")
+data class AdapterObsEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** 落库时刻（epoch ms） */
+    val tsEpochMs: Long,
+    /** 被观察前台包名（如 com.larus.nova / com.deepseek.chat） */
+    val pkg: String,
+    /** 匹配到的适配器规格 id（doubao/deepseek）；null=通用观察（本表只落 specId!=null 行） */
+    val specId: String?,
+    /** 友好显示名（[appLabelFor] 由 specId 映射；未知规格→null，展示层缺退 pkg） */
+    val appLabel: String?,
+    /** 会话内观察事件总数 */
+    val events: Long,
+    /** 命中规格节点规则的事件数（PENDING-VALIDATION 期间仅标注计数，非闸门） */
+    val ruleMatchedEvents: Long,
+    /** 观察启动→首内容变化，ms；无事件=null（R-10）。端到端 TTFT 代理，非网络口径 */
+    val firstDeltaMs: Long?,
+    /** 变化间隔 p50，ms；不足一个间隔=null（R-10）。流式节奏代理，非 ITL 宣称 */
+    val cadenceP50Ms: Double?,
+    /** TTFT 簇代理（首簇起→次簇起），ms；不足两簇=null（R-10） */
+    val ttftClusterMs: Double?,
+    /** 发送锚定 TTFT 代理，ms；无锚点/未闭合=null（R-10；send-anchor=input-clear 启发式） */
+    val ttftSendMs: Double?,
+    /** 最近完成锚点来源（click/input_clear）；null=尚无完成锚点 */
+    val anchorSource: String?,
+    /** 观察置信标注，恒 LOW/INCONCLUSIVE（口径红线） */
+    val confidence: String,
+) {
+    companion object {
+        /** 规格 id → 友好显示名（spec_adapters 目录各适配器 display_name 镜像）；未知 id → null（UI 缺退 pkg）。 */
+        private val LABEL_BY_SPEC_ID: Map<String, String> = mapOf(
+            "doubao" to "豆包",
+            "deepseek" to "DeepSeek",
+        )
+
+        /** 规格 id 映射友好名；null/未知规格 → null（generic 不落库，此处防御性缺退到 pkg）。 */
+        fun appLabelFor(specId: String?): String? = specId?.let { LABEL_BY_SPEC_ID[it] }
+    }
+}
