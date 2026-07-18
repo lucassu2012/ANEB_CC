@@ -130,11 +130,17 @@ object TokenObservationExport {
 
     /**
      * 合规 `observation_id`（合同 `^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$`）：
-     * `apiprobe-<providerId>-<startedAtEpochMs>`。providerId 只含 [a-z_]、时间戳只含数字，
-     * 均在字符集内；首字符 'a' 满足起始 alnum 约束。纯函数便于单测锚定唯一性/格式。
+     * `apiprobe-<providerId>-<startedAtEpochMs>-<subjHash8>`。
+     * **[subjectGroupId] 短哈希前缀防同毫秒跨 subject 碰撞**（否则 Codex
+     * `_validate_partition_disjointness` 会以 `duplicate_observation_id_within_partition` 拒整分区，D-64 发现）。
+     * subjHash8 取 `hmac-sha256:<hex>` 的前 8 位 hex（∈[0-9a-f]，仍在合同字符集内）。
+     * providerId 只含 [a-z_]、时间戳只含数字；首字符 'a' 满足起始 alnum 约束。纯函数便于单测锚定。
+     * 注：同一 subject 同一毫秒重复触发仍会同 id，但探针为单次手动触发，此边界可接受。
      */
-    fun observationId(providerId: String, startedAtEpochMs: Long): String =
-        "apiprobe-$providerId-$startedAtEpochMs"
+    fun observationId(providerId: String, startedAtEpochMs: Long, subjectGroupId: String): String {
+        val subjHash8 = subjectGroupId.substringAfter("hmac-sha256:").take(8)
+        return "apiprobe-$providerId-$startedAtEpochMs-$subjHash8"
+    }
 
     /**
      * 从**一次 API 探针**的输出构造 observation（[buildObservation] 的探针适配层）：封装两个

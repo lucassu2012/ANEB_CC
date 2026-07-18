@@ -219,11 +219,12 @@ class ApiProbe(private val context: Context) {
         // 无 sink = 对照列探针零行为变化；数据集密钥/主体/去向落地 = PO 决策项（#5）。
         if (observationSink != null) {
             val observation = if (error == null && p != null) {
+                val sgid = TokenObservationExport.subjectGroupId(
+                    observationSink.datasetSecret, observationSink.subject,
+                )
                 TokenObservationExport.fromProbeOutputs(
-                    observationId = TokenObservationExport.observationId(config.provider.id, startedAtEpochMs),
-                    subjectGroupId = TokenObservationExport.subjectGroupId(
-                        observationSink.datasetSecret, observationSink.subject,
-                    ),
+                    observationId = TokenObservationExport.observationId(config.provider.id, startedAtEpochMs, sgid),
+                    subjectGroupId = sgid,
                     workloadKind = observationSink.workloadKind,
                     requestBodyBytes = bodyJson.toByteArray(Charsets.UTF_8).size,
                     ttftMs = k?.ttftMs,

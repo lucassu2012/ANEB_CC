@@ -198,9 +198,14 @@ class TokenObservationExportTest {
     // ---- fromProbeOutputs（探针适配层：usage 回退 + TTFT 缺失跳过）+ observationId ----
 
     @Test
-    fun `observationId matches contract format`() {
-        val id = TokenObservationExport.observationId("anthropic", 1_721_318_580_000L)
-        assertTrue(id, Regex("^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$").matches(id))
+    fun `observationId matches contract format and disambiguates subjects`() {
+        val sg1 = TokenObservationExport.subjectGroupId(secret, "acct-1")
+        val sg2 = TokenObservationExport.subjectGroupId(secret, "acct-2")
+        val id1 = TokenObservationExport.observationId("anthropic", 1_721_318_580_000L, sg1)
+        val id2 = TokenObservationExport.observationId("anthropic", 1_721_318_580_000L, sg2)
+        assertTrue(id1, Regex("^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$").matches(id1))
+        // 同 ms 同 provider、不同 subject → 不同 id（D-64:防 Codex 分区重复 id 拒绝）
+        assertNotEquals(id1, id2)
     }
 
     @Test
