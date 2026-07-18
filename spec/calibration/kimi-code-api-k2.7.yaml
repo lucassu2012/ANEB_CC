@@ -1,0 +1,50 @@
+# ANEB spec — Profile 2 服务端 token 仿真「标定输入」：Kimi Code API k2.7（D-58）
+# SYSTEM_DEV_PLAN §4.2 Profile 2 / Step2 calibration / E-03（真实 API key）
+#
+# ⚠️ 口径:本文件=**真实 LLM API 直调**采到的 token 流时序,用于**标定 Profile 2 服务端仿真参数**
+#   （TTFT/TPS/ITL 的真实量级),使服务端仿真从 [GUESS] 有实测锚。
+#   - 口径 = API 直调（网络 + 服务端 token 流），**≠** Profile 3 App 的 UI 呈现层/网络传输层
+#     （那是手机 App 画像,spec/portraits/*.yaml）。Kimi Code API（编程接口 k2.7）≠ Kimi App（消费产品）。
+#   - Anthropic Messages 协议（api.kimi.com/coding/v1/messages;x-api-key + anthropic-version:2023-06-01）。
+#   - **单次样本 → LOW/INCONCLUSIVE**;多样本分布待补。采集环境 PC/公网 WiFi,含公网 RTT（非受控网络）。
+schema_version: "1.0.0"
+calibration_id: kimi-code-api-k2.7
+target_profile: "Profile 2（服务端 token 仿真）"
+source: "kimi-code-api-capture-2026-07-18"
+model: "k2.7-code-highspeed"
+protocol: "Anthropic Messages (api.kimi.com/coding)"
+# ── 样本 1（max_tokens=200，仅 thinking 段）──
+sample_thinking:
+  ttft_msgstart_ms: 3063        # 请求发出 → 首个 SSE message_start（服务端开始响应，含思考）
+  ttft_first_token_ms: 3792     # 请求发出 → 首个 thinking token delta
+  itl_median_ms: 253            # thinking token 间隔中位数
+  itl_p95_ms: 320
+  tps: 4.05                     # 200 tok / 49.44s
+  output_tokens: 200
+  prompt: "用两三句话解释什么是TCP协议"
+
+# ── 样本 2（max_tokens=700，含正式 text 回复段；两段互证）──
+sample_full:
+  prompt: "详细解释TCP三次握手的过程"
+  thinking_first_from_t0_ms: 5430    # 思考首 token（从请求发出）
+  thinking_tokens: 124               # 思考 124 token / 32.7s
+  thinking_to_text_gap_ms: 1194      # 思考完 → 正式回复首字（思考→text 转换静默）
+  text_first_from_t0_ms: 39372       # **用户可见首字 TTFT ≈ 39s**（思考 33s 主导！）
+  text_itl_median_ms: 244            # 正式回复 token 间隔中位数（≈thinking 253，两段互证服务端节奏稳定）
+  text_itl_p95_ms: 335
+  text_tps: 3.97                     # 201 tok / 50.6s（正式回复段）
+  # 注：采集被 90s 上限截断（text 仍在流），故 text 段为下界样本；ITL/TPS 已稳定可信。
+
+# ── 标定结论（真实测量，口径见文件头）──
+findings:
+  server_token_cadence: "ITL ~244–253ms/token、TPS ~4 tok/s（thinking 与 text 两段一致互证，稳定特征非噪声）"
+  server_first_response_ms: "message_start ~3s（服务端开始响应）"
+  user_visible_ttft: "**~39s（k2.7 强制深度思考 33s 主导；k3 思考 >60s）——k 系列推理模型 API「对话体验」首字极慢**"
+  caliber: "API 直调 token 流(网络+服务端);含公网 RTT(非受控);单/双样本;LOW/INCONCLUSIVE"
+
+notes:
+  - "TPS ~4 tok/s 偏低——疑含推理限速 + 公网 RTT，非受控网络下不代表服务端峰值 TPS；但 thinking/text 两段一致说明是稳定特征。"
+  - "**k 系列均强制深度思考**：用户可见首字 = 思考时长主导（33–60s+），与「快速对话」体感差异大——Profile 2 仿真若模拟 k 系列须含长思考段。"
+  - "多 prompt 分布待补（当前 2 样本）；关 thinking 的纯 text TPS 待用支持该参数的模型/参数补采。"
+  - "标定数据交付 Profile 2 服务端仿真（部署权=Codex，D-35）时经 SERVER_UPDATE_NOTES 流程。"
+  - "API key 全程不入库（远端公开仓）；仅 curl 采集，数据回填不含 key。"
