@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aneb.local/spec/portraits/portrait.schema.json",
+  "title": "ANEB Profile-3 consumer-app portrait",
+  "description": "Shape gate for spec/portraits/*.yaml. Complements check_redline.py: this schema validates document SHAPE (the three-layer structure params / params_fit_approx / observed_*), check_redline validates red-line SEMANTICS. A portrait must pass both.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "app_id",
+    "display_name",
+    "source_portrait",
+    "params",
+    "params_fit_approx",
+    "observed_ui_layer",
+    "observed_network_layer"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "app_id": { "type": "string", "minLength": 1 },
+    "display_name": { "type": "string", "minLength": 1 },
+    "source_portrait": { "type": "string", "minLength": 1 },
+    "params": {
+      "type": "object",
+      "description": "7 gate-fields; values are null until same-layer distribution capture (R-10). additionalProperties:false catches param-key typos (complements check_redline R10 which only guards params_fit_approx.fields).",
+      "required": [
+        "request_size_bytes_dist",
+        "token_interval_ms_dist",
+        "think_pause_ms_dist",
+        "tool_loop_cadence",
+        "session_duration_s_dist",
+        "downlink_media_bytes_dist",
+        "pop_ip_list"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "request_size_bytes_dist": {},
+        "token_interval_ms_dist": {},
+        "think_pause_ms_dist": {},
+        "tool_loop_cadence": {},
+        "session_duration_s_dist": {},
+        "downlink_media_bytes_dist": {},
+        "pop_ip_list": {}
+      }
+    },
+    "params_fit_approx": {
+      "type": "object",
+      "required": ["gates_params", "source_portrait_unlocked", "fields"],
+      "properties": {
+        "gates_params": { "type": "boolean" },
+        "source_portrait_unlocked": { "type": "boolean" },
+        "fields": {
+          "type": "object",
+          "required": [
+            "request_size_bytes_dist",
+            "token_interval_ms_dist",
+            "think_pause_ms_dist",
+            "tool_loop_cadence",
+            "session_duration_s_dist",
+            "downlink_media_bytes_dist",
+            "pop_ip_list"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "request_size_bytes_dist": { "$ref": "#/$defs/fitField" },
+            "token_interval_ms_dist": { "$ref": "#/$defs/fitField" },
+            "think_pause_ms_dist": { "$ref": "#/$defs/fitField" },
+            "tool_loop_cadence": { "$ref": "#/$defs/fitField" },
+            "session_duration_s_dist": { "$ref": "#/$defs/fitField" },
+            "downlink_media_bytes_dist": { "$ref": "#/$defs/fitField" },
+            "pop_ip_list": { "$ref": "#/$defs/fitField" }
+          }
+        }
+      }
+    },
+    "observed_ui_layer": { "$ref": "#/$defs/observedLayer" },
+    "observed_network_layer": { "$ref": "#/$defs/observedLayer" }
+  },
+  "$defs": {
+    "fitField": {
+      "type": "object",
+      "description": "A params_fit_approx field. Extra keys are allowed (forward-compat with additive provenance metadata such as source_layer/confidence/note).",
+      "required": ["value", "caliber", "keep_pending"],
+      "properties": {
+        "value": { "type": "string", "minLength": 1 },
+        "caliber": {
+          "enum": ["direct", "order-of-magnitude", "ui-proxy", "none"]
+        },
+        "keep_pending": { "type": "boolean" }
+      }
+    },
+    "observedLayer": {
+      "type": "object",
+      "description": "An observed-* layer section. captured may be boolean (ui-layer captured?) or string (network capture completeness, e.g. \"full\"). Extra descriptive keys allowed.",
+      "required": ["captured", "source", "caliber"],
+      "properties": {
+        "captured": { "type": ["boolean", "string"] },
+        "source": { "type": "string", "minLength": 1 },
+        "caliber": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

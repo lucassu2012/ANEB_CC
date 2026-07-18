@@ -108,6 +108,52 @@ if ($py -and (Test-Path $redlineTest)) {
     $log += Add-Result 'portraits-redline-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- Profile-3 portrait SHAPE gate (spine-3 #6): jsonschema validates the three-layer
+# document structure (params / params_fit_approx / observed_*), complementing check_redline
+# semantics. exit: 0=PASS / 2=NOT_EXECUTED (pyyaml or jsonschema missing) / else FAIL.
+$schemaScript = Join-Path $repo 'spec\portraits\validate_schema.py'
+if ($py -and (Test-Path $schemaScript)) {
+    $out = & $py $schemaScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- portraits-schema (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'portraits-schema' 'PASS' 'validate_schema.py'
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'portraits-schema' 'NOT_EXECUTED' (($out -split "`n" | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'portraits-schema' 'FAIL' 'schema violation(s); see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $schemaScript)) { $missing += 'validate_schema.py' }
+    $log += Add-Result 'portraits-schema' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+# --- Profile-3 portrait SHAPE gate SELF-TEST (spine-3 #6): reflex tests guard the schema ---
+# Self-contained runner (no pytest). exit: 0=all reflex pass / 1=a red/green reflex failed
+# (schema weakened or a shape constraint regressed) -> FAIL.
+$schemaTest = Join-Path $repo 'spec\portraits\test_portrait_schema.py'
+if ($py -and (Test-Path $schemaTest)) {
+    Push-Location (Join-Path $repo 'spec\portraits')
+    $out = & $py $schemaTest 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    Pop-Location
+    $log += "--- portraits-schema-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'portraits-schema-unit' 'PASS' (($out -split "`n" | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'portraits-schema-unit' 'FAIL' 'reflex test(s) failed; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $schemaTest)) { $missing += 'test_portrait_schema.py' }
+    $log += Add-Result 'portraits-schema-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
