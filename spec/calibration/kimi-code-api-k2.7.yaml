@@ -13,15 +13,25 @@ target_profile: "Profile 2（服务端 token 仿真）"
 source: "kimi-code-api-capture-2026-07-18"
 model: "k2.7-code-highspeed"
 protocol: "Anthropic Messages (api.kimi.com/coding)"
-# ── 样本 1（max_tokens=200，仅 thinking 段）──
-sample_thinking:
-  ttft_msgstart_ms: 3063        # 请求发出 → 首个 SSE message_start（服务端开始响应，含思考）
-  ttft_first_token_ms: 3792     # 请求发出 → 首个 thinking token delta
-  itl_median_ms: 253            # thinking token 间隔中位数
-  itl_p95_ms: 320
-  tps: 4.05                     # 200 tok / 49.44s
-  output_tokens: 200
-  prompt: "用两三句话解释什么是TCP协议"
+# ── 分布（n=5 样本，5 个不同技术 prompt，max_tokens 60–200，thinking 段起测）──
+# 跨 prompt 高度一致 → 服务端首响应延迟与 token 节奏是**稳定特征**（非单点噪声）。
+distribution_n5:
+  ttft_msgstart_ms:             # 请求发出 → 首个 SSE message_start（服务端开始响应）
+    median: 3063
+    min: 2917
+    max: 3120                   # range 仅 203ms，极稳定（主导=公网 RTT + 服务端接入）
+    samples: [2917, 2930, 3063, 3095, 3120]
+  ttft_first_token_ms:          # 请求发出 → 首个 token delta
+    median: 3645
+    min: 3528
+    max: 3792
+  itl_ms:                       # token 间隔中位数（相邻 SSE delta；thinking 与 text 两段互证一致）
+    median: 259
+    min: 253
+    max: 337                    # 一个样本 337 略高，其余 253–275
+    samples: [253, 256, 259, 275, 337]
+  tps: 4.0                      # ~4 tok/s（跨样本稳定）
+  prompts: ["用两三句话解释什么是TCP协议", "What is HTTP", "Explain DNS briefly", "TCP vs UDP difference", "What is load balancing"]
 
 # ── 样本 2（max_tokens=700，含正式 text 回复段；两段互证）──
 sample_full:
@@ -37,10 +47,10 @@ sample_full:
 
 # ── 标定结论（真实测量，口径见文件头）──
 findings:
-  server_token_cadence: "ITL ~244–253ms/token、TPS ~4 tok/s（thinking 与 text 两段一致互证，稳定特征非噪声）"
-  server_first_response_ms: "message_start ~3s（服务端开始响应）"
-  user_visible_ttft: "**~39s（k2.7 强制深度思考 33s 主导；k3 思考 >60s）——k 系列推理模型 API「对话体验」首字极慢**"
-  caliber: "API 直调 token 流(网络+服务端);含公网 RTT(非受控);单/双样本;LOW/INCONCLUSIVE"
+  server_token_cadence: "ITL median 259ms/token（range 253–337，n=5）、TPS ~4 tok/s（thinking 与 text 两段互证 + 跨 5 prompt 一致，稳定特征非噪声）"
+  server_first_response_ms: "message_start median 3063ms（range 2917–3120，n=5，极稳定）；首 token median 3645ms"
+  user_visible_ttft: "**~39s（k2.7 强制深度思考 33s 主导；k3 思考 >60s）——k 系列推理模型 API「对话体验」首字极慢**（n=1，思考时长因 prompt 而异、高变异，待多样本）"
+  caliber: "API 直调 token 流(网络+服务端);含公网 RTT(非受控);首响应/ITL 分布 n=5 一致但同一网络环境;用户可见首字 n=1;LOW/INCONCLUSIVE"
 
 notes:
   - "TPS ~4 tok/s 偏低——疑含推理限速 + 公网 RTT，非受控网络下不代表服务端峰值 TPS；但 thinking/text 两段一致说明是稳定特征。"
