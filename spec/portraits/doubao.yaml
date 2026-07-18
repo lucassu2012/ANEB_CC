@@ -53,28 +53,28 @@ params_fit_approx:
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     tool_loop_cadence:
       value: "PENDING(消费对话 App,无 tool-loop 观测)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     session_duration_s_dist:
       value: "PENDING(仅采 per-turn 时序,无会话时长观测)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     downlink_media_bytes_dist:
       value: "PENDING(已修正 OVERCLAIM:观测下行~17.6KB 为文本流式非媒体,本次媒体实测=0;frontier5 audio-ws-lq 未做字节隔离。不得以文本下行冒充媒体)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     pop_ip_list:
       value: "wss100.doubao.com / api5.doubao.com / frontier5.doubao.com / log.doubao.com(4 SNI 端点,自有 doubao.com 基础设施;当前为 SNI 主机名级,具体 POP IP 解析待补)"

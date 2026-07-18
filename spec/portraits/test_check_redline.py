@@ -13,7 +13,7 @@ from check_redline import check_portrait, check_cross_file, PARAM_FIELDS
 def _valid_pending():
     """Minimal valid PENDING portrait (doubao-style: pop_ip direct+hostname awaiting DNS)."""
     fields = {k: {"value": "PENDING(no same-caliber source)", "caliber": "none", "keep_pending": True,
-                  "source_layer": "none", "confidence": "NONE", "note": "pending"}
+                  "source_layer": "none", "confidence": "INCONCLUSIVE", "note": "pending"}
               for k in PARAM_FIELDS}
     # pop_ip is the infra-fact field: caliber=direct (R16), value non-PENDING (R12), still pending DNS.
     # R18: direct => source_layer=network, confidence=LOW.

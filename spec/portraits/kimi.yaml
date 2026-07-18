@@ -41,42 +41,42 @@ params_fit_approx:
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     token_interval_ms_dist:
       value: "PENDING(API ITL 259ms 属 Kimi Code k2.7 编程产品+API 明文口径,跨产品+跨口径双重越界禁借;D-61 无明文直采;UI 三法 null)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     think_pause_ms_dist:
       value: "PENDING(ttft 3063ms/强制思考主导属 k2.7 编程 API,跨产品跨口径不可借;UI null)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     tool_loop_cadence:
       value: "PENDING(UI/网络/API 三口径无工具循环同口径观测)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     session_duration_s_dist:
       value: "PENDING(长连端点存在≠会话时长可测,无直采时长源)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     downlink_media_bytes_dist:
       value: "PENDING(加密非标长连+jpush 混杂,聚合字节无法区分下行媒体 vs 控制字节)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     pop_ip_list:
       value: "121.37.172.191:7003(自有 IM 非标准 TCP 长连端点,华为云广州段;n=1)——'自有IM/广州段'为 ASN/地理轻推断标注,IP:port 本身直采;建议标注待多点复采确认"

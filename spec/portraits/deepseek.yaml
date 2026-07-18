@@ -53,35 +53,35 @@ params_fit_approx:
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     think_pause_ms_dist:
       value: "PENDING(TTFT 500–1234ms 为 UI 首字延迟含渲染,非推理停顿)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     tool_loop_cadence:
       value: "PENDING(三层均无工具循环观测)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     session_duration_s_dist:
       value: "PENDING(events_longreply=810 为 UI 事件计数≠时长口径)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     downlink_media_bytes_dist:
       value: "PENDING(仅文本流式响应~13.8KB/轮,无媒体下行观测;不得以文本字节冒充媒体)"
       caliber: none
       keep_pending: true
       source_layer: none
-      confidence: NONE
+      confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     pop_ip_list:
       value: "已修正 OVERCLAIM→keep_pending=true:SNI 端点保留为网络层 direct 证据(自有 chat.deepseek.com/hif-dliq.deepseek.com;zztfly CDN cdn-api-auth/cfgc;火山 apmplus/gator.volces.com),但仅采到 SNI 主机名未解析 IP,待 DNS 解析出原始 IP 再脱 PENDING"

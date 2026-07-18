@@ -54,6 +54,32 @@ params_fit_approx:
    - 加密聚合不可切分为字段语义(kimi 7003 非标长连+jpush)。
    样本少(每 App 数次)→ 一律 LOW/INCONCLUSIVE,禁止升 order-of-magnitude 以上。
 
+## Provenance metadata (R18, IMPLEMENTED — spine-3 #8, D-71/72)
+
+上文 "Schema record decision" 段的 `_meta`/`cross_caliber_note` 是 D-62 的**提案**;**实际落地**的
+`params_fit_approx` 结构更精简(`gates_params`/`source_portrait_unlocked` 在段级,`fields.<f>` 每字段
+value/caliber/keep_pending),D-71 起每个 fit 字段再 additive 补三键 **provenance**,并由 `check_redline.py`
+**R18 机器强制**(presence + 枚举 + 与 caliber 一致):
+
+| 键 | 域 | 语义 |
+|---|---|---|
+| `source_layer` | `network` / `ui` / `none` | 该 fit 值取自哪个观测层。**不含 `api`**——App 画像口径**绝不**从 API 直调 token 层取值(那是 ApiProbe 门,§6 口径边界);api-direct 属另一 caliber,跨层即红线。 |
+| `confidence` | `LOW` / `INCONCLUSIVE` | 与 observed_*层同词汇。LLM 画像恒 LOW-at-best(§1.2);无同层源(PENDING)→ INCONCLUSIVE。 |
+| `note` | 短标准标 | 简短口径标;详细 prose 仍在 `value`。 |
+
+**caliber ↔ provenance 一致性(R18c,机器强制)**——provenance 不得与 fit 真实强度/层漂移:
+
+| caliber | source_layer | confidence |
+|---|---|---|
+| `direct` | `network` | `LOW` |
+| `order-of-magnitude` | `network` | `LOW` |
+| `ui-proxy` | `ui` | `LOW` |
+| `none` | `none` | `INCONCLUSIVE` |
+
+任一 fit 字段的三键缺失、枚举越界、或与 caliber 不符 → R18 FAIL(反例见 `test_check_redline.py`
+的 `test_R18_*`)。形状(键在不在、类型对不对)另由 `portrait.schema.json` + `validate_schema.py` 守(#6):
+**schema 管形状 / redline 管语义**,双门互补。
+
 ## PENDING gaps (what is needed to fill)
 
 - token_interval_ms_dist(全 4 App 保持 PENDING):根因是免 root mitm 拿不到明文 token 时序(D-61)。补齐需 root/TLS keylog 抓包解密,或 App 明文 token 事件源。当前仅 doubao(~100ms)/tongyi(~66ms)有 UI-proxy 弱锚(≠网络ITL),deepseek/kimi 连 UI cadence 都为 null。

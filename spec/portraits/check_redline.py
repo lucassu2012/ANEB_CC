@@ -39,7 +39,7 @@ Invariants:
       (traceability: value <-> evidence-segment backlink).
   R18 every fit field carries provenance metadata source_layer / confidence / note, AND that
       metadata is consistent with caliber (spine-3 #8): source_layer in {network, ui, none},
-      confidence in {LOW, NONE}; caliber none => (none, NONE), ui-proxy => (ui, LOW),
+      confidence in {LOW, INCONCLUSIVE}; caliber none => (none, INCONCLUSIVE), ui-proxy => (ui, LOW),
       direct|order-of-magnitude => (network, LOW). Keeps provenance from drifting off the fit's
       real strength/layer (confidence is LOW-at-best per methodology §1.2).
 """
@@ -55,12 +55,14 @@ PARAM_FIELDS = ["request_size_bytes_dist", "token_interval_ms_dist", "think_paus
 CALIBERS = {"direct", "order-of-magnitude", "ui-proxy", "none"}
 CALIBER_NON_PENDING = {"direct", "order-of-magnitude", "ui-proxy"}  # R12: these must not be PENDING
 NETWORK_TIMING = {"token_interval_ms_dist", "think_pause_ms_dist"}  # must never be direct/OoM (cross-layer)
-SOURCE_LAYERS = {"network", "ui", "none"}          # R18: provenance layer of a fit value
-CONFIDENCE = {"LOW", "NONE"}                        # R18: LLM-portrait confidence is LOW-at-best (§1.2)
+SOURCE_LAYERS = {"network", "ui", "none"}          # R18: provenance layer (api excluded: App portraits
+#   never source from the API-direct token layer — that's the ApiProbe gate, §6 口径 boundary).
+CONFIDENCE = {"LOW", "INCONCLUSIVE"}                # R18: matches observed-layer + methodology vocabulary
+#   ("LOW/INCONCLUSIVE"); LLM-portrait confidence is LOW-at-best (§1.2), INCONCLUSIVE when PENDING.
 # R18: caliber -> (expected source_layer, expected confidence). Provenance must track caliber so the
 # metadata cannot silently drift off the fit's real strength/layer.
 CALIBER_PROVENANCE = {
-    "none": ("none", "NONE"),
+    "none": ("none", "INCONCLUSIVE"),
     "ui-proxy": ("ui", "LOW"),
     "order-of-magnitude": ("network", "LOW"),
     "direct": ("network", "LOW"),
