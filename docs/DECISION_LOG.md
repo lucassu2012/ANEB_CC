@@ -115,6 +115,8 @@
 
 | D-82 | 2026-07-19 | **spine-1 任务 3（部分）：主体不重叠 train/holdout 划分器（锁无关纯函数；6h 自主窗口，勘查 #4）**。`apiprobe/SubjectDisjointSplit.assign`：整主体贪心分配保 Codex `subject_group_disjoint` 不变量 + 逐 workload train≥20/holdout≥10，**凑不齐记 shortfall、不硬凑、不补哨兵**（R-10 精神）；确定性（subject id 升序遍历，同输入同输出）。产出喂 Codex `prepare-token-dataset` 的 training/holdout 成员输入之一，**不重定义 dataset-v1 manifest**（Codex 职责）。`SubjectDisjointSplitTest` 6 例（整主体落一侧/id 零交集覆盖全/充足达标无 shortfall/不足如实记且总数守恒/确定性/空输入）。全绿 **625**（619→+6）。**范围裁剪**：`CalibrationMetadata`（§3.1 契约镜像 Codex `validate_calibration_metadata`）有**外部契约漂移风险**（契约在 Codex/G 树），本轮不做（勘查建议先 split）；真实 observation 灌入/authorization 实值仍设备/PO 阻。 | apiprobe/SubjectDisjointSplit(新)+SubjectDisjointSplitTest(6);spine1 蓝图 §3.2/§3.4;TokenObservationExport(subjectGroupId/WorkloadKind) | 
 
+| D-83 | 2026-07-19 | **测试硬化（6h 自主窗口，第二轮勘查 #1，零生产改动）：`KpiGrading.grade` 8 门限边界锚定**。此前 T1/T2/T3/T4/N1/N2/U1/U2（驱动**全部用户可见 优/良/可/差 chip** 的 agent-qoe-kpi 5.2 门限）**无边界测试**（仅 C1/C2 被 ContinuityMathTest 覆盖、T2 一处非边界断言）——改门限数字/翻转比较符会静默上线。新 `KpiGradingTest` 10 例逐点钉两侧边界（低者优 `<优/<良/<=可` 严格性、高者优 U1 `>优/>=良/>=可`、T4 特例 0=优）+ R-10 null/T5/未知 id → null。全绿 **635**（625→+10）。**第二轮勘查另确认**（诚实记录）:代码库**无正确性 bug**;3-file profile parity（ClientProfileDataParityTest 深比较+字节对拍）/contend 端到端/SpeedSampleMath·SessionDurationStats·ItlHistogram·UploadAnalysis·TokenBehaviorClassifier 纯逻辑测试**均完备**;剩余仅 Go server `loadProfiles` 重复id/缺字段/解析错 与 `artifactStreamPhase` 多相/越界 防御分支未测（S,中价值,可选后续 #2/#3）。 | engine/KpiGradingTest(新,10);KpiGrading.grade 5.2 门限;第二轮勘查 | 
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。
