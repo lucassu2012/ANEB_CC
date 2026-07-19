@@ -42,12 +42,12 @@ params_fit_approx:
   source_portrait_unlocked: false
   fields:
     request_size_bytes_dist:
-      value: "~13.8KB/轮(量级锚点,mitm 活跃 38.5KB;请求+响应聚合,未拆上行,非分布)"
+      value: "P40 PCAPdroid 只读抓包实测(2026-07-19 D-74,单会话冷启动+1 文本轮,app_filter=com.deepseek.chat):chat.deepseek.com 对话主连接 per-direction **上行 4.7KB/下行 27.9KB**(载荷 28.4KB,45↑/60↓ 包,目的 116.205.40.114:443);app 总量 232.7KB(含第三方 zztfly 遥测 cdn-api-auth 12.4/cfgc 13.5/log-auth 15.4KB≈41KB)。已拆上下行(升级旧'未拆上行'),但 HTTPS+HTTP/2 持久连接复用→单轮 request_size 不可从连接总量干净隔离,仍量级锚点非分布"
       caliber: order-of-magnitude
       keep_pending: true
       source_layer: network
       confidence: LOW
-      note: "aggregate order-of-magnitude, not a distribution"
+      note: "aggregate order-of-magnitude; per-direction split observed but per-turn not isolable (HTTP/2 reuse)"
     token_interval_ms_dist:
       value: "PENDING(mitm 无明文 token;UI cadence null,Compose 同帧合流 p50≈0–0.4ms 为渲染节奏≠网络ITL)"
       caliber: none
@@ -117,7 +117,7 @@ observed_network_layer:
   cloud: "自有 deepseek.com + 火山引擎 volces.com（字节体系，APM/监控）"
   dialog_channel: "HTTPS 443（chat.deepseek.com）"
   endpoints:                                    # 真实入云 SNI
-    - "chat.deepseek.com → 116.205.40.113（对话主通道 HTTPS，华为云 WAF vip1.huaweicloudwaf.com；P40 WiFi+5G 双网同 IP 稳定，D-73；单轮 ~13.8KB / mitm 活跃 38.5KB）"
+    - "chat.deepseek.com → 116.205.40.113（DNS，华为云 WAF vip1.huaweicloudwaf.com；WiFi+5G 双网同 IP 稳定，D-73）；实测连接目的 116.205.40.114:443（同 /24 WAF 段，D-74 PCAPdroid 观测）；对话主连接 per-direction 上行 4.7KB/下行 27.9KB（载荷 28.4KB）"
     - "cdn-api-auth.zztfly.com（CDN/鉴权端点，HTTPS ~12KB；mitm 显错误=疑似 pinning，D-61 发现）"
     - "cfgc.zztfly.com（配置下发端点，HTTPS ~13.4KB，D-61 发现）"
     - "hif-dliq.deepseek.com（DeepSeek 自有子域）"
