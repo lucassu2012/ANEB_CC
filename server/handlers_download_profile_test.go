@@ -93,7 +93,11 @@ func TestDownloadProfileErrors(t *testing.T) {
 		ProfileID: "dl_big", Version: "t@1",
 		Phases: []Phase{{Type: "download_burst", Bytes: downloadMaxBytes + 1}},
 	}
-	a := &app{profiles: map[string]*Profile{"dl_err": prof, "dl_big": oversize}, dataDir: t.TempDir()}
+	oversizeChunk := &Profile{ // Bytes 合法以隔离到 chunk_kb 越界分支
+		ProfileID: "dl_chunk", Version: "t@1",
+		Phases: []Phase{{Type: "download_burst", Bytes: 1 << 20, ChunkKB: downloadMaxChunkKB + 1}},
+	}
+	a := &app{profiles: map[string]*Profile{"dl_err": prof, "dl_big": oversize, "dl_chunk": oversizeChunk}, dataDir: t.TempDir()}
 	srv := httptest.NewServer(a.routes())
 	defer srv.Close()
 
@@ -102,6 +106,7 @@ func TestDownloadProfileErrors(t *testing.T) {
 		"profile=dl_err",         // 无 download_burst 相位
 		"profile=dl_err&phase=x", // 非法 phase
 		"profile=dl_big",         // 声明 bytes 越界
+		"profile=dl_chunk",       // 声明 chunk_kb 越界
 	}
 	for _, q := range cases {
 		resp, err := http.Get(srv.URL + "/api/v1/download?" + q)
