@@ -318,7 +318,7 @@ class MainActivity : ComponentActivity() {
                                 // HTTP 测量走同一网络；未来引入绑定网时改传 bound.network。
                                 val net = getSystemService(android.net.ConnectivityManager::class.java)
                                     ?.activeNetwork
-                                speedRunner.run(serverUrl, network = net).collect { speedSample = it }
+                                speedRunner.run(serverUrl, network = net, weakNet = intentWeakNet).collect { speedSample = it }
                                 // UDP 未返回率＝应用层探针未回显占比，≠IP 丢包率；现场协变量不进分。
                                 // unreturned=null＝"UDP 应用探针不可用"（零回包/不可达，R-10 不折 0/100）
                                 val u = speedRunner.lastUdpProbeResult

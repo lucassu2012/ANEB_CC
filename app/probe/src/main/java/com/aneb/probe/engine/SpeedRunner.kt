@@ -78,11 +78,22 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
      * @param network 已绑定的测量网络（R-01：防 VPN/代理污染）；null＝AUTO 不绑定
      *   （与本模式 HTTP 路径的默认 [AnebClient] 同口径）。当前仅 UDP 探针消费。
      */
-    fun run(serverBase: String, network: Network? = null): Flow<Sample> = channelFlow {
+    fun run(serverBase: String, network: Network? = null, weakNet: String? = null): Flow<Sample> = channelFlow {
         // D-25：E-01 的 sslip 主机名在电信/部分网络被 DPI 做 SNI-keyed TLS RST（Connection reset）。
         // 直接选路 bare-IP 等价基址（同节点、同物理路径、观测口径不变）绕过；非 E-01 目标保持原样。
         val raw = serverBase.trim().trimEnd('/')
         val base = ReachabilityProbe.deriveE01Pair(raw)?.second ?: raw
+
+        // 弱网伴流（DEBUG contend:N；B3，与 token 模式 [TestEngine] 共用 [WeakNet] 编排——修此前
+        // 弱网开关在 SpeedTest 模式静默失效的缺口）：run 全程并行 N 条背景下行拥塞流，用独立 client
+        // 免污染测量连接池。**必须显式取消**（无限循环不自终；否则 channelFlow 结构化并发等子协程
+        // 完成→永不结束）：正常路径于 Upload 后统一 cancel，异常路径由 channelFlow 作用域取消。
+        val contendJobs = WeakNet.parseContendN(weakNet)?.let { n ->
+            val contendClient = AnebClient()
+            WeakNet.launchContendDrains(this, n) {
+                contendClient.downloadDrain("$base/api/v1/download?bytes=$DOWNLOAD_BYTES")
+            }
+        } ?: emptyList()
 
         // facet2 FAIL：应用层请求失败计数（非 2xx/IO 错误；主动取消不计）——观测口径
         val reqFailed = java.util.concurrent.atomic.AtomicInteger(0)
@@ -183,6 +194,7 @@ class SpeedRunner(private val client: AnebClient = AnebClient()) {
             delay(100)
         }
         upJob.join()
+        contendJobs.forEach { it.cancel() } // 弱网伴流全程运行至此，正常路径统一取消（B3；无限循环不自终）
         emit(Sample(Phase.Done, rttMed, jit, null, null, 1f))
     }
 

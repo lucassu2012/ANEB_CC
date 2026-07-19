@@ -307,14 +307,8 @@ class TestEngine(private val context: Context) {
             if (contendN != null) {
                 log("WEAKNET_CONTEND streams=$contendN note=non_forensic_debug_contention")
                 val contendClient = AnebClient(bound)
-                repeat(contendN) {
-                    collectors += launch(Dispatchers.IO) {
-                        while (isActive) {
-                            runCatching {
-                                contendClient.downloadDrain("$measureBase/api/v1/download?bytes=1073741824")
-                            }
-                        }
-                    }
+                collectors += WeakNet.launchContendDrains(this, contendN) {
+                    contendClient.downloadDrain("$measureBase/api/v1/download?bytes=1073741824")
                 }
             }
 
