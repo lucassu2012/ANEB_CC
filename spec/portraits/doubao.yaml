@@ -35,12 +35,12 @@ params_fit_approx:
   source_portrait_unlocked: false
   fields:
     request_size_bytes_dist:
-      value: "~10–18KB/turn(量级锚点;上下行合计,未隔离纯请求/上行;非分布)"
+      value: "~10–18KB/turn 量级锚点 + P40 抓包 per-direction 观测(2026-07-19 D-76,PCAPdroid app_filter):对话 gateway api5-eeft-gateway-hl.feishu.cn→123.6.180.112 的 2 轮连接总量=下 146.8KB/上 25.0KB(下行为主,流式响应)。连接级 HTTP/2 复用,非 per-turn 分布→保持量级锚点(要 per-turn 分布需 ≥30turns 多会话)。"
       caliber: order-of-magnitude
       keep_pending: true
       source_layer: network
       confidence: LOW
-      note: "aggregate order-of-magnitude, not a distribution"
+      note: "aggregate order-of-magnitude, not a distribution; per-direction observed down 146.8/up 25.0 KB (2 turns)"
     token_interval_ms_dist:
       value: "~100ms(UI cadence,ui-proxy,显式≠网络ITL)"
       caliber: ui-proxy
@@ -107,8 +107,9 @@ observed_ui_layer:
 observed_network_layer:
   captured: "full"                             # 抓包时发消息→对话主连接完整捕获
   source: "aneb-pcapdroid-capture-2026-07-18"
-  cloud: "字节自有 *.doubao.com"
+  cloud: "字节生态:SNI *.doubao.com 为前端门面,对话后端实走 feishu.cn(Lark 飞书)/zijieapi.com/snssdk.com(D-76 P40 抓包实测,均字节内网域)"
   dialog_channel: "WebSocket(wss) + HTTPS API" # 对话主通道:实测走 WebSocket + HTTPS
+  dialog_gateway_observed: "api5-eeft-gateway-hl.feishu.cn → 123.6.180.112:443(D-76 对话 gateway,下 146.8/上 25.0KB/2 轮);msg-frontier-hl/mcs-bd.feishu.cn(消息前端);life-service-open/keyhub.zijieapi.com(字节 API);mon.snssdk.com(监控)"
   endpoints:                                    # 真实入云 SNI(PoP)
     - "wss100-normal-lq.doubao.com → 字节自有 LB bytelb.net（对话 WebSocket，单轮 ~17.6KB；POP 随网轮换 WiFi 121.30.176.241/5G 113.24.210.217，D-73）"
     - "api5-normal-hl.doubao.com（对话 API，~9.8KB）"
