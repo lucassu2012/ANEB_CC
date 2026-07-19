@@ -303,8 +303,7 @@ class TestEngine(private val context: Context) {
             // ---------------- 调试弱网伴流（非取证；DEBUG 门控在 UI）----------------
             // contend:N → N 条并行背景下行大流对接入链路制造真实拥塞（bufferbloat），
             // 全程运行、随 collectors 在 finally 统一取消。用独立 client 免污染测量连接池。
-            val contendN = config.weakNet
-                ?.substringAfter("contend:", "")?.trim()?.toIntOrNull()?.coerceIn(1, 8)
+            val contendN = WeakNet.parseContendN(config.weakNet)
             if (contendN != null) {
                 log("WEAKNET_CONTEND streams=$contendN note=non_forensic_debug_contention")
                 val contendClient = AnebClient(bound)
