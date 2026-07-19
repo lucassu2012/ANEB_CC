@@ -43,7 +43,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      Done 样本实测值共表，kind 区分；合成口径独立结论恒 LOW/INCONCLUSIVE，additive）
     // v14：Profile 3 观察数据落库——新增 adapter_obs（无障碍观察会话快照，只落规格匹配会话；
     //      观察=端到端体验代理≠网络口径，独立于 AQS 各表，恒 LOW/INCONCLUSIVE，additive）
-    version = 14,
+    // v15：adapter_obs 加 sessionSpanMs 列（spine-3 C6 会话时长 ui-proxy，additive ADD COLUMN）
+    version = 15,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -352,6 +353,28 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v14 → v15 的全部语句（spine-3 C6，additive-only）：adapter_obs 加 `sessionSpanMs` 列
+         * （前台观察会话跨度 ui-proxy，ms）。ALTER TABLE ADD COLUMN 追加为末列，与 Entities.kt
+         * AdapterObsEntity 末尾新字段的 KSP 期望 schema 一致（affinity REAL、可空、**无默认值**——
+         * R-10：Snapshot 的 null 原样落库，禁 0/哨兵）。既有 adapter_obs 行 sessionSpanMs 补 NULL，
+         * 不触碰其他表/列＝v14 旧数据全存活。
+         */
+        internal val MIGRATION_14_15_SQL: List<String> = listOf(
+            "ALTER TABLE `adapter_obs` ADD COLUMN `sessionSpanMs` REAL",
+        )
+
+        /**
+         * v14 → v15（session_span 落库，additive）：只加列不动数据。人工验证同 [MIGRATION_13_14]
+         * KDoc（覆盖安装后既有 adapter_obs 行可见且 sessionSpanMs=NULL、.schema 输出含新列、
+         * 观察会话切前台后 ADAPTER_OBS_SAVED 落库 session_span_ms 有值、logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_14_15_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -363,7 +386,7 @@ abstract class AnebDatabase : RoomDatabase() {
                     // 不可静默丢弃）——v6→v7 / … / v13→v14 见上方（均 additive）。
                     .addMigrations(
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()

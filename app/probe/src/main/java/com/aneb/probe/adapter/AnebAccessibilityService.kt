@@ -268,6 +268,7 @@ class AnebAccessibilityService : AccessibilityService() {
                 ttftSendMs = snap.ttftSendMs,
                 anchorSource = snap.anchorSource,
                 confidence = snap.confidence,
+                sessionSpanMs = snap.sessionSpanMs, // spine-3 C6：会话时长 ui-proxy 落库
             ),
         )
     }

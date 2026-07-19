@@ -613,6 +613,11 @@ data class AdapterObsEntity(
     val anchorSource: String?,
     /** 观察置信标注，恒 LOW/INCONCLUSIVE（口径红线） */
     val confidence: String,
+    /**
+     * 前台观察会话跨度 ui-proxy，ms（spine-3 C6，session_duration_s_dist 观测源）；无事件=null（R-10）。
+     * ≠真实对话会话时长（受前台切换/节流界定），恒 ui-proxy/LOW；跨会话分布见 [com.aneb.probe.adapter.SessionDurationStats]。
+     */
+    val sessionSpanMs: Double? = null,
 ) {
     companion object {
         /** 规格 id → 友好显示名（spec_adapters 目录各适配器 display_name 镜像）；未知 id → null（UI 缺退 pkg）。 */

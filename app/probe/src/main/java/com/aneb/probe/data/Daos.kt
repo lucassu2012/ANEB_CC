@@ -126,6 +126,14 @@ interface AdapterObsDao {
     /** 最近 N 条，新→旧（历史混排展示；同刻并列时按 id 兜底） */
     @Query("SELECT * FROM adapter_obs ORDER BY tsEpochMs DESC, id DESC LIMIT :limit")
     suspend fun recent(limit: Int = 20): List<AdapterObsEntity>
+
+    /**
+     * 某规格 App 的历史会话跨度（ms，非 null 行；spine-3 C6）——喂
+     * [com.aneb.probe.adapter.SessionDurationStats.aggregate] 聚合 session_duration_s_dist 分布。
+     * 只取 sessionSpanMs 非 null（R-10：无观察活动会话不入分布）。
+     */
+    @Query("SELECT sessionSpanMs FROM adapter_obs WHERE specId = :specId AND sessionSpanMs IS NOT NULL")
+    suspend fun sessionSpansForSpec(specId: String): List<Double>
 }
 
 @Dao
