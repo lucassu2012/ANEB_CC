@@ -79,12 +79,12 @@ params_fit_approx:
       confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     pop_ip_list:
-      value: "121.37.172.191:7003(自有 IM 非标准 TCP 长连端点,华为云广州段;n=1)——'自有IM/广州段'为 ASN/地理轻推断标注,IP:port 本身直采;建议标注待多点复采确认"
+      value: "kimi IM 华为云端点池 P40 PCAPdroid 抓包实测(2026-07-19 D-75,app_filter=com.moonshot.kimichat):非标准 TCP 端口 7000/7003/7004/21005 连**多个华为云 IP**——121.37.184.225(活跃,广州段,与前会话 121.37.172.191 同 121.37.x 段)/124.70.144.172/139.159.144.152/27.44.204.219;**华为云归属由'ASN/地理轻推断'升级为观测直采确认**;前会话单 IP 121.37.172.191 系池中之一,IM 连接小(~1-2KB/连)。"
       caliber: direct
       keep_pending: false
       source_layer: network
       confidence: LOW
-      note: "direct network-layer fact"
+      note: "direct network-layer fact; Huawei Cloud IM endpoint pool (multi-IP/multi-port) observed"
 
 
 # ── observed_ui_layer(D-56：方法不适配，诚实 false)──────────────────────────
@@ -109,7 +109,7 @@ observed_network_layer:
   # ⚠️ 架构差异（4 App 对比）：Kimi 对话走**非标准 TCP 7003 端口长连**，而豆包=WebSocket(wss)、
   #   DeepSeek/千问=HTTPS 443——Kimi 是四者中唯一用自定义端口的（疑似自有 IM 协议长连）。
   endpoints:
-    - "TCP 7003 → 121.37.172.191（对话/IM 主通道候选，非标准端口长连；字节量级抓包窗口未完整确认）"
+    - "IM 华为云端点池（D-75 PCAPdroid 观测）：TCP 7000→121.37.184.225(活跃,广州段)/TCP 7000→139.159.144.152/TCP 7004→124.70.144.172/TCP 21005→27.44.204.219；非标准端口长连，均华为云；单连 ~1-2KB；前会话 121.37.172.191:7003 系池中之一"
     - "sis.jpush.io / sis-ipv6.jpush.cn / s.jpush.cn（极光推送 DNS/长连）"
     - "UDP 19000 → jpush（推送长连）"
     - "easytomessage.com（自有 IM 相关）"
