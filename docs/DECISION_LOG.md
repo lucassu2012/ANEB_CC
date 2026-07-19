@@ -121,6 +121,8 @@
 
 | D-85 | 2026-07-19 | **测试硬化封顶（6h 自主窗口，第三轮勘查，零生产改动）**。①`AdapterObsEntityTest`：`appLabelFor` 契约（4 已知规格 doubao/deepseek/tongyi/kimi→友好名 + null/generic/未知→null，守 UI 的 pkg 兜底不静默失效）；②`ClientProfileDataParityTest` 补 empty-profiles 守卫（**正确** schema_version + 空 profiles → 触达 `require(profiles.isNotEmpty())`；此前负例用错误 schema_version 会提前在版本闸门抛出，empty 分支从未覆盖）。全绿 **637**（635→+2）。**第三轮勘查（UI/data/radio/net 视角）结论**：纯逻辑近乎穷尽测试、**无正确性 bug、无缺失分支**，这两项是仅剩低值 clean 缺口，已补；`RadioCollector` private 映射器需改可见性（非严格锁无关）不做。**三轮 Explore 勘查一致收敛：代码库极成熟，clean 锁无关项彻底挖尽**。 | data/AdapterObsEntityTest(新,2)+ui/ClientProfileDataParityTest(补 empty-profiles);第三轮勘查 | 
 
+| D-86 | 2026-07-19 | **补 D-80 pinning 排查的 native(.so) 层——root MITM 优先级定案（服务用户授权 root MITM，锁无关 APK 分析）**。arm64 .so 分析:**deepseek** 全 .so 无 cronet/boringssl/自定义 TLS 栈（仅 EncryptorP/rscrypto/WCDB/mmkv/apminsight 等）→标准 Android TLS→**root+系统 CA 应可解密（最佳候选）**;**kimi** 同（无自定义 TLS 栈;有 libtrustdevice 设备指纹小未知;对话主通道=自定义 TCP 7003 非 TLS、HTTPS 部分标准）→候选;**doubao 有完整字节自定义 native TLS 栈**（libsscronet 6.8MB Cronet + libttboringssl BoringSSL + libnpth_tls_monitor）→非标准、Cronet 支持 PKP 可能 native 固定→**高风险需运行时验证**;**tongyi** Java okhttp3 CertificatePinner（D-80）→被挡。libttboringssl 无明显 pin 配置串（pin 配置在 Cronet/dex 运行时，静态难确认）。**最终 root MITM 优先级：deepseek > kimi > doubao(风险) > tongyi(被挡)**;成功也 n=1 单设备=LOW;系统改动仍由用户本人执行，我负责静态分析+解密后数据分析。 | scratchpad APK .so 分析(unzip -l + strings);D-80 Java 层;spine3 §4.3 | 
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。
