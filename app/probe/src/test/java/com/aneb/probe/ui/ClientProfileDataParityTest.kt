@@ -104,5 +104,13 @@ class ClientProfileDataParityTest {
         } catch (expected: Exception) {
             // 版本闸门成立
         }
+        // 正确 schema_version + 空 profiles → 触达 `require(profiles.isNotEmpty())`（上例用错版本会
+        // 提前在 schema 闸门抛出，empty 分支从未被覆盖——此处补齐）。
+        try {
+            TestModeProfileLoader.parse("""{"schema_version":"${TestModeProfileLoader.SCHEMA_VERSION}","profiles":[]}""")
+            fail("profiles 为空应抛异常（loadFromAssets 捕获后回退 FALLBACK）")
+        } catch (expected: Exception) {
+            // profiles 非空闸门成立
+        }
     }
 }

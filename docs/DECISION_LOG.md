@@ -119,6 +119,8 @@
 
 | D-84 | 2026-07-19 | **测试硬化（6h 自主窗口，第二轮勘查 #2/#3，零生产改动）：Go server 防御分支覆盖**。此前 `loadProfiles` 仅 happy path（真实 3 文件 TestLoadRealProfiles）、`artifactStreamPhase` 仅单相 happy case。新 `server/profiles_defensive_test.go`：①`TestLoadProfilesDefensiveErrors` 4 子测（`t.TempDir` 写畸形 json）守 **fail-closed** 分支——重复 profile_id / 缺 profile_id / 缺 version / 解析错（profile 是两端共享合同，不允许静默跳过）；②`TestArtifactStreamPhaseSelection` 守多相选择（只数 artifact_stream、跳过 download_burst）+ 越界报错。`go test ./server` 全绿（ok aneb-server）。③另补 `TestDownloadProfileErrors` 一 case（download_burst `ChunkKB=downloadMaxChunkKB+1`，Bytes 合法以隔离）覆盖 `downloadDefaultsFromProfile` 的 chunk_kb 越界分支。**第二轮勘查 #2/#3 全清**；至此两轮勘查锁无关项全部落地。 | server/profiles_defensive_test.go(新,2 测);profiles.go loadProfiles/artifactStreamPhase;第二轮勘查 #2/#3 | 
 
+| D-85 | 2026-07-19 | **测试硬化封顶（6h 自主窗口，第三轮勘查，零生产改动）**。①`AdapterObsEntityTest`：`appLabelFor` 契约（4 已知规格 doubao/deepseek/tongyi/kimi→友好名 + null/generic/未知→null，守 UI 的 pkg 兜底不静默失效）；②`ClientProfileDataParityTest` 补 empty-profiles 守卫（**正确** schema_version + 空 profiles → 触达 `require(profiles.isNotEmpty())`；此前负例用错误 schema_version 会提前在版本闸门抛出，empty 分支从未覆盖）。全绿 **637**（635→+2）。**第三轮勘查（UI/data/radio/net 视角）结论**：纯逻辑近乎穷尽测试、**无正确性 bug、无缺失分支**，这两项是仅剩低值 clean 缺口，已补；`RadioCollector` private 映射器需改可见性（非严格锁无关）不做。**三轮 Explore 勘查一致收敛：代码库极成熟，clean 锁无关项彻底挖尽**。 | data/AdapterObsEntityTest(新,2)+ui/ClientProfileDataParityTest(补 empty-profiles);第三轮勘查 | 
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。
