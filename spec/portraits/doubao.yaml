@@ -77,12 +77,12 @@ params_fit_approx:
       confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     pop_ip_list:
-      value: "wss100.doubao.com / api5.doubao.com / frontier5.doubao.com / log.doubao.com(4 SNI 端点,自有 doubao.com 基础设施;当前为 SNI 主机名级,具体 POP IP 解析待补)"
+      value: "4 SNI 端点 P40 双网解析实测(2026-07-19 D-73):wss100-normal-lq→direct.frontier-doubao-broker-v4.lq.bytelb.net(字节自有 LB;WiFi 121.30.176.241/5G 113.24.210.217 随网轮换)、api5-normal-hl/frontier5-audio-ws→cdnbuild.net CDN(WiFi 123.6.52.x/5G 171.15.110.x 轮换)、log→cdngslb(42.234.124.87/1.194.30.103 轮换)。POP 跨网轮换=anycast/CDN 边缘非固定入云 IP,记录观测 IP 但保持 PENDING(无稳定 POP,区别于 deepseek 双网稳定 WAF IP)"
       caliber: direct
       keep_pending: true
       source_layer: network
       confidence: LOW
-      note: "direct network-layer fact"
+      note: "direct network-layer fact; POP rotates across WiFi/5G (CDN/anycast)"
 
 
 # ── observed_ui_layer(D-52/D-54 无障碍观察实测)──────────────────────────────
@@ -110,7 +110,7 @@ observed_network_layer:
   cloud: "字节自有 *.doubao.com"
   dialog_channel: "WebSocket(wss) + HTTPS API" # 对话主通道:实测走 WebSocket + HTTPS
   endpoints:                                    # 真实入云 SNI(PoP)
-    - "wss100-normal-lq.doubao.com（对话 WebSocket，单轮 ~17.6KB）"
+    - "wss100-normal-lq.doubao.com → 字节自有 LB bytelb.net（对话 WebSocket，单轮 ~17.6KB；POP 随网轮换 WiFi 121.30.176.241/5G 113.24.210.217，D-73）"
     - "api5-normal-hl.doubao.com（对话 API，~9.8KB）"
     - "frontier5-audio-ws-lq.doubao.com（音频 WebSocket，实时语音链路）"
     - "log.doubao.com（日志上报）"

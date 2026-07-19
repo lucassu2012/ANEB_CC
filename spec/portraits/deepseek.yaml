@@ -84,12 +84,12 @@ params_fit_approx:
       confidence: INCONCLUSIVE
       note: "no same-layer source (PENDING)"
     pop_ip_list:
-      value: "已修正 OVERCLAIM→keep_pending=true:SNI 端点保留为网络层 direct 证据(自有 chat.deepseek.com/hif-dliq.deepseek.com;zztfly CDN cdn-api-auth/cfgc;火山 apmplus/gator.volces.com),但仅采到 SNI 主机名未解析 IP,待 DNS 解析出原始 IP 再脱 PENDING"
+      value: "chat.deepseek.com → 116.205.40.113(华为云 WAF vip1.huaweicloudwaf.com;P40 WiFi+5G 双网实测同一 IP=稳定入云 POP,2026-07-19 D-73);对话主入口稳定→脱 PENDING。hif-dliq 未解析;第三方 zztfly(CDN)/volces(火山遥测)端点 POP 随网轮换,非对话主 POP,不并入。"
       caliber: direct
-      keep_pending: true
+      keep_pending: false
       source_layer: network
       confidence: LOW
-      note: "direct network-layer fact"
+      note: "direct network-layer fact; chat POP stable across WiFi+5G"
 
 
 # ── observed_ui_layer(D-55 无障碍观察实测)──────────────────────────────────
@@ -117,7 +117,7 @@ observed_network_layer:
   cloud: "自有 deepseek.com + 火山引擎 volces.com（字节体系，APM/监控）"
   dialog_channel: "HTTPS 443（chat.deepseek.com）"
   endpoints:                                    # 真实入云 SNI
-    - "chat.deepseek.com（对话主通道，HTTPS 单轮 ~13.8KB / mitm 抓包活跃 38.5KB）"
+    - "chat.deepseek.com → 116.205.40.113（对话主通道 HTTPS，华为云 WAF vip1.huaweicloudwaf.com；P40 WiFi+5G 双网同 IP 稳定，D-73；单轮 ~13.8KB / mitm 活跃 38.5KB）"
     - "cdn-api-auth.zztfly.com（CDN/鉴权端点，HTTPS ~12KB；mitm 显错误=疑似 pinning，D-61 发现）"
     - "cfgc.zztfly.com（配置下发端点，HTTPS ~13.4KB，D-61 发现）"
     - "hif-dliq.deepseek.com（DeepSeek 自有子域）"
