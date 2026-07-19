@@ -293,6 +293,11 @@ class ObsSessionStats(
         cadenceP50Ms = cadenceP50Ms(),
         sessionStartNanos = observeStartNanos,
         updatedAtNanos = nowNanos,
+        sessionSpanMs = if (lastEventNanos == NONE) {
+            null // R-10：无内容事件=无观察会话活动，绝不折 0
+        } else {
+            (lastEventNanos - observeStartNanos) / 1_000_000.0 // 前台观察会话跨度（ui-proxy）
+        },
         ttftSendMs = if (lastTtftSendNanos == NONE) {
             null // R-10：无发送锚点/锚点未闭合=未测，绝不折 0
         } else {
@@ -405,6 +410,15 @@ data class AdapterObsSnapshot(
     val cadenceP50Ms: Double?,
     val sessionStartNanos: Long,
     val updatedAtNanos: Long,
+    /**
+     * **会话时长 ui-proxy**（spine-3 C6，session_duration_s_dist 观测源），ms：本前台观察会话的
+     * 跨度＝观察启动(observeStart)→最后内容事件(lastEvent)。**诚实边界**：这是**前台观察会话跨度**
+     * （UI 呈现层，恒 LOW/INCONCLUSIVE），受前台包切换/观察节流界定、终点取最后内容事件而非真实
+     * 会话结束——**≠真实对话会话时长**（后者需网络/会话级 instrumentation），不翻 params 门，只作
+     * params_fit_approx 的 ui-proxy 锚点。R-10：无事件=null，绝不折 0。跨会话分布见
+     * [SessionDurationStats.aggregate]。
+     */
+    val sessionSpanMs: Double? = null,
     /**
      * 发送锚定 TTFT 代理，ms：send_anchor（输入框非空→空）→ 其后首个非输入框内容变化；
      * 取最近一次**完成**值。**send-anchor=input-clear 启发式**——可能包含用户手动清空误检

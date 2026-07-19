@@ -345,6 +345,7 @@ class AnebAccessibilityService : AccessibilityService() {
                 " rule_matched=${snap.ruleMatchedEvents}" +
                 " first_delta_ms=${snap.firstDeltaMs ?: "null"}" +
                 " cadence_p50_ms=${snap.cadenceP50Ms?.let { "%.1f".format(it) } ?: "null"}" +
+                " session_span_ms=${snap.sessionSpanMs?.let { "%.1f".format(it) } ?: "null"}" +
                 " confidence=${snap.confidence}" +
                 " reason=$reason" +
                 " ttft_send_ms=${snap.ttftSendMs?.let { "%.1f".format(it) } ?: "null"}" +
