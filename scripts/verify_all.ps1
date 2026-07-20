@@ -154,6 +154,30 @@ if ($py -and (Test-Path $schemaTest)) {
     $log += Add-Result 'portraits-schema-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- Campaign-level analysis & reporting layer SELF-TEST (D-87): golden reflex tests ---
+# Guards scripts/{campaign_common,attribution,campaign_report}.py — three-tier differential
+# attribution + point×time×carrier heat card + before/after comparison. Self-contained runner
+# (stdlib only, no pytest). exit: 0=all reflex pass / 1=a golden reflex failed -> FAIL.
+$campaignTest = Join-Path $repo 'scripts\tests\run_all.py'
+if ($py -and (Test-Path $campaignTest)) {
+    Push-Location (Join-Path $repo 'scripts\tests')
+    $out = & $py $campaignTest 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    Pop-Location
+    $log += "--- campaign-analysis-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'campaign-analysis-unit' 'PASS' (($out -split "`n" | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'campaign-analysis-unit' 'FAIL' 'reflex test(s) failed; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $campaignTest)) { $missing += 'scripts/tests/run_all.py' }
+    $log += Add-Result 'campaign-analysis-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
