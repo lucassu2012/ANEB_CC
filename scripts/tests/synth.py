@@ -48,3 +48,12 @@ def aqs_records(aqs, n, *, point="P1", carrier="cmcc", time_band="busy",
     campaign = {"campaign_id": campaign_id, "tier": tier, "point_id": point,
                 "carrier": carrier, "time_band": time_band}
     return [make_record(campaign=campaign, aqs=aqs, scenarios=[]) for _ in range(n)]
+
+
+def kpi_scenario_records(n, *, kpi=None, point="P1", carrier="cmcc", time_band="busy",
+                         tier="metro", campaign_id="base", aqs=None, profile="s1_chat"):
+    """n records each with one scenario carrying the given kpi dict (value + *_grade)."""
+    campaign = {"campaign_id": campaign_id, "tier": tier, "point_id": point,
+                "carrier": carrier, "time_band": time_band}
+    return [make_record(campaign=campaign, aqs=aqs, scenarios=[(profile, dict(kpi or {}))])
+            for _ in range(n)]

@@ -158,6 +158,60 @@ def render_comparison_markdown(cmp):
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------- per-KPI heat
+
+# Default KPIs for per-KPI heat cards: first-byte, RTT, goodput, inter-token.
+DEFAULT_KPI_HEAT = ("t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms")
+
+
+def kpi_grade_field(kpi_key):
+    """Authoritative per-KPI grade field name (KpiGrading, e.g. n1_rtt_p50_ms -> n1_grade)."""
+    return kpi_key.split("_")[0] + "_grade"
+
+
+def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
+    """Heat cells for one raw KPI: median value + modal AUTHORITATIVE grade (from the
+    record's *_grade field, not the AQS presentation bands) per (point,carrier,time_band)."""
+    gfield = kpi_grade_field(kpi_key)
+    buckets = defaultdict(lambda: {"vals": [], "grades": Counter()})
+    for rec in records:
+        labels = cc.campaign_labels(rec)
+        key = tuple(labels[d] for d in HEAT_DIMS)
+        for scn in cc.iter_scenarios(rec):
+            v = cc.scenario_kpi(scn, kpi_key)
+            if v is None:
+                continue
+            buckets[key]["vals"].append(v)
+            g = (scn.get("kpi") or scn.get("kpis") or {}).get(gfield)
+            if isinstance(g, str):
+                buckets[key]["grades"][g] += 1
+    cells = []
+    for key in sorted(buckets):
+        b = buckets[key]
+        modal = b["grades"].most_common(1)[0][0] if b["grades"] else None
+        cells.append({
+            "cell": dict(zip(HEAT_DIMS, key)), "kpi": kpi_key,
+            "median": cc.median(b["vals"]), "grade": modal, "n": len(b["vals"]),
+            "low_confidence": len(b["vals"]) < min_samples,
+        })
+    return cells
+
+
+def render_kpi_heatcard_markdown(cells, kpi_key):
+    lines = [f"### 分 KPI 热力卡：`{kpi_key}`（中位；分级=上报 KpiGrading 众数）", ""]
+    if not cells:
+        lines.append(f"_无 `{kpi_key}` 数据。_")
+        return "\n".join(lines)
+    lines += ["| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |",
+              "|---|---|---|---|---|---|---|"]
+    for c in cells:
+        note = "low_conf" if c["low_confidence"] else "—"
+        lines.append(
+            f"| {c['cell']['point_id']} | {c['cell']['carrier']} | {c['cell']['time_band']} | "
+            f"{cc.fmt_num(c['median'], 2)} | {c['grade'] or '—'} | {c['n']} | {note} |")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------- assembly
 
 def _auto_compare_ids(inv):
@@ -168,10 +222,9 @@ def _auto_compare_ids(inv):
 
 def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                           attr_kpi=attribution.DEFAULT_KPI,
-                          before_id=None, after_id=None):
+                          before_id=None, after_id=None, kpi_heat=DEFAULT_KPI_HEAT):
     inv = inventory(records)
     cells = heat_cells(records, min_samples)
-    attr = attribution.attribute(records, kpi=attr_kpi, min_samples=min_samples)
 
     if before_id is None and after_id is None:
         before_id, after_id = _auto_compare_ids(inv)
@@ -199,8 +252,23 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         parts.append("")
     parts.append(render_heatcard_markdown(cells))
     parts.append("")
-    parts.append(attribution.render_markdown(attr))
+    parts.append("## 分 KPI 热力卡（原始 KPI 中位 + 上报 KpiGrading 分级）")
     parts.append("")
+    any_kpi = False
+    for k in kpi_heat:
+        kc = kpi_heat_cells(records, k, min_samples)
+        if kc:
+            any_kpi = True
+            parts.append(render_kpi_heatcard_markdown(kc, k))
+            parts.append("")
+    if not any_kpi:
+        parts.append("_无场景 KPI 数据。_")
+        parts.append("")
+    for k in attribution.ATTRIBUTABLE_KPIS:
+        attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
+        if k == attr_kpi or attr["cells"]:  # primary always; secondary only if it has cells
+            parts.append(attribution.render_markdown(attr))
+            parts.append("")
     if before_id and after_id:
         parts.append(render_comparison_markdown(
             compare_campaigns(records, before_id, after_id, min_samples)))
@@ -210,10 +278,12 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
 # ---------------------------------------------------------------- HTML
 
-def _heat_grid_html(cells):
-    """Pivot: rows = point_id × carrier, cols = time_band, colored by grade."""
+def _heat_grid_html(cells, value_key="aqs_median"):
+    """Pivot: rows = point_id × carrier, cols = time_band, colored by grade.
+    value_key selects the numeric shown (aqs_median for the AQS card, median for
+    per-KPI cards)."""
     if not cells:
-        return "<p class='empty'>无 AQS 数据可成卡。</p>"
+        return "<p class='empty'>无数据可成卡。</p>"
     time_bands = sorted({c["cell"]["time_band"] for c in cells})
     rows = defaultdict(dict)  # (point,carrier) -> time_band -> cell
     for c in cells:
@@ -227,23 +297,18 @@ def _heat_grid_html(cells):
             if not c:
                 tds.append("<td>—</td>")
                 continue
-            bg, fg = cc.GRADE_COLORS.get(c["grade"], cc.GRADE_COLORS["n/a"])
+            grade = c["grade"] or "n/a"
+            bg, fg = cc.GRADE_COLORS.get(grade, cc.GRADE_COLORS["n/a"])
             lc = " *" if c["low_confidence"] else ""
-            tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c['aqs_median'])}</b>"
-                       f"<span class='sub'>{esc(c['grade'])} · n={c['n']}{lc}</span></td>")
+            tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
+                       f"<span class='sub'>{esc(grade)} · n={c['n']}{lc}</span></td>")
         body.append("<tr>" + "".join(tds) + "</tr>")
     return f"<div class='scroll'><table>{head}{''.join(body)}</table></div>"
 
 
-def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
-                      attr_kpi=attribution.DEFAULT_KPI, before_id=None, after_id=None):
-    inv = inventory(records)
-    cells = heat_cells(records, min_samples)
-    attr = attribution.attribute(records, kpi=attr_kpi, min_samples=min_samples)
-    if before_id is None and after_id is None:
-        before_id, after_id = _auto_compare_ids(inv)
-
-    attr_rows = []
+def _attr_table_html(attr):
+    """One three-tier attribution table as HTML."""
+    rows = []
     for c in attr["cells"]:
         cell_label = " · ".join(f"{k}={v}" for k, v in c["cell"].items())
         cov = ",".join(cc.TIER_LABELS.get(t, t) for t in c["coverage"]) or "—"
@@ -254,18 +319,39 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
             notes.append("inversion:" + "|".join(c["inversions"]))
         if c["low_confidence"]:
             notes.append("low_conf")
-        attr_rows.append(
+        rows.append(
             f"<tr><td class='lbl'>{esc(cell_label)}</td><td>{esc(cov)}</td>"
             f"<td>{cc.fmt_num(c['access_component'])}</td>"
             f"<td>{cc.fmt_num(c['regional_backbone_incr'])}</td>"
             f"<td>{cc.fmt_num(c['core_backbone_incr'])}</td>"
             f"<td>{cc.fmt_num(c['end_to_end_core'])}</td>"
             f"<td>{esc('; '.join(notes) or '—')}</td></tr>")
-    attr_html = (
+    return (
         "<div class='scroll'><table><tr><th>单元</th><th>覆盖</th><th>接入</th>"
         "<th>区域骨干+</th><th>核心骨干+</th><th>端到端</th><th>备注</th></tr>"
-        + ("".join(attr_rows) or "<tr><td colspan='7' class='empty'>无可归因单元</td></tr>")
+        + ("".join(rows) or "<tr><td colspan='7' class='empty'>无可归因单元</td></tr>")
         + "</table></div>")
+
+
+def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
+                      attr_kpi=attribution.DEFAULT_KPI, before_id=None, after_id=None):
+    inv = inventory(records)
+    cells = heat_cells(records, min_samples)
+    if before_id is None and after_id is None:
+        before_id, after_id = _auto_compare_ids(inv)
+
+    kpi_grids = ""
+    for k in DEFAULT_KPI_HEAT:
+        kc = kpi_heat_cells(records, k, min_samples)
+        if kc:
+            kpi_grids += (f"<h2>分 KPI 热力卡：{esc(k)}（中位 + 上报分级）</h2>"
+                          + _heat_grid_html(kc, "median"))
+
+    attr_sections = ""
+    for k in attribution.ATTRIBUTABLE_KPIS:
+        attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
+        if k == attr_kpi or attr["cells"]:
+            attr_sections += (f"<h2>三级差分归因矩阵（{esc(k)}，ms）</h2>" + _attr_table_html(attr))
 
     cmp_html = ""
     if before_id and after_id:
@@ -313,8 +399,8 @@ footer{{margin-top:36px;font-size:12px;color:#5f6368;border-top:1px solid #ddd;p
 {warn}
 <h2>点位 × 忙闲 × 运营商 热力卡（AQS 中位；* = 样本不足 low_conf）</h2>
 {_heat_grid_html(cells)}
-<h2>三级差分归因矩阵（{esc(attr_kpi)}，ms）</h2>
-{attr_html}
+{kpi_grids}
+{attr_sections}
 {cmp_html}
 <footer>claim_scope: <b>application_end_to_end_to_probe_node</b> — 应用层路径分段，不代表运营商网络端到端体验/MOS。<br>
 ANEB 战役级报告 · stdlib-only 生成 · 标签约定见 docs/CAMPAIGN_LABELS_CONVENTION.md。</footer>

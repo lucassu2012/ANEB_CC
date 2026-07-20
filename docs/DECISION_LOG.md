@@ -127,6 +127,8 @@
 
 | D-88 | 2026-07-20 | **离线战役标签补注工具（闭合分析层数据回路，纯 Python `scripts/`，锁无关·collision-safe）**。承 D-87：分析层此前对真实 corpus（无标签）只能输出 unlabeled 塌缩。`annotate_campaign.py` 离线把可选加性 `run.campaign` 标签注入现有结果 JSONL——`--set` 统一 / `--map` per-run_id / `--infer-time-band`（由 `started_at_epoch_ms` + tz 本地时推 busy/idle，**确定性无 wall-clock**，标 inferred）。**加性非破坏**：深拷贝、只填 gap、原有标签优先永不覆盖、写新文件不覆盖输入（除非 `--inplace`）、`label_source` 记溯源；`--set` 键白名单校验。优先级 原有>map>set>inferred。合成 golden **8 例**（统一 set / 推断忙闲 / 原值不覆盖 / map 仅命中 / map 优先 set / 非破坏保字段 / 注入后流入热力卡 / 无操作不变）接进 `campaign-analysis-unit`（**25/25** 全绿）。**闭环实证**：真实 corpus 经补注（point/carrier/tier/campaign + 推断 time_band）后，报告从 unlabeled 塌缩变为真实标注热力卡。生产接线（app 写 `run.campaign`）落地前，此工具令分析层**立即可用于外场 JSONL**。 | scripts/annotate_campaign.py + scripts/tests/test_annotate.py + run_all.py；D-87；CAMPAIGN_LABELS_CONVENTION.md §4 |
 
+| D-89 | 2026-07-20 | **分 KPI 热力卡 + 多 KPI 归因深化（承 D-87 分析层，纯 Python `scripts/`）**。战役报告此前仅 AQS 综合热力卡；本轮加原始 KPI 维度：①`kpi_heat_cells(kpi_key)` 按 (点位,运营商,时段) 出各 KPI 中位 + **权威上报分级众数**——读记录 `*_grade` 字段（= KpiGrading 真值，**非** AQS 展示分带；`kpi_grade_field` 映射 `n1_rtt_p50_ms`→`n1_grade`）；②报告新增「分 KPI 热力卡」段（默认 TTFT/RTT/goodput/ITL，无数据的 KPI 自动跳过）；③归因矩阵对 RTT 与 TTFT **双 KPI** 输出（主 KPI 恒显、次 KPI 有单元才显，互为交叉校验）；④HTML 报告同步（`_heat_grid_html` 泛化 value_key、`_attr_table_html` 抽出复用）。合成 golden +4（分级字段映射 / 中位+权威分级 / 众数多数 / 报告含 KPI 段）→ **29/29**。demo 实证：报告呈 AQS 卡 + n1 KPI 卡 + n1 归因 + 前后对比，无数据 KPI（t1/u1/t2）诚实跳过。 | scripts/campaign_report.py（kpi_heat_cells/render_kpi_heatcard/_attr_table_html/多 KPI 循环）+ tests/{synth,test_campaign_report}.py；D-87 |
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。

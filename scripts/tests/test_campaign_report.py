@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                  
 
 import campaign_common as cc
 import campaign_report as rpt
-from synth import aqs_records, make_record
+from synth import aqs_records, make_record, kpi_scenario_records
 
 
 def test_heatcard_cells_and_grades():
@@ -89,3 +89,35 @@ def test_report_flags_unlabeled_corpus():
     recs = [make_record(aqs=88, scenarios=[]) for _ in range(3)]
     md = rpt.build_report_markdown(recs)
     assert "无 `run.campaign` 标签" in md  # honest coverage warning
+
+
+def test_kpi_grade_field_mapping():
+    assert rpt.kpi_grade_field("n1_rtt_p50_ms") == "n1_grade"
+    assert rpt.kpi_grade_field("t1_ttft_ms") == "t1_grade"
+    assert rpt.kpi_grade_field("u1_goodput_mbps") == "u1_grade"
+
+
+def test_kpi_heatcard_median_and_authoritative_grade():
+    recs = kpi_scenario_records(5, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "excellent"})
+    cells = rpt.kpi_heat_cells(recs, "n1_rtt_p50_ms")
+    assert len(cells) == 1
+    c = cells[0]
+    assert c["median"] == 20
+    assert c["grade"] == "excellent"   # from the record's n1_grade, not AQS bands
+    assert c["n"] == 5
+    assert c["low_confidence"] is False
+
+
+def test_kpi_heat_modal_grade_majority():
+    recs = (kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "excellent"})
+            + kpi_scenario_records(2, kpi={"n1_rtt_p50_ms": 90, "n1_grade": "poor"}))
+    c = rpt.kpi_heat_cells(recs, "n1_rtt_p50_ms")[0]
+    assert c["grade"] == "excellent"   # 3 > 2 modal
+    assert c["n"] == 5
+
+
+def test_report_includes_per_kpi_sections():
+    recs = kpi_scenario_records(5, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "excellent"}, aqs=90)
+    md = rpt.build_report_markdown(recs)
+    assert "分 KPI 热力卡" in md
+    assert "n1_rtt_p50_ms" in md
