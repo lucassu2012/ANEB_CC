@@ -131,6 +131,8 @@
 
 | D-90 | 2026-07-20 | **复测稳定性 / 变异系数 CV 门（对齐计划 §6 M1 验收「同点位复测 CV≤10%」，纯 Python `scripts/`）**。承 D-87 分析层。`stability.py`：按 (点位,运营商,时段,**层级**,profile) 分组算 CV% = 样本 stdev/mean×100，超门（默认 10%）标 `unstable`。**层级入键**——一次复测针对同一服务层级，池化不同层级会把层级差混入噪声，故 CV 净为**同条件可重复性**。诚实（R-10）：<2 样本 / |mean|≈0 → CV `None`（不可计算，绝不折 0）；`unstable`（CV>门）与 `low_confidence`（n<min）分离标注。集成进综合报告「复测稳定性」段（默认 TTFT/RTT/goodput）+ 独立 CLI。合成 golden +6（CV 已知 20% / <2 样本 None / mean=0 None / 稳定 vs 超门 / low_conf / 报告含段）→ **35/35**。demo 实证：per-tier 分组 metro CV≈8%、core≈3% 均判「稳定」（池化 tier 时 CV≈46% 超门，反证分组口径正确）。 | scripts/stability.py + campaign_report.py（集成稳定性段）+ tests/test_stability.py + run_all.py；计划 §6 M1；D-87 |
 
+| D-91 | 2026-07-20 | **战役分析工具集使用文档（capstone，收束 D-87..90）**。`scripts/README.md`：两层结构（逐-run `analyze_results`/`dashboard` + 战役级 `campaign_report`/`attribution`/`stability`/`annotate_campaign`）、典型工作流（补注→报告→稳定性/归因）、各工具用法与口径红线（claim_scope、缺标签降级、low_confidence）、测试入口。纯文档。至此**战役级分析与报告层**（D-87 骨架+三级归因+热力卡+前后对比 / D-88 离线补注闭环 / D-89 分 KPI+多 KPI 归因 / D-90 复测 CV 门）作为可用工具集封顶：35 golden、`campaign-analysis-unit` 门禁绿、stdlib 无依赖、全程仅 `scripts/`+`docs/` 与 v3 画像 lane 正交（零触 app//spec/portraits/schema）。 | scripts/README.md；收束 D-87/88/89/90 |
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。
