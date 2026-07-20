@@ -28,6 +28,7 @@ from collections import Counter, defaultdict
 
 import campaign_common as cc
 import attribution
+import stability
 
 HEAT_DIMS = ("point_id", "carrier", "time_band")
 
@@ -262,6 +263,19 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             parts.append(render_kpi_heatcard_markdown(kc, k))
             parts.append("")
     if not any_kpi:
+        parts.append("_无场景 KPI 数据。_")
+        parts.append("")
+    parts.append(f"## 复测稳定性（CV 门 ≤{cc.fmt_num(stability.DEFAULT_CV_GATE)}%，对齐 M1 验收）")
+    parts.append("")
+    any_stab = False
+    for k in stability.DEFAULT_STABILITY_KPIS:
+        sc = stability.stability_cells(records, k, cv_gate=stability.DEFAULT_CV_GATE,
+                                       min_samples=min_samples)
+        if sc:
+            any_stab = True
+            parts.append(stability.render_markdown(sc, k))
+            parts.append("")
+    if not any_stab:
         parts.append("_无场景 KPI 数据。_")
         parts.append("")
     for k in attribution.ATTRIBUTABLE_KPIS:

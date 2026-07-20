@@ -129,6 +129,8 @@
 
 | D-89 | 2026-07-20 | **分 KPI 热力卡 + 多 KPI 归因深化（承 D-87 分析层，纯 Python `scripts/`）**。战役报告此前仅 AQS 综合热力卡；本轮加原始 KPI 维度：①`kpi_heat_cells(kpi_key)` 按 (点位,运营商,时段) 出各 KPI 中位 + **权威上报分级众数**——读记录 `*_grade` 字段（= KpiGrading 真值，**非** AQS 展示分带；`kpi_grade_field` 映射 `n1_rtt_p50_ms`→`n1_grade`）；②报告新增「分 KPI 热力卡」段（默认 TTFT/RTT/goodput/ITL，无数据的 KPI 自动跳过）；③归因矩阵对 RTT 与 TTFT **双 KPI** 输出（主 KPI 恒显、次 KPI 有单元才显，互为交叉校验）；④HTML 报告同步（`_heat_grid_html` 泛化 value_key、`_attr_table_html` 抽出复用）。合成 golden +4（分级字段映射 / 中位+权威分级 / 众数多数 / 报告含 KPI 段）→ **29/29**。demo 实证：报告呈 AQS 卡 + n1 KPI 卡 + n1 归因 + 前后对比，无数据 KPI（t1/u1/t2）诚实跳过。 | scripts/campaign_report.py（kpi_heat_cells/render_kpi_heatcard/_attr_table_html/多 KPI 循环）+ tests/{synth,test_campaign_report}.py；D-87 |
 
+| D-90 | 2026-07-20 | **复测稳定性 / 变异系数 CV 门（对齐计划 §6 M1 验收「同点位复测 CV≤10%」，纯 Python `scripts/`）**。承 D-87 分析层。`stability.py`：按 (点位,运营商,时段,**层级**,profile) 分组算 CV% = 样本 stdev/mean×100，超门（默认 10%）标 `unstable`。**层级入键**——一次复测针对同一服务层级，池化不同层级会把层级差混入噪声，故 CV 净为**同条件可重复性**。诚实（R-10）：<2 样本 / |mean|≈0 → CV `None`（不可计算，绝不折 0）；`unstable`（CV>门）与 `low_confidence`（n<min）分离标注。集成进综合报告「复测稳定性」段（默认 TTFT/RTT/goodput）+ 独立 CLI。合成 golden +6（CV 已知 20% / <2 样本 None / mean=0 None / 稳定 vs 超门 / low_conf / 报告含段）→ **35/35**。demo 实证：per-tier 分组 metro CV≈8%、core≈3% 均判「稳定」（池化 tier 时 CV≈46% 超门，反证分组口径正确）。 | scripts/stability.py + campaign_report.py（集成稳定性段）+ tests/test_stability.py + run_all.py；计划 §6 M1；D-87 |
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。
