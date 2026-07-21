@@ -44,12 +44,25 @@ def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None):
 
 
 def tier_records(tier, kpi_key, value, n, *, point="P1", carrier="cmcc",
-                 time_band="busy", profile="s1_chat", campaign_id="base"):
-    """n records tagged with `tier`, each carrying one scenario with kpi_key=value."""
+                 time_band="busy", profile="s1_chat", campaign_id="base",
+                 profile_version=None, edges_ms=None):
+    """n records tagged with `tier`, each carrying one scenario with kpi_key=value.
+
+    profile_version / edges_ms override the scenario's comparability signatures
+    so tests can build a cell that pools INCOMPARABLE measurements (D-32 / R-27).
+    """
     campaign = {"campaign_id": campaign_id, "tier": tier, "point_id": point,
                 "carrier": carrier, "time_band": time_band}
-    return [make_record(campaign=campaign, scenarios=[(profile, {kpi_key: value})])
-            for _ in range(n)]
+    out = []
+    for _ in range(n):
+        rec = make_record(campaign=campaign, scenarios=[(profile, {kpi_key: value})])
+        if profile_version is not None:
+            rec["scenarios"][0]["profile_version"] = profile_version
+        if edges_ms is not None:
+            rec["scenarios"][0]["itl_histogram"] = {"edges_ms": list(edges_ms),
+                                                    "counts": [0] * (len(edges_ms) + 1)}
+        out.append(rec)
+    return out
 
 
 def aqs_records(aqs, n, *, point="P1", carrier="cmcc", time_band="busy",

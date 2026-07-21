@@ -332,6 +332,10 @@ def _attr_table_html(attr):
             notes.append(c["not_computable_reason"])
         if c["inversions"]:
             notes.append("inversion:" + "|".join(c["inversions"]))
+        if c.get("mixed_profile_versions"):
+            notes.append("MIXED_PROFILE_VERSION:" + "|".join(c["mixed_profile_versions"]))
+        if c.get("mixed_histogram_edges"):
+            notes.append("MIXED_HIST_EDGES")
         if c["low_confidence"]:
             notes.append("low_conf")
         rows.append(

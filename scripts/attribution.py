@@ -44,8 +44,12 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
 
     cells: {cell_key(tuple) -> {tier -> [values]}}
     excluded_no_tier: count of records with no usable tier label (coverage gap).
+    meta:  {cell_key -> homogeneity accumulator}. profile_VERSION is deliberately
+           NOT part of the cell key (that would fragment every cell), so instead we
+           record which versions/histogram edges landed in each cell and flag the
+           ones that pooled incomparable measurements (D-32 / R-27).
     """
-    cells = {}
+    cells, meta = {}, {}
     excluded_no_tier = 0
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -60,7 +64,8 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
             pid = scn.get("profile_id") or "?"
             key = _cell_key(labels, pid, group_by)
             cells.setdefault(key, {}).setdefault(tier, []).append(val)
-    return cells, excluded_no_tier
+            cc.note_homogeneity(meta.setdefault(key, cc.homogeneity_acc()), scn)
+    return cells, excluded_no_tier, meta
 
 
 def attribute_cell(tier_samples, min_samples=cc.DEFAULT_MIN_SAMPLES):
@@ -114,11 +119,15 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
               min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Full attribution over a record set. Returns a dict with per-cell results
     and coverage metadata."""
-    cells, excluded = collect_tier_samples(records, kpi, group_by)
+    cells, excluded, meta = collect_tier_samples(records, kpi, group_by)
     results = []
     for key in sorted(cells):
         cell = dict(zip(group_by, key))
-        results.append({"cell": cell, **attribute_cell(cells[key], min_samples)})
+        entry = {"cell": cell, **attribute_cell(cells[key], min_samples)}
+        mixed_pv, mixed_edges = cc.mixed_flags(meta.get(key))
+        entry["mixed_profile_versions"] = mixed_pv
+        entry["mixed_histogram_edges"] = mixed_edges
+        results.append(entry)
     return {
         "kpi": kpi,
         "group_by": list(group_by),
@@ -159,6 +168,10 @@ def render_markdown(result):
             notes.append(c["not_computable_reason"])
         if c["inversions"]:
             notes.append("inversion:" + "|".join(c["inversions"]))
+        if c.get("mixed_profile_versions"):
+            notes.append("MIXED_PROFILE_VERSION:" + "|".join(c["mixed_profile_versions"]))
+        if c.get("mixed_histogram_edges"):
+            notes.append("MIXED_HIST_EDGES")
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"

@@ -170,6 +170,53 @@ def scenario_validity(scn):
     return v.lower() if isinstance(v, str) else "unknown"
 
 
+def scenario_profile_version(scn):
+    """scenarios[].profile_version — the measurement DEFINITION version.
+
+    Two versions of the same profile_id are NOT the same measurement (D-32 keeps
+    s3@0.3.0 and s3@0.2.0 in separate groups). Pooling them into one median
+    averages incomparable things, so callers flag a cell that mixes versions.
+    """
+    v = scn.get("profile_version")
+    return str(v) if v is not None and str(v) != "" else None
+
+
+def histogram_edges(scn):
+    """scenarios[].itl_histogram.edges_ms as a hashable signature, or None.
+
+    Counts binned on DIFFERENT edges are not summable (R-27 bucket-version
+    contract) — combining them is arithmetically wrong, not merely imprecise.
+    """
+    hist = scn.get("itl_histogram") or {}
+    edges = hist.get("edges_ms")
+    return tuple(edges) if isinstance(edges, list) and edges else None
+
+
+def homogeneity_acc():
+    """Fresh per-cell comparability accumulator (see note_homogeneity/mixed_flags)."""
+    return {"profile_versions": set(), "histogram_edges": set()}
+
+
+def note_homogeneity(acc, scn):
+    """Record one scenario's comparability signatures into a cell accumulator."""
+    pv = scenario_profile_version(scn)
+    if pv is not None:
+        acc["profile_versions"].add(pv)
+    eg = histogram_edges(scn)
+    if eg is not None:
+        acc["histogram_edges"].add(eg)
+
+
+def mixed_flags(acc):
+    """(mixed_profile_versions:list, mixed_histogram_edges:bool) for a cell.
+
+    Empty list / False when the cell is homogeneous — i.e. safe to pool.
+    """
+    acc = acc or {}
+    pvs = sorted(acc.get("profile_versions") or [])
+    return (pvs if len(pvs) > 1 else []), len(acc.get("histogram_edges") or []) > 1
+
+
 def scenario_kpi(scn, key):
     """scenarios[].kpi.<key> as a number or None. Accepts legacy `kpis` and
     {value: x} nesting."""

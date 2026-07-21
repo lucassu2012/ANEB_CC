@@ -92,6 +92,47 @@ def test_ttft_kpi_selectable():
     assert c["core_backbone_incr"] == 40
 
 
+def test_homogeneous_cell_not_flagged():
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 5, profile_version="0.2")
+            + tier_records("regional", "n1_rtt_p50_ms", 35, 5, profile_version="0.2")
+            + tier_records("core", "n1_rtt_p50_ms", 60, 5, profile_version="0.2"))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["mixed_profile_versions"] == []
+    assert c["mixed_histogram_edges"] is False
+
+
+def test_mixed_profile_version_flagged():
+    """D-32: s1@0.2 and s1@0.3 are different measurements — pooling must be visible."""
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 3, profile_version="0.2")
+            + tier_records("metro", "n1_rtt_p50_ms", 20, 3, profile_version="0.3")
+            + tier_records("core", "n1_rtt_p50_ms", 60, 5, profile_version="0.2"))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["mixed_profile_versions"] == ["0.2", "0.3"]
+    assert "MIXED_PROFILE_VERSION" in attribution.render_markdown(
+        attribution.attribute(recs))
+
+
+def test_mixed_histogram_edges_flagged():
+    """R-27: counts on different edges are not summable — flag, don't combine."""
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 3, edges_ms=[10, 20, 50])
+            + tier_records("metro", "n1_rtt_p50_ms", 20, 3, edges_ms=[10, 25, 50])
+            + tier_records("core", "n1_rtt_p50_ms", 60, 5, edges_ms=[10, 20, 50]))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["mixed_histogram_edges"] is True
+
+
+def test_mixed_flag_does_not_suppress_the_numbers():
+    """The guard REPORTS incomparability; it must not silently drop the cell."""
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 3, profile_version="0.2")
+            + tier_records("metro", "n1_rtt_p50_ms", 20, 3, profile_version="0.3")
+            + tier_records("regional", "n1_rtt_p50_ms", 35, 5, profile_version="0.2")
+            + tier_records("core", "n1_rtt_p50_ms", 60, 5, profile_version="0.2"))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["access_component"] == 20
+    assert c["regional_backbone_incr"] == 15
+    assert c["mixed_profile_versions"] == ["0.2", "0.3"]
+
+
 def test_chinese_and_carrier_aliases_normalized():
     # 中文 tier + carrier 别名应规范化，与英文规范键落同一单元
     recs = (tier_records("同城", "n1_rtt_p50_ms", 20, 5, carrier="移动")
