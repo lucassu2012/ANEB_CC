@@ -29,6 +29,7 @@ from collections import Counter, defaultdict
 
 import campaign_common as cc
 import attribution
+import order_effect
 import stability
 
 HEAT_DIMS = ("point_id", "carrier", "time_band")
@@ -278,6 +279,20 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             parts.append("")
     if not any_stab:
         parts.append("_无场景 KPI 数据。_")
+        parts.append("")
+    # Measurement-validity check on the medians above: did Latin-square
+    # counterbalancing actually cancel execution-position bias? (D-95)
+    any_order = False
+    for k in order_effect.ORDER_SENSITIVE_KPIS:
+        res = order_effect.analyze(records, kpi=k, min_samples=min_samples)
+        if res["profiles"]:
+            any_order = True
+            parts.append(order_effect.render_markdown(res))
+            parts.append("")
+    if not any_order:
+        parts.append("## 序位效应诊断")
+        parts.append("")
+        parts.append("_无 `order_index` 证据，无法校验反平衡是否奏效。_")
         parts.append("")
     for k in attribution.ATTRIBUTABLE_KPIS:
         attr = attribution.attribute(records, kpi=k, min_samples=min_samples)

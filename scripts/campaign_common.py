@@ -170,6 +170,17 @@ def scenario_validity(scn):
     return v.lower() if isinstance(v, str) else "unknown"
 
 
+def scenario_order_index(scn):
+    """scenarios[].order_index — execution POSITION within the run (0-based).
+
+    Captured by the contract as 拉丁方 counterbalancing evidence; order_effect.py
+    consumes it to check the counterbalancing actually cancelled position bias.
+    Returns None when absent/non-integer (bools excluded), never a guessed 0.
+    """
+    v = scn.get("order_index")
+    return v if isinstance(v, int) and not isinstance(v, bool) else None
+
+
 def scenario_profile_version(scn):
     """scenarios[].profile_version — the measurement DEFINITION version.
 

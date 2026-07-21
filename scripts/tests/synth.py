@@ -65,6 +65,24 @@ def tier_records(tier, kpi_key, value, n, *, point="P1", carrier="cmcc",
     return out
 
 
+def order_records(n, *, kpi_key="t1_ttft_ms", value=100, order_index=0,
+                  profile="s1_chat", scenario_order="s1_chat,s2_rag", point="P1",
+                  carrier="cmcc", time_band="busy", tier="metro", campaign_id="base"):
+    """n records whose single scenario ran at execution position `order_index`.
+
+    Used to build a known position-vs-KPI relationship for the order-effect tests.
+    """
+    campaign = {"campaign_id": campaign_id, "tier": tier, "point_id": point,
+                "carrier": carrier, "time_band": time_band}
+    out = []
+    for _ in range(n):
+        rec = make_record(campaign=campaign, scenarios=[(profile, {kpi_key: value})])
+        rec["scenarios"][0]["order_index"] = order_index
+        rec["run"]["scenario_order"] = scenario_order
+        out.append(rec)
+    return out
+
+
 def aqs_records(aqs, n, *, point="P1", carrier="cmcc", time_band="busy",
                 campaign_id="base", tier="metro"):
     """n records with run.aqs.score=aqs and the given campaign labels (no scenarios)."""
