@@ -65,6 +65,21 @@ def tier_records(tier, kpi_key, value, n, *, point="P1", carrier="cmcc",
     return out
 
 
+def validity_records(n, *, validity="valid", invalid_reasons="", profile="s1_chat",
+                     point="P1", carrier="cmcc", time_band="busy", tier="metro",
+                     campaign_id="base", kpi=None):
+    """n records whose single scenario carries the given validity / invalid_reasons."""
+    campaign = {"campaign_id": campaign_id, "tier": tier, "point_id": point,
+                "carrier": carrier, "time_band": time_band}
+    out = []
+    for _ in range(n):
+        rec = make_record(campaign=campaign, scenarios=[(profile, dict(kpi or {}))])
+        rec["scenarios"][0]["validity"] = validity
+        rec["scenarios"][0]["invalid_reasons"] = invalid_reasons
+        out.append(rec)
+    return out
+
+
 def order_records(n, *, kpi_key="t1_ttft_ms", value=100, order_index=0,
                   profile="s1_chat", scenario_order="s1_chat,s2_rag", point="P1",
                   carrier="cmcc", time_band="busy", tier="metro", campaign_id="base"):

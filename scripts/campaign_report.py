@@ -31,6 +31,7 @@ import campaign_common as cc
 import attribution
 import order_effect
 import stability
+import validity_rollup
 
 HEAT_DIMS = ("point_id", "carrier", "time_band")
 
@@ -294,6 +295,10 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         parts.append("")
         parts.append("_无 `order_index` 证据，无法校验反平衡是否奏效。_")
         parts.append("")
+    # The denominator behind every median above: how many attempts were made,
+    # and where the dropped (INVALID, null-KPI) ones went. (D-96)
+    parts.append(validity_rollup.render_markdown(validity_rollup.analyze(records)))
+    parts.append("")
     for k in attribution.ATTRIBUTABLE_KPIS:
         attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
         if k == attr_kpi or attr["cells"]:  # primary always; secondary only if it has cells
