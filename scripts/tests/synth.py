@@ -7,10 +7,20 @@ network — pure fixtures so the golden tests encode the methodology insights.
 """
 
 
-def make_record(*, campaign=None, aqs=None, scenarios=()):
-    """scenarios: iterable of (profile_id, {kpi_key: value, ...})."""
+_SEQ = [0]  # monotonic fixture counter -> unique run_id per record
+
+
+def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None):
+    """scenarios: iterable of (profile_id, {kpi_key: value, ...}).
+
+    run_id defaults to a UNIQUE per-record id (real runs never share one, and
+    load_records now de-duplicates by it). Pass run_id explicitly to build a
+    deliberate duplicate/conflict fixture.
+    """
+    _SEQ[0] += 1
+    rid = run_id if run_id is not None else "test-%04d" % _SEQ[0]
     run = {
-        "run_id": "test", "started_at_epoch_ms": 1783944000000, "mode": "quick",
+        "run_id": rid, "started_at_epoch_ms": 1783944000000, "mode": "quick",
         "scenario_order": "", "transport": "auto", "profile_source": "server",
         "app_version_name": "t", "app_version_code": 1, "guard_metadata": None,
         "status": "completed",

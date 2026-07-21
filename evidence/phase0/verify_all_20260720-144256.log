@@ -1,0 +1,187 @@
+﻿verify_all run at 20260720-144256
+repo: E:\C Project\ANEB
+go: C:\Program Files\Go\bin\go.exe
+--- server-vet (exit 0) ---
+
+PASS  server-vet  go vet ./...
+--- server-build (exit 0) ---
+
+PASS  server-build  go build ./...
+--- server-test (exit 0) ---
+ok  	aneb-server	2.448s
+?   	aneb-server/tools/capture	[no test files]
+?   	aneb-server/tools/gencert	[no test files]
+?   	aneb-server/tools/h3check	[no test files]
+?   	aneb-server/tools/mockllm	[no test files]
+
+PASS  server-test  go test -count=1 ./...
+PASS  profiles-valid  3 profiles ok
+--- portraits-redline (exit 0) ---
+Checked 4 portraits: deepseek.yaml, doubao.yaml, kimi.yaml, tongyi.yaml
+OK: all red-line invariants hold (R1-R18: params gate intact, no caliber overclaim, provenance consistent).
+
+PASS  portraits-redline  check_redline.py
+--- portraits-redline-unit (exit 0) ---
+ran 20 reflex tests: 20 passed, 0 failed
+
+PASS  portraits-redline-unit  ran 20 reflex tests: 20 passed, 0 failed
+--- portraits-schema (exit 0) ---
+OK: 4 portrait(s) conform to portrait.schema.json (shape gate).
+
+PASS  portraits-schema  validate_schema.py
+--- portraits-schema-unit (exit 0) ---
+ran 10 schema reflex tests: 10 passed, 0 failed
+
+PASS  portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+--- campaign-analysis-unit (exit 0) ---
+campaign-analysis reflex: 17/17 passed
+
+PASS  campaign-analysis-unit  campaign-analysis reflex: 17/17 passed
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:compressDebugAssets UP-TO-DATE
+> Task :probe:desugarDebugFileDependencies UP-TO-DATE
+> Task :probe:checkDebugDuplicateClasses UP-TO-DATE
+> Task :probe:mergeDebugStartupProfile UP-TO-DATE
+> Task :probe:mergeExtDexDebug UP-TO-DATE
+> Task :probe:mergeLibDexDebug UP-TO-DATE
+> Task :probe:mergeDebugJniLibFolders UP-TO-DATE
+> Task :probe:mergeDebugNativeLibs UP-TO-DATE
+> Task :probe:stripDebugDebugSymbols UP-TO-DATE
+> Task :probe:validateSigningDebug UP-TO-DATE
+> Task :probe:writeDebugAppMetadata UP-TO-DATE
+> Task :probe:writeDebugSigningConfigVersions UP-TO-DATE
+
+> Task :probe:kspDebugKotlin FAILED
+gradlew.bat : e: java.lang.ExceptionInInitializerError
+At E:\C Project\ANEB\scripts\verify_all.ps1:187 char:12
++     $out = & .\gradlew.bat ':probe:assembleDebug' '--no-daemon' 2>&1  ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: java.lang.ExceptionInInitializerError:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+	at androidx.room.processor.DatabaseProcessor.doProcess(DatabaseProcessor.kt:81)
+	at androidx.room.processor.DatabaseProcessor.process(DatabaseProcessor.kt:60)
+	at androidx.room.DatabaseProcessingStep$process$databases$1$1.invoke(DatabaseProcessingStep.kt:68)
+	at androidx.room.DatabaseProcessingStep$process$databases$1$1.invoke(DatabaseProcessingStep.kt:64)
+	at androidx.room.processor.Context.collectLogs(Context.kt:192)
+	at androidx.room.DatabaseProcessingStep.process(DatabaseProcessingStep.kt:64)
+	at androidx.room.compiler.processing.CommonProcessorDelegate.processRound(XBasicAnnotationProcessor.kt:130)
+	at androidx.room.compiler.processing.ksp.KspBasicAnnotationProcessor.process(KspBasicAnnotationProcessor.kt:62)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$8$1.invoke(KotlinSymbolProcessingExtensi
+on.kt:320)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$8$1.invoke(KotlinSymbolProcessingExtensi
+on.kt:318)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.handleException(KotlinSymbolProcessingExtension.kt:
+430)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.doAnalysis(KotlinSymbolProcessingExtension.kt:318)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFa
+cadeForJVM.kt:112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAn
+alyzerFacadeForJVM.kt:75)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze$lambda$12(KotlinToJVMBytecodeCompiler.kt:
+373)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:
+112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:364)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.runFrontendAndGenerateIrUsingClassicFrontend(Kotl
+inToJVMBytecodeCompiler.kt:195)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt
+:106)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:170)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:103)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:49)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:101)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1555)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:360)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:712)
+	at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:587)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:828)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:705)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:704)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+Caused by: java.lang.Exception: No native library found for os.name=Windows, os.arch=x86_64, paths=[/org/sqlite/native/
+Windows/x86_64;E:\tools\jdk-17.0.19+10\bin;C:\Windows\Sun\Java\bin;C:\Windows\system32;C:\Windows;C:\Python314\Scripts\
+;C:\Python314\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\W
+indows\System32\OpenSSH\;C:\Program Files\nodejs\;C:\ProgramData\chocolatey\bin;C:\Program Files\Git\cmd;D:\Program Fil
+es\Warp\bin;C:\Program Files\Docker\Docker\resources\bin;C:\Program Files (x86)\cloudflared\;C:\Program Files\Go\bin;C:
+\Users\lucas\AppData\Local\Microsoft\WindowsApps;C:\Users\lucas\AppData\Roaming\npm;C:\Users\lucas\AppData\Local\GitHub
+Desktop\bin;C:\Users\lucas\AppData\Local\Programs\Ollama;C:\Users\lucas\AppData\Local\Microsoft\WinGet\Packages\jqlang.
+jq_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Program Files\LibreOffice\program;D:\program files\Obsidian;C:\Users\lucas\
+AppData\Roaming\Python\Python314\Scripts;C:\Users\lucas\AppData\Local\Pandoc\;C:\Users\lucas\.multica\bin;C:\Users\luca
+s\go\bin;E:\tools\jdk-17.0.19+10\bin;E:\tools\android-sdk\platform-tools;E:\tools\android-sdk\cmdline-tools\latest\bin;
+C:\Program Files\nodejs;C:\Python314;C:\Program Files\Git\mingw64\bin;.]
+	at org.sqlite.SQLiteJDBCLoader.loadSQLiteNativeLibrary(SQLiteJDBCLoader.java:363)
+	at org.sqlite.SQLiteJDBCLoader.initialize(SQLiteJDBCLoader.java:72)
+	at androidx.room.verifier.DatabaseVerifier.<clinit>(DatabaseVerifier.kt:79)
+	... 42 more
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':probe:kspDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCo
+mpilerWorkAction
+   > Internal compiler error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 38s
+30 actionable tasks: 1 executed, 29 up-to-date
+
+FAIL  app-assembleDebug  gradlew :probe:assembleDebug

@@ -47,6 +47,9 @@ _CARRIER_ALIASES = {
 }
 
 DEFAULT_MIN_SAMPLES = 5   # per-tier / per-cell sample floor for low_confidence
+# The contract's claim-scope red line (R-10). Any record declaring something else
+# is NOT comparable with this corpus and must be surfaced, never silently pooled.
+CLAIM_SCOPE = "application_end_to_end_to_probe_node"
 # AQS 0-100 -> four-level presentation bands. Anchored to the system's known score
 # caps: veto/S1<0.90 封顶 54, S1<0.95 封顶 70 (result-run.schema.json). Presentation
 # only — NOT the authoritative per-KPI grading (that is KpiGrading.kt).
@@ -68,10 +71,27 @@ def fnum(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-def load_records(patterns):
-    """Load JSONL records from files/globs. Returns (records, files). Tolerant of
-    blank lines and malformed JSON (skipped with a stderr note)."""
+def load_records(patterns, dedupe=True, stats=None, quiet=False):
+    """Load JSONL records from files/globs. Returns (records, files).
+
+    dedupe=True (DEFAULT) drops repeat `run.run_id` occurrences. The same run
+    re-exported into overlapping globs (or D-09 dual-write files) would otherwise
+    be counted twice into every median, heat-cell n, and attribution sample —
+    silently INFLATING apparent confidence. First occurrence wins.
+
+    A repeat whose body DIFFERS from the first is also dropped but recorded in
+    stats['conflicts']: one run_id with two different bodies is a real data
+    -integrity fault, not a benign re-export, and must never be averaged together.
+    Records with no run_id cannot be deduped — they are kept and counted, never
+    merged under a fabricated key (R-10).
+
+    Pass a dict as `stats` to receive integrity counters. Tolerant of blank and
+    malformed lines (skipped, counted, noted on stderr unless quiet).
+    """
     records, files = [], []
+    seen = {}           # run_id -> canonical serialization of first occurrence
+    st = {"lines": 0, "kept": 0, "malformed": 0, "unreadable_files": 0,
+          "duplicates": 0, "conflicts": [], "no_run_id": 0}
     for pat in patterns:
         paths = glob.glob(pat) or ([pat] if not any(c in pat for c in "*?[") else [])
         for path in paths:
@@ -82,12 +102,34 @@ def load_records(patterns):
                         line = line.strip()
                         if not line:
                             continue
+                        st["lines"] += 1
                         try:
-                            records.append(json.loads(line))
+                            rec = json.loads(line)
                         except json.JSONDecodeError as e:
-                            print(f"skip {path}:{lineno}: {e}", file=sys.stderr)
+                            st["malformed"] += 1
+                            if not quiet:
+                                print(f"skip {path}:{lineno}: {e}", file=sys.stderr)
+                            continue
+                        if dedupe:
+                            rid = run_id(rec)
+                            if rid is None:
+                                st["no_run_id"] += 1
+                            else:
+                                canon = json.dumps(rec, sort_keys=True, ensure_ascii=False)
+                                if rid in seen:
+                                    st["duplicates"] += 1
+                                    if seen[rid] != canon and rid not in st["conflicts"]:
+                                        st["conflicts"].append(rid)
+                                    continue
+                                seen[rid] = canon
+                        records.append(rec)
+                        st["kept"] += 1
             except OSError as e:
-                print(f"skip {path}: {e}", file=sys.stderr)
+                st["unreadable_files"] += 1
+                if not quiet:
+                    print(f"skip {path}: {e}", file=sys.stderr)
+    if stats is not None:
+        stats.update(st)
     return records, files
 
 
@@ -95,6 +137,13 @@ def load_records(patterns):
 
 def run_obj(rec):
     return rec.get("run") or {}
+
+
+def run_id(rec):
+    """run.run_id — the de-duplication key. None when absent/blank (never
+    fabricated: an unidentifiable run must not be merged with another)."""
+    v = run_obj(rec).get("run_id")
+    return v if isinstance(v, str) and v.strip() else None
 
 
 def run_aqs(rec):

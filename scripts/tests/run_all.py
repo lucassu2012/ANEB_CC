@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(HERE))  # scripts/
 sys.path.insert(0, HERE)                    # scripts/tests/
 
 TEST_MODULES = ["test_attribution", "test_campaign_report", "test_annotate",
-                "test_stability", "test_cli_smoke"]
+                "test_stability", "test_corpus_health", "test_cli_smoke"]
 
 
 def main():
