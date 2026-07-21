@@ -121,3 +121,25 @@ def test_report_includes_per_kpi_sections():
     md = rpt.build_report_markdown(recs)
     assert "分 KPI 热力卡" in md
     assert "n1_rtt_p50_ms" in md
+
+
+def test_report_includes_stability_and_both_attr_kpis():
+    md = rpt.build_report_markdown(kpi_scenario_records(
+        5, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "excellent"}, aqs=90))
+    assert "复测稳定性" in md
+
+
+def test_csv_export_content():
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = aqs_records(91, 5, point="P1")
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        paths = rpt.write_csv_tables(recs, prefix)
+        assert any(p.endswith("_heat.csv") for p in paths)
+        with open(prefix + "_heat.csv", encoding="utf-8") as f:
+            rows = list(csvmod.DictReader(f))
+        assert rows[0]["point_id"] == "P1"
+        assert rows[0]["grade"] == "excellent"
+        assert float(rows[0]["aqs_median"]) == 91.0

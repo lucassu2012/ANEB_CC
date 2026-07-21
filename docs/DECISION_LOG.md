@@ -133,6 +133,8 @@
 
 | D-91 | 2026-07-20 | **战役分析工具集使用文档（capstone，收束 D-87..90）**。`scripts/README.md`：两层结构（逐-run `analyze_results`/`dashboard` + 战役级 `campaign_report`/`attribution`/`stability`/`annotate_campaign`）、典型工作流（补注→报告→稳定性/归因）、各工具用法与口径红线（claim_scope、缺标签降级、low_confidence）、测试入口。纯文档。至此**战役级分析与报告层**（D-87 骨架+三级归因+热力卡+前后对比 / D-88 离线补注闭环 / D-89 分 KPI+多 KPI 归因 / D-90 复测 CV 门）作为可用工具集封顶：35 golden、`campaign-analysis-unit` 门禁绿、stdlib 无依赖、全程仅 `scripts/`+`docs/` 与 v3 画像 lane 正交（零触 app//spec/portraits/schema）。 | scripts/README.md；收束 D-87/88/89/90 |
 
+| D-92 | 2026-07-20 | **CSV 导出 + CLI 冒烟测试（分析层健壮性收尾，纯 Python `scripts/`）**。①`campaign_report.py --csv PREFIX` 用 stdlib csv 导出热力/归因/稳定性三表（`<prefix>_{heat,attribution,stability}.csv`）供 Excel/pandas；`None` 输出空格不折 0。②`test_cli_smoke.py` 用 subprocess 跑每个 CLI（report/attribution/stability/annotate + `--html`/`--csv`）断言 exit 0——覆盖 argparse/import/**编码**回归（正是此前 GBK/U+26A0 那类「函数过但 CLI 崩」的 bug，函数级 golden 测不到）。合成 golden +7（CLI 冒烟 5 + CSV 内容 + 稳定段）→ **42/42**。demo 实证 CSV 三表正常（heat 带分级、stability per-tier CV）。 | scripts/campaign_report.py（write_csv_tables/--csv）+ tests/{test_cli_smoke,test_campaign_report,run_all}.py；D-87 |
+
 ## 否决记录（评估后明确不采纳）
 
 - **Cronet 逐请求 bindToNetwork**：OkHttp 主栈无此 API；改用 `requestNetwork` + `socketFactory`/`Dns` 双绑定，保留其 fail-closed 语义（绑定不可得即不出数）。

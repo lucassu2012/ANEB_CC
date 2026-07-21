@@ -22,6 +22,7 @@ Usage:
                                               [--attr-kpi n1_rtt_p50_ms]
 """
 import argparse
+import csv
 import html
 import sys
 from collections import Counter, defaultdict
@@ -421,6 +422,57 @@ ANEB 战役级报告 · stdlib-only 生成 · 标签约定见 docs/CAMPAIGN_LABE
 </div></body></html>"""
 
 
+def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
+                     stability_kpi="n1_rtt_p50_ms"):
+    """Dump the campaign tables as CSV for external analysis (Excel/pandas). Writes
+    <prefix>_heat.csv / _attribution.csv / _stability.csv. Returns the paths written.
+    None values are emitted as empty cells (R-10: not fabricated to 0)."""
+    def _cell(v):
+        return "" if v is None else v
+
+    written = []
+    heat = heat_cells(records, min_samples)
+    p = prefix + "_heat.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "aqs_median", "grade", "n", "low_confidence"])
+        for c in heat:
+            w.writerow([c["cell"]["point_id"], c["cell"]["carrier"], c["cell"]["time_band"],
+                        _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"]])
+    written.append(p)
+
+    attr = attribution.attribute(records, min_samples=min_samples)
+    p = prefix + "_attribution.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "profile_id", "kpi", "access",
+                    "regional_incr", "core_incr", "end_to_end_core", "coverage",
+                    "low_confidence", "not_computable_reason"])
+        for c in attr["cells"]:
+            cell = c["cell"]
+            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                        cell.get("profile_id"), attr["kpi"], _cell(c["access_component"]),
+                        _cell(c["regional_backbone_incr"]), _cell(c["core_backbone_incr"]),
+                        _cell(c["end_to_end_core"]), "|".join(c["coverage"]),
+                        c["low_confidence"], c["not_computable_reason"] or ""])
+    written.append(p)
+
+    scells = stability.stability_cells(records, stability_kpi, min_samples=min_samples)
+    p = prefix + "_stability.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "tier", "profile_id", "kpi", "n",
+                    "median", "mean", "cv_percent", "unstable", "low_confidence"])
+        for c in scells:
+            cell = c["cell"]
+            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                        cell.get("tier"), cell.get("profile_id"), c["kpi"], c["n"],
+                        _cell(c["median"]), _cell(c["mean"]), _cell(c["cv_percent"]),
+                        c["unstable"], c["low_confidence"]])
+    written.append(p)
+    return written
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="ANEB campaign-level comprehensive report")
     ap.add_argument("inputs", nargs="+", help="results JSONL files / globs")
@@ -431,6 +483,7 @@ def main(argv):
     ap.add_argument("--min-samples", type=int, default=cc.DEFAULT_MIN_SAMPLES)
     ap.add_argument("--before", help="campaign_id for before/after 'before'")
     ap.add_argument("--after", help="campaign_id for before/after 'after'")
+    ap.add_argument("--csv", help="also write heat/attribution/stability tables as <PREFIX>_*.csv")
     args = ap.parse_args(argv)
 
     cc.force_utf8_stdout()
@@ -449,6 +502,9 @@ def main(argv):
         with open(args.html, "w", encoding="utf-8") as f:
             f.write(out)
         print(f"html -> {args.html}")
+    if args.csv:
+        paths = write_csv_tables(recs, args.csv, args.min_samples)
+        print("csv -> " + ", ".join(paths))
     return 0
 
 
