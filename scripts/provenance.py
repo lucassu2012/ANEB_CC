@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""ANEB report provenance / reproducibility manifest (stdlib only).
+
+A published heat/attribution report is "ammunition into the bureau" (M2) — it must
+be traceable to the exact inputs it was built from and reproducible. The project
+already treats sha256 provenance as doctrine (verify_all regenerates a sha256
+manifest of evidence/), yet the campaign reports carried only a timestamp + record
+count. This attaches the missing chain of custody.
+
+A manifest records:
+  * each input file's basename + sha256 (content identity, not the local path)
+  * lines read / records kept / duplicates dropped / conflicts / malformed
+    (the load-path decisions from D-93 dedup — what was and wasn't counted)
+  * the tool parameters that shaped the numbers (min_samples, attr_kpi, …)
+  * tool version + an injected generated_at (injected, not wall-clocked, so the
+    deterministic report body stays snapshot-testable)
+
+Rendered as a compact report-header block and writable as a sidecar JSON.
+"""
+import hashlib
+import json
+import os
+
+TOOL_VERSION = "aneb-campaign-analysis/1.0"
+_SHORT = 12   # chars of sha256 shown inline (full hash kept in the sidecar JSON)
+
+
+def file_sha256(path):
+    """Streaming sha256 of a file's bytes, or None if unreadable."""
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+    except OSError:
+        return None
+    return h.hexdigest()
+
+
+def compute(files, load_stats, params, generated_at, tool_version=TOOL_VERSION):
+    """Build the manifest dict. generated_at is INJECTED (caller supplies it) so
+    the core stays deterministic; load_stats is the dict from cc.load_records."""
+    inputs = []
+    for p in sorted(set(files)):
+        inputs.append({"file": os.path.basename(p), "sha256": file_sha256(p)})
+    st = load_stats or {}
+    return {
+        "tool_version": tool_version,
+        "generated_at": generated_at,
+        "inputs": inputs,
+        "input_count": len(inputs),
+        "lines_read": st.get("lines"),
+        "records_kept": st.get("kept"),
+        "duplicates_dropped": st.get("duplicates"),
+        "conflicting_run_ids": list(st.get("conflicts") or []),
+        "no_run_id": st.get("no_run_id"),
+        "malformed_lines": st.get("malformed"),
+        "params": dict(params or {}),
+    }
+
+
+def render_markdown(prov):
+    lines = [
+        "## 溯源 / provenance（可复现性）",
+        "",
+        f"> 工具 `{prov['tool_version']}` · 生成 {prov['generated_at']} · "
+        f"读 {prov['lines_read']} 行 → 保留 {prov['records_kept']} 条"
+        f"（去重丢 {prov['duplicates_dropped']}"
+        + (f"，冲突 {len(prov['conflicting_run_ids'])}" if prov["conflicting_run_ids"] else "")
+        + (f"，坏行 {prov['malformed_lines']}" if prov["malformed_lines"] else "")
+        + f"）。参数 {json.dumps(prov['params'], ensure_ascii=False)}。",
+        "",
+        "| 输入文件 | sha256 |",
+        "|---|---|",
+    ]
+    if not prov["inputs"]:
+        lines.append("| _（无）_ | — |")
+    for inp in prov["inputs"]:
+        sha = inp["sha256"]
+        short = (sha[:_SHORT] + "…") if sha else "（不可读）"
+        lines.append(f"| {inp['file']} | `{short}` |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_sidecar(prov, path):
+    """Write the full manifest (full sha256 hashes) as JSON next to the report."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(prov, f, ensure_ascii=False, indent=2, sort_keys=True)
+    return path

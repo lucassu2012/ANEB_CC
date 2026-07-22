@@ -30,6 +30,7 @@ from collections import Counter, defaultdict
 import campaign_common as cc
 import attribution
 import order_effect
+import provenance as prov_mod
 import stability
 import trend
 import validity_rollup
@@ -227,7 +228,8 @@ def _auto_compare_ids(inv):
 
 def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                           attr_kpi=attribution.DEFAULT_KPI,
-                          before_id=None, after_id=None, kpi_heat=DEFAULT_KPI_HEAT):
+                          before_id=None, after_id=None, kpi_heat=DEFAULT_KPI_HEAT,
+                          provenance=None):
     inv = inventory(records)
     cells = heat_cells(records, min_samples)
 
@@ -251,6 +253,11 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         f"- 服务层级 tier：{dict(inv['tiers'])}",
         "",
     ]
+    # Optional chain-of-custody block. Omitted (None) keeps the body deterministic
+    # for the regression snapshot; the CLI injects a real manifest.
+    if provenance is not None:
+        parts.append(prov_mod.render_markdown(provenance))
+        parts.append("")
     if inv["with_campaign"] == 0:
         parts.append("> ⚠ 全部记录无 `run.campaign` 标签——热力卡/归因/前后对比塌缩为单格 "
                      "`unlabeled`。接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。")
@@ -514,11 +521,21 @@ def main(argv):
     ap.add_argument("--before", help="campaign_id for before/after 'before'")
     ap.add_argument("--after", help="campaign_id for before/after 'after'")
     ap.add_argument("--csv", help="also write heat/attribution/stability tables as <PREFIX>_*.csv")
+    ap.add_argument("--provenance", help="write the full manifest (with sha256) to this JSON path")
     args = ap.parse_args(argv)
 
     cc.force_utf8_stdout()
-    recs, files = cc.load_records(args.inputs)
-    md = build_report_markdown(recs, args.min_samples, args.attr_kpi, args.before, args.after)
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
+
+    stats = {}
+    recs, files = cc.load_records(args.inputs, stats=stats)
+    params = {"min_samples": args.min_samples, "attr_kpi": args.attr_kpi,
+              "before": args.before, "after": args.after}
+    prov = prov_mod.compute(files, stats, params, generated_at=now)
+
+    md = build_report_markdown(recs, args.min_samples, args.attr_kpi, args.before,
+                               args.after, provenance=prov)
     if args.md:
         with open(args.md, "w", encoding="utf-8") as f:
             f.write(md)
@@ -526,8 +543,6 @@ def main(argv):
     else:
         print(md)
     if args.html:
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
         out = build_report_html(recs, now, args.min_samples, args.attr_kpi, args.before, args.after)
         with open(args.html, "w", encoding="utf-8") as f:
             f.write(out)
@@ -535,6 +550,9 @@ def main(argv):
     if args.csv:
         paths = write_csv_tables(recs, args.csv, args.min_samples)
         print("csv -> " + ", ".join(paths))
+    if args.provenance:
+        prov_mod.write_sidecar(prov, args.provenance)
+        print(f"provenance -> {args.provenance}")
     return 0
 
 
