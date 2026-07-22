@@ -84,6 +84,17 @@
 | point_id=P2 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | — |
 | point_id=P2 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | — |
 
+## AQS 分数侧归因（各维度子分 + 拖累维度）
+
+> 归因矩阵的分数侧互补：composite AQS 低时，指出是哪个 KPI 维度在拖后腿。子分 0-100，越高越好；`拖累` = 中位子分最低的维度。
+
+| 点位 | 运营商 | 时段 | runs | T1 | N1 | N2 | 拖累 | 极差 | 备注 |
+|---|---|---|---|---|---|---|---|---|---|
+| P1 | cmcc | busy | 36 | 98 | 95 | 82 | **N2**=82 | 16 | — |
+| P1 | cmcc | idle | 36 | 98 | 95 | 88 | **N2**=88 | 10 | — |
+| P2 | cmcc | busy | 36 | 98 | 95 | 82 | **N2**=82 | 16 | — |
+| P2 | cmcc | idle | 36 | 98 | 95 | 88 | **N2**=88 | 10 | — |
+
 ## 优化前后对比（before=`base` → after=`opt`，AQS 中位）
 
 | 点位 | 运营商 | 时段 | before | after | Δ | 备注 |

@@ -159,6 +159,18 @@ def run_started_ms(rec):
     return fnum(run_obj(rec).get("started_at_epoch_ms"))
 
 
+def run_sub_scores(rec):
+    """run.aqs.sub_scores: {KPI-dimension id -> 0-100 sub-score}, numbers only.
+
+    Empty {} for a not-computable run (R-10: the map is empty, never 0-filled),
+    so callers treat 'no sub-scores' as a coverage gap, not a zero score.
+    """
+    subs = (run_obj(rec).get("aqs") or {}).get("sub_scores") or {}
+    if not isinstance(subs, dict):
+        return {}
+    return {k: v for k, v in subs.items() if fnum(v) is not None}
+
+
 def iter_scenarios(rec):
     return rec.get("scenarios") or []
 

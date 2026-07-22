@@ -40,6 +40,7 @@ def _corpus():
                             campaign={"campaign_id": cid, "tier": tier, "point_id": point,
                                       "carrier": "cmcc", "time_band": tb},
                             aqs=aqs,
+                            sub_scores={"T1": 98, "N1": 95, "N2": 88 - (6 if tb == "busy" else 0)},
                             scenarios=[("s1_chat", {"n1_rtt_p50_ms": rtt, "n1_grade": "good"})])
                         rec["scenarios"][0]["order_index"] = i % 3
                         rec["scenarios"][0]["validity"] = "valid" if i < 5 else "invalid"

@@ -10,7 +10,8 @@ network — pure fixtures so the golden tests encode the methodology insights.
 _SEQ = [0]  # monotonic fixture counter -> unique run_id per record
 
 
-def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None, started_ms=1783944000000):
+def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None,
+                started_ms=1783944000000, sub_scores=None):
     """scenarios: iterable of (profile_id, {kpi_key: value, ...}).
 
     run_id defaults to a UNIQUE per-record id (real runs never share one, and
@@ -26,7 +27,8 @@ def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None, started_m
         "app_version_name": "t", "app_version_code": 1, "guard_metadata": None,
         "status": "completed",
         "aqs": {"score": aqs, "low_confidence": False, "veto_applied": False,
-                "not_computable_reason": None, "input_mapping": "", "sub_scores": {}},
+                "not_computable_reason": None, "input_mapping": "",
+                "sub_scores": dict(sub_scores or {})},
     }
     if campaign is not None:
         run["campaign"] = campaign

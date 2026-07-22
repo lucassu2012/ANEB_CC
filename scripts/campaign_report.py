@@ -32,6 +32,7 @@ import attribution
 import order_effect
 import provenance as prov_mod
 import stability
+import subscore_rollup
 import trend
 import validity_rollup
 
@@ -312,6 +313,9 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         if k == attr_kpi or attr["cells"]:  # primary always; secondary only if it has cells
             parts.append(attribution.render_markdown(attr))
             parts.append("")
+    # Score-side complement to the latency attribution: which AQS dimension drags. (D-100)
+    parts.append(subscore_rollup.render_markdown(subscore_rollup.analyze(records, min_samples)))
+    parts.append("")
     if before_id and after_id:
         parts.append(render_comparison_markdown(
             compare_campaigns(records, before_id, after_id, min_samples)))

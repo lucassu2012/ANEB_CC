@@ -1,0 +1,88 @@
+# -*- coding: utf-8 -*-
+"""Golden reflex tests for scripts/subscore_rollup.py (score-side attribution)."""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
+
+import subscore_rollup as ss
+from synth import make_record
+
+
+def _rec(subs, *, point="P1", carrier="cmcc", time_band="busy", tier="metro",
+         campaign_id="base"):
+    return make_record(
+        campaign={"campaign_id": campaign_id, "tier": tier, "point_id": point,
+                  "carrier": carrier, "time_band": time_band},
+        aqs=90, sub_scores=subs, scenarios=[])
+
+
+def test_dragging_dimension_is_the_lowest():
+    recs = [_rec({"T1": 99, "N1": 98, "N2": 60}) for _ in range(5)]
+    c = ss.analyze(recs)["cells"][0]
+    assert c["dims"]["N2"]["median"] == 60
+    assert c["dragging_dim"] == "N2"           # lowest sub-score drags composite
+    assert c["dragging_median"] == 60
+    assert c["spread"] == 39                    # 99 - 60
+
+
+def test_medians_per_dimension():
+    recs = ([_rec({"T1": 90, "N2": 80}) for _ in range(3)]
+            + [_rec({"T1": 100, "N2": 60}) for _ in range(2)])
+    c = ss.analyze(recs)["cells"][0]
+    assert c["dims"]["T1"]["median"] == 90      # median of [90,90,90,100,100]
+    assert c["dims"]["N2"]["median"] == 80      # median of [80,80,80,60,60]
+    assert c["runs"] == 5
+
+
+def test_empty_sub_scores_contribute_nothing():
+    recs = [_rec({}) for _ in range(3)]         # not-computable runs
+    res = ss.analyze(recs)
+    assert res["cells"] == []                    # no fabricated cell
+
+
+def test_cell_with_no_subscores_is_absent_not_all_good():
+    recs = ([_rec({"T1": 95, "N2": 55}, point="P1") for _ in range(5)]
+            + [_rec({}, point="P2") for _ in range(5)])   # P2 all not-computable
+    pts = {c["cell"]["point_id"] for c in ss.analyze(recs)["cells"]}
+    assert pts == {"P1"}                         # P2 absent, not "dragging_dim None all good"
+
+
+def test_dimension_present_in_only_some_runs():
+    recs = ([_rec({"T1": 90, "N2": 80}) for _ in range(3)]
+            + [_rec({"T1": 90}) for _ in range(2)])       # N2 missing in 2 runs
+    c = ss.analyze(recs)["cells"][0]
+    assert c["dims"]["N2"]["n"] == 3            # summarized over the runs that have it
+    assert c["dims"]["T1"]["n"] == 5
+
+
+def test_low_confidence_below_floor():
+    recs = [_rec({"T1": 90, "N2": 80}) for _ in range(3)]  # 3 < 5
+    assert ss.analyze(recs)["cells"][0]["low_confidence"] is True
+
+
+def test_dimension_display_order_canonical():
+    recs = [_rec({"N2": 80, "T1": 90, "U1": 70}) for _ in range(5)]
+    # T before N before U regardless of dict insertion order
+    assert ss.analyze(recs)["dimensions"] == ["T1", "N2", "U1"]
+
+
+def test_cells_separated_per_cell():
+    recs = ([_rec({"T1": 90, "N2": 50}, point="P1") for _ in range(5)]
+            + [_rec({"T1": 60, "N2": 95}, point="P2") for _ in range(5)])
+    by = {c["cell"]["point_id"]: c for c in ss.analyze(recs)["cells"]}
+    assert by["P1"]["dragging_dim"] == "N2"
+    assert by["P2"]["dragging_dim"] == "T1"
+
+
+def test_markdown_renders():
+    recs = [_rec({"T1": 99, "N2": 60}) for _ in range(5)]
+    md = ss.render_markdown(ss.analyze(recs))
+    assert "分数侧归因" in md
+    assert "N2" in md
+
+
+def test_markdown_empty_when_no_subscores():
+    md = ss.render_markdown(ss.analyze([_rec({}) for _ in range(3)]))
+    assert "无 run.aqs.sub_scores" in md
