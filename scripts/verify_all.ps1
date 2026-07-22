@@ -178,6 +178,33 @@ if ($py -and (Test-Path $campaignTest)) {
     $log += Add-Result 'campaign-analysis-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- Result JSONL INPUT CONTRACT gate (D-97): validate the committed corpus against
+# spec/schemas/result-run.schema.json (structural required/const/enum) + the R-10
+# cross-field invariants draft-07 cannot express (value<->grade null coupling,
+# aqs.score<->reason, histogram counts==edges+1). Guards the analysis layer's inputs.
+# exit: 0=contract holds -> PASS / 2=no corpus or schema unreadable -> NOT_EXECUTED /
+# else=violations -> FAIL. Validity CASE drift is a non-fatal advisory, not a failure.
+$contractScript = Join-Path $repo 'scripts\validate_results.py'
+$resultsGlob = Join-Path $repo 'server\data\results\*.jsonl'
+if ($py -and (Test-Path $contractScript)) {
+    $out = & $py $contractScript $resultsGlob 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- results-contract-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'results-contract-unit' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'contract OK' } | Select-Object -First 1).Trim())
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' 'no result corpus to validate'
+    } else {
+        $log += Add-Result 'results-contract-unit' 'FAIL' 'contract violation(s); see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $contractScript)) { $missing += 'scripts/validate_results.py' }
+    $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
