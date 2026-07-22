@@ -167,7 +167,7 @@ if ($py -and (Test-Path $campaignTest)) {
     $log += "--- campaign-analysis-unit (exit $code) ---"
     $log += $out
     if ($code -eq 0) {
-        $log += Add-Result 'campaign-analysis-unit' 'PASS' (($out -split "`n" | Select-Object -First 1).Trim())
+        $log += Add-Result 'campaign-analysis-unit' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'reflex:' } | Select-Object -First 1).Trim())
     } else {
         $log += Add-Result 'campaign-analysis-unit' 'FAIL' 'reflex test(s) failed; see log'
     }
@@ -203,6 +203,32 @@ if ($py -and (Test-Path $contractScript)) {
     if (-not $py) { $missing += 'python' }
     if (-not (Test-Path $contractScript)) { $missing += 'scripts/validate_results.py' }
     $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+# --- Spec SCORING-PACK gate (D-102): the authoritative parity guard
+# (SpecScoringParityTest.kt) is Android-toolchain-gated, so in the usual no-Android
+# run the scoring YAMLs are ungated. This validates the invariants they declare:
+# weights Σ=1.0, anchor points strictly ascending, veto structure. Reads spec/scoring
+# (never writes it). exit: 0=PASS / 2=pyyaml missing or files absent -> NOT_EXECUTED /
+# else=violations -> FAIL.
+$scoringScript = Join-Path $repo 'scripts\validate_spec_scoring.py'
+if ($py -and (Test-Path $scoringScript)) {
+    $out = & $py $scoringScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- spec-scoring-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'spec-scoring-unit' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'spec-scoring OK' } | Select-Object -First 1).Trim())
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'spec-scoring-unit' 'NOT_EXECUTED' 'pyyaml missing or no scoring files'
+    } else {
+        $log += Add-Result 'spec-scoring-unit' 'FAIL' 'scoring invariant violation(s); see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $scoringScript)) { $missing += 'scripts/validate_spec_scoring.py' }
+    $log += Add-Result 'spec-scoring-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
 # --- app toolchain probe (build requires JDK + Android SDK) ---

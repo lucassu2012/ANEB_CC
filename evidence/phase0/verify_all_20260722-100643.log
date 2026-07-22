@@ -1,0 +1,147 @@
+﻿verify_all run at 20260722-100643
+repo: E:\C Project\ANEB
+go: C:\Program Files\Go\bin\go.exe
+--- server-vet (exit 0) ---
+
+PASS  server-vet  go vet ./...
+--- server-build (exit 0) ---
+
+PASS  server-build  go build ./...
+--- server-test (exit 0) ---
+ok  	aneb-server	3.169s
+?   	aneb-server/tools/capture	[no test files]
+?   	aneb-server/tools/gencert	[no test files]
+?   	aneb-server/tools/h3check	[no test files]
+?   	aneb-server/tools/mockllm	[no test files]
+
+PASS  server-test  go test -count=1 ./...
+PASS  profiles-valid  3 profiles ok
+--- portraits-redline (exit 0) ---
+Checked 4 portraits: deepseek.yaml, doubao.yaml, kimi.yaml, tongyi.yaml
+OK: all red-line invariants hold (R1-R18: params gate intact, no caliber overclaim, provenance consistent).
+
+PASS  portraits-redline  check_redline.py
+--- portraits-redline-unit (exit 0) ---
+ran 20 reflex tests: 20 passed, 0 failed
+
+PASS  portraits-redline-unit  ran 20 reflex tests: 20 passed, 0 failed
+--- portraits-schema (exit 0) ---
+OK: 4 portrait(s) conform to portrait.schema.json (shape gate).
+
+PASS  portraits-schema  validate_schema.py
+--- portraits-schema-unit (exit 0) ---
+ran 10 schema reflex tests: 10 passed, 0 failed
+
+PASS  portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+--- campaign-analysis-unit (exit 0) ---
+python.exe : cannot read schema C:\Users\lucas\AppData\Local\Temp\tmprqlpt2xo\nope.json: [Errno 2] No such file or dire
+ctory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\tmprqlpt2xo\\nope.json'
+At E:\C Project\ANEB\scripts\verify_all.ps1:164 char:12
++     $out = & $py $campaignTest 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (cannot read sch...2xo\\nope.json':String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+contract VIOLATIONS: 1 in 1 record(s)
+  - record[0].claim_scope: must be 'application_end_to_end_to_probe_node', got 'wrong'
+campaign-analysis reflex: 151/151 passed
+
+PASS  campaign-analysis-unit  campaign-analysis reflex: 151/151 passed
+--- results-contract-unit (exit 0) ---
+advisories (non-fatal, 3 occurrence(s), 1 distinct):
+  ~ record[0].scenarios[0].validity: 'valid_low_confidence' matches a valid state only by case-fold; schema enum is ['VALID', 'VALID_LOW_CONFIDENCE', 'INVALID'] — schema/producer case drift
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+
+PASS  results-contract-unit  contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+--- spec-scoring-unit (exit 0) ---
+spec-scoring OK: 3 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+
+PASS  spec-scoring-unit  spec-scoring OK: 3 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+gradlew.bat : 
+At E:\C Project\ANEB\scripts\verify_all.ps1:240 char:12
++     $out = & .\gradlew.bat ':probe:assembleDebug' '--no-daemon' 2>&1  ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Unable to start the daemon process.
+This problem might be caused by incorrect configuration of the daemon.
+For example, an unrecognized jvm option is used.For more details on the daemon, please refer to https://docs.gradle.org
+/8.7/userguide/gradle_daemon.html in the Gradle documentation.
+Process command line: E:\tools\jdk-17.0.19+10\bin\java.exe --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java
+.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=A
+LL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=ja
+va.base/java.util.concurrent.atomic=ALL-UNNAMED -Xmx2g -Dfile.encoding=UTF-8 -Duser.country=CN -Duser.language=zh -Duse
+r.variant -cp C:\Users\lucas\.gradle\wrapper\dists\gradle-8.7-bin\bhs2wmbdwecv87pi65oeuq5iu\gradle-8.7\lib\gradle-launc
+her-8.7.jar -javaagent:C:\Users\lucas\.gradle\wrapper\dists\gradle-8.7-bin\bhs2wmbdwecv87pi65oeuq5iu\gradle-8.7\lib\age
+nts\gradle-instrumentation-agent-8.7.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.7
+Please read the following process output to find out more:
+-----------------------
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+java.net.BindException: Address already in use: bind
+
+* Try:
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+* Exception is:
+org.gradle.api.UncheckedIOException: java.net.BindException: Address already in use: bind
+	at org.gradle.internal.UncheckedException.throwAsUncheckedException(UncheckedException.java:62)
+	at org.gradle.internal.UncheckedException.throwAsUncheckedException(UncheckedException.java:41)
+	at org.gradle.cache.internal.locklistener.FileLockCommunicator.<init>(FileLockCommunicator.java:51)
+	at org.gradle.cache.internal.locklistener.DefaultFileLockContentionHandler.getCommunicator(DefaultFileLockContentionHa
+ndler.java:263)
+	at org.gradle.cache.internal.locklistener.DefaultFileLockContentionHandler.reservePort(DefaultFileLockContentionHandle
+r.java:255)
+	at org.gradle.cache.internal.DefaultFileLockManager.lock(DefaultFileLockManager.java:109)
+	at org.gradle.cache.internal.DefaultFileLockManager.lock(DefaultFileLockManager.java:96)
+	at org.gradle.cache.internal.DefaultFileLockManager.lock(DefaultFileLockManager.java:91)
+	at org.gradle.cache.internal.OnDemandFileAccess.updateFile(OnDemandFileAccess.java:51)
+	at org.gradle.cache.internal.FileBackedObjectHolder.update(FileBackedObjectHolder.java:87)
+	at org.gradle.cache.internal.FileIntegrityViolationSuppressingObjectHolderDecorator$1.create(FileIntegrityViolationSup
+pressingObjectHolderDecorator.java:50)
+	at org.gradle.cache.internal.FileIntegrityViolationSuppressingObjectHolderDecorator.doUpdate(FileIntegrityViolationSup
+pressingObjectHolderDecorator.java:67)
+	at org.gradle.cache.internal.FileIntegrityViolationSuppressingObjectHolderDecorator.update(FileIntegrityViolationSuppr
+essingObjectHolderDecorator.java:47)
+	at org.gradle.launcher.daemon.registry.PersistentDaemonRegistry.store(PersistentDaemonRegistry.java:232)
+	at org.gradle.launcher.daemon.server.DaemonRegistryUpdater.onStart(DaemonRegistryUpdater.java:80)
+	at org.gradle.launcher.daemon.server.Daemon.start(Daemon.java:171)
+	at org.gradle.launcher.daemon.bootstrap.DaemonMain.doAction(DaemonMain.java:128)
+	at org.gradle.launcher.bootstrap.EntryPoint.run(EntryPoint.java:50)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.gradle.launcher.bootstrap.ProcessBootstrap.runNoExit(ProcessBootstrap.java:60)
+	at org.gradle.launcher.bootstrap.ProcessBootstrap.run(ProcessBootstrap.java:37)
+	at org.gradle.launcher.daemon.bootstrap.GradleDaemon.main(GradleDaemon.java:22)
+Caused by: java.net.BindException: Address already in use: bind
+	at java.base/sun.nio.ch.Net.bind0(Native Method)
+	at java.base/sun.nio.ch.Net.bind(Net.java:567)
+	at java.base/sun.nio.ch.DatagramChannelImpl.bindInternal(DatagramChannelImpl.java:1194)
+	at java.base/sun.nio.ch.DatagramChannelImpl.bind(DatagramChannelImpl.java:1164)
+	at java.base/sun.nio.ch.DatagramSocketAdaptor.bind(DatagramSocketAdaptor.java:107)
+	at java.base/java.net.DatagramSocket.createDelegate(DatagramSocket.java:1426)
+	at java.base/java.net.DatagramSocket.<init>(DatagramSocket.java:330)
+	at java.base/java.net.DatagramSocket.<init>(DatagramSocket.java:389)
+	at org.gradle.cache.internal.locklistener.FileLockCommunicator.<init>(FileLockCommunicator.java:49)
+	... 22 more
+
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+FAIL  app-assembleDebug  gradlew :probe:assembleDebug
