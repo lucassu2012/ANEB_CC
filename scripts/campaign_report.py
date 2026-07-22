@@ -31,6 +31,7 @@ import campaign_common as cc
 import attribution
 import order_effect
 import stability
+import trend
 import validity_rollup
 
 HEAT_DIMS = ("point_id", "carrier", "time_band")
@@ -307,6 +308,11 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if before_id and after_id:
         parts.append(render_comparison_markdown(
             compare_campaigns(records, before_id, after_id, min_samples)))
+        parts.append("")
+    # 3+ labeled campaigns: before/after can't express a trajectory — add one. (D-98)
+    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    if len(labeled) >= 3:
+        parts.append(trend.render_markdown(trend.analyze(records, min_samples=min_samples)))
         parts.append("")
     return "\n".join(parts)
 

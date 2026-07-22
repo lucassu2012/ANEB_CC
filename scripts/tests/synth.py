@@ -10,17 +10,18 @@ network — pure fixtures so the golden tests encode the methodology insights.
 _SEQ = [0]  # monotonic fixture counter -> unique run_id per record
 
 
-def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None):
+def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None, started_ms=1783944000000):
     """scenarios: iterable of (profile_id, {kpi_key: value, ...}).
 
     run_id defaults to a UNIQUE per-record id (real runs never share one, and
     load_records now de-duplicates by it). Pass run_id explicitly to build a
-    deliberate duplicate/conflict fixture.
+    deliberate duplicate/conflict fixture. started_ms sets run.started_at_epoch_ms
+    (for chronological ordering in trend tests).
     """
     _SEQ[0] += 1
     rid = run_id if run_id is not None else "test-%04d" % _SEQ[0]
     run = {
-        "run_id": rid, "started_at_epoch_ms": 1783944000000, "mode": "quick",
+        "run_id": rid, "started_at_epoch_ms": started_ms, "mode": "quick",
         "scenario_order": "", "transport": "auto", "profile_source": "server",
         "app_version_name": "t", "app_version_code": 1, "guard_metadata": None,
         "status": "completed",
@@ -99,11 +100,12 @@ def order_records(n, *, kpi_key="t1_ttft_ms", value=100, order_index=0,
 
 
 def aqs_records(aqs, n, *, point="P1", carrier="cmcc", time_band="busy",
-                campaign_id="base", tier="metro"):
+                campaign_id="base", tier="metro", started_ms=1783944000000):
     """n records with run.aqs.score=aqs and the given campaign labels (no scenarios)."""
     campaign = {"campaign_id": campaign_id, "tier": tier, "point_id": point,
                 "carrier": carrier, "time_band": time_band}
-    return [make_record(campaign=campaign, aqs=aqs, scenarios=[]) for _ in range(n)]
+    return [make_record(campaign=campaign, aqs=aqs, scenarios=[], started_ms=started_ms)
+            for _ in range(n)]
 
 
 def kpi_scenario_records(n, *, kpi=None, point="P1", carrier="cmcc", time_band="busy",
