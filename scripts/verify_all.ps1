@@ -231,6 +231,31 @@ if ($py -and (Test-Path $scoringScript)) {
     $log += Add-Result 'spec-scoring-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- Profile spec<->runtime PARITY + structure gate (D-103): the inline
+# profiles-valid step above checks only the runtime copy's 4 fields; this deepens it
+# with semantic spec<->runtime parity (server profiles have no parity guard) and
+# per-phase structure. Reads spec/profiles/server + profiles (never writes them).
+# exit: 0=PASS / 2=a tree absent -> NOT_EXECUTED / else=violations -> FAIL.
+$profilesScript = Join-Path $repo 'scripts\validate_profiles.py'
+if ($py -and (Test-Path $profilesScript)) {
+    $out = & $py $profilesScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- profiles-deep (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'profiles-deep' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'profiles OK' } | Select-Object -First 1).Trim())
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'profiles-deep' 'NOT_EXECUTED' 'profile tree(s) absent'
+    } else {
+        $log += Add-Result 'profiles-deep' 'FAIL' 'profile parity/structure violation(s); see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $profilesScript)) { $missing += 'scripts/validate_profiles.py' }
+    $log += Add-Result 'profiles-deep' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
