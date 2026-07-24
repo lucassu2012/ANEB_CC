@@ -64,7 +64,8 @@ def test_report_cli_html_and_csv():
                        "AQS 分数侧归因", "批化(buffering)归因"):
             assert marker in page, f"HTML report missing section: {marker}"
         for suffix in ("_heat", "_attribution", "_stability",
-                       "_validity", "_subscores", "_buffering", "_transport", "_trust"):
+                       "_validity", "_subscores", "_buffering", "_transport", "_trust",
+                       "_comparison", "_trend"):
             assert os.path.exists(csv_prefix + suffix + ".csv"), suffix
 
 

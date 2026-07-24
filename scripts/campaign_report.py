@@ -581,7 +581,8 @@ ANEB 战役级报告 · stdlib-only 生成 · 标签约定见 docs/CAMPAIGN_LABE
 </div></body></html>"""
 
 
-def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES):
+def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
+                     before_id=None, after_id=None):
     """Dump the campaign tables as CSV for external analysis (Excel/pandas).
     Covers the same KPI sets the rendered report shows — an analyst pulling only
     the CSVs must not silently lose sections visible in the report (D-109).
@@ -696,6 +697,39 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES):
                             _cell(c["cellular_minus_wifi"]) if t == "cellular" else ""])
     written.append(p)
 
+    # The headline "did it get better" payloads (survey gap 6): before/after delta
+    # and the N-campaign trajectory, in spreadsheet-consumable long format (D-114).
+    if before_id is None and after_id is None:
+        before_id, after_id = _auto_compare_ids(inventory(records))
+    p = prefix + "_comparison.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "before_id", "after_id",
+                    "before", "after", "delta"])
+        if before_id and after_id:
+            cmp_res = compare_campaigns(records, before_id, after_id, min_samples)
+            for r in cmp_res["rows"]:
+                cell = r["cell"]
+                w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                            before_id, after_id, _cell(r["before"]), _cell(r["after"]),
+                            _cell(r["delta"])])
+    written.append(p)
+
+    tres = trend.analyze(records, min_samples=min_samples)
+    p = prefix + "_trend.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "campaign_id", "order_index",
+                    "median", "n", "direction", "first_last_delta", "low_confidence"])
+        for c in tres["cells"]:
+            cell = c["cell"]
+            for i, cid in enumerate(tres["campaigns"]):
+                w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                            cid, i, _cell(c["trajectory"][i]), c["sample_counts"][i],
+                            _cell(c["direction"]), _cell(c["first_last_delta"]),
+                            c["low_confidence"]])
+    written.append(p)
+
     bcells = buffering_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_buffering.csv"
     with open(p, "w", newline="", encoding="utf-8") as f:
@@ -804,7 +838,8 @@ def main(argv):
             f.write(out)
         print(f"html -> {args.html}")
     if args.csv:
-        paths = write_csv_tables(recs, args.csv, args.min_samples)
+        paths = write_csv_tables(recs, args.csv, args.min_samples,
+                                 before_id=args.before, after_id=args.after)
         print("csv -> " + ", ".join(paths))
     if args.provenance:
         prov_mod.write_sidecar(prov, args.provenance)
