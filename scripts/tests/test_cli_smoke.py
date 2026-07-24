@@ -57,9 +57,15 @@ def test_report_cli_html_and_csv():
         r = _run("campaign_report.py", f, "--html", html_out, "--csv", csv_prefix)
         assert r.returncode == 0, r.stderr
         assert os.path.exists(html_out)
-        assert os.path.exists(csv_prefix + "_heat.csv")
-        assert os.path.exists(csv_prefix + "_attribution.csv")
-        assert os.path.exists(csv_prefix + "_stability.csv")
+        with open(html_out, encoding="utf-8") as fh:
+            page = fh.read()
+        # HTML report carries every markdown-only section too (D-107 parity)
+        for marker in ("溯源", "复测稳定性", "序位效应", "有效性与失效原因",
+                       "AQS 分数侧归因", "批化(buffering)归因"):
+            assert marker in page, f"HTML report missing section: {marker}"
+        for suffix in ("_heat", "_attribution", "_stability",
+                       "_validity", "_subscores", "_buffering"):
+            assert os.path.exists(csv_prefix + suffix + ".csv"), suffix
 
 
 def test_report_cli_rejects_malformed_corpus():

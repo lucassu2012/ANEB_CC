@@ -24,6 +24,7 @@ Usage:
 import argparse
 import csv
 import html
+import re
 import sys
 from collections import Counter, defaultdict
 
@@ -396,8 +397,86 @@ def _attr_table_html(attr):
         + "</table></div>")
 
 
+# Restricted markdown -> HTML: the tools' render_markdown() functions stay the
+# single source of truth for every non-rich section, so the HTML report can never
+# drift out of sync with the markdown report (D-107).
+_INLINE_MD = ((re.compile(r"\*\*(.+?)\*\*"), r"<b>\1</b>"),
+              (re.compile(r"`([^`]+)`"), r"<code>\1</code>"))
+
+
+def _md_inline(text):
+    s = esc(text)
+    for pat, rep in _INLINE_MD:
+        s = pat.sub(rep, s)
+    return s
+
+
+def _md_section_html(md):
+    """Render one tool's markdown section as HTML. Supports only the restricted
+    markdown our renderers emit: ## headings, > blockquotes, pipe tables,
+    - list items, _italic_ empty-notes, plain paragraphs."""
+    out, table = [], []
+
+    def flush():
+        if not table:
+            return
+        head, *body = table
+        ths = "".join(f"<th>{_md_inline(c)}</th>" for c in head)
+        trs = []
+        for r in body:
+            tds = [f"<td class='lbl'>{_md_inline(r[0])}</td>"] \
+                + [f"<td>{_md_inline(c)}</td>" for c in r[1:]]
+            trs.append("<tr>" + "".join(tds) + "</tr>")
+        out.append(f"<div class='scroll'><table><tr>{ths}</tr>{''.join(trs)}</table></div>")
+        table.clear()
+
+    for line in md.splitlines():
+        s = line.strip()
+        if s.startswith("|"):
+            cells_ = [c.strip() for c in s.strip("|").split("|")]
+            if all(c and set(c) <= {"-", ":", " "} for c in cells_):  # |---| separator
+                continue
+            table.append(cells_)
+            continue
+        flush()
+        if not s:
+            continue
+        if s.startswith("## "):
+            out.append(f"<h2>{_md_inline(s[3:])}</h2>")
+        elif s.startswith("### "):
+            out.append(f"<h3>{_md_inline(s[4:])}</h3>")
+        elif s.startswith("> "):
+            out.append(f"<p class='note'>{_md_inline(s[2:])}</p>")
+        elif s.startswith("- "):
+            out.append(f"<p class='note'>• {_md_inline(s[2:])}</p>")
+        elif len(s) > 1 and s.startswith("_") and s.endswith("_"):
+            out.append(f"<p class='empty'>{_md_inline(s.strip('_'))}</p>")
+        else:
+            out.append(f"<p>{_md_inline(s)}</p>")
+    flush()
+    return "".join(out)
+
+
+# Sections the HTML report renders natively (colored grids, richer than a table).
+_HTML_RICH_PREFIXES = ("覆盖盘点", "点位 × 忙闲", "分 KPI 热力卡", "三级差分归因矩阵",
+                       "优化前后对比")
+
+
+def _md_only_sections_html(records, min_samples, attr_kpi, before_id, after_id,
+                           provenance):
+    """Every markdown-report section without a native HTML rendering, converted.
+    Extracted from build_report_markdown's own output so section assembly logic
+    exists exactly once — a new markdown section joins the HTML automatically."""
+    md = build_report_markdown(records, min_samples, attr_kpi, before_id, after_id,
+                               provenance=provenance)
+    chunks = re.split(r"(?m)^## ", md)[1:]          # drop the # title preamble
+    keep = [c for c in chunks if not c.startswith(_HTML_RICH_PREFIXES)]
+    return "".join(_md_section_html("## " + c) for c in keep)
+
+
 def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
-                      attr_kpi=attribution.DEFAULT_KPI, before_id=None, after_id=None):
+                      attr_kpi=attribution.DEFAULT_KPI, before_id=None, after_id=None,
+                      provenance=None):
     inv = inventory(records)
     cells = heat_cells(records, min_samples)
     if before_id is None and after_id is None:
@@ -439,6 +518,11 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
         warn = ("<p class='warn'>全部记录无 run.campaign 标签——热力卡/归因/对比塌缩为单格。"
                 "接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。</p>")
 
+    # 溯源/稳定性/序位/有效性/分数侧/批化/趋势 — converted from the markdown
+    # renderers (single source of truth), appended after the rich grids (D-107).
+    md_only = _md_only_sections_html(records, min_samples, attr_kpi, before_id,
+                                     after_id, provenance)
+
     return f"""<!DOCTYPE html>
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -447,6 +531,7 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
 body{{font-family:'Segoe UI',system-ui,sans-serif;margin:0;background:#f6f7f9;color:#202124}}
 .wrap{{max-width:1000px;margin:0 auto;padding:24px 16px 48px}}
 h1{{font-size:22px}} h2{{font-size:16px;margin:28px 0 10px;border-bottom:1px solid #ddd;padding-bottom:6px}}
+h3{{font-size:13.5px;margin:18px 0 8px}}
 table{{border-collapse:collapse;width:100%;font-size:12.5px;background:#fff}}
 th,td{{border:1px solid #e0e0e0;padding:5px 8px;text-align:right;white-space:nowrap}}
 th{{background:#f1f3f4;text-align:center}} td.lbl{{text-align:left;font-weight:600}}
@@ -465,6 +550,7 @@ footer{{margin-top:36px;font-size:12px;color:#5f6368;border-top:1px solid #ddd;p
 {kpi_grids}
 {attr_sections}
 {cmp_html}
+{md_only}
 <footer>claim_scope: <b>application_end_to_end_to_probe_node</b> — 应用层路径分段，不代表运营商网络端到端体验/MOS。<br>
 ANEB 战役级报告 · stdlib-only 生成 · 标签约定见 docs/CAMPAIGN_LABELS_CONVENTION.md。</footer>
 </div></body></html>"""
@@ -517,6 +603,54 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         cell.get("tier"), cell.get("profile_id"), c["kpi"], c["n"],
                         _cell(c["median"]), _cell(c["mean"]), _cell(c["cv_percent"]),
                         c["unstable"], c["low_confidence"]])
+    written.append(p)
+
+    # The sample denominator behind every median above (D-96) — external analysis
+    # without it re-creates the survivor bias the rollup exists to expose.
+    vcells = validity_rollup.analyze(records)["cells"]
+    p = prefix + "_validity.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "profile_id", "attempted", "valid",
+                    "valid_low_confidence", "invalid", "unknown", "valid_rate",
+                    "below_min_rate", "reasons"])
+        for c in vcells:
+            cell = c["cell"]
+            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                        cell.get("profile_id"), c["attempted"], c["valid"],
+                        c["valid_low_confidence"], c["invalid"], c["unknown"],
+                        _cell(c["valid_rate"]), _cell(c["below_min_rate"]),
+                        ";".join(f"{r}:{n}" for r, n in c["reasons"].items())])
+    written.append(p)
+
+    sscells = subscore_rollup.analyze(records, min_samples)["cells"]
+    p = prefix + "_subscores.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "runs", "dragging_dim",
+                    "dragging_median", "spread", "low_confidence", "dim_medians"])
+        for c in sscells:
+            cell = c["cell"]
+            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                        c["runs"], _cell(c["dragging_dim"]), _cell(c["dragging_median"]),
+                        _cell(c["spread"]), c["low_confidence"],
+                        ";".join(f"{d}:{v['median']}" for d, v in c["dims"].items())])
+    written.append(p)
+
+    bcells = buffering_rollup.analyze(records, min_samples)["cells"]
+    p = prefix + "_buffering.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "n", "modal_attribution",
+                    "score_median", "sawtooth_median", "near_zero_median",
+                    "suspect_share", "distortion_hotspot", "low_confidence"])
+        for c in bcells:
+            cell = c["cell"]
+            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                        c["n"], c["modal_attribution"], _cell(c["score_median"]),
+                        _cell(c["sawtooth_median"]), _cell(c["near_zero_median"]),
+                        _cell(c["suspect_share"]), c["distortion_hotspot"],
+                        c["low_confidence"]])
     written.append(p)
     return written
 
@@ -584,7 +718,8 @@ def main(argv):
     else:
         print(md)
     if args.html:
-        out = build_report_html(recs, now, args.min_samples, args.attr_kpi, args.before, args.after)
+        out = build_report_html(recs, now, args.min_samples, args.attr_kpi, args.before,
+                                args.after, provenance=prov)
         with open(args.html, "w", encoding="utf-8") as f:
             f.write(out)
         print(f"html -> {args.html}")
