@@ -35,6 +35,7 @@ import order_effect
 import provenance as prov_mod
 import stability
 import subscore_rollup
+import transport_rollup
 import trend
 import validate_results as vr
 import validity_rollup
@@ -323,6 +324,9 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # or because something batched the stream? Annotation only — R-05 forbids any
     # re-judging of validity/score from it. (D-104)
     parts.append(buffering_rollup.render_markdown(buffering_rollup.analyze(records, min_samples)))
+    parts.append("")
+    # Access-medium comparison: is cellular worse than wifi in this cell? (D-110)
+    parts.append(transport_rollup.render_markdown(transport_rollup.analyze(records, min_samples)))
     parts.append("")
     if before_id and after_id:
         parts.append(render_comparison_markdown(
@@ -636,6 +640,21 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES):
                         c["runs"], _cell(c["dragging_dim"]), _cell(c["dragging_median"]),
                         _cell(c["spread"]), c["low_confidence"],
                         ";".join(f"{d}:{v['median']}" for d, v in c["dims"].items())])
+    written.append(p)
+
+    tcells = transport_rollup.analyze(records, min_samples)["cells"]
+    p = prefix + "_transport.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "transport", "n", "aqs_median",
+                    "low_confidence", "cellular_minus_wifi"])
+        for c in tcells:
+            cell = c["cell"]
+            for t in sorted(c["transports"]):
+                b = c["transports"][t]
+                w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                            t, b["n"], _cell(b["aqs_median"]), b["low_confidence"],
+                            _cell(c["cellular_minus_wifi"]) if t == "cellular" else ""])
     written.append(p)
 
     bcells = buffering_rollup.analyze(records, min_samples)["cells"]

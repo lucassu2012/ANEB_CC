@@ -9,7 +9,7 @@
 | 层 | 脚本 | 粒度 | 产出 |
 |---|---|---|---|
 | 逐-run | `analyze_results.py` · `dashboard.py` | 单次 run | 清单/KPI 中位摘要、单文件 HTML 看板 |
-| **战役级** | `campaign_report.py` · `attribution.py` · `stability.py` · `buffering_rollup.py` · `annotate_campaign.py` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 批化失真核算 · 优化前后对比 · 综合报告 |
+| **战役级** | `campaign_report.py` · `attribution.py` · `stability.py` · `buffering_rollup.py` · `transport_rollup.py` · `annotate_campaign.py` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 批化失真核算 · 介质对比 · 优化前后对比 · 综合报告 |
 
 战役级层由 `campaign_common.py`（共享库）支撑，分组维度来自**可选加性** `run.campaign`
 标签块——约定与生产接线路线见 [`../docs/CAMPAIGN_LABELS_CONVENTION.md`](../docs/CAMPAIGN_LABELS_CONVENTION.md)。
@@ -54,6 +54,12 @@ python attribution.py field_labeled.jsonl --kpi n1_rtt_p50_ms
 validity/score。空块=未检测（不计 0），缺 `attribution` 归 `unknown`（**绝不**算 `none`）。
 比例列按 3 位小数渲染——真实批化分可低至 0.007，1 位小数会显示成 `0`（读作"无批化"）。
 集成进综合报告 + 独立 CLI。
+
+### `transport_rollup.py` — 接入介质对比（wifi vs cellular）（D-110）
+按 (点位,运营商,时段) 出各介质 run 数 + AQS 中位 + Δ(cellular−wifi)（AQS 越大越好，
+负值=蜂窝更差）。transport 取 run 显式设置；`auto` 由各场景 `network_snapshot` 观测共识
+推得（生产者实写复合格式 `auto(cellular)`，取括号内实际介质）；不一致=mixed、无观测=
+unknown，**均不并入任何介质**。全 unknown → 覆盖缺口告示，不出表。集成进综合报告 + 独立 CLI。
 
 ### `annotate_campaign.py` — 离线战役标签补注
 加性注入 `run.campaign`：`--set KEY=VALUE`（统一）/ `--map map.json`（per run_id）/

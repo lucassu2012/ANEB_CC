@@ -106,6 +106,12 @@
 | P2 | cmcc | busy | 36 | none | 0.02 | 0.01 | 0 | 0% | — |
 | P2 | cmcc | idle | 36 | none | 0.02 | 0.01 | 0 | 0% | — |
 
+## 接入介质对比（wifi vs cellular，AQS 中位）
+
+> transport 取 run 显式设置，`auto` 由各场景 `network_snapshot` 观测共识推得；不一致=mixed、无观测=unknown，**均不并入任何介质**。Δ=cellular−wifi（AQS 越大越好，负值=蜂窝更差）。* = 样本不足。
+
+_无 transport 证据（run 均为 auto 且无 network_snapshot 观测）——覆盖缺口，非数据。_
+
 ## 优化前后对比（before=`base` → after=`opt`，AQS 中位）
 
 | 点位 | 运营商 | 时段 | before | after | Δ | 备注 |
