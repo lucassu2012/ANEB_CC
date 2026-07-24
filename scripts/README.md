@@ -61,6 +61,13 @@ validity/score。空块=未检测（不计 0），缺 `attribution` 归 `unknown
 推得（生产者实写复合格式 `auto(cellular)`，取括号内实际介质）；不一致=mixed、无观测=
 unknown，**均不并入任何介质**。全 unknown → 覆盖缺口告示，不出表。集成进综合报告 + 独立 CLI。
 
+### `trust_rollup.py` — 测量可信度（时钟/流完整性/解析开销）（D-111）
+热力卡时延中位数背后的**仪器**可信度：时钟可疑占比（`clock.offset_suspect`，R-22：
+|漂移|>100ppm 或端点缺失——该场景 TTFT/ITL 存疑）+ |漂移|中位、seq gap/dup 异常场景数、
+`parse.per_event_parse_us` 中位（解析开销大会混淆 ITL：端侧算力≠网络）。各信号分母=
+实际带标注的场景数，未标注**不算干净**；全无证据 → 覆盖缺口告示。时钟可疑过半标
+`时钟可疑热点`。集成进综合报告 + 独立 CLI。
+
 ### `annotate_campaign.py` — 离线战役标签补注
 加性注入 `run.campaign`：`--set KEY=VALUE`（统一）/ `--map map.json`（per run_id）/
 `--infer-time-band`（由 `started_at_epoch_ms`+`--tz-offset` 推 busy/idle，标 inferred）。

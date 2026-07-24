@@ -37,6 +37,7 @@ import stability
 import subscore_rollup
 import transport_rollup
 import trend
+import trust_rollup
 import validate_results as vr
 import validity_rollup
 
@@ -311,6 +312,9 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # The denominator behind every median above: how many attempts were made,
     # and where the dropped (INVALID, null-KPI) ones went. (D-96)
     parts.append(validity_rollup.render_markdown(validity_rollup.analyze(records)))
+    parts.append("")
+    # Instrument trust behind the timing medians: clock / stream / parse (D-111)
+    parts.append(trust_rollup.render_markdown(trust_rollup.analyze(records, min_samples)))
     parts.append("")
     for k in attribution.ATTRIBUTABLE_KPIS:
         attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
@@ -640,6 +644,24 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES):
                         c["runs"], _cell(c["dragging_dim"]), _cell(c["dragging_median"]),
                         _cell(c["spread"]), c["low_confidence"],
                         ";".join(f"{d}:{v['median']}" for d, v in c["dims"].items())])
+    written.append(p)
+
+    ucells = trust_rollup.analyze(records, min_samples)["cells"]
+    p = prefix + "_trust.csv"
+    with open(p, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "scenarios", "clock_annotated",
+                    "clock_suspect", "clock_suspect_share", "abs_drift_ppm_median",
+                    "stream_counted", "stream_bad", "parse_per_event_us_median",
+                    "clock_hotspot", "low_confidence"])
+        for c in ucells:
+            cell = c["cell"]
+            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                        c["scenarios"], c["clock_annotated"], c["clock_suspect"],
+                        _cell(c["clock_suspect_share"]), _cell(c["abs_drift_ppm_median"]),
+                        c["stream_counted"], c["stream_bad"],
+                        _cell(c["parse_per_event_us_median"]), c["clock_hotspot"],
+                        c["low_confidence"]])
     written.append(p)
 
     tcells = transport_rollup.analyze(records, min_samples)["cells"]
