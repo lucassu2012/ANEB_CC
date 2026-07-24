@@ -16,7 +16,7 @@ SCRIPTS = os.path.dirname(HERE)
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, HERE)
 
-from synth import aqs_records, tier_records
+from synth import aqs_records, contractify, tier_records
 
 
 def _write_jsonl(path, records):
@@ -32,10 +32,11 @@ def _run(script, *args):
 
 
 def _fixture(d):
-    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 5)
-            + tier_records("regional", "n1_rtt_p50_ms", 35, 5)
-            + tier_records("core", "n1_rtt_p50_ms", 60, 5)
-            + aqs_records(90, 5))
+    recs = [contractify(r) for r in
+            (tier_records("metro", "n1_rtt_p50_ms", 20, 5)
+             + tier_records("regional", "n1_rtt_p50_ms", 35, 5)
+             + tier_records("core", "n1_rtt_p50_ms", 60, 5)
+             + aqs_records(90, 5))]
     path = os.path.join(d, "in.jsonl")
     _write_jsonl(path, recs)
     return path
@@ -59,6 +60,27 @@ def test_report_cli_html_and_csv():
         assert os.path.exists(csv_prefix + "_heat.csv")
         assert os.path.exists(csv_prefix + "_attribution.csv")
         assert os.path.exists(csv_prefix + "_stability.csv")
+
+
+def test_report_cli_rejects_malformed_corpus():
+    """Non-result-run input (e.g. raw token-arrival samples) must refuse a report,
+    not degrade into empty sections (D-105 front-door gate)."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "bad.jsonl")
+        _write_jsonl(path, [{"seq": 1, "arrival_us": 12345}])
+        r = _run("campaign_report.py", path)
+        assert r.returncode == 1, r.stdout
+        assert "契约门 FAIL" in r.stderr
+        assert "拒绝出报告" in r.stderr
+
+
+def test_report_cli_skip_contract_check_escape_hatch():
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "bad.jsonl")
+        _write_jsonl(path, [{"seq": 1, "arrival_us": 12345}])
+        r = _run("campaign_report.py", path, "--skip-contract-check")
+        assert r.returncode == 0, r.stderr
+        assert "综合报告" in r.stdout
 
 
 def test_attribution_cli_runs():

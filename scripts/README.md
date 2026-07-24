@@ -9,7 +9,7 @@
 | 层 | 脚本 | 粒度 | 产出 |
 |---|---|---|---|
 | 逐-run | `analyze_results.py` · `dashboard.py` | 单次 run | 清单/KPI 中位摘要、单文件 HTML 看板 |
-| **战役级** | `campaign_report.py` · `attribution.py` · `stability.py` · `annotate_campaign.py` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 优化前后对比 · 综合报告 |
+| **战役级** | `campaign_report.py` · `attribution.py` · `stability.py` · `buffering_rollup.py` · `annotate_campaign.py` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 批化失真核算 · 优化前后对比 · 综合报告 |
 
 战役级层由 `campaign_common.py`（共享库）支撑，分组维度来自**可选加性** `run.campaign`
 标签块——约定与生产接线路线见 [`../docs/CAMPAIGN_LABELS_CONVENTION.md`](../docs/CAMPAIGN_LABELS_CONVENTION.md)。
@@ -22,7 +22,7 @@ python annotate_campaign.py field.jsonl -o field_labeled.jsonl \
     --set point_id=SZ-CBD-01 --set carrier=cmcc --set tier=metro \
     --set campaign_id=sz-2026Q3-baseline --infer-time-band
 
-# 2) 出综合报告（markdown + 自包含 HTML）
+# 2) 出综合报告（markdown + 自包含 HTML；入口自动跑输入契约门，坏语料拒绝出报告）
 python campaign_report.py field_labeled.jsonl --html report.html
 
 # 3) 单独看某 KPI 的复测稳定性 / 三级归因
@@ -47,14 +47,74 @@ python attribution.py field_labeled.jsonl --kpi n1_rtt_p50_ms
 对齐计划 §6 M1 验收）标 `unstable`。<2 样本 / |mean|≈0 → CV 不可计算（`None`）。
 `--kpi`、`--cv-gate`。
 
+### `buffering_rollup.py` — 批化归因（取证/失真核算）
+按 (点位,运营商,时段) 汇总 `scenarios[].buffering`：众数归因、批化分/sawtooth/近零到达中位、
+非 `none` 占比；非 `none` 占多数（>50%）标 `失真热点`。回答"这个中位数慢，是网络慢，
+还是被中间盒/设备把流批化了"。**R-05**：批化是**取证证据**，本表与下游**均不据此改判**
+validity/score。空块=未检测（不计 0），缺 `attribution` 归 `unknown`（**绝不**算 `none`）。
+比例列按 3 位小数渲染——真实批化分可低至 0.007，1 位小数会显示成 `0`（读作"无批化"）。
+集成进综合报告 + 独立 CLI。
+
 ### `annotate_campaign.py` — 离线战役标签补注
 加性注入 `run.campaign`：`--set KEY=VALUE`（统一）/ `--map map.json`（per run_id）/
 `--infer-time-band`（由 `started_at_epoch_ms`+`--tz-offset` 推 busy/idle，标 inferred）。
 **非破坏**：只填 gap、原有标签优先永不覆盖、不覆盖输入（除非 `--inplace`）、`label_source` 记溯源。
 
+### `validity_rollup.py` — 有效性/失效原因逐格汇总（D-96）
+每个中位数背后的**样本分母**：按 (点位,运营商,时段,profile) 出 尝试/有效/低置信/失效/未知
+五态计数 + 有效率（低于门默认 80% 标 `LOW_VALID_RATE`），失效原因直方图（解释样本去哪了），
+按 UTC 日有效率趋势（衰减=测量装置回归信号）。`VALID_LOW_CONFIDENCE` 计入可用但单列；
+`unknown` 独立成桶绝不默认算有效。防幸存者偏差——报告只显示 n=4 不显示尝试数 40 时，
+若失效恰集中在恶劣条件，中位数方向性偏乐观。
+
+### `subscore_rollup.py` — AQS 分数侧归因（D-100）
+`attribution.py` 时延矩阵的分数侧对偶：时延矩阵说路径**哪段**慢，本表说分数**哪维**低。
+按 (点位,运营商,时段) 出各维度（T1/T2/…/N1/N2/U1…）中位子分 + **拖累维度**（中位最低）
++ 极差。不可计算 run 子分为空不贡献（绝不 0）；全格无子分 → 该格缺席不伪造"全好"。
+
+### `trend.py` — 纵向 N 战役趋势（D-98）
+把"一前一后"推广到 ≥3 战役时序轨迹：按 (点位,运营商,时段) 出各战役中位数轨迹 + 首末Δ +
+方向判定。**方向按指标极性解释**（AQS/goodput 越大越好、时延/抖动越小越好）；非单调净变化
+判"混合"不冒充趋势；缺席战役留 `None` 不插值；在场点 <2 → `NEED_2_POINTS` 不可计算。
+战役默认按最早 `started_at_epoch_ms` 时序排序，`--order` 可显式指定。
+
+### `coverage_matrix.py` — 覆盖完备性矩阵（D-101，独立规划工具）
+「下一步测哪里」：给定目标网格（`--points/--carriers/--time-bands` 或 `--config` JSON），
+对每个联合格判 未测/欠采/已覆盖（可用=有 AQS 分），另列**计划外**已测格。欠采绝不上取为
+已覆盖；无目标网格降级为描述模式（`coverage_pct=None`，不虚构目标）。对齐 M2 外场网格
+验收（6–8 点位×忙闲×双运营商）。不进综合报告（规划工具需目标网格）。
+
+### `provenance.py` — 报告溯源清单（D-99）
+已发布报告是"进局点的弹药"，须可溯源可复现：每个输入文件 basename+**sha256**、
+读行/去重丢弃/冲突/坏行计数、塑形参数、工具版本 + 注入的 generated_at（注入而非取墙钟，
+保持报告主体可快照）。渲染为报告头「溯源」段；`campaign_report.py --provenance PATH`
+另写 sidecar JSON（含全部 sha）。
+
+### `validate_results.py` — 结果 JSONL 输入契约门（D-97，`results-contract-unit`）
+分析层前门：①结构层——必填清单/`claim_scope` const/`validity` 枚举**从 schema 文件实时
+读取**（永不与 schema 漂移）；②跨字段 R-10 层——`kpi.<x>` 值 null ⇔ `<x>_grade` null、
+`aqs.score` null ⇔ `not_computable_reason` 在场、直方图 `len(counts)==len(edges_ms)+1`
+（R-27 开区间桶）。validity 大小写不敏感比对（真数据小写为权威，大小写漂移记非致命
+advisory 交 schema 属主）。exit 0/1/2（2=无语料或 schema 不可读→NOT_EXECUTED）。
+**`campaign_report.py` 默认在入口跑同一检查**（违规拒绝出报告，`--skip-contract-check`
+为显式逃生门）。
+
+### `validate_spec_scoring.py` — spec 评分包门（D-102，`spec-scoring-unit`，需 pyyaml）
+补齐无-Android 路径的评分规则包守卫（权威对拍 `SpecScoringParityTest.kt` 受 Android
+工具链门控）：weights 每表 Σ=1.0(±1e-9)+version_id；anchors 各表 points 按值严格升序、
+direction 枚举、分∈[0,100]；vetoes 必填字段+比较符/种类枚举+cap∈[0,100]。只读
+`spec/scoring/`；pyyaml 缺 → exit 2 NOT_EXECUTED。
+
+### `validate_profiles.py` — profile spec↔runtime 深门（D-103，`profiles-deep`）
+①语义一致性——逐 profile 比对 `spec/profiles/server/<id>.json` 与 `profiles/<id>.json`
+**解析后对象相等**（对 CRLF/键序稳健；字节比对会误红），单侧存在即错；②结构——顶层必填 +
+每 phase `type` 已知且必填字段类型正确（bool 不算数值）。只读两棵树；树缺 → exit 2。
+守卫「先改 spec 后动代码」：一侧语义改而另一侧漏改不再静默溜过。
+
 ### `campaign_common.py` — 共享库
-记录加载、`run.campaign` 标签优雅降级、AQS/KPI 访问、nearest-rank 分位、AQS 四级分带
-（锚定系统 54/70 封顶阈值）、UTF-8 stdout。被上述战役级工具 import。
+记录加载（按 `run.run_id` 去重）、`run.campaign` 标签优雅降级、AQS/KPI/sub_scores/
+buffering 访问器、nearest-rank 分位、AQS 四级分带（锚定系统 54/70 封顶阈值）、UTF-8
+stdout。被上述战役级工具 import。
 
 ## 口径红线
 

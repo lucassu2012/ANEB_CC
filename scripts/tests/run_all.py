@@ -21,7 +21,7 @@ TEST_MODULES = ["test_attribution", "test_campaign_report", "test_annotate",
                 "test_validity_rollup", "test_validate_results", "test_trend",
                 "test_provenance", "test_subscore_rollup", "test_coverage_matrix",
                 "test_validate_spec_scoring", "test_validate_profiles",
-                "test_report_snapshot", "test_cli_smoke"]
+                "test_buffering_rollup", "test_report_snapshot", "test_cli_smoke"]
 
 
 def main():

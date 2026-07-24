@@ -29,11 +29,13 @@ from collections import Counter, defaultdict
 
 import campaign_common as cc
 import attribution
+import buffering_rollup
 import order_effect
 import provenance as prov_mod
 import stability
 import subscore_rollup
 import trend
+import validate_results as vr
 import validity_rollup
 
 HEAT_DIMS = ("point_id", "carrier", "time_band")
@@ -316,6 +318,11 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # Score-side complement to the latency attribution: which AQS dimension drags. (D-100)
     parts.append(subscore_rollup.render_markdown(subscore_rollup.analyze(records, min_samples)))
     parts.append("")
+    # Forensic distortion accounting: is a median slow because the network is slow,
+    # or because something batched the stream? Annotation only — R-05 forbids any
+    # re-judging of validity/score from it. (D-104)
+    parts.append(buffering_rollup.render_markdown(buffering_rollup.analyze(records, min_samples)))
+    parts.append("")
     if before_id and after_id:
         parts.append(render_comparison_markdown(
             compare_campaigns(records, before_id, after_id, min_samples)))
@@ -514,6 +521,21 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     return written
 
 
+def contract_gate(records):
+    """Front-door input check (D-105): the report is the 'ammunition into the
+    operator meeting' (M2) — a quietly-wrong report is worse than none, so records
+    violating the result-run contract refuse a report instead of degrading into
+    empty/misleading sections. Returns the error list ([] = pass), or None when
+    the schema file is unreadable (NOT_EXECUTED — 'cannot check' is not 'checked',
+    mirroring validate_results exit 2)."""
+    try:
+        sch = vr.load_schema(vr.DEFAULT_SCHEMA)
+    except Exception:
+        return None
+    errors, _warnings = vr.validate_records(records, sch)
+    return errors
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="ANEB campaign-level comprehensive report")
     ap.add_argument("inputs", nargs="+", help="results JSONL files / globs")
@@ -526,6 +548,9 @@ def main(argv):
     ap.add_argument("--after", help="campaign_id for before/after 'after'")
     ap.add_argument("--csv", help="also write heat/attribution/stability tables as <PREFIX>_*.csv")
     ap.add_argument("--provenance", help="write the full manifest (with sha256) to this JSON path")
+    ap.add_argument("--skip-contract-check", action="store_true",
+                    help="bypass the input contract gate (emergency escape hatch; "
+                         "the report loses its 'validated input' claim)")
     args = ap.parse_args(argv)
 
     cc.force_utf8_stdout()
@@ -534,6 +559,18 @@ def main(argv):
 
     stats = {}
     recs, files = cc.load_records(args.inputs, stats=stats)
+    if not args.skip_contract_check:
+        errors = contract_gate(recs)
+        if errors is None:
+            print("⚠ 契约门未执行（schema 不可读）——本报告输入未经校验", file=sys.stderr)
+        elif errors:
+            print(f"契约门 FAIL：{len(errors)} 条违规——拒绝出报告（这不是 result-run 语料，"
+                  "或生产者已破坏契约；确需强行出报告用 --skip-contract-check）", file=sys.stderr)
+            for e in errors[:10]:
+                print("  - " + e, file=sys.stderr)
+            if len(errors) > 10:
+                print(f"  … 其余 {len(errors) - 10} 条略", file=sys.stderr)
+            return 1
     params = {"min_samples": args.min_samples, "attr_kpi": args.attr_kpi,
               "before": args.before, "after": args.after}
     prov = prov_mod.compute(files, stats, params, generated_at=now)

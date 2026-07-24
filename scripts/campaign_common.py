@@ -240,6 +240,17 @@ def mixed_flags(acc):
     return (pvs if len(pvs) > 1 else []), len(acc.get("histogram_edges") or []) > 1
 
 
+def scenario_buffering(scn):
+    """scenarios[].buffering forensic block (batching annotation), or {} if absent.
+
+    R-05: this is annotation / forensic evidence ONLY — the score/validity are never
+    re-judged from it. Callers must label any rollup accordingly. An all-null block
+    means 'not detected' (a coverage fact), not 'no batching = 0'.
+    """
+    b = scn.get("buffering")
+    return b if isinstance(b, dict) else {}
+
+
 def scenario_kpi(scn, key):
     """scenarios[].kpi.<key> as a number or None. Accepts legacy `kpis` and
     {value: x} nesting."""

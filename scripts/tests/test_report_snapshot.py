@@ -44,6 +44,16 @@ def _corpus():
                             scenarios=[("s1_chat", {"n1_rtt_p50_ms": rtt, "n1_grade": "good"})])
                         rec["scenarios"][0]["order_index"] = i % 3
                         rec["scenarios"][0]["validity"] = "valid" if i < 5 else "invalid"
+                        # one distortion hot-spot cell (P1/busy) vs clean elsewhere,
+                        # so the snapshot freezes both batching renderings (D-104)
+                        suspect = point == "P1" and tb == "busy"
+                        rec["scenarios"][0]["buffering"] = {
+                            "score": 0.42 if suspect else 0.02,
+                            "attribution": "middlebox_suspect" if suspect else "none",
+                            "sample_count": 100,
+                            "sawtooth_ratio": 0.35 if suspect else 0.01,
+                            "near_zero_arrival_ratio": 0.28 if suspect else 0.0,
+                        }
                         recs.append(rec)
     return recs
 

@@ -46,6 +46,34 @@ def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None,
     }
 
 
+_KPI_REQUIRED = ("t1_ttft_ms", "t2_itl_p95_ms", "t3_stall_rate", "t4_severe_stall_rate",
+                 "n1_rtt_p50_ms", "n2_jitter_ms", "u1_goodput_mbps", "u2_tool_loop_p95_ms",
+                 "seq_gap_count", "seq_dup_count")
+
+
+def contractify(rec):
+    """Fill a minimal synth record up to result-run contract completeness, in place.
+
+    The default factories stay deliberately minimal (dozens of goldens depend on
+    that shape); tests exercising the input contract gate (D-105) wrap fixtures
+    with this instead. Fills only gaps — values already present are never touched:
+    kpi gets all required keys as null (no grade key: value/grade nullness match),
+    a null aqs.score gets a not_computable_reason, an empty itl_histogram becomes
+    a minimal consistent block (R-27: len(counts) == len(edges_ms)+1).
+    """
+    aqs = rec["run"]["aqs"]
+    if aqs.get("score") is None and not aqs.get("not_computable_reason"):
+        aqs["not_computable_reason"] = "SYNTHETIC_NOT_COMPUTED"
+    for scn in rec.get("scenarios") or []:
+        kpi = scn.setdefault("kpi", {})
+        for k in _KPI_REQUIRED:
+            kpi.setdefault(k, None)
+        if not scn.get("itl_histogram"):
+            scn["itl_histogram"] = {"buckets_version": "v1", "edges_ms": [10, 20, 50],
+                                    "counts": [0, 0, 0, 0], "total": 0}
+    return rec
+
+
 def tier_records(tier, kpi_key, value, n, *, point="P1", carrier="cmcc",
                  time_band="busy", profile="s1_chat", campaign_id="base",
                  profile_version=None, edges_ms=None):
