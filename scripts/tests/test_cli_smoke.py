@@ -80,6 +80,30 @@ def test_report_cli_rejects_malformed_corpus():
         assert "拒绝出报告" in r.stderr
 
 
+def test_report_cli_empty_corpus_not_executed():
+    """Zero records must be NOT_EXECUTED (exit 2), never a valid-looking empty
+    report (D-109)."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "empty.jsonl")
+        open(path, "w").close()
+        r = _run("campaign_report.py", path)
+        assert r.returncode == 2, r.stdout
+        assert "不产出空报告" in r.stderr
+
+
+def test_report_cli_conflicting_run_id_refused():
+    """One run_id with two different bodies = damaged corpus -> refuse (D-109)."""
+    with tempfile.TemporaryDirectory() as d:
+        recs = [contractify(r) for r in tier_records("metro", "n1_rtt_p50_ms", 20, 2)]
+        recs[1]["run"]["run_id"] = recs[0]["run"]["run_id"]
+        recs[1]["scenarios"][0]["kpi"]["n1_rtt_p50_ms"] = 999  # different body
+        path = os.path.join(d, "conflict.jsonl")
+        _write_jsonl(path, recs)
+        r = _run("campaign_report.py", path)
+        assert r.returncode == 1, r.stdout
+        assert "语料完整性 FAIL" in r.stderr
+
+
 def test_report_cli_skip_contract_check_escape_hatch():
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "bad.jsonl")

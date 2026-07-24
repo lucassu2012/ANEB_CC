@@ -556,10 +556,10 @@ ANEB 战役级报告 · stdlib-only 生成 · 标签约定见 docs/CAMPAIGN_LABE
 </div></body></html>"""
 
 
-def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
-                     stability_kpi="n1_rtt_p50_ms"):
-    """Dump the campaign tables as CSV for external analysis (Excel/pandas). Writes
-    <prefix>_heat.csv / _attribution.csv / _stability.csv. Returns the paths written.
+def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES):
+    """Dump the campaign tables as CSV for external analysis (Excel/pandas).
+    Covers the same KPI sets the rendered report shows — an analyst pulling only
+    the CSVs must not silently lose sections visible in the report (D-109).
     None values are emitted as empty cells (R-10: not fabricated to 0)."""
     def _cell(v):
         return "" if v is None else v
@@ -575,34 +575,35 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"]])
     written.append(p)
 
-    attr = attribution.attribute(records, min_samples=min_samples)
     p = prefix + "_attribution.csv"
     with open(p, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "kpi", "access",
                     "regional_incr", "core_incr", "end_to_end_core", "coverage",
                     "low_confidence", "not_computable_reason"])
-        for c in attr["cells"]:
-            cell = c["cell"]
-            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
-                        cell.get("profile_id"), attr["kpi"], _cell(c["access_component"]),
-                        _cell(c["regional_backbone_incr"]), _cell(c["core_backbone_incr"]),
-                        _cell(c["end_to_end_core"]), "|".join(c["coverage"]),
-                        c["low_confidence"], c["not_computable_reason"] or ""])
+        for k in attribution.ATTRIBUTABLE_KPIS:
+            attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
+            for c in attr["cells"]:
+                cell = c["cell"]
+                w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                            cell.get("profile_id"), attr["kpi"], _cell(c["access_component"]),
+                            _cell(c["regional_backbone_incr"]), _cell(c["core_backbone_incr"]),
+                            _cell(c["end_to_end_core"]), "|".join(c["coverage"]),
+                            c["low_confidence"], c["not_computable_reason"] or ""])
     written.append(p)
 
-    scells = stability.stability_cells(records, stability_kpi, min_samples=min_samples)
     p = prefix + "_stability.csv"
     with open(p, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "tier", "profile_id", "kpi", "n",
                     "median", "mean", "cv_percent", "unstable", "low_confidence"])
-        for c in scells:
-            cell = c["cell"]
-            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
-                        cell.get("tier"), cell.get("profile_id"), c["kpi"], c["n"],
-                        _cell(c["median"]), _cell(c["mean"]), _cell(c["cv_percent"]),
-                        c["unstable"], c["low_confidence"]])
+        for k in stability.DEFAULT_STABILITY_KPIS:
+            for c in stability.stability_cells(records, k, min_samples=min_samples):
+                cell = c["cell"]
+                w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                            cell.get("tier"), cell.get("profile_id"), c["kpi"], c["n"],
+                            _cell(c["median"]), _cell(c["mean"]), _cell(c["cv_percent"]),
+                            c["unstable"], c["low_confidence"]])
     written.append(p)
 
     # The sample denominator behind every median above (D-96) — external analysis
@@ -693,7 +694,28 @@ def main(argv):
 
     stats = {}
     recs, files = cc.load_records(args.inputs, stats=stats)
+    if not recs:
+        # Mirror validate_results/corpus_health: no corpus is NOT_EXECUTED (exit 2),
+        # never a valid-looking empty report (D-109).
+        print("无记录可报（文件缺失/全坏行/空输入）——不产出空报告（NOT_EXECUTED）",
+              file=sys.stderr)
+        return 2
     if not args.skip_contract_check:
+        # Corpus integrity first: a conflicting duplicate run_id (same id, two
+        # different bodies) or malformed lines mean the corpus itself is damaged —
+        # the silently-dropped copy could be the true one (D-109; corpus_health
+        # classifies both as ERROR).
+        integrity = []
+        if stats.get("conflicts"):
+            integrity.append(f"conflicting run_id × {len(stats['conflicts'])}: "
+                             + ", ".join(stats["conflicts"][:5]))
+        if stats.get("malformed"):
+            integrity.append(f"malformed lines × {stats['malformed']}")
+        if integrity:
+            print("语料完整性 FAIL：" + "；".join(integrity)
+                  + " —— 拒绝出报告（先用 corpus_health.py 诊断；"
+                    "确需强行出报告用 --skip-contract-check）", file=sys.stderr)
+            return 1
         errors = contract_gate(recs)
         if errors is None:
             print("⚠ 契约门未执行（schema 不可读）——本报告输入未经校验", file=sys.stderr)
