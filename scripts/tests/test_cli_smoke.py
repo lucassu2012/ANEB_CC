@@ -103,6 +103,22 @@ def test_stability_cli_runs():
         assert "复测稳定性" in r.stdout
 
 
+def test_analyze_results_cli_runs():
+    """Per-run layer entry point — never covered before (D-108)."""
+    with tempfile.TemporaryDirectory() as d:
+        r = _run("analyze_results.py", _fixture(d))
+        assert r.returncode == 0, r.stderr
+        assert "results summary" in r.stdout
+
+
+def test_dashboard_cli_runs():
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "dash.html")
+        r = _run("dashboard.py", _fixture(d), "-o", out)
+        assert r.returncode == 0, r.stderr
+        assert os.path.exists(out)
+
+
 def test_annotate_cli_runs():
     with tempfile.TemporaryDirectory() as d:
         f = _fixture(d)
