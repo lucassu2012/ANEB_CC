@@ -57,6 +57,7 @@ def inventory(records):
         "campaigns": Counter(), "points": Counter(),
         "carriers": Counter(), "time_bands": Counter(), "tiers": Counter(),
         "aqs_present": 0,
+        "statuses": Counter(),
     }
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -67,6 +68,10 @@ def inventory(records):
         inv["carriers"][labels["carrier"]] += 1
         inv["time_bands"][labels["time_band"]] += 1
         inv["tiers"][labels["tier"] or "unknown"] += 1
+        # `aborted:<reason>` buckets by the prefix; reasons stay in the raw record
+        status = cc.run_obj(rec).get("status")
+        inv["statuses"][(status.split(":", 1)[0] if isinstance(status, str) and status
+                         else "unknown")] += 1
         if cc.run_aqs(rec) is not None:
             inv["aqs_present"] += 1
     return inv
@@ -257,8 +262,16 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         f"- 运营商 carrier：{dict(inv['carriers'])}",
         f"- 时段 time_band：{dict(inv['time_bands'])}",
         f"- 服务层级 tier：{dict(inv['tiers'])}",
+        f"- run 状态 status：{dict(inv['statuses'])}",
         "",
     ]
+    # Aborted/unknown runs are SURFACED, never silently dropped (survey gap 4):
+    # their completed scenarios are real measurements and stay in scenario-level
+    # stats; an aborted run's AQS is typically null and never enters medians.
+    if set(inv["statuses"]) - {"completed"}:
+        parts.append("> ⚠ 存在非 `completed` run（见上行分布）——其已完成场景仍计入场景级统计"
+                     "（run 级 AQS 为 null 不进中位）；**只显性化，不静默剔除**。")
+        parts.append("")
     # Optional chain-of-custody block. Omitted (None) keeps the body deterministic
     # for the regression snapshot; the CLI injects a real manifest.
     if provenance is not None:

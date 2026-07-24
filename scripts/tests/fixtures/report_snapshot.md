@@ -10,6 +10,7 @@
 - 运营商 carrier：{'cmcc': 144}
 - 时段 time_band：{'busy': 72, 'idle': 72}
 - 服务层级 tier：{'metro': 48, 'regional': 48, 'core': 48}
+- run 状态 status：{'completed': 144}
 
 ## 点位 × 忙闲 × 运营商 热力卡（AQS 中位）
 

@@ -28,6 +28,28 @@ def test_low_confidence_cell():
     assert cells[0]["low_confidence"] is True
 
 
+def test_inventory_status_buckets_by_prefix():
+    recs = aqs_records(90, 3)
+    recs[1]["run"]["status"] = "aborted:timeout"
+    recs[2]["run"]["status"] = "aborted:user"
+    inv = rpt.inventory(recs)
+    # `aborted:<reason>` collapses to one bucket; reasons stay in raw records
+    assert inv["statuses"] == {"completed": 1, "aborted": 2}
+
+
+def test_report_surfaces_non_completed_runs():
+    recs = aqs_records(90, 5)
+    recs[0]["run"]["status"] = "aborted:timeout"
+    md = rpt.build_report_markdown(recs)
+    assert "run 状态 status" in md
+    assert "'aborted': 1" in md
+    assert "只显性化，不静默剔除" in md
+    # all-completed corpus carries the line but not the warning
+    md2 = rpt.build_report_markdown(aqs_records(90, 5))
+    assert "run 状态 status" in md2
+    assert "只显性化" not in md2
+
+
 def test_before_after_delta():
     recs = (aqs_records(70, 5, point="P1", time_band="busy", campaign_id="base")
             + aqs_records(85, 5, point="P1", time_band="busy", campaign_id="opt"))
