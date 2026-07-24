@@ -121,6 +121,31 @@ def test_mixed_histogram_edges_flagged():
     assert c["mixed_histogram_edges"] is True
 
 
+def test_mixed_mode_and_profile_source_flagged():
+    """Survey gap 9: quick vs forensic (repeat rigor) and server vs assets_fallback
+    (profile provenance) are non-comparable pools — flag, don't hide (D-113)."""
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 3)
+            + tier_records("metro", "n1_rtt_p50_ms", 20, 3)
+            + tier_records("core", "n1_rtt_p50_ms", 60, 5))
+    for r in recs[:3]:
+        r["run"]["mode"] = "forensic"
+        r["run"]["profile_source"] = "assets_fallback"
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["mixed_modes"] == ["forensic", "quick"]
+    assert c["mixed_profile_sources"] == ["assets_fallback", "server"]
+    md = attribution.render_markdown(attribution.attribute(recs))
+    assert "MIXED_MODE:forensic|quick" in md
+    assert "MIXED_PROFILE_SOURCE:assets_fallback|server" in md
+
+
+def test_homogeneous_mode_not_flagged():
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 5)
+            + tier_records("core", "n1_rtt_p50_ms", 60, 5))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["mixed_modes"] == []
+    assert c["mixed_profile_sources"] == []
+
+
 def test_mixed_flag_does_not_suppress_the_numbers():
     """The guard REPORTS incomparability; it must not silently drop the cell."""
     recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 3, profile_version="0.2")

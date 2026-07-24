@@ -402,6 +402,10 @@ def _attr_table_html(attr):
             notes.append("MIXED_PROFILE_VERSION:" + "|".join(c["mixed_profile_versions"]))
         if c.get("mixed_histogram_edges"):
             notes.append("MIXED_HIST_EDGES")
+        if c.get("mixed_modes"):
+            notes.append("MIXED_MODE:" + "|".join(c["mixed_modes"]))
+        if c.get("mixed_profile_sources"):
+            notes.append("MIXED_PROFILE_SOURCE:" + "|".join(c["mixed_profile_sources"]))
         if c["low_confidence"]:
             notes.append("low_conf")
         rows.append(

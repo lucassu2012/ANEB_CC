@@ -64,7 +64,9 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
             pid = scn.get("profile_id") or "?"
             key = _cell_key(labels, pid, group_by)
             cells.setdefault(key, {}).setdefault(tier, []).append(val)
-            cc.note_homogeneity(meta.setdefault(key, cc.homogeneity_acc()), scn)
+            acc = meta.setdefault(key, cc.homogeneity_acc())
+            cc.note_homogeneity(acc, scn)
+            cc.note_run_homogeneity(acc, rec)
     return cells, excluded_no_tier, meta
 
 
@@ -127,6 +129,9 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
         mixed_pv, mixed_edges = cc.mixed_flags(meta.get(key))
         entry["mixed_profile_versions"] = mixed_pv
         entry["mixed_histogram_edges"] = mixed_edges
+        mixed_modes, mixed_sources = cc.mixed_run_flags(meta.get(key))
+        entry["mixed_modes"] = mixed_modes
+        entry["mixed_profile_sources"] = mixed_sources
         results.append(entry)
     return {
         "kpi": kpi,
@@ -172,6 +177,10 @@ def render_markdown(result):
             notes.append("MIXED_PROFILE_VERSION:" + "|".join(c["mixed_profile_versions"]))
         if c.get("mixed_histogram_edges"):
             notes.append("MIXED_HIST_EDGES")
+        if c.get("mixed_modes"):
+            notes.append("MIXED_MODE:" + "|".join(c["mixed_modes"]))
+        if c.get("mixed_profile_sources"):
+            notes.append("MIXED_PROFILE_SOURCE:" + "|".join(c["mixed_profile_sources"]))
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"

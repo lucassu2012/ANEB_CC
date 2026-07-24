@@ -217,7 +217,28 @@ def histogram_edges(scn):
 
 def homogeneity_acc():
     """Fresh per-cell comparability accumulator (see note_homogeneity/mixed_flags)."""
-    return {"profile_versions": set(), "histogram_edges": set()}
+    return {"profile_versions": set(), "histogram_edges": set(),
+            "modes": set(), "profile_sources": set()}
+
+
+def note_run_homogeneity(acc, rec):
+    """Record one run's comparability signatures: run.mode (quick vs forensic =
+    different repeat rigor) and run.profile_source (server vs assets_fallback =
+    different profile provenance). Pooling across either mixes non-comparable
+    measurements — same error class the scenario-level signatures guard."""
+    run = rec.get("run") or {}
+    for field, dst in (("mode", "modes"), ("profile_source", "profile_sources")):
+        v = run.get(field)
+        if isinstance(v, str) and v:
+            acc[dst].add(v)
+
+
+def mixed_run_flags(acc):
+    """(mixed_modes:list, mixed_profile_sources:list) — empty when homogeneous."""
+    acc = acc or {}
+    modes = sorted(acc.get("modes") or [])
+    sources = sorted(acc.get("profile_sources") or [])
+    return (modes if len(modes) > 1 else []), (sources if len(sources) > 1 else [])
 
 
 def note_homogeneity(acc, scn):
