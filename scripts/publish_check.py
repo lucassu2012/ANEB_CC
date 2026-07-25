@@ -127,6 +127,18 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
+    # One label typed two ways splits a cell and the split is invisible in the
+    # rendered table — the operator is the only one who can say which it is (D-149)
+    coll = inv.get("label_collisions") or {}
+    if coll:
+        detail = "；".join(
+            f"{field}: " + " / ".join(v for _, vs in sorted(groups.items()) for v in vs)
+            for field, groups in sorted(coll.items()))
+        rows.append(_row(WARN, "标签同名异写", detail +
+                         "——被当作不同的格统计，**未自动合并**；确属同一对象请改语料重出报告"))
+    else:
+        rows.append(_row(PASS, "标签同名异写", "未见疑似同名异写的标签"))
+
     # The runbook's multi-campaign workflow is one report per campaign, with the
     # pooled one used only for the before/after section. Nothing until now
     # checked that the corpus being published was the single-campaign kind, so

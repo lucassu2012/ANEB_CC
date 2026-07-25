@@ -686,3 +686,41 @@ def test_modal_and_ranked_are_deterministic():
     assert cc.modal(Counter()) == (None, [])
     # ties in a display list order by key, never by insertion
     assert cc.ranked(Counter({"z": 2, "a": 2, "m": 5})) == [("m", 5), ("a", 2), ("z", 2)]
+
+
+def test_surrounding_whitespace_in_a_label_does_not_split_a_cell():
+    """A hand-typed label with a stray space is invisible in every rendering,
+    yet it split one point into two cells with half the samples each — both
+    flagged low_conf, and the coverage matrix reporting the planned cell as
+    never measured (D-149)."""
+    recs = (aqs_records(80, 3, point="SZ-CBD-01")
+            + aqs_records(80, 3, point="SZ-CBD-01 ")
+            + aqs_records(80, 3, point=" SZ-CBD-01"))
+    cells = rpt.heat_cells(recs)
+    assert len(cells) == 1
+    assert cells[0]["cell"]["point_id"] == "SZ-CBD-01"
+    assert cells[0]["n"] == 9
+    assert cells[0]["low_confidence"] is False
+    # an all-whitespace label is not a label
+    assert cc.campaign_labels({"run": {"campaign": {"point_id": "   "}}})["point_id"] \
+        == "unlabeled"
+
+
+def test_lookalike_labels_are_reported_not_merged():
+    """Case and full-width digits COULD be meaningful, so merging them would be
+    a judgement the tool is not entitled to make — it says so instead."""
+    recs = (aqs_records(80, 3, point="SZ-CBD-01")
+            + aqs_records(80, 3, point="sz-cbd-01")
+            + aqs_records(80, 3, point="SZ-CBD-\uff101"))     # full-width zero
+    assert len(rpt.heat_cells(recs)) == 3                     # not merged
+    coll = rpt.inventory(recs)["label_collisions"]
+    assert list(coll) == ["point_id"]
+    assert sorted(v for vs in coll["point_id"].values() for v in vs) == [
+        "SZ-CBD-01", "SZ-CBD-\uff101", "sz-cbd-01"]
+    md = rpt.build_report_markdown(recs)
+    assert "同名异写" in md
+    assert "这不是自动合并的" in md
+    # and a corpus with distinct labels must stay quiet
+    clean = aqs_records(80, 3, point="P1") + aqs_records(80, 3, point="P2")
+    assert not rpt.inventory(clean)["label_collisions"]
+    assert "同名异写" not in rpt.build_report_markdown(clean)

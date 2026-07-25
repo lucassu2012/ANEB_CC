@@ -20,6 +20,7 @@ import json
 import math
 import statistics
 import sys
+import unicodedata
 from collections import Counter, defaultdict  # noqa: F401 (re-exported for consumers)
 
 # ---- four-level grading colors (mirror dashboard.py / KpiGrading.kt) --------
@@ -356,6 +357,39 @@ def _canon(value, aliases):
     return aliases.get(value.strip().lower(), value.strip().lower())
 
 
+def _label(v):
+    """Hand-typed label -> stripped string, or the explicit unlabeled bucket."""
+    return v.strip() if isinstance(v, str) and v.strip() else "unlabeled"
+
+
+def _label_key(v):
+    """Normalised form used ONLY to spot labels that are probably the same one
+    typed differently: NFKC (full-width digits fold to ASCII), case-folded,
+    internal whitespace collapsed. Never used as a grouping key — merging on it
+    would be a judgement the tool is not entitled to make."""
+    return " ".join(unicodedata.normalize("NFKC", str(v)).casefold().split())
+
+
+def label_collisions(records, fields=("point_id", "campaign_id", "carrier", "time_band")):
+    """{field: {normalised: [variants]}} for labels that look like the same one.
+
+    A typo that survives stripping — `SZ-CBD-01` vs `sz-cbd-01`, or a full-width
+    digit — silently splits a cell in two, and the report cannot show the
+    difference because the rendered strings look alike. Reported, not merged.
+    """
+    seen = {f: {} for f in fields}
+    for rec in records:
+        labels = campaign_labels(rec)
+        for f in fields:
+            v = labels.get(f)
+            if v is None:
+                continue
+            seen[f].setdefault(_label_key(v), set()).add(v)
+    return {f: {k: sorted(vs) for k, vs in groups.items() if len(vs) > 1}
+            for f, groups in seen.items()
+            if any(len(vs) > 1 for vs in groups.values())}
+
+
 def campaign_labels(rec):
     """Extract grouping labels from the OPTIONAL run.campaign block, with graceful
     degradation (docs/CAMPAIGN_LABELS_CONVENTION.md §2.1). tier stays None when
@@ -367,9 +401,16 @@ def campaign_labels(rec):
     carrier = _canon(c.get("carrier"), _CARRIER_ALIASES) or "unknown"
     time_band = c.get("time_band")
     return {
-        "campaign_id": c.get("campaign_id") or "unlabeled",
+        # Surrounding whitespace in a hand-typed label has no legitimate meaning
+        # and is invisible in every rendering, yet it splits one point into two
+        # cells with half the samples each, both flagged low_conf, while the
+        # coverage matrix reports the planned cell missing (D-149). Stripped
+        # here, like time_band already was. Differences that COULD be meaningful
+        # (case, full-width digits) are reported by label_collisions instead of
+        # being merged behind the operator's back.
+        "campaign_id": _label(c.get("campaign_id")),
         "tier": tier,
-        "point_id": c.get("point_id") or "unlabeled",
+        "point_id": _label(c.get("point_id")),
         "carrier": carrier,
         "time_band": time_band.strip().lower() if isinstance(time_band, str) and time_band.strip()
         else "unknown",

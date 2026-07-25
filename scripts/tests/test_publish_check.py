@@ -163,3 +163,12 @@ def test_pooled_campaigns_are_flagged_for_publication():
 def test_single_campaign_is_not_flagged():
     recs = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
     assert _sev(pc.check(recs), "战役池化") == pc.PASS
+
+
+def test_lookalike_labels_are_warned_before_publication():
+    recs = [contractify(r) for r in
+            (aqs_records(80, 3, point="SZ-CBD-01") + aqs_records(80, 3, point="sz-cbd-01"))]
+    assert _sev(pc.check(recs), "标签同名异写") == pc.WARN
+    assert "未自动合并" in _detail(pc.check(recs), "标签同名异写")
+    clean = [contractify(r) for r in aqs_records(80, 3, point="SZ-CBD-01")]
+    assert _sev(pc.check(clean), "标签同名异写") == pc.PASS

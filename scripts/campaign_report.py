@@ -93,6 +93,9 @@ def inventory(records):
             inv["last_ms"] = started if inv["last_ms"] is None else max(inv["last_ms"], started)
         if cc.run_aqs(rec) is not None:
             inv["aqs_present"] += 1
+    # labels that are probably one label typed two ways: they split a cell in
+    # two and the split is invisible in the rendered table (D-149)
+    inv["label_collisions"] = cc.label_collisions(records)
     return inv
 
 
@@ -114,6 +117,13 @@ def corpus_warnings(inv):
     so the HTML deliverable silently lacked every one of them (D-140).
     """
     out = []
+    for field, groups in sorted((inv.get("label_collisions") or {}).items()):
+        shown = "；".join(
+            " / ".join(f"`{v}`" for v in variants) for _, variants in sorted(groups.items()))
+        out.append(f"**{field} 标签疑似同名异写**：{shown}。"
+                   "它们被当作**不同的格**统计（各分走一部分样本，可能都因此被标 `low_conf`），"
+                   "而渲染出来几乎看不出区别。**这不是自动合并的**——"
+                   "确属同一对象请回改语料后重出报告，确属不同对象请改成可区分的名字。")
     ver_mixed = []
     for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
                        ("profile_version_sets", "profile_versions"),
