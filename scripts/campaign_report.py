@@ -347,6 +347,14 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        "、".join(f"{k} {v} 格" for k, v in cc.ranked(verdict))
                        + f"（{len(labeled)} 个战役）。" if verdict else
                        "**纵向趋势**：各格在场点不足 2，方向不可计算。")
+    else:
+        # Every other signal says something even with no data ("无 transport
+        # 证据（覆盖缺口）"). This one used to vanish, so the reader could not
+        # tell a single-round corpus from a signal that got dropped (D-152).
+        bullets.append(f"**优化前后**：本轮仅 {len(labeled) or '0'} 个战役，无前后可比"
+                       "——「有没有变好」本轮**无法回答**（需第二轮在同样的格上复测）。"
+                       if labeled else
+                       "**优化前后**：语料无战役标签，无法判断轮次——先补注再看此项。")
 
     lines += [f"- {b}" for b in bullets]
     lines += ["", "> 以上为下方各段的**指路**，证据与完整表格见对应段落；"

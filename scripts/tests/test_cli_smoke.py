@@ -100,7 +100,7 @@ def test_report_cli_campaign_filter_gives_a_clean_single_round():
         with open(md_path, encoding="utf-8") as fh:
             md = fh.read()
         assert "MIXED_CAMPAIGN" not in md          # single round: nothing pooled
-        assert "个战役" not in md
+        assert "本语料含" not in md          # the pooling notice, not any mention of 战役
         assert "| 55 |" in md                      # the baseline's own median
 
 

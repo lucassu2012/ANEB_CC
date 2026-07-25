@@ -501,7 +501,7 @@ def test_single_campaign_carries_no_mixing_flag():
     md = rpt.build_report_markdown(aqs_records(90, 6, campaign_id="base"))
     assert rpt.heat_cells(aqs_records(90, 6))[0]["mixed_campaigns"] == []
     assert "MIXED_CAMPAIGN" not in md
-    assert "个战役" not in md
+    assert "本语料含" not in md          # the pooling notice, not any mention of 战役
 
 
 def test_csv_opens_correctly_in_excel_with_cjk_labels():
@@ -724,3 +724,29 @@ def test_lookalike_labels_are_reported_not_merged():
     clean = aqs_records(80, 3, point="P1") + aqs_records(80, 3, point="P2")
     assert not rpt.inventory(clean)["label_collisions"]
     assert "同名异写" not in rpt.build_report_markdown(clean)
+
+
+def test_summary_signal_count_is_the_same_for_every_corpus_shape():
+    """Every other signal says something even with no data ("无 transport 证据
+    （覆盖缺口）"). The did-it-improve one used to vanish on a single-round
+    corpus, so a reader could not tell that shape from a dropped signal — and
+    the deliverable skeleton takes its opening section from this list (D-152)."""
+    import synth_campaign as sc
+    shapes = {
+        "single": sc.generate(points=2, repeats=2, campaigns=("base",),
+                              carriers=("cmcc",), time_bands=("busy",), tiers=("metro",)),
+        "two": sc.generate(points=2, repeats=2, campaigns=("base", "opt"),
+                           carriers=("cmcc",), time_bands=("busy",), tiers=("metro",)),
+        "three": sc.generate(points=2, repeats=2, campaigns=("base", "opt", "r3"),
+                             carriers=("cmcc",), time_bands=("busy",), tiers=("metro",)),
+    }
+    counts = {}
+    for name, recs in shapes.items():
+        summary = rpt.render_summary_markdown(recs)
+        counts[name] = sum(1 for ln in summary.splitlines() if ln.startswith("- **"))
+    assert len(set(counts.values())) == 1, counts
+    single = rpt.render_summary_markdown(shapes["single"])
+    assert "无法回答" in single                      # says so, rather than going quiet
+    # an unlabelled corpus still gets the signal, pointing at the fix
+    plain = rpt.render_summary_markdown([make_record(aqs=80, scenarios=[]) for _ in range(3)])
+    assert "先补注" in plain
