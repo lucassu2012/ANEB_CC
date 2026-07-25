@@ -23,7 +23,7 @@
 - **批化失真热点**：1 个 —— P1/cmcc/busy。
 - **测量可信度**：无 clock/seq/parse 证据（覆盖缺口，非全部可信）。
 - **有效率**：全部达门（≥80%）。
-- **复测稳定性**：12 个单元全部达门。
+- **复测稳定性**：24 个单元全部达门。
 - **接入介质**：无 transport 证据（覆盖缺口）。
 - **分数侧归因**（拖累维度）：N2 4 格；最低 P1/cmcc/busy·N2=82。
 - **优化前后**（base → opt）：4 个共同格中 4 个 Δ 超出噪声——改善 4、回退 0、持平 0；AQS 中位Δ 12。
@@ -56,18 +56,30 @@
 
 | 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |
 |---|---|---|---|---|---|---|
-| point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 12 | 65 | 65 | 0 | 稳定 | — |
-| point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 12 | 20 | 20 | 0 | 稳定 | — |
-| point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 12 | 38 | 38 | 0 | 稳定 | — |
-| point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 12 | 65 | 65 | 0 | 稳定 | — |
-| point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 12 | 20 | 20 | 0 | 稳定 | — |
-| point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 12 | 38 | 38 | 0 | 稳定 | — |
-| point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 12 | 65 | 65 | 0 | 稳定 | — |
-| point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 12 | 20 | 20 | 0 | 稳定 | — |
-| point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 12 | 38 | 38 | 0 | 稳定 | — |
-| point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 12 | 65 | 65 | 0 | 稳定 | — |
-| point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 12 | 20 | 20 | 0 | 稳定 | — |
-| point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 12 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
 
 ## 序位效应诊断（n1_rtt_p50_ms；拉丁方反平衡是否奏效）
 

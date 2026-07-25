@@ -401,14 +401,11 @@ def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_S
         am = a["aqs_median"] if a else None
         delta = (am - bm) if (bm is not None and am is not None) else None
         # Indicative noise scale for the delta, so a change smaller than the
-        # measurement spread is not read as a finding (D-144). SE(median) ~
-        # 1.253*sd/sqrt(n) under a normal approximation; the difference of two
-        # medians adds in quadrature. Latency is right-skewed, so this is an
-        # ORDER-OF-MAGNITUDE guide, NOT a significance test — the renderer says so.
+        # measurement spread is not read as a finding (D-144). The difference of
+        # two medians adds in quadrature; cc owns the SE constant so this and the
+        # sample-size planning side cannot drift apart.
         def _se(cell):
-            if not cell or cell["stdev"] is None or not cell["n"]:
-                return None
-            return 1.253 * cell["stdev"] / (cell["n"] ** 0.5)
+            return cc.median_se(cell["stdev"], cell["n"]) if cell else None
         se_b, se_a = _se(b), _se(a)
         noise = ((se_b ** 2 + se_a ** 2) ** 0.5) if (se_b is not None and se_a is not None) else None
         rows.append({
@@ -998,12 +995,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     p = prefix + "_stability.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
-        w.writerow(["point_id", "carrier", "time_band", "tier", "profile_id", "kpi", "n",
-                    "median", "mean", "cv_percent", "unstable", "low_confidence"])
+        # campaign_id leads the key (D-145): without it two campaigns emit rows
+        # identical in every other column and an analyst cannot tell them apart
+        w.writerow(["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id",
+                    "kpi", "n", "median", "mean", "cv_percent", "unstable", "low_confidence"])
         for k in stability.DEFAULT_STABILITY_KPIS:
             for c in stability.stability_cells(records, k, min_samples=min_samples):
                 cell = c["cell"]
-                w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                w.writerow([cell.get("campaign_id"),
+                            cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             cell.get("tier"), cell.get("profile_id"), c["kpi"], c["n"],
                             _cell(c["median"]), _cell(c["mean"]), _cell(c["cv_percent"]),
                             c["unstable"], c["low_confidence"]])

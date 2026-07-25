@@ -358,6 +358,38 @@ def stdev(vals):
     return statistics.stdev(vals) if len(vals) > 1 else None
 
 
+# Normal-approximation factor for the standard error of a median. Latency is
+# right-skewed, so everything derived from it is an ORDER-OF-MAGNITUDE guide,
+# not a significance test — every renderer that shows a derived number says so.
+# It lives here because the reading side (D-144 noise scale) and the planning
+# side (how many repeats to run) must never disagree about the constant.
+MEDIAN_SE_FACTOR = 1.253
+
+
+def median_se(sd, n):
+    """Standard error of the median, or None when spread or n is unknown."""
+    if sd is None or not n:
+        return None
+    return MEDIAN_SE_FACTOR * sd / (n ** 0.5)
+
+
+def min_detectable_effect(sd, n):
+    """Smallest difference between two same-sized cells that would clear the
+    noise scale at this spread — i.e. what the sample actually resolves.
+    None when spread is unknown (never 0, which would read as 'resolves
+    everything')."""
+    se = median_se(sd, n)
+    return se * math.sqrt(2.0) if se is not None else None
+
+
+def required_n(sd, effect):
+    """Repeats per side needed before a difference of `effect` clears the noise
+    scale. None when spread is unknown or the target effect is not positive."""
+    if sd is None or effect is None or effect <= 0:
+        return None
+    return int(math.ceil(2.0 * (MEDIAN_SE_FACTOR * sd / effect) ** 2))
+
+
 def mean(vals):
     vals = [v for v in vals if v is not None]
     return statistics.fmean(vals) if vals else None

@@ -48,10 +48,16 @@ python attribution.py field_labeled.jsonl --kpi n1_rtt_p50_ms
 `接入=median(metro)`、`区域骨干+=median(regional)−median(metro)`、`核心骨干+=median(core)−median(regional)`。
 缺层记 coverage 不外推；负增量记 `inversion` 不清零；`--kpi n1_rtt_p50_ms|t1_ttft_ms`。
 
-### `stability.py` — 复测变异系数（CV）门
-按 (点位,运营商,时段,**层级**,profile) 算 `CV% = 样本 stdev/mean×100`，超门（默认 10%，
+### `stability.py` — 复测变异系数（CV）门 / 采样量核算
+按 (**战役**,点位,运营商,时段,**层级**,profile) 算 `CV% = 样本 stdev/mean×100`，超门（默认 10%，
 对齐计划 §6 M1 验收）标 `unstable`。<2 样本 / |mean|≈0 → CV 不可计算（`None`）。
+战役与层级同理都在键内：复测是针对**同一条件**的重复，混池会把战役间的真实变化当成测量噪声。
 `--kpi`、`--cv-gate`。
+
+`--plan [PCT]`（默认 5）换成**采样量核算**：以实测离散度给出该单元当前**可辨最小差异**
+（√2·1.253·sd/√n，与报告的噪声尺度同一常量）及达到目标所需的每侧复测数。
+**外场用法**：测完第一个点位当天跑一次——网格提案按 CV≈5% 定的 n=5，实测离散度大就得加复测，
+而这时还改得动采集计划（噪声尺度只能在事后告诉你 Δ 已经淹了）。离散度不可估的单元留 `—`。
 
 ### `buffering_rollup.py` — 批化归因（取证/失真核算）
 按 (点位,运营商,时段) 汇总 `scenarios[].buffering`：众数归因、批化分/sawtooth/近零到达中位、
