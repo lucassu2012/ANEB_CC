@@ -67,6 +67,12 @@ def inventory(records):
         # measurement window — the deliverable states when the data was collected,
         # and a reader cannot judge a heat card without knowing that (D-138)
         "first_ms": None, "last_ms": None,
+        # who put the grouping labels there: declared by the operator, or
+        # inferred by a rule of thumb? time_band is a heat-card dimension and a
+        # standard finding ("忙时比闲时差 N 分"), so this decides how much that
+        # finding is worth (D-153). Written by annotate_campaign, read by no one
+        # until now.
+        "label_sources": Counter(),
     }
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -93,6 +99,8 @@ def inventory(records):
             inv["last_ms"] = started if inv["last_ms"] is None else max(inv["last_ms"], started)
         if cc.run_aqs(rec) is not None:
             inv["aqs_present"] += 1
+        src = (cc.run_obj(rec).get("campaign") or {}).get("label_source")
+        inv["label_sources"][src if isinstance(src, str) and src else "declared"] += 1
     # labels that are probably one label typed two ways: they split a cell in
     # two and the split is invisible in the rendered table (D-149)
     inv["label_collisions"] = cc.label_collisions(records)
@@ -124,6 +132,14 @@ def corpus_warnings(inv):
                    "它们被当作**不同的格**统计（各分走一部分样本，可能都因此被标 `low_conf`），"
                    "而渲染出来几乎看不出区别。**这不是自动合并的**——"
                    "确属同一对象请回改语料后重出报告，确属不同对象请改成可区分的名字。")
+    inferred_tb = sum(n for src, n in (inv.get("label_sources") or {}).items()
+                      if "inferred:time_band" in src)
+    if inferred_tb:
+        total = sum((inv.get("label_sources") or {}).values()) or 1
+        out.append(f"**`time_band` 有 {inferred_tb}/{total} 条是工具推断的**"
+                   "（按 `started_at_epoch_ms` 的本地小时,非现场记录;规则与所用时区偏移见"
+                   "「覆盖盘点」的 `label_source`）。忙闲差异的结论**须注明这一点**——"
+                   "推断错时段会把两类流量混在一起,而表面上看不出来。")
     ver_mixed = []
     for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
                        ("profile_version_sets", "profile_versions"),
@@ -624,6 +640,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         f"- 服务层级 tier：{dict(cc.ranked(inv['tiers']))}",
         f"- run 状态 status：{dict(cc.ranked(inv['statuses']))}",
         f"- profile 版本：{dict(cc.ranked(inv['profile_version_sets']))}",
+        f"- 标签来源 label_source：{dict(cc.ranked(inv['label_sources']))}",
         f"- 采集时间窗：{_utc_stamp(inv['first_ms']) or '—'} → "
         f"{_utc_stamp(inv['last_ms']) or '—'}"
         + ("" if inv["first_ms"] is not None else "（记录缺 started_at_epoch_ms）"),

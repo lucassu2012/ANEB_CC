@@ -12,6 +12,7 @@
 - 服务层级 tier：{'core': 48, 'metro': 48, 'regional': 48}
 - run 状态 status：{'completed': 144}
 - profile 版本：{'t': 144}
+- 标签来源 label_source：{'declared': 144}
 - 采集时间窗：2026-07-13 12:00 UTC → 2026-07-13 12:00 UTC
 
 > ⚠ 本语料含 **2 个战役**（base, opt）。除「优化前后对比」/「纵向趋势」两段外，**各段均按格池化了所有战役**——受影响的格标 `MIXED_CAMPAIGN`，其中位数**既不是前也不是后**。要看单个战役，用 `--campaign <id>`。

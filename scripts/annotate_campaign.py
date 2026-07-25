@@ -72,7 +72,11 @@ def annotate_record(rec, uniform=None, mapping=None, infer_tb=False,
     if infer_tb:
         tb = infer_time_band(run.get("started_at_epoch_ms"), tz_offset_h)
         if tb is not None:
-            layer([("time_band", tb)], "inferred:time_band")
+            # The offset is the operator-varying half of the rule: two people
+            # running with different --tz-offset produce differently labelled
+            # corpora, and time_band is a heat-card dimension (D-153).
+            sign = "+" if tz_offset_h >= 0 else "-"
+            layer([("time_band", tb)], f"inferred:time_band(tz={sign}{abs(tz_offset_h)})")
 
     if used:
         prior = [final["label_source"]] if final.get("label_source") else []

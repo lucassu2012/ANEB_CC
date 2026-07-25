@@ -89,3 +89,20 @@ def test_no_labels_no_change():
     out, changed = ann.annotate([_rec()])  # no uniform/map/infer
     assert changed == 0
     assert not out[0]["run"].get("campaign")
+
+
+def test_inferred_time_band_records_the_offset_it_used():
+    """time_band is a heat-card dimension, and two operators running with
+    different --tz-offset produce differently labelled corpora. The rule has to
+    travel with the data (D-153)."""
+    from synth import make_record
+    recs = [make_record(campaign={"campaign_id": "base", "point_id": "P1",
+                                  "carrier": "cmcc", "tier": "metro"},
+                        aqs=80, scenarios=[], started_ms=1783944000000)]
+    out, _ = ann.annotate([dict(r) for r in recs], infer_tb=True)
+    assert "inferred:time_band(tz=+8)" in out[0]["run"]["campaign"]["label_source"]
+    out2, _ = ann.annotate([dict(r) for r in recs], infer_tb=True, tz_offset_h=-5)
+    assert "inferred:time_band(tz=-5)" in out2[0]["run"]["campaign"]["label_source"]
+    # and the two offsets really can disagree about the band
+    assert (out[0]["run"]["campaign"]["time_band"]
+            != out2[0]["run"]["campaign"]["time_band"])

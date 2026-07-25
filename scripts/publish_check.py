@@ -127,6 +127,18 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
+    # A heat-card dimension filled by a rule of thumb is not the same evidence
+    # as one recorded on site, and the report says "busy is N points worse than
+    # idle" either way (D-153)
+    inferred_tb = sum(n for src, n in (inv.get("label_sources") or {}).items()
+                      if "inferred:time_band" in src)
+    if inferred_tb:
+        rows.append(_row(WARN, "标签来源",
+                         f"{inferred_tb}/{inv['records']} 条的 time_band 由工具按本地小时推断"
+                         "（非现场记录）——忙闲结论须在正文注明推断口径"))
+    else:
+        rows.append(_row(PASS, "标签来源", "无推断得到的分组标签"))
+
     # One label typed two ways splits a cell and the split is invisible in the
     # rendered table — the operator is the only one who can say which it is (D-149)
     coll = inv.get("label_collisions") or {}

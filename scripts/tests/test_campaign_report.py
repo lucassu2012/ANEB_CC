@@ -750,3 +750,27 @@ def test_summary_signal_count_is_the_same_for_every_corpus_shape():
     # an unlabelled corpus still gets the signal, pointing at the fix
     plain = rpt.render_summary_markdown([make_record(aqs=80, scenarios=[]) for _ in range(3)])
     assert "先补注" in plain
+
+
+def _inferred_band_records(n=6):
+    import annotate_campaign as ann
+    recs = [make_record(campaign={"campaign_id": "base", "point_id": "P1",
+                                  "carrier": "cmcc", "tier": "metro"},
+                        aqs=80, scenarios=[], started_ms=1783944000000 + i * 3600000)
+            for i in range(n)]
+    out, _ = ann.annotate(recs, infer_tb=True)
+    return out
+
+
+def test_report_says_when_a_grouping_label_was_inferred():
+    """label_source was written by annotate_campaign and read by nothing, so the
+    report could not tell a time_band recorded on site from one a rule of thumb
+    guessed — while still reporting "busy is N points worse than idle" (D-153)."""
+    md = rpt.build_report_markdown(_inferred_band_records())
+    assert "标签来源 label_source" in md
+    assert "工具推断的" in md
+    assert "忙闲差异的结论" in md
+    # a declared corpus stays quiet
+    plain = rpt.build_report_markdown(aqs_records(80, 6))
+    assert "标签来源 label_source" in plain          # the line is always there
+    assert "工具推断的" not in plain                 # the warning is not

@@ -190,3 +190,15 @@ def test_every_check_item_appears_for_every_corpus_shape():
     items_single = {r["item"] for r in pc.check(single)}
     items_multi = {r["item"] for r in pc.check(multi)}
     assert items_single == items_multi, items_single ^ items_multi
+
+
+def test_inferred_time_band_is_warned_before_publication():
+    import annotate_campaign as ann
+    recs = [contractify(make_record(
+        campaign={"campaign_id": "base", "point_id": "P1", "carrier": "cmcc",
+                  "tier": "metro"}, aqs=80, scenarios=[],
+        started_ms=1783944000000 + i * 3600000)) for i in range(6)]
+    out, _ = ann.annotate(recs, infer_tb=True)
+    assert _sev(pc.check(out), "标签来源") == pc.WARN
+    assert "非现场记录" in _detail(pc.check(out), "标签来源")
+    assert _sev(pc.check(_clean()), "标签来源") == pc.PASS
