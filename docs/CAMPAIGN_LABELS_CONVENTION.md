@@ -76,7 +76,12 @@ core_backbone_incr      = median(RTT_core)    − median(RTT_regional) # 核心�
   - 每层级样本 < `MIN_SAMPLES`（默认 5）→ 该格 `low_confidence`。
   - `claim_scope` 恒为 `application_end_to_end_to_probe_node`：归因是**应用层路径分段**，**不表述为**无线层评级/运营商全网 SLA/MOS。
 
-## 4. 生产接线（后续 spec-first 交接，本轮不做）
+## 4. 生产接线
+
+> **可实施规格已就绪** → [`CAMPAIGN_LABELS_WIRING_SPEC.md`](CAMPAIGN_LABELS_WIRING_SPEC.md)
+> （v1.0，2026-07-25）：含可直接粘贴的 schema 片段、Room 15→16 加性迁移、ResultReporter
+> 条件写入写法、P1a 采集与溯源标记要求、6 条验收标准、5 条陷阱清单。
+> 本节保留为概览；实施细节以该规格为准。
 
 分析层就绪后，让真实 run 携带 `run.campaign` 需要（按铁律"先改 spec、后动代码"）：
 
