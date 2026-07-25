@@ -127,6 +127,20 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
+    # The runbook's multi-campaign workflow is one report per campaign, with the
+    # pooled one used only for the before/after section. Nothing until now
+    # checked that the corpus being published was the single-campaign kind, so
+    # publishing pooled headline numbers was a one-command mistake (D-147).
+    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    if len(labeled) > 1:
+        rows.append(_row(WARN, "战役池化",
+                         f"本语料含 {len(labeled)} 个战役（{', '.join(labeled)}）——"
+                         "除「优化前后对比」/「纵向趋势」外各段均按格池化，其中位数"
+                         "**既不是前也不是后**；头条数字须取自 `--campaign <id>` 的单战役报告"))
+    else:
+        rows.append(_row(PASS, "战役池化",
+                         f"单战役（{labeled[0]}）" if labeled else "无战役标签，无池化风险"))
+
     # "It got better" is the claim a second round exists to make. Publishing it
     # when every cell's Δ sits inside the measurement noise is the failure mode
     # this check is here to catch (D-144).

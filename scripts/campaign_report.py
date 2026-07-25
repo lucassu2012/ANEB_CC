@@ -959,6 +959,24 @@ ANEB 战役级报告 · stdlib-only 生成 · 标签约定见 docs/CAMPAIGN_LABE
 CSV_ENCODING = "utf-8-sig"
 
 
+def campaigns_by_cell(records, dims=HEAT_DIMS):
+    """Cells that pool more than one campaign -> the campaign ids they pool.
+
+    The heat card and the attribution matrix track this themselves; the rollups
+    keyed on the same dimensions do not. Markdown and HTML carry the corpus-wide
+    notice (D-140), but CSV has no banners — an analyst filtering a rollup table
+    would see a median that is neither the before nor the after and nothing to
+    say so (D-141). Derived from the records rather than from heat cells so a
+    cell without AQS still gets marked.
+    """
+    acc = {}
+    for rec in records:
+        labels = cc.campaign_labels(rec)
+        key = tuple(labels.get(d) or "unlabeled" for d in dims)
+        acc.setdefault(key, set()).add(labels.get("campaign_id") or "unlabeled")
+    return {k: sorted(v) for k, v in acc.items() if len(v) > 1}
+
+
 def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                      before_id=None, after_id=None):
     """Dump the campaign tables as CSV for external analysis (Excel/pandas).
@@ -970,6 +988,14 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     written = []
     heat = heat_cells(records, min_samples)
+    # cells pooling more than one campaign, for the rollup tables that do
+    # not track it themselves (D-147)
+    mixed_by_cell = campaigns_by_cell(records)
+
+    def _mixed(cell):
+        return "/".join(mixed_by_cell.get(
+            tuple(cell.get(d) or "unlabeled" for d in HEAT_DIMS), []))
+
     p = prefix + "_heat.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
@@ -1059,14 +1085,14 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "attempted", "valid",
                     "valid_low_confidence", "invalid", "unknown", "valid_rate",
-                    "below_min_rate", "reasons"])
+                    "below_min_rate", "reasons", "mixed_campaigns"])
         for c in vcells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                         cell.get("profile_id"), c["attempted"], c["valid"],
                         c["valid_low_confidence"], c["invalid"], c["unknown"],
                         _cell(c["valid_rate"]), _cell(c["below_min_rate"]),
-                        ";".join(f"{r}:{n}" for r, n in c["reasons"].items())])
+                        ";".join(f"{r}:{n}" for r, n in c["reasons"].items()), _mixed(cell)])
     written.append(p)
 
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]
@@ -1074,13 +1100,14 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "runs", "dragging_dim",
-                    "dragging_median", "spread", "low_confidence", "dim_medians"])
+                    "dragging_median", "spread", "low_confidence", "dim_medians",
+                    "mixed_campaigns"])
         for c in sscells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                         c["runs"], _cell(c["dragging_dim"]), _cell(c["dragging_median"]),
                         _cell(c["spread"]), c["low_confidence"],
-                        ";".join(f"{d}:{v['median']}" for d, v in c["dims"].items())])
+                        ";".join(f"{d}:{v['median']}" for d, v in c["dims"].items()), _mixed(cell)])
     written.append(p)
 
     ucells = trust_rollup.analyze(records, min_samples)["cells"]
@@ -1090,7 +1117,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w.writerow(["point_id", "carrier", "time_band", "scenarios", "clock_annotated",
                     "clock_suspect", "clock_suspect_share", "abs_drift_ppm_median",
                     "stream_counted", "stream_bad", "parse_per_event_us_median",
-                    "clock_hotspot", "low_confidence"])
+                    "clock_hotspot", "low_confidence", "mixed_campaigns"])
         for c in ucells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
@@ -1098,7 +1125,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         _cell(c["clock_suspect_share"]), _cell(c["abs_drift_ppm_median"]),
                         c["stream_counted"], c["stream_bad"],
                         _cell(c["parse_per_event_us_median"]), c["clock_hotspot"],
-                        c["low_confidence"]])
+                        c["low_confidence"], _mixed(cell)])
     written.append(p)
 
     tcells = transport_rollup.analyze(records, min_samples)["cells"]
@@ -1106,14 +1133,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "transport", "n", "aqs_median",
-                    "low_confidence", "cellular_minus_wifi"])
+                    "low_confidence", "cellular_minus_wifi", "mixed_campaigns"])
         for c in tcells:
             cell = c["cell"]
             for t in sorted(c["transports"]):
                 b = c["transports"][t]
                 w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             t, b["n"], _cell(b["aqs_median"]), b["low_confidence"],
-                            _cell(c["cellular_minus_wifi"]) if t == "cellular" else ""])
+                            _cell(c["cellular_minus_wifi"]) if t == "cellular" else "",
+                            _mixed(cell)])
     written.append(p)
 
     # The headline "did it get better" payloads (survey gap 6): before/after delta
@@ -1156,14 +1184,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "n", "modal_attribution",
                     "score_median", "sawtooth_median", "near_zero_median",
-                    "suspect_share", "distortion_hotspot", "low_confidence"])
+                    "suspect_share", "distortion_hotspot", "low_confidence",
+                    "mixed_campaigns"])
         for c in bcells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                         c["n"], c["modal_attribution"], _cell(c["score_median"]),
                         _cell(c["sawtooth_median"]), _cell(c["near_zero_median"]),
                         _cell(c["suspect_share"]), c["distortion_hotspot"],
-                        c["low_confidence"]])
+                        c["low_confidence"], _mixed(cell)])
     written.append(p)
     return written
 

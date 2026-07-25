@@ -150,3 +150,16 @@ def test_rows_sorted_most_severe_first():
     sev = [r["severity"] for r in pc.check(sc.generate(**SYNTH_SMALL))]
     rank = {pc.FAIL: 0, pc.WARN: 1, pc.PASS: 2}
     assert sev == sorted(sev, key=lambda s: rank[s])
+
+
+def test_pooled_campaigns_are_flagged_for_publication():
+    """The runbook's workflow is one report per campaign; nothing checked that
+    the corpus being published was that kind (D-147)."""
+    rows = pc.check(_two_campaigns([70, 72, 74, 71, 73], [80, 82, 84, 81, 83]))
+    assert _sev(rows, "战役池化") == pc.WARN
+    assert "既不是前也不是后" in _detail(rows, "战役池化")
+
+
+def test_single_campaign_is_not_flagged():
+    recs = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
+    assert _sev(pc.check(recs), "战役池化") == pc.PASS

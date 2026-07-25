@@ -562,3 +562,47 @@ def test_summary_says_no_problem_not_no_data_when_clean():
     assert bullets["时钟可疑热点"].endswith("无。")
     # transport genuinely has no evidence -> must say so, NOT "no problem"
     assert "覆盖缺口" in bullets["接入介质"]
+
+
+def _rollup_csv(tmp_prefix, table):
+    import csv as csvmod
+    with open(tmp_prefix + f"_{table}.csv", encoding="utf-8-sig") as f:
+        return list(csvmod.DictReader(f))
+
+
+def test_rollup_csvs_mark_pooled_campaigns():
+    """CSV has no banners: an analyst filtering a rollup table would otherwise
+    see a median that is neither the before nor the after (D-141/147).
+
+    Uses the rehearsal generator because these five tables need validity,
+    sub_scores, clock, transport and buffering blocks — a thinner fixture makes
+    the tables empty and the test pass for the wrong reason.
+    """
+    import os
+    import tempfile
+    import synth_campaign as sc
+    recs = sc.generate(points=2, repeats=2, campaigns=("base", "opt"),
+                       carriers=("cmcc",), time_bands=("busy",), tiers=("metro",))
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        for table in ("validity", "subscores", "trust", "transport", "buffering"):
+            rows = _rollup_csv(prefix, table)
+            assert rows, f"{table} produced no rows"
+            assert all(r["mixed_campaigns"] == "SYNTH-base/SYNTH-opt" for r in rows), table
+
+
+def test_single_campaign_rollup_csvs_are_unmarked():
+    """A flag that fires on clean corpora trains people to ignore it (D-134)."""
+    import os
+    import tempfile
+    import synth_campaign as sc
+    recs = sc.generate(points=2, repeats=2, campaigns=("base",),
+                       carriers=("cmcc",), time_bands=("busy",), tiers=("metro",))
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        for table in ("validity", "subscores", "trust", "transport", "buffering"):
+            rows = _rollup_csv(prefix, table)
+            assert rows, f"{table} produced no rows"
+            assert all(r["mixed_campaigns"] == "" for r in rows), table
