@@ -22,6 +22,7 @@ Usage:
 import argparse
 import copy
 import json
+import os
 import sys
 
 import campaign_common as cc
@@ -115,6 +116,9 @@ def main(argv):
     ap = argparse.ArgumentParser(description="Offline ANEB campaign-label annotation")
     ap.add_argument("inputs", nargs="+", help="results JSONL file(s)")
     ap.add_argument("-o", "--output", help="output path (single input only; else stdout/--inplace)")
+    ap.add_argument("--out-dir", help="batch: write each annotated input to DIR/<same filename> "
+                                      "(a field day has dozens of files; -o one at a time is the "
+                                      "main manual-error source)")
     ap.add_argument("--inplace", action="store_true", help="overwrite each input in place")
     ap.add_argument("--set", dest="sets", action="append", metavar="KEY=VALUE",
                     help="uniform label, repeatable (keys: " + ",".join(CAMPAIGN_KEYS) + ")")
@@ -132,10 +136,28 @@ def main(argv):
         with open(args.map_path, encoding="utf-8") as f:
             mapping = json.load(f)
 
-    if len(args.inputs) > 1 and not args.inplace:
-        raise SystemExit("multiple inputs require --inplace (or annotate one at a time with -o)")
+    if sum(bool(x) for x in (args.output, args.out_dir, args.inplace)) > 1:
+        raise SystemExit("choose ONE of -o/--output, --out-dir, --inplace")
+    if len(args.inputs) > 1 and not (args.inplace or args.out_dir):
+        raise SystemExit("multiple inputs require --out-dir (batch) or --inplace "
+                         "(or annotate one at a time with -o)")
     if args.output and len(args.inputs) != 1:
         raise SystemExit("-o/--output is only valid with a single input")
+    if args.out_dir:
+        os.makedirs(args.out_dir, exist_ok=True)
+        seen = {}
+        for path in args.inputs:
+            name = os.path.basename(path)
+            dest = os.path.abspath(os.path.join(args.out_dir, name))
+            # never let a batch run masquerade as --inplace, and never let two
+            # inputs from different directories collide onto one output
+            if dest == os.path.abspath(path):
+                raise SystemExit(f"--out-dir would overwrite the input {path}; "
+                                 "use --inplace if that is what you mean")
+            if dest in seen:
+                raise SystemExit(f"two inputs share the basename '{name}' "
+                                 f"({seen[dest]} and {path}) — they would collide in --out-dir")
+            seen[dest] = path
 
     total = total_changed = 0
     for path in args.inputs:
@@ -145,6 +167,10 @@ def main(argv):
         total_changed += changed
         if args.inplace:
             with open(path, "w", encoding="utf-8") as f:
+                _write_jsonl(out, f)
+        elif args.out_dir:
+            dest = os.path.join(args.out_dir, os.path.basename(path))
+            with open(dest, "w", encoding="utf-8") as f:
                 _write_jsonl(out, f)
         elif args.output:
             with open(args.output, "w", encoding="utf-8") as f:

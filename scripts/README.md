@@ -88,6 +88,10 @@ python campaign_report.py rehearsal.jsonl --md r.md --html r.html --csv t
 加性注入 `run.campaign`：`--set KEY=VALUE`（统一）/ `--map map.json`（per run_id）/
 `--infer-time-band`（由 `started_at_epoch_ms`+`--tz-offset` 推 busy/idle，标 inferred）。
 **非破坏**：只填 gap、原有标签优先永不覆盖、不覆盖输入（除非 `--inplace`）、`label_source` 记溯源。
+**批量**：`--out-dir DIR` 一次补注多个文件（输出同名），外场一天几十个文件不必逐个 `-o`；
+两条护栏——输出会覆盖输入时拒绝（那是 `--inplace` 的意思）、不同目录同名文件会碰撞时拒绝。
+生产接线落地后本工具仍保留（补历史语料/漏标 run），见
+[`../docs/CAMPAIGN_LABELS_WIRING_SPEC.md`](../docs/CAMPAIGN_LABELS_WIRING_SPEC.md) §8。
 
 ### `validity_rollup.py` — 有效性/失效原因逐格汇总（D-96）
 每个中位数背后的**样本分母**：按 (点位,运营商,时段,profile) 出 尝试/有效/低置信/失效/未知

@@ -47,13 +47,16 @@ python validate_results.py field_raw.jsonl
 
 ## 2. 补注战役标签（app 侧写入落地前的桥）
 
-按采集台账逐文件补注（注意：多输入需逐文件 `-o`，或用 `--map` 按 run_id 精确打标）：
+同一批（同点位同层级）多个文件用 `--out-dir` 一次补注；跨点位混装时用 `--map` 按 run_id 精确打标：
 
 ```
-python annotate_campaign.py day1_point1.jsonl -o labeled/day1_point1.jsonl \
+python annotate_campaign.py raw/day1_*.jsonl --out-dir labeled \
     --set campaign_id=sz-2026Q3-baseline --set point_id=SZ-CBD-01 \
     --set carrier=cmcc --set tier=metro --infer-time-band
 ```
+
+`--out-dir` 输出同名文件、不动输入；若输出会覆盖输入或不同目录存在同名文件，工具**直接拒绝**
+（分别提示用 `--inplace`、或先改名）。单文件仍可用 `-o`。
 
 - 非破坏：只填 gap、原有标签永不覆盖、`label_source` 记溯源。
 - `--infer-time-band` 按 `started_at_epoch_ms` 推忙闲（跨时区采集给 `--tz-offset`）。
@@ -98,7 +101,9 @@ python campaign_report.py labeled/*.jsonl \
 | 契约门 4200 条违规 | 喂了 calibration 逐 token 样本 | 换 result-run 语料 |
 | 契约门报 run 缺 7 字段 | 旧版生产者历史语料 | 隔离，不进战役 |
 | 报告全塌 `unlabeled` | 忘了步骤 2 补注 | 先 annotate 再报告 |
-| annotate 报 multiple inputs | 多文件共用一个 `-o` | 逐文件 `-o` 或 `--inplace` |
+| annotate 报 multiple inputs | 多文件共用一个 `-o` | 改用 `--out-dir DIR` 批量 |
+| annotate 报 collide / overwrite the input | 不同目录同名文件，或 out-dir 指向输入目录 | 先改名；确要原地改用 `--inplace` |
+| 语料很大担心跑不动 | — | 实测 12960 run/38880 场景（13× M2 规模）全报告 24s，线性无 O(n²) |
 | Windows 控制台乱码 | 非 UTF-8 code page | 工具已内置 force_utf8_stdout，无需处理 |
 | 报告顶端出现红色合成警告 | 混入 `synth_campaign.py` 彩排语料 | 剔除 `SYNTH-` 战役记录后重跑，**该报告不得外发** |
 | 稳定性段写"另有 N 个稳定单元未列出" | 规模下的声明式上限（非截断） | 正常；完整数据在 `_stability.csv` |

@@ -16,7 +16,7 @@ SCRIPTS = os.path.dirname(HERE)
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, HERE)
 
-from synth import aqs_records, contractify, tier_records
+from synth import aqs_records, contractify, make_record, tier_records
 
 
 def _write_jsonl(path, records):
@@ -126,6 +126,57 @@ def test_stability_cli_runs():
         r = _run("stability.py", _fixture(d), "--kpi", "n1_rtt_p50_ms")
         assert r.returncode == 0, r.stderr
         assert "复测稳定性" in r.stdout
+
+
+def test_annotate_batch_out_dir():
+    """A field day has dozens of files; --out-dir annotates them in one call
+    without touching the inputs (D-118)."""
+    with tempfile.TemporaryDirectory() as d:
+        src = os.path.join(d, "in")
+        os.makedirs(src)
+        names = ["day1_p1.jsonl", "day1_p2.jsonl", "day2_p1.jsonl"]
+        for n in names:                       # unlabelled records — labels to be filled
+            _write_jsonl(os.path.join(src, n),
+                         [contractify(make_record(aqs=90, scenarios=[])) for _ in range(2)])
+        before = {n: open(os.path.join(src, n), encoding="utf-8").read() for n in names}
+        out = os.path.join(d, "labeled")
+        r = _run("annotate_campaign.py", *[os.path.join(src, n) for n in names],
+                 "--out-dir", out, "--set", "point_id=P1", "--set", "carrier=cmcc")
+        assert r.returncode == 0, r.stderr
+        for n in names:
+            assert os.path.exists(os.path.join(out, n)), n
+            with open(os.path.join(out, n), encoding="utf-8") as f:
+                rec = json.loads(f.readline())
+            assert rec["run"]["campaign"]["point_id"] == "P1"
+            assert rec["run"]["campaign"]["carrier"] == "cmcc"
+            # inputs byte-for-byte untouched
+            assert open(os.path.join(src, n), encoding="utf-8").read() == before[n], n
+
+
+def test_annotate_out_dir_refuses_to_overwrite_inputs():
+    """--out-dir pointing at the input directory would be --inplace in disguise."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "a.jsonl")
+        _write_jsonl(path, [contractify(r) for r in aqs_records(90, 1)])
+        r = _run("annotate_campaign.py", path, "--out-dir", d, "--set", "point_id=P1")
+        assert r.returncode != 0
+        assert "overwrite the input" in r.stderr
+
+
+def test_annotate_out_dir_refuses_basename_collision():
+    """Same filename from two directories would silently clobber one another."""
+    with tempfile.TemporaryDirectory() as d:
+        a, b = os.path.join(d, "day1"), os.path.join(d, "day2")
+        os.makedirs(a)
+        os.makedirs(b)
+        for base in (a, b):
+            _write_jsonl(os.path.join(base, "p1.jsonl"),
+                         [contractify(r) for r in aqs_records(90, 1)])
+        r = _run("annotate_campaign.py", os.path.join(a, "p1.jsonl"),
+                 os.path.join(b, "p1.jsonl"), "--out-dir", os.path.join(d, "out"),
+                 "--set", "point_id=P1")
+        assert r.returncode != 0
+        assert "collide" in r.stderr
 
 
 def test_analyze_results_cli_runs():
