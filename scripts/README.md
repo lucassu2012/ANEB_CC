@@ -9,7 +9,10 @@
 | 层 | 脚本 | 粒度 | 产出 |
 |---|---|---|---|
 | 逐-run | `analyze_results.py` · `dashboard.py` | 单次 run | 清单/KPI 中位摘要、单文件 HTML 看板 |
-| **战役级** | `campaign_report.py` · `attribution.py` · `stability.py` · `buffering_rollup.py` · `transport_rollup.py` · `annotate_campaign.py` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 批化失真核算 · 介质对比 · 优化前后对比 · 综合报告 |
+| **战役级** | `campaign_report.py`（综合报告）+ 各分析段：`attribution` · `stability` · `validity_rollup` · `subscore_rollup` · `buffering_rollup` · `transport_rollup` · `trust_rollup` · `order_effect` · `trend` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 有效性分母 · 分数侧归因 · 批化失真 · 介质对比 · 测量可信度 · 序位效应 · 纵向趋势 |
+| 入门/守门 | `validate_results` · `corpus_health` · `publish_check` · `annotate_campaign` · `coverage_matrix` · `provenance` | 语料与发布 | 契约门 · 语料完整性 · 发布前自检 · 标签补注 · 覆盖矩阵 · 溯源清单 |
+| 规格门禁 | `validate_spec_scoring` · `validate_profiles` | spec 树 | 评分包不变量 · profile spec↔runtime 一致性 |
+| 彩排 | `synth_campaign` | 合成语料 | M2 规模网格 + `--chaos` 病理注入（**仅供彩排**） |
 
 战役级层由 `campaign_common.py`（共享库）支撑，分组维度来自**可选加性** `run.campaign`
 标签块——约定与生产接线路线见 [`../docs/CAMPAIGN_LABELS_CONVENTION.md`](../docs/CAMPAIGN_LABELS_CONVENTION.md)。
@@ -107,6 +110,20 @@ quick-forensic / 时钟跳变 / 极端离群 / 全无效格 / 未标注记录）
 两条护栏——输出会覆盖输入时拒绝（那是 `--inplace` 的意思）、不同目录同名文件会碰撞时拒绝。
 生产接线落地后本工具仍保留（补历史语料/漏标 run），见
 [`../docs/CAMPAIGN_LABELS_WIRING_SPEC.md`](../docs/CAMPAIGN_LABELS_WIRING_SPEC.md) §8。
+
+### `corpus_health.py` — 语料完整性预检
+在信任任何报告之前先跑：分析再正确，也只与其下的语料一样诚实。**ERROR（exit 1，会让聚合出错）**：
+同 run_id 两异 body、坏行（静默丢数据）、`claim_scope` 漂移（不同测量口径被并进同一中位数，
+R-10 红线）、缺 run 体。**WARN（exit 0，值得知道但不致错）**：良性重复 run_id（D-09 双写的
+预期重导，加载时去重）、无 run_id 记录、混 `schema_version`、缺 AQS/战役标签。`--json` 出机读结果。
+
+### `order_effect.py` — 序位效应/遗留效应诊断（D-95）
+契约里的 `run.scenario_order` 与 `scenarios[].order_index` 是**拉丁方反平衡的证据**——
+但证据只有被检验才算数，本工具就是那道检验。按 (profile, KPI) 问：KPI 是否系统性依赖于
+**它跑在第几位**？`spread_pct = (最大位置中位 − 最小位置中位)/总中位 × 100`，超门（默认 10%，
+对齐 M1 的 CV≤10% 惯例）标记疑似。**空结果就是好结果**。诚实（R-10）：不同位置 <2 → 不可计算
+（**绝不**记"无效应"）；位置样本不足 → low_confidence；总中位≈0 → 比例未定义而非无穷大。
+另报轮转覆盖度。集成进综合报告 + 独立 CLI。
 
 ### `validity_rollup.py` — 有效性/失效原因逐格汇总（D-96）
 每个中位数背后的**样本分母**：按 (点位,运营商,时段,profile) 出 尝试/有效/低置信/失效/未知

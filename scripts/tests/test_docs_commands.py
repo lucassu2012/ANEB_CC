@@ -63,6 +63,19 @@ def test_documented_scripts_exist():
     assert not missing, f"docs reference scripts that do not exist: {missing}"
 
 
+def test_every_tool_is_mentioned_in_the_readme():
+    """The command guard checks that documented commands work; it cannot notice a
+    tool nobody documented. corpus_health.py and order_effect.py sat unmentioned
+    in the README for weeks (D-131) — a reader had no way to discover them."""
+    readme = os.path.join(SCRIPTS, "README.md")
+    with open(readme, encoding="utf-8") as f:
+        body = f.read()
+    tools = [n for n in sorted(os.listdir(SCRIPTS))
+             if n.endswith(".py") and not n.startswith("_")]
+    missing = [n for n in tools if n not in body and n[:-3] not in body]
+    assert not missing, f"tools missing from scripts/README.md: {missing}"
+
+
 def test_documented_flags_exist_in_argparse():
     """A renamed flag makes the docs lie; the reader only finds out mid-field."""
     bad = []
