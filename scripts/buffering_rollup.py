@@ -29,6 +29,10 @@ import campaign_common as cc
 CELL_DIMS = ("point_id", "carrier", "time_band")
 # Attributions that mean a distortion source is suspected (vs benign "none").
 _BENIGN = {"none"}
+# Share of suspect scenarios above which a cell is a distortion hot-spot. Named
+# (not inline) so the provenance manifest can record the threshold a report was
+# actually built with — retuning it changes what the report says (D-122).
+HOTSPOT_SHARE = 0.5
 
 
 def _attribution(b):
@@ -73,7 +77,8 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "near_zero_median": cc.median(g["near_zero"]) if g["near_zero"] else None,
             "suspect_share": suspect_share,
             # hot-spot: a majority of scenarios attributed to a distortion source
-            "distortion_hotspot": bool(suspect_share is not None and suspect_share > 0.5),
+            "distortion_hotspot": bool(suspect_share is not None
+                                       and suspect_share > HOTSPOT_SHARE),
             "low_confidence": n < min_samples,
         })
     return cells

@@ -28,6 +28,9 @@ from collections import defaultdict
 import campaign_common as cc
 
 CELL_DIMS = ("point_id", "carrier", "time_band")
+# Share of ANNOTATED clocks that must be suspect for the cell to be a hot-spot.
+# Named so the provenance manifest can record it (D-122).
+CLOCK_HOTSPOT_SHARE = 0.5
 
 
 def _bucket():
@@ -84,7 +87,8 @@ def trust_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "stream_bad": g["stream_bad"],
             "parse_per_event_us_median": cc.median(g["parse_us"]) if g["parse_us"] else None,
             # majority of annotated clocks suspect => timing medians untrustworthy here
-            "clock_hotspot": bool(suspect_share is not None and suspect_share > 0.5),
+            "clock_hotspot": bool(suspect_share is not None
+                                  and suspect_share > CLOCK_HOTSPOT_SHARE),
             "low_confidence": g["scenarios"] < min_samples,
         })
     return cells

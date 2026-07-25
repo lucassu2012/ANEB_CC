@@ -37,9 +37,17 @@ def file_sha256(path):
     return h.hexdigest()
 
 
-def compute(files, load_stats, params, generated_at, tool_version=TOOL_VERSION):
+def compute(files, load_stats, params, generated_at, tool_version=TOOL_VERSION,
+            thresholds=None):
     """Build the manifest dict. generated_at is INJECTED (caller supplies it) so
-    the core stays deterministic; load_stats is the dict from cc.load_records."""
+    the core stays deterministic; load_stats is the dict from cc.load_records.
+
+    `thresholds` closes a hole in the reproducibility claim (D-122): `params`
+    only covers the CLI-settable knobs, but the module-level gates (CV gate,
+    validity floor, AQS grade bands, hot-spot shares, which KPIs get sections)
+    equally decide what the report says. Retune one of those and a re-run yields
+    different numbers under an identical-looking manifest — exactly what a
+    provenance record exists to prevent."""
     inputs = []
     for p in sorted(set(files)):
         inputs.append({"file": os.path.basename(p), "sha256": file_sha256(p)})
@@ -56,6 +64,7 @@ def compute(files, load_stats, params, generated_at, tool_version=TOOL_VERSION):
         "no_run_id": st.get("no_run_id"),
         "malformed_lines": st.get("malformed"),
         "params": dict(params or {}),
+        "thresholds": dict(thresholds or {}),
     }
 
 
@@ -70,6 +79,11 @@ def render_markdown(prov):
         + (f"，坏行 {prov['malformed_lines']}" if prov["malformed_lines"] else "")
         + f"）。参数 {json.dumps(prov['params'], ensure_ascii=False)}。",
         "",
+    ]
+    if prov.get("thresholds"):
+        lines += ["> **生效门限**（改动其一即改变报告结论，复现须同值）："
+                  f"{json.dumps(prov['thresholds'], ensure_ascii=False)}", ""]
+    lines += [
         "| 输入文件 | sha256 |",
         "|---|---|",
     ]

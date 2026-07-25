@@ -9,8 +9,10 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
+import buffering_rollup
 import provenance as prov
 import campaign_report as rpt
+import stability
 from synth import aqs_records
 
 
@@ -98,3 +100,41 @@ def test_report_includes_provenance_when_supplied():
     md = rpt.build_report_markdown(recs, provenance=m)
     assert "溯源 / provenance" in md
     assert "2026-01-01" in md
+
+
+def test_effective_thresholds_cover_every_output_deciding_gate():
+    """A manifest recording only the CLI knobs lets a retuned module-level gate
+    change the numbers under an identical-looking manifest (D-122)."""
+    t = rpt.effective_thresholds()
+    for key in ("cv_gate_percent", "validity_min_rate", "buffering_hotspot_share",
+                "clock_hotspot_share", "aqs_grade_bands", "heat_kpis",
+                "stability_kpis", "attribution_kpis", "stability_max_stable_rows"):
+        assert key in t, key
+    assert t["cv_gate_percent"] == stability.DEFAULT_CV_GATE
+    assert t["buffering_hotspot_share"] == buffering_rollup.HOTSPOT_SHARE
+
+
+def test_thresholds_are_read_live_not_snapshotted():
+    """Retuning a gate must show up in the manifest — otherwise the record lies."""
+    original = stability.DEFAULT_CV_GATE
+    try:
+        stability.DEFAULT_CV_GATE = 7.5
+        assert rpt.effective_thresholds()["cv_gate_percent"] == 7.5
+    finally:
+        stability.DEFAULT_CV_GATE = original
+
+
+def test_thresholds_render_and_round_trip():
+    m = prov.compute([], {"lines": 1, "kept": 1}, {"min_samples": 5},
+                     generated_at="2026-01-01", thresholds={"cv_gate_percent": 10.0})
+    assert "生效门限" in prov.render_markdown(m)
+    with tempfile.TemporaryDirectory() as d:
+        p = prov.write_sidecar(m, os.path.join(d, "prov.json"))
+        with open(p, encoding="utf-8") as f:
+            assert json.load(f)["thresholds"]["cv_gate_percent"] == 10.0
+
+
+def test_manifest_without_thresholds_renders_no_gate_line():
+    """Back-compatible: omitting thresholds keeps the old header shape."""
+    m = prov.compute([], {"lines": 1, "kept": 1}, {}, generated_at="2026-01-01")
+    assert "生效门限" not in prov.render_markdown(m)

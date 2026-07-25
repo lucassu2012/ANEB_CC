@@ -875,6 +875,24 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     return written
 
 
+def effective_thresholds():
+    """Every module-level gate that decides what the report SAYS, read live from
+    the modules so the manifest can never drift from the code (D-122). `params`
+    covers the CLI knobs; these are the ones a reader would otherwise have to
+    guess at when a re-run disagrees with an archived report."""
+    return {
+        "cv_gate_percent": stability.DEFAULT_CV_GATE,
+        "stability_max_stable_rows": stability.DEFAULT_MAX_STABLE_ROWS,
+        "validity_min_rate": validity_rollup.DEFAULT_MIN_RATE,
+        "buffering_hotspot_share": buffering_rollup.HOTSPOT_SHARE,
+        "clock_hotspot_share": trust_rollup.CLOCK_HOTSPOT_SHARE,
+        "aqs_grade_bands": [[b, g] for b, g in cc.AQS_GRADE_BANDS],
+        "heat_kpis": list(DEFAULT_KPI_HEAT),
+        "stability_kpis": list(stability.DEFAULT_STABILITY_KPIS),
+        "attribution_kpis": list(attribution.ATTRIBUTABLE_KPIS),
+    }
+
+
 def contract_gate(records):
     """Front-door input check (D-105): the report is the 'ammunition into the
     operator meeting' (M2) — a quietly-wrong report is worse than none, so records
@@ -948,7 +966,8 @@ def main(argv):
             return 1
     params = {"min_samples": args.min_samples, "attr_kpi": args.attr_kpi,
               "before": args.before, "after": args.after}
-    prov = prov_mod.compute(files, stats, params, generated_at=now)
+    prov = prov_mod.compute(files, stats, params, generated_at=now,
+                            thresholds=effective_thresholds())
 
     md = build_report_markdown(recs, args.min_samples, args.attr_kpi, args.before,
                                args.after, provenance=prov)
