@@ -180,6 +180,23 @@ def test_annotate_pattern_matching_nothing_is_an_error():
         assert not os.path.exists(os.path.join(d, "out.jsonl"))
 
 
+def test_annotate_is_idempotent():
+    """Re-annotating an already-labelled corpus must be a no-op: labels already
+    on the record win over every layer (D-130 check of the documented rule)."""
+    with tempfile.TemporaryDirectory() as d:
+        src = os.path.join(d, "a.jsonl")
+        _write_jsonl(src, [contractify(make_record(aqs=90, scenarios=[]))
+                           for _ in range(3)])
+        first, second = os.path.join(d, "1.jsonl"), os.path.join(d, "2.jsonl")
+        args = ("--set", "point_id=P1", "--set", "carrier=cmcc")
+        assert _run("annotate_campaign.py", src, "-o", first, *args).returncode == 0
+        r2 = _run("annotate_campaign.py", first, "-o", second, *args)
+        assert r2.returncode == 0, r2.stderr
+        assert "annotated 0/3" in r2.stderr          # nothing left to fill
+        assert open(first, encoding="utf-8").read() == \
+            open(second, encoding="utf-8").read()
+
+
 def test_annotate_out_dir_refuses_to_overwrite_inputs():
     """--out-dir pointing at the input directory would be --inplace in disguise."""
     with tempfile.TemporaryDirectory() as d:

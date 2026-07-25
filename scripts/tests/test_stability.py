@@ -49,6 +49,16 @@ def test_cap_never_drops_unstable_or_not_computable_rows():
     assert md.count("point_id=P") == 7   # 5 stable + unstable + not-computable
 
 
+def test_cap_can_be_disabled_for_a_focused_look():
+    """Someone who ran the standalone tool came to look at stability; the cap
+    that keeps this section from swamping the report must not fold rows away
+    from them (D-130)."""
+    cells = [_cell(i) for i in range(40)]
+    md = stability.render_markdown(cells, "t1_ttft_ms", max_stable_rows=None)
+    assert md.count("point_id=P") == 40
+    assert "另有" not in md
+
+
 def test_no_cap_note_when_under_the_limit():
     md = stability.render_markdown([_cell(i) for i in range(3)], "t1_ttft_ms")
     assert "另有" not in md

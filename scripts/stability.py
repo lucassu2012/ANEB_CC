@@ -115,12 +115,19 @@ def main(argv):
     ap.add_argument("--kpi", default="t1_ttft_ms")
     ap.add_argument("--cv-gate", type=float, default=DEFAULT_CV_GATE)
     ap.add_argument("--min-samples", type=int, default=cc.DEFAULT_MIN_SAMPLES)
+    # The row cap exists because this section would otherwise dominate the
+    # comprehensive report (D-117). Someone who ran THIS tool came to look at
+    # stability, so the standalone default is uncapped (D-130).
+    ap.add_argument("--max-stable-rows", type=int, default=0,
+                    help="fold away all but N stable rows (0 = show everything; "
+                         f"the comprehensive report uses {DEFAULT_MAX_STABLE_ROWS})")
     args = ap.parse_args(argv)
     cc.force_utf8_stdout()
 
     recs, files = cc.load_records(args.inputs)
     cells = stability_cells(recs, args.kpi, cv_gate=args.cv_gate, min_samples=args.min_samples)
-    print(render_markdown(cells, args.kpi, args.cv_gate))
+    print(render_markdown(cells, args.kpi, args.cv_gate,
+                          max_stable_rows=args.max_stable_rows or None))
     unstable = sum(1 for c in cells if c["unstable"])
     print(f"\n<!-- records={len(recs)} cells={len(cells)} unstable={unstable} -->", file=sys.stderr)
     return 0
