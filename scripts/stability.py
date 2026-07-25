@@ -176,10 +176,13 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
                      "**无法核算采样量**——先补足复测再核算。")
     else:
         need = cc.median([r["required_n"] for r in short]) if short else None
-        verdict = (f"> **结论**：{len(short)}/{len(judged)} 个单元在当前 n 下分辨不了 "
-                   f"{cc.fmt_num(target_pct, 1)}% 的差异")
-        verdict += (f"；这些单元的建议复测数中位为 **n≥{cc.fmt_num(need)}**（每侧）。"
-                    if need is not None else "。")
+        if not short:
+            verdict = (f"> **结论**：{len(judged)} 个可核算单元**全部**能分辨 "
+                       f"{cc.fmt_num(target_pct, 1)}% 的差异，当前复测数足够。")
+        else:
+            verdict = (f"> **结论**：{len(short)}/{len(judged)} 个单元在当前 n 下分辨不了 "
+                       f"{cc.fmt_num(target_pct, 1)}% 的差异"
+                       f"；这些单元的建议复测数中位为 **n≥{cc.fmt_num(need)}**（每侧）。")
         if unknown:
             verdict += f" 另有 {unknown} 个单元离散度不可估，**未计入**。"
         lines.append(verdict)

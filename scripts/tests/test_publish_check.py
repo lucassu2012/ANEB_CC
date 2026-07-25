@@ -172,3 +172,21 @@ def test_lookalike_labels_are_warned_before_publication():
     assert "未自动合并" in _detail(pc.check(recs), "标签同名异写")
     clean = [contractify(r) for r in aqs_records(80, 3, point="SZ-CBD-01")]
     assert _sev(pc.check(clean), "标签同名异写") == pc.PASS
+
+
+def test_effect_size_row_exists_even_with_one_campaign():
+    """Every other item emits a row in every case; a silently absent one cannot
+    be told apart from a check that was forgotten (D-150)."""
+    recs = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
+    assert _sev(pc.check(recs), "效应量") == pc.PASS
+    assert "无前后对比可核算" in _detail(pc.check(recs), "效应量")
+
+
+def test_every_check_item_appears_for_every_corpus_shape():
+    """The runbook checklist is read against this output — an item that only
+    appears for some corpora makes the checklist unverifiable."""
+    single = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
+    multi = _two_campaigns([70, 72, 74, 71, 73], [80, 82, 84, 81, 83])
+    items_single = {r["item"] for r in pc.check(single)}
+    items_multi = {r["item"] for r in pc.check(multi)}
+    assert items_single == items_multi, items_single ^ items_multi

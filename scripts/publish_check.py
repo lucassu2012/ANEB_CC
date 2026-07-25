@@ -181,6 +181,10 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             rows.append(_row(WARN, "效应量", detail + "——不可估的格不得计入结论"))
         else:
             rows.append(_row(PASS, "效应量", detail))
+    else:
+        # every other item emits a row in every case; a silently absent one
+        # cannot be told apart from a check that was forgotten (D-150)
+        rows.append(_row(PASS, "效应量", "单战役语料，无前后对比可核算"))
 
     biased, judged = [], 0
     for k in order_effect.ORDER_SENSITIVE_KPIS:

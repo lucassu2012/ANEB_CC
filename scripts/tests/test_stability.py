@@ -172,3 +172,15 @@ def test_report_includes_stability_section():
     recs = kpi_scenario_records(5, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "excellent"}, aqs=90)
     md = rpt.build_report_markdown(recs)
     assert "复测稳定性" in md
+
+
+def test_plan_states_the_good_news_positively():
+    """Zero failures rendered as "0/N cannot resolve" buries the answer in a
+    negation — the operator is reading this to decide whether to change the
+    collection plan (D-150)."""
+    recs = _campaign_kpis([100, 101, 99, 100, 100], "base")   # very tight
+    rows = stability.plan_cells(stability.stability_cells(recs, "t1_ttft_ms"), 5.0)
+    assert all(r["resolves_target"] for r in rows)
+    md = stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
+    assert "当前复测数足够" in md
+    assert "分辨不了" not in md
