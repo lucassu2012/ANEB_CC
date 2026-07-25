@@ -3,6 +3,9 @@
 > 纯 Python 标准库（无第三方依赖）。消费**服务端结果 JSONL**（合同 schema 1.0，
 > 见 `spec/schemas/result-run.schema.json`），产出 markdown / 自包含 HTML 报告。
 > 全部工具遵守 R-10：不可计算的量输出 `None`/`—`，**绝不**以 0 或哨兵顶替。
+>
+> **接手这一层？先读** [`../docs/ANALYSIS_LAYER_HANDOVER.md`](../docs/ANALYSIS_LAYER_HANDOVER.md)
+> ——六条不可违反的原则、八个测试维度、当前状态与上手步骤。本文件是逐工具口径，那份是"为什么"。
 
 ## 两层
 
