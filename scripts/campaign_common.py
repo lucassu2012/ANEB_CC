@@ -366,6 +366,22 @@ def aqs_grade(score, bands=AQS_GRADE_BANDS):
     return "poor"
 
 
+def md_cell(v):
+    """Make any value safe to place inside a markdown table cell.
+
+    Labels are human-typed (point_id comes from an operator — via --set today,
+    a UI later). A literal '|' or newline in one splits the row into extra
+    columns and the table renders as garbage — and because it is the LABEL
+    column, every table in the report breaks at once (D-128).
+
+    Escapes rather than rejects: if a point really is named "SZ|CBD", the report
+    must show that, not drop it or crash.
+    """
+    if v is None:
+        return "—"
+    return str(v).replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+
+
 def fmt_num(v, digits=1):
     if v is None:
         return "—"

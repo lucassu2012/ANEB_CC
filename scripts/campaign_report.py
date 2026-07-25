@@ -81,7 +81,8 @@ def _cell_label(cell, dims=("point_id", "carrier", "time_band")):
     """Compact cell label. Callers whose cells are keyed on more dimensions must
     pass them all — a label that drops key dimensions renders as duplicates and
     the reader cannot tell which cell is meant."""
-    return "/".join(str(cell.get(k, "?")) for k in dims if cell.get(k) is not None)
+    return "/".join(cc.md_cell(cell.get(k, "?")) for k in dims
+                    if cell.get(k) is not None)
 
 
 def _top(items, n=3):
@@ -221,7 +222,8 @@ def render_heatcard_markdown(cells):
     for c in cells:
         note = "low_conf" if c["low_confidence"] else "—"
         lines.append(
-            f"| {c['cell']['point_id']} | {c['cell']['carrier']} | {c['cell']['time_band']} | "
+            f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
+            f"| {cc.md_cell(c['cell']['time_band'])} | "
             f"{cc.fmt_num(c['aqs_median'])} | {c['grade']} | {c['n']} | {note} |"
         )
     return "\n".join(lines)
@@ -271,7 +273,8 @@ def render_comparison_markdown(cmp):
             notes.append("low_conf")
         note = "; ".join(notes) or "—"
         lines.append(
-            f"| {r['cell']['point_id']} | {r['cell']['carrier']} | {r['cell']['time_band']} | "
+            f"| {cc.md_cell(r['cell']['point_id'])} | {cc.md_cell(r['cell']['carrier'])} "
+            f"| {cc.md_cell(r['cell']['time_band'])} | "
             f"{cc.fmt_num(r['before'])} | {cc.fmt_num(r['after'])} | "
             f"{cc.fmt_num(d)}{arrow} | {note} |"
         )
@@ -327,7 +330,8 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
     for c in cells:
         note = "low_conf" if c["low_confidence"] else "—"
         lines.append(
-            f"| {c['cell']['point_id']} | {c['cell']['carrier']} | {c['cell']['time_band']} | "
+            f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
+            f"| {cc.md_cell(c['cell']['time_band'])} | "
             f"{cc.fmt_num(c['median'], 2)} | {c['grade'] or '—'} | {c['n']} | {note} |")
     return "\n".join(lines)
 

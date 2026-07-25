@@ -106,14 +106,14 @@ def render_markdown(res):
 
     lines += ["| 点位 | 运营商 | 时段 | 样本 | 状态 |", "|---|---|---|---|---|"]
     for c in res["cells"]:
-        cl = c["cell"]
+        cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         lines.append(f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "
                      f"{c['samples']} | {_STATUS_LABEL.get(c['status'], c['status'])} |")
     if res["off_plan"]:
         lines += ["", "### 计划外已测单元（不在目标网格；疑似误标或未规划点位）", "",
                   "| 点位 | 运营商 | 时段 | 样本 |", "|---|---|---|---|"]
         for c in res["off_plan"]:
-            cl = c["cell"]
+            cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
             lines.append(f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "
                          f"{c['samples']} |")
     return "\n".join(lines)

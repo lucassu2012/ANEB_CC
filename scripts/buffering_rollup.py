@@ -102,7 +102,7 @@ def render_markdown(res):
     lines += ["| 点位 | 运营商 | 时段 | n | 众数归因 | 批化分中位 | sawtooth | 近零到达 | 疑似占比 | 备注 |",
               "|---|---|---|---|---|---|---|---|---|---|"]
     for c in res["cells"]:
-        cl = c["cell"]
+        cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         notes = []
         if c["distortion_hotspot"]:
             notes.append("**失真热点**")

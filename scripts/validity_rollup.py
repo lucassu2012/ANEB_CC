@@ -137,7 +137,7 @@ def render_markdown(res):
     lines += ["| 点位 | 运营商 | 时段 | profile | 尝试 | 有效 | 低置信 | 失效 | 未知 | 有效率 | 备注 |",
               "|---|---|---|---|---|---|---|---|---|---|---|"]
     for c in res["cells"]:
-        cl = c["cell"]
+        cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         note = "LOW_VALID_RATE" if c["below_min_rate"] else "—"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {cl['profile_id']} | "

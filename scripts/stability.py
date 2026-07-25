@@ -88,7 +88,7 @@ def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE,
     lines += ["| 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |",
               "|---|---|---|---|---|---|---|"]
     for c in cells:
-        cell_label = " · ".join(f"{k}={v}" for k, v in c["cell"].items())
+        cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in c["cell"].items())
         if c["cv_percent"] is None:
             stable = "—"
         else:

@@ -166,7 +166,7 @@ def render_markdown(result):
     sep = "|---|---|---|---|---|---|---|"
     lines += [header, sep]
     for c in result["cells"]:
-        cell_label = " · ".join(f"{k}={v}" for k, v in c["cell"].items())
+        cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in c["cell"].items())
         cov = ",".join(cc.TIER_LABELS.get(t, t) for t in c["coverage"]) or "—"
         notes = []
         if c["not_computable_reason"]:

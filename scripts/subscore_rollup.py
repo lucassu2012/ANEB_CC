@@ -98,7 +98,7 @@ def render_markdown(res):
     sep = "|" + "---|" * (4 + len(dims) + 3)
     lines += [header, sep]
     for c in res["cells"]:
-        cl = c["cell"]
+        cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         cellvals = []
         for d in dims:
             cellvals.append(cc.fmt_num(c["dims"][d]["median"]) if d in c["dims"] else "—")

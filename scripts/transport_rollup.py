@@ -121,7 +121,7 @@ def render_markdown(res):
     lines += ["| 点位 | 运营商 | 时段 | wifi | cellular | Δ(cell−wifi) | 其他桶 |",
               "|---|---|---|---|---|---|---|"]
     for c in res["cells"]:
-        cl = c["cell"]
+        cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         others = [f"{t}:n={b['n']}" for t, b in sorted(c["transports"].items())
                   if t not in EXPLICIT]
         lines.append(

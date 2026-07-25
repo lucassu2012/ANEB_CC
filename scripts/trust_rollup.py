@@ -117,7 +117,7 @@ def render_markdown(res):
     lines += ["| 点位 | 运营商 | 时段 | 场景 | 时钟标注 | 时钟可疑 | 漂移中位 ppm | seq 异常 | 解析 us 中位 | 备注 |",
               "|---|---|---|---|---|---|---|---|---|---|"]
     for c in res["cells"]:
-        cl = c["cell"]
+        cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         share = "—" if c["clock_suspect_share"] is None \
             else f"{c['clock_suspect']} ({c['clock_suspect_share'] * 100:.0f}%)"
         stream = "—" if not c["stream_counted"] else f"{c['stream_bad']}/{c['stream_counted']}"

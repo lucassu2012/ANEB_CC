@@ -153,7 +153,7 @@ def render_markdown(res):
     sep = "|" + "---|" * (3 + len(res["campaigns"]) + 3)
     lines += [head, sep]
     for c in res["cells"]:
-        cl = c["cell"]
+        cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         traj = " | ".join(cc.fmt_num(v) for v in c["trajectory"])
         dir_map = {"improving": "改善", "regressing": "回退", "mixed": "混合",
                    "flat": "持平", None: "不可计算"}

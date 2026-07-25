@@ -183,11 +183,36 @@ def test_publish_check_always_returns_known_severities():
         assert all(r["item"] and r["detail"] for r in rows), seed
 
 
+_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+
+
+def _columns(line):
+    """Column count of a markdown table row. Splits on UNESCAPED pipes only —
+    a renderer that correctly escapes a literal pipe as '\\|' keeps one cell,
+    and a counter that ignores the escape would flag it as ragged."""
+    return len(_UNESCAPED_PIPE.split(line.strip().strip("|")))
+
+
+def test_hostile_labels_do_not_break_tables_or_html():
+    """point_id is human-typed. A '|' or newline in one used to split every
+    table in the report at once; HTML must stay escaped (D-128)."""
+    from synth import contractify, kpi_scenario_records
+    for pid in ("SZ|CBD-01", "SZ\nCBD", "<script>alert(1)</script>", "深圳-CBD-01",
+                "P" * 200):
+        recs = [contractify(r) for r in
+                kpi_scenario_records(6, aqs=90, kpi={"n1_rtt_p50_ms": 20}, point=pid)]
+        md = rpt.build_report_markdown(recs)
+        for chunk in re.split(r"(?m)^#{2,3} ", md)[1:]:
+            widths = {_columns(ln) for ln in chunk.splitlines() if ln.startswith("| ")}
+            assert len(widths) <= 1, (pid, chunk.splitlines()[0], widths)
+        html = rpt.build_report_html(recs, "2026-01-01 00:00:00 +0800")
+        assert "<script>alert(1)</script>" not in html
+
+
 def test_every_markdown_table_has_a_uniform_column_count():
     """A ragged table renders as garbage in any markdown viewer."""
     for seed in SEEDS:
         md = rpt.build_report_markdown(_random_corpus(seed))
         for chunk in re.split(r"(?m)^#{2,3} ", md)[1:]:
-            widths = {len(ln.strip("|").split("|"))
-                      for ln in chunk.splitlines() if ln.startswith("| ")}
+            widths = {_columns(ln) for ln in chunk.splitlines() if ln.startswith("| ")}
             assert len(widths) <= 1, (seed, chunk.splitlines()[0], widths)
