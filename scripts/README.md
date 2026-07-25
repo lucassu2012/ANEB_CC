@@ -48,6 +48,13 @@ python attribution.py field_labeled.jsonl --kpi n1_rtt_p50_ms
 `接入=median(metro)`、`区域骨干+=median(regional)−median(metro)`、`核心骨干+=median(core)−median(regional)`。
 缺层记 coverage 不外推；负增量记 `inversion` 不清零；`--kpi n1_rtt_p50_ms|t1_ttft_ms`。
 
+报告另出**分段异常定位**段（`segment_profile()`）：把同一段在各单元之间比较，回答
+"这一段慢是**该点位特有**还是**所有点位都这样**"——后者是本次测量路径的共性
+（如到中心镜像端的物理距离），**不指向任何点位**。判据为语料内 MAD 稳健筛查
+（3×1.4826×MAD），描述性、非显著性检验、不与外部基准比较；过半单元取值相同时
+MAD 退化为 0，改列"与共同取值不等"的单元并注明判据已变。`未见单点异常` **不等于**
+各单元相同，齐不齐看 `离差/典型` 列。
+
 ### `stability.py` — 复测变异系数（CV）门 / 采样量核算
 按 (**战役**,点位,运营商,时段,**层级**,profile) 算 `CV% = 样本 stdev/mean×100`，超门（默认 10%，
 对齐计划 §6 M1 验收）标 `unstable`。<2 样本 / |mean|≈0 → CV 不可计算（`None`）。

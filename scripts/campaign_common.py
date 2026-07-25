@@ -358,6 +358,22 @@ def stdev(vals):
     return statistics.stdev(vals) if len(vals) > 1 else None
 
 
+def mad(vals):
+    """Median absolute deviation — spread that a few outliers cannot inflate,
+    which is the point when the outliers are what you are looking for. None
+    below two samples (never 0 as a stand-in for 'spread unknown'); a genuine 0
+    is returned as 0 and callers must decide what a zero-spread basis means."""
+    xs = [v for v in vals if v is not None]
+    if len(xs) < 2:
+        return None
+    m = statistics.median(xs)
+    return statistics.median([abs(x - m) for x in xs])
+
+
+# MAD*1.4826 estimates sigma for a normal distribution.
+MAD_TO_SIGMA = 1.4826
+
+
 # Normal-approximation factor for the standard error of a median. Latency is
 # right-skewed, so everything derived from it is an ORDER-OF-MAGNITUDE guide,
 # not a significance test — every renderer that shows a derived number says so.

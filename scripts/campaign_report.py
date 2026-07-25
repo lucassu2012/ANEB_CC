@@ -203,10 +203,26 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        "（层级缺失，记 TIER_MISSING，不外推）。")
     else:
         tail = f"；另有 {not_computable} 个格不可计算" if not_computable else ""
+        # "core dominates in 4 cells, biggest is P1's 27ms" reads as "P1's core is
+        # the problem" — but if every cell's core segment is the same size, the
+        # segment is a property of the measured path and no cell is at fault.
+        # That distinction decides whether anyone goes and looks at P1 (D-146).
+        prof = attribution.segment_profile(attr)
+        judged = [s for s in prof["segments"] if s["uniform"] is not None]
+        pointy = [s["label"] for s in judged if not s["uniform"]]
+        if not judged:
+            spread_note = "；各段跨单元离差不可比较（可比单元不足）"
+        elif not pointy:
+            # "no cell crossed the screen" is not "the cells are alike" — say the
+            # weaker true thing and point at the column that carries the rest
+            spread_note = ("；各段**均未见单点异常**（3σ 筛查）——最大单项落在该段分布内，"
+                           "不宜单独归因于该单元（单元间齐不齐见「分段异常定位」段）")
+        else:
+            spread_note = "；**存在单点异常的段**：" + "、".join(pointy)
         bullets.append("**分段归因**（主要贡献段）：" +
                        "、".join(f"{k} {v} 格" for k, v in dominant.most_common()) +
                        (f"；最大单项 {worst[0]}={cc.fmt_num(worst[1], 1)}ms" if worst else "")
-                       + tail + "。")
+                       + spread_note + tail + "。")
 
     bres = buffering_rollup.analyze(records, min_samples)
     hot = [_cell_label(c["cell"]) for c in bres["cells"] if c["distortion_hotspot"]]
@@ -659,6 +675,11 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         if k == attr_kpi or attr["cells"]:  # primary always; secondary only if it has cells
             parts.append(attribution.render_markdown(attr))
             parts.append("")
+            # The matrix alone cannot separate "this point is slow on that
+            # segment" from "every point is" — and those are different fixes.
+            parts.append(attribution.render_segment_profile_markdown(
+                attribution.segment_profile(attr)))
+            parts.append("")
     # Score-side complement to the latency attribution: which AQS dimension drags. (D-100)
     parts.append(subscore_rollup.render_markdown(subscore_rollup.analyze(records, min_samples)))
     parts.append("")
@@ -990,6 +1011,27 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(c["end_to_end_core"]), "|".join(c["coverage"]),
                             c["low_confidence"], c["not_computable_reason"] or "",
                             ";".join(flags)])
+    written.append(p)
+
+    # Which segment is a point's own problem vs the path's (D-146). The verdict
+    # is a column, not a banner — CSV is where the analyst actually computes.
+    p = prefix + "_segment_profile.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = csv.writer(f)
+        w.writerow(["kpi", "segment", "n_cells", "not_computable", "typical", "mad",
+                    "rel_mad_percent", "basis", "uniform", "high_cells", "low_cells"])
+        for k in attribution.ATTRIBUTABLE_KPIS:
+            attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
+            if not attr["cells"]:
+                continue
+            for s in attribution.segment_profile(attr)["segments"]:
+                def _cells(items):
+                    return "; ".join("/".join(str(v) for v in o["cell"].values())
+                                     for o in (items or []))
+                w.writerow([k, s["segment"], s["n_cells"], s["not_computable"],
+                            _cell(s["typical"]), _cell(s["mad"]), _cell(s["rel_mad"]),
+                            s["basis"], _cell(s["uniform"]),
+                            _cells(s["high"]), _cells(s["low"])])
     written.append(p)
 
     p = prefix + "_stability.csv"

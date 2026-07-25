@@ -168,3 +168,98 @@ def test_chinese_and_carrier_aliases_normalized():
     c = res["cells"][0]
     assert c["cell"]["carrier"] == "cmcc"
     assert c["access_component"] == 20
+
+
+def _point(pid, metro, regional, core, n=5):
+    """One point's three tiers with a known budget."""
+    return (tier_records("metro", "n1_rtt_p50_ms", metro, n, point=pid)
+            + tier_records("regional", "n1_rtt_p50_ms", regional, n, point=pid)
+            + tier_records("core", "n1_rtt_p50_ms", core, n, point=pid))
+
+
+def _segs(recs):
+    prof = attribution.segment_profile(attribution.attribute(recs))
+    return {s["segment"]: s for s in prof["segments"]}
+
+
+def test_segment_profile_finds_the_one_odd_point():
+    """The matrix shows each cell alone; the decision it feeds — fix this point
+    or fix the backbone — needs the cells compared with each other (D-146)."""
+    recs = []
+    for i, core in enumerate((68, 70, 72, 69, 71, 70)):   # core incr = core - 42
+        recs += _point(f"P{i:02d}", 30, 42, core)
+    recs += _point("P99", 30, 42, 200)
+    segs = _segs(recs)
+    assert segs["access_component"]["uniform"] is True
+    assert segs["regional_backbone_incr"]["uniform"] is True
+    odd = segs["core_backbone_incr"]
+    assert odd["uniform"] is False
+    assert [o["cell"]["point_id"] for o in odd["high"]] == ["P99"]
+    assert odd["low"] == []
+
+
+def test_segment_profile_does_not_invent_an_outlier():
+    """No anomaly must read as no anomaly — a screen that cries wolf gets
+    ignored (D-134)."""
+    recs = []
+    for i, core in enumerate((68, 70, 72, 69, 71, 70)):
+        recs += _point(f"P{i:02d}", 30, 42, core)
+    segs = _segs(recs)
+    assert all(s["uniform"] is True for s in segs.values())
+    assert all(s["high"] == [] and s["low"] == [] for s in segs.values())
+
+
+def test_zero_spread_still_reports_the_odd_cell():
+    """Over half the cells identical drives MAD to 0 and the 3-sigma threshold
+    to nothing — the cleanest signal there is must not be the one suppressed."""
+    recs = []
+    for i in range(6):
+        recs += _point(f"P{i:02d}", 30, 42, 70)
+    recs += _point("P99", 30, 42, 200)
+    odd = _segs(recs)["core_backbone_incr"]
+    assert odd["mad"] == 0
+    assert odd["basis"] == "zero_spread"
+    assert [o["cell"]["point_id"] for o in odd["high"]] == ["P99"]
+    md = attribution.render_segment_profile_markdown(
+        attribution.segment_profile(attribution.attribute(recs)))
+    assert "不是 3σ" in md          # the weaker basis is stated, not hidden
+
+
+def test_uniform_verdict_does_not_claim_the_cells_are_alike():
+    """'No cell crossed the screen' is not 'the cells are the same'. The verdict
+    must state the weaker true thing and expose the spread that carries the rest."""
+    recs = []
+    for i, core in enumerate((50, 70, 90, 60, 80, 70)):   # wide but no outlier
+        recs += _point(f"P{i:02d}", 30, 42, core)
+    seg = _segs(recs)["core_backbone_incr"]
+    assert seg["uniform"] is True
+    assert seg["rel_mad"] > 10                            # cells are NOT alike
+    md = attribution.render_segment_profile_markdown(
+        attribution.segment_profile(attribution.attribute(recs)))
+    assert "未见单点异常" in md
+    assert "不等于各单元相同" in md
+    assert "各单元一致" not in md
+
+
+def test_segment_profile_reaches_markdown_and_csv():
+    import campaign_report as rpt
+    import csv as csvmod
+    import tempfile
+    from synth import contractify
+    recs = []
+    for i in range(6):
+        recs += _point(f"P{i:02d}", 30, 42, 70)
+    recs += _point("P99", 30, 42, 200)
+    recs = [contractify(r) for r in recs]
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "分段异常定位" in md and "分段异常定位" in html
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_segment_profile.csv", encoding="utf-8-sig") as f:
+            rows = [r for r in csvmod.DictReader(f)
+                    if r["kpi"] == "n1_rtt_p50_ms" and r["segment"] == "core_backbone_incr"]
+    assert len(rows) == 1
+    assert "P99" in rows[0]["high_cells"]
+    assert rows[0]["uniform"] == "False"
