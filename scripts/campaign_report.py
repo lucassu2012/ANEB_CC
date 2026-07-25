@@ -198,7 +198,15 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if not scored:
         bullets.append("**体验最差格**：无 AQS 数据（覆盖缺口，非全部良好）。")
     elif weak:
-        bullets.append(f"**体验最差格**：{len(weak)} 个格 AQS 达 fair/poor —— {_top(weak)}。")
+        # a veto caps the score at exactly the band edges, so "fair/poor" can
+        # mean the sessions failed rather than the network being slow (D-154)
+        capped = [c for c in scored
+                  if c["grade"] in ("poor", "fair") and c.get("veto_n")]
+        veto_note = (f"；其中 {len(capped)} 个格含**被否决封顶**的 run"
+                     "（分低可能源于会话失败而非网络，见热力卡 `VETO_CAPPED`）"
+                     if capped else "")
+        bullets.append(f"**体验最差格**：{len(weak)} 个格 AQS 达 fair/poor —— {_top(weak)}"
+                       f"{veto_note}。")
     else:
         bullets.append(f"**体验最差格**：无 fair/poor 格（最低 "
                        f"{_cell_label(scored[0]['cell'])}="
@@ -385,6 +393,7 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
     Optional campaign_id filter (for before/after)."""
     buckets = defaultdict(list)
     seen_campaigns = {}
+    flags = defaultdict(lambda: [0, 0])   # [veto-capped runs, scorer low-conf runs]
     for rec in records:
         labels = cc.campaign_labels(rec)
         if campaign_id is not None and labels["campaign_id"] != campaign_id:
@@ -395,6 +404,9 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
         key = tuple(labels[d] for d in HEAT_DIMS)
         buckets[key].append(aqs)
         seen_campaigns.setdefault(key, set()).add(labels["campaign_id"])
+        veto, scorer_lc = cc.run_aqs_flags(rec)
+        flags[key][0] += int(veto)
+        flags[key][1] += int(scorer_lc)
     cells = []
     for key in sorted(buckets):
         vals = buckets[key]
@@ -410,6 +422,11 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
             # a cell pooling a baseline round with an optimisation round shows a
             # median that is NEITHER of them — flag it, never hide it (D-135)
             "mixed_campaigns": ids if len(ids) > 1 else [],
+            # the scorer's own verdicts on these runs: a veto CAPS the score at
+            # 70/54, which are the grade-band edges, so a capped run lands on a
+            # boundary and the cell's median characterises neither population
+            "veto_n": flags[key][0],
+            "scorer_low_conf_n": flags[key][1],
         })
     return cells
 
@@ -419,6 +436,11 @@ def render_heatcard_markdown(cells):
     if not cells:
         lines.append("_无 AQS 数据可成卡（记录缺 run.aqs.score）。_")
         return "\n".join(lines)
+    if any(c.get("veto_n") for c in cells):
+        lines += ["> ⚠ **本卡含被否决封顶的 run**（标 `VETO_CAPPED`）。否决把分数**封顶**在 "
+                  "70 / 54，而 70 与 54 正是分带边界——这样的格分低，可能是**会话没跑成**，"
+                  "而不是网络慢，两者处置完全不同。封顶与未封顶的 run 混在一格里，其中位数"
+                  "**两种情形都不代表**；下结论前先看该格的 `VETO_CAPPED:n/N`。", ""]
     lines += [
         "| 点位 | 运营商 | 时段 | AQS中位 | 分级 | n | 备注 |",
         "|---|---|---|---|---|---|---|",
@@ -427,6 +449,10 @@ def render_heatcard_markdown(cells):
         notes = []
         if c.get("mixed_campaigns"):
             notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
+        if c.get("veto_n"):
+            notes.append(f"**VETO_CAPPED:{c['veto_n']}/{c['n']}**")
+        if c.get("scorer_low_conf_n"):
+            notes.append(f"SCORER_LOW_CONF:{c['scorer_low_conf_n']}/{c['n']}")
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"
@@ -778,7 +804,8 @@ def _heat_grid_html(cells, value_key="aqs_median"):
             grade = c["grade"] or "n/a"
             bg, fg = cc.GRADE_COLORS.get(grade, cc.GRADE_COLORS["n/a"])
             lc = (" *" if c["low_confidence"] else "") \
-                + (" ⚠混战役" if c.get("mixed_campaigns") else "")
+                + (" ⚠混战役" if c.get("mixed_campaigns") else "") \
+                + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "")
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
                        f"<span class='sub'>{esc(grade)} · n={c['n']}{lc}</span></td>")
         body.append("<tr>" + "".join(tds) + "</tr>")
@@ -1054,11 +1081,12 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # tables sees only columns — without it, a pooled median arrives looking
         # like an ordinary trustworthy number (D-141)
         w.writerow(["point_id", "carrier", "time_band", "aqs_median", "grade", "n",
-                    "low_confidence", "mixed_campaigns"])
+                    "low_confidence", "mixed_campaigns", "veto_n", "scorer_low_conf_n"])
         for c in heat:
             w.writerow([c["cell"]["point_id"], c["cell"]["carrier"], c["cell"]["time_band"],
                         _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"],
-                        "/".join(c.get("mixed_campaigns") or [])])
+                        "/".join(c.get("mixed_campaigns") or []),
+                        c.get("veto_n", 0), c.get("scorer_low_conf_n", 0)])
     written.append(p)
 
     p = prefix + "_attribution.csv"

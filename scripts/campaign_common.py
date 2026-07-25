@@ -179,6 +179,20 @@ def run_id(rec):
     return v if isinstance(v, str) and v.strip() else None
 
 
+def run_aqs_flags(rec):
+    """(veto_applied, scorer_low_confidence) as declared by the scorer itself.
+
+    A veto CAPS the score (S1<0.95 -> 70, S1<0.90 -> 54), and 70 and 54 are
+    exactly the grade-band edges — so a capped run lands on a boundary and a
+    cell pooling capped with uncapped runs has a median that characterises
+    neither. Only dashboard.py (the per-run view) ever read these; the campaign
+    layer showed the number without the reason, which is the difference between
+    "the network is poor here" and "the sessions failed" (D-154).
+    """
+    aqs_obj = run_obj(rec).get("aqs") or {}
+    return bool(aqs_obj.get("veto_applied")), bool(aqs_obj.get("low_confidence"))
+
+
 def run_aqs(rec):
     """run.aqs.score with legacy fallbacks (top-level aqs / aqs_result.score)."""
     aqs_obj = run_obj(rec).get("aqs") or {}

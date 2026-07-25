@@ -127,6 +127,17 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
+    # A veto caps the score at 70/54 — the grade-band edges — so a low grade can
+    # mean the sessions failed rather than the network being slow (D-154)
+    veto_cells = [c for c in cells if c.get("veto_n")]
+    if veto_cells:
+        n_runs = sum(c["veto_n"] for c in veto_cells)
+        rows.append(_row(WARN, "否决封顶",
+                         f"{len(veto_cells)}/{len(cells)} 个格含被否决封顶的 run（共 {n_runs} 条，"
+                         "分数被封在 70/54）——低分格须先分清是会话失败还是网络慢"))
+    else:
+        rows.append(_row(PASS, "否决封顶", "无被否决封顶的 run"))
+
     # A heat-card dimension filled by a rule of thumb is not the same evidence
     # as one recorded on site, and the report says "busy is N points worse than
     # idle" either way (D-153)

@@ -202,3 +202,13 @@ def test_inferred_time_band_is_warned_before_publication():
     assert _sev(pc.check(out), "标签来源") == pc.WARN
     assert "非现场记录" in _detail(pc.check(out), "标签来源")
     assert _sev(pc.check(_clean()), "标签来源") == pc.PASS
+
+
+def test_veto_capped_cells_are_warned_before_publication():
+    recs = [contractify(r) for r in aqs_records(54, 6, point="P1")]
+    for r in recs[:4]:
+        r["run"]["aqs"]["veto_applied"] = True
+    rows = pc.check(recs)
+    assert _sev(rows, "否决封顶") == pc.WARN
+    assert "会话失败还是网络慢" in _detail(rows, "否决封顶")
+    assert _sev(pc.check(_clean()), "否决封顶") == pc.PASS

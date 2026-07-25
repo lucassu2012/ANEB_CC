@@ -774,3 +774,61 @@ def test_report_says_when_a_grouping_label_was_inferred():
     plain = rpt.build_report_markdown(aqs_records(80, 6))
     assert "标签来源 label_source" in plain          # the line is always there
     assert "工具推断的" not in plain                 # the warning is not
+
+
+def _veto_corpus(n=6, capped=4, aqs=54):
+    from synth import contractify
+    recs = [contractify(r) for r in aqs_records(aqs, n, point="P1")]
+    for r in recs[:capped]:
+        r["run"]["aqs"]["veto_applied"] = True
+    return recs
+
+
+def test_veto_capped_runs_are_visible_in_the_heat_card():
+    """A veto caps the score at 70/54 — the grade-band edges — so a low grade
+    can mean the sessions failed rather than the network being slow. Only
+    dashboard.py ever read the flag; the campaign layer showed the number
+    without the reason (D-154)."""
+    recs = _veto_corpus()
+    c = rpt.heat_cells(recs)[0]
+    assert c["veto_n"] == 4 and c["n"] == 6
+    md = rpt.render_heatcard_markdown([c])
+    assert "**VETO_CAPPED:4/6**" in md
+    assert "会话没跑成" in md                     # the caveat says what it means
+    # and a clean corpus stays quiet
+    clean = rpt.heat_cells(aqs_records(54, 6, point="P1"))
+    assert clean[0]["veto_n"] == 0
+    assert "VETO_CAPPED" not in rpt.render_heatcard_markdown(clean)
+
+
+def test_veto_reaches_summary_html_and_csv():
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = _veto_corpus()
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "被否决封顶" in md                      # summary bullet
+    assert "封顶4" in html                         # pivot cell marker
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+    assert rows[0]["veto_n"] == "4"
+    assert rows[0]["scorer_low_conf_n"] == "0"
+
+
+def test_scorer_low_confidence_is_separate_from_sample_count():
+    """The scorer's own low-confidence flag (rounds < 3) is a different thing
+    from n < min_samples, so they must not collapse into one note."""
+    from synth import contractify
+    recs = [contractify(r) for r in aqs_records(80, 6, point="P1")]
+    for r in recs[:2]:
+        r["run"]["aqs"]["low_confidence"] = True
+    c = rpt.heat_cells(recs)[0]
+    assert c["scorer_low_conf_n"] == 2
+    assert c["low_confidence"] is False            # n=6 >= min_samples
+    md = rpt.render_heatcard_markdown([c])
+    assert "SCORER_LOW_CONF:2/6" in md
+    assert "low_conf;" not in md and not md.rstrip().endswith("low_conf |")
