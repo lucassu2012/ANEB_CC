@@ -953,6 +953,10 @@ def main(argv):
     ap.add_argument("--attr-kpi", default=attribution.DEFAULT_KPI,
                     choices=attribution.ATTRIBUTABLE_KPIS)
     ap.add_argument("--min-samples", type=int, default=cc.DEFAULT_MIN_SAMPLES)
+    ap.add_argument("--campaign", help="report on ONE campaign_id only. Headline "
+                                       "numbers should come from a single campaign: "
+                                       "pooling rounds yields a median that is "
+                                       "neither of them (D-136)")
     ap.add_argument("--before", help="campaign_id for before/after 'before'")
     ap.add_argument("--after", help="campaign_id for before/after 'after'")
     ap.add_argument("--csv", help="also write heat/attribution/stability tables as <PREFIX>_*.csv")
@@ -968,6 +972,15 @@ def main(argv):
 
     stats = {}
     recs, files = cc.load_records(args.inputs, stats=stats)
+    if args.campaign:
+        available = sorted({cc.campaign_labels(r)["campaign_id"] for r in recs})
+        recs = [r for r in recs
+                if cc.campaign_labels(r)["campaign_id"] == args.campaign]
+        if not recs:
+            # a typo'd id must not silently yield an empty report
+            print(f"--campaign {args.campaign} 匹配 0 条记录；语料中的战役："
+                  + ", ".join(available), file=sys.stderr)
+            return 2
     if not recs:
         # Mirror validate_results/corpus_health: no corpus is NOT_EXECUTED (exit 2),
         # never a valid-looking empty report (D-109).
@@ -1002,7 +1015,7 @@ def main(argv):
                 print(f"  … 其余 {len(errors) - 10} 条略", file=sys.stderr)
             return 1
     params = {"min_samples": args.min_samples, "attr_kpi": args.attr_kpi,
-              "before": args.before, "after": args.after}
+              "campaign": args.campaign, "before": args.before, "after": args.after}
     prov = prov_mod.compute(files, stats, params, generated_at=now,
                             thresholds=effective_thresholds())
 

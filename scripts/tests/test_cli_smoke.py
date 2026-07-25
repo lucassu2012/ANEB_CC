@@ -81,6 +81,38 @@ def test_report_cli_rejects_malformed_corpus():
         assert "拒绝出报告" in r.stderr
 
 
+def _two_campaign_fixture(d):
+    recs = [contractify(r) for r in
+            (aqs_records(55, 6, campaign_id="base") + aqs_records(75, 6, campaign_id="opt"))]
+    path = os.path.join(d, "two.jsonl")
+    _write_jsonl(path, recs)
+    return path
+
+
+def test_report_cli_campaign_filter_gives_a_clean_single_round():
+    """Headline numbers must come from ONE campaign — pooled they are neither
+    (D-136). --campaign is how the operator gets that."""
+    with tempfile.TemporaryDirectory() as d:
+        f = _two_campaign_fixture(d)
+        md_path = os.path.join(d, "r.md")
+        r = _run("campaign_report.py", f, "--campaign", "base", "--md", md_path)
+        assert r.returncode == 0, r.stderr
+        with open(md_path, encoding="utf-8") as fh:
+            md = fh.read()
+        assert "MIXED_CAMPAIGN" not in md          # single round: nothing pooled
+        assert "个战役" not in md
+        assert "| 55 |" in md                      # the baseline's own median
+
+
+def test_report_cli_unknown_campaign_is_not_an_empty_report():
+    with tempfile.TemporaryDirectory() as d:
+        f = _two_campaign_fixture(d)
+        r = _run("campaign_report.py", f, "--campaign", "typo")
+        assert r.returncode == 2, r.stdout
+        assert "匹配 0 条记录" in r.stderr
+        assert "base" in r.stderr and "opt" in r.stderr   # tells you what exists
+
+
 def test_report_cli_empty_corpus_not_executed():
     """Zero records must be NOT_EXECUTED (exit 2), never a valid-looking empty
     report (D-109)."""

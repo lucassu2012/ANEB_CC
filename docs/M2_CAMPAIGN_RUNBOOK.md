@@ -94,6 +94,19 @@ python campaign_report.py labeled/*.jsonl \
     --md report.md --html report.html --csv tables --provenance provenance.json
 ```
 
+**语料里有多个战役时（优化轮之后必然如此）**：除「优化前后对比」/「纵向趋势」两段外，
+**其余各段会把所有战役按格池化**——那个中位数**既不是前也不是后**（受影响的格标
+`MIXED_CAMPAIGN`，报告顶部也会提示）。正确做法是**各出各的、再出一份对比**：
+
+```
+python campaign_report.py labeled/day1.jsonl --campaign sz-2026Q3-baseline --md report_base.md
+python campaign_report.py labeled/day1.jsonl --campaign sz-2026Q3-opt --md report_opt.md
+python campaign_report.py labeled/day1.jsonl --before sz-2026Q3-baseline --after sz-2026Q3-opt --md report_compare.md
+```
+
+**头条数字取自单战役报告**；混合那份只用来看对比段。战役名打错时工具 exit 2 并列出语料中
+实际有哪些战役，不会给你一份空报告。
+
 > 出表之后要**组装成交付物**（工具产出的是表格集合，不是报告）：
 > 骨架见 [`M2_REPORT_TEMPLATE.md`](M2_REPORT_TEMPLATE.md)——口径边界/方法学/免责措辞
 > 已预写（§2 为红线，照抄勿改），结论与数字留占位并注明从哪一段取。
