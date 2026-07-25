@@ -6,6 +6,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
+import json
+import tempfile
+import types
+
 import coverage_matrix as cm
 from synth import aqs_records, make_record
 
@@ -92,3 +96,50 @@ def test_markdown_target_mode():
 def test_markdown_descriptive_mode():
     md = cm.render_markdown(cm.analyze(aqs_records(90, 5), target=None))
     assert "描述模式" in md
+
+
+def _args(config=None):
+    return types.SimpleNamespace(config=config, points=None, carriers=None, time_bands=None)
+
+
+def _write_cfg(d, obj):
+    p = os.path.join(d, "grid.json")
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(obj, f)
+    return p
+
+
+def test_config_with_wrong_key_names_is_a_hard_error():
+    """Plural key names (points/carriers/time_bands) silently produced an empty
+    target and fell through to descriptive mode — the user would believe coverage
+    tracking was running when it was not (D-119)."""
+    with tempfile.TemporaryDirectory() as d:
+        cfg = _write_cfg(d, {"points": ["P1"], "carriers": ["cmcc"],
+                             "time_bands": ["busy"]})
+        try:
+            cm._load_target(_args(cfg))
+        except SystemExit as e:
+            msg = str(e)
+            assert "declares no target grid" in msg
+            assert "point_id" in msg           # tells you the expected keys
+            assert "points" in msg             # and what you actually wrote
+        else:
+            raise AssertionError("wrong key names must not be accepted silently")
+
+
+def test_config_with_correct_keys_loads():
+    with tempfile.TemporaryDirectory() as d:
+        cfg = _write_cfg(d, {"point_id": ["P1", "P2"], "carrier": ["cmcc"],
+                             "time_band": ["busy"]})
+        assert cm._load_target(_args(cfg)) == {
+            "point_id": ["P1", "P2"], "carrier": ["cmcc"], "time_band": ["busy"]}
+
+
+def test_partial_config_keeps_known_dims():
+    """A partly-wrong config still loads its valid dims (and warns) — only a
+    wholly empty target is fatal."""
+    with tempfile.TemporaryDirectory() as d:
+        cfg = _write_cfg(d, {"point_id": ["P1"], "carriers": ["cmcc"]})
+        t = cm._load_target(_args(cfg))
+        assert t["point_id"] == ["P1"]
+        assert t["carrier"] == []

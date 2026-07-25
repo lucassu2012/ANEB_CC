@@ -11,9 +11,11 @@
 
 ```json
 // campaign_grid.json（示例——以 PO 定值为准）
-{"points": ["SZ-CBD-01", "SZ-UNIV-02", "SZ-METRO-03"],
- "carriers": ["cmcc", "cucc"],
- "time_bands": ["busy", "idle"]}
+// 键名必须是 point_id / carrier / time_band（与记录里的字段名一致）；
+// 写成复数 points/carriers/time_bands 会被工具直接拒绝并提示正确键名。
+{"point_id":  ["SZ-CBD-01", "SZ-UNIV-02", "SZ-METRO-03"],
+ "carrier":   ["cmcc", "cucc"],
+ "time_band": ["busy", "idle"]}
 ```
 
 ## 0.5 出发前彩排（强烈建议：外场前一天跑一次）

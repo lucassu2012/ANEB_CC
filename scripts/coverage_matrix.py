@@ -127,7 +127,23 @@ def _load_target(args):
     if args.config:
         with open(args.config, encoding="utf-8") as f:
             cfg = json.load(f)
-        return {d: cfg.get(d) or [] for d in CELL_DIMS}
+        target = {d: cfg.get(d) or [] for d in CELL_DIMS}
+        if not any(target.values()):
+            # A config was explicitly given but yielded nothing — almost always
+            # wrong key names. Falling through to descriptive mode here would let
+            # someone believe coverage tracking is running when it is not, so this
+            # is a hard error: 'cannot check' must never look like 'checked'.
+            raise SystemExit(
+                f"--config {args.config} declares no target grid.\n"
+                f"  expected keys: {', '.join(CELL_DIMS)}\n"
+                f"  found keys:    {', '.join(cfg) or '(none)'}\n"
+                '  example: {"point_id": ["SZ-CBD-01"], "carrier": ["cmcc"], '
+                '"time_band": ["busy", "idle"]}')
+        unknown = [k for k in cfg if k not in CELL_DIMS]
+        if unknown:
+            print(f"⚠ --config: ignoring unknown key(s) {', '.join(unknown)} "
+                  f"(target dims are {', '.join(CELL_DIMS)})", file=sys.stderr)
+        return target
     t = {"point_id": _parse_list(args.points), "carrier": _parse_list(args.carriers),
          "time_band": _parse_list(args.time_bands)}
     return t if any(t.values()) else None
