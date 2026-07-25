@@ -55,6 +55,14 @@ validity/score。空块=未检测（不计 0），缺 `attribution` 归 `unknown
 比例列按 3 位小数渲染——真实批化分可低至 0.007，1 位小数会显示成 `0`（读作"无批化"）。
 集成进综合报告 + 独立 CLI。
 
+### `publish_check.py` — 发布前自检（D-124）
+把 runbook §5 的手工清单变成一条命令（外场收工时手工清单最容易被跳过）。
+**FAIL**（阻断发布，退出码 1）=机器可以确定的客观错误：混入合成语料、契约违规、
+全无战役标签、空语料。**WARN**（须由人解释后才可发布）=需要判断的：低有效率格、
+失真热点、时钟可疑热点、low_conf 格、序位效应。**"无法判断"一律记 WARN，绝不记 PASS**；
+WARN 也绝不自动升格为 PASS——工具不替人做判断，只保证作者被问到"这个格为什么这样"时答得上来。
+自检**不能**替代 runbook §5 里需要人工判断的条目（结论措辞、归档完整性、claim_scope 落款）。
+
 ### `transport_rollup.py` — 接入介质对比（wifi vs cellular）（D-110）
 按 (点位,运营商,时段) 出各介质 run 数 + AQS 中位 + Δ(cellular−wifi)（AQS 越大越好，
 负值=蜂窝更差）。transport 取 run 显式设置；`auto` 由各场景 `network_snapshot` 观测共识

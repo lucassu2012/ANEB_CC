@@ -86,7 +86,17 @@ python campaign_report.py labeled/*.jsonl \
 "进局点的弹药"须可复现）。优化前后对比给 `--before ID --after ID`；
 ≥3 个战役自动出纵向趋势段。
 
-## 5. 发布前复核清单（逐项过，不过不发）
+## 5. 发布前复核（先跑自检，再过人工项）
+
+```
+python publish_check.py labeled/*.jsonl
+```
+
+FAIL=客观错误**阻断发布**（混入合成语料 / 契约违规 / 全无标签），退出码 1；
+WARN=**须由人解释**后才可发布（低有效率 / 失真热点 / 时钟可疑 / low_conf / 序位效应）；
+"无法判断"一律记 WARN，**绝不**记 PASS。自检覆盖不了的人工项仍需逐条过：
+
+
 
 - [ ] 契约门通过（无 `--skip-contract-check`；stderr 无"未经校验"告示）
 - [ ] 「有效性」段：各格有效率 ≥80%，无 `LOW_VALID_RATE`（有则先解释失效原因直方图）
