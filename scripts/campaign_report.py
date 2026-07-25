@@ -61,6 +61,9 @@ def inventory(records):
         # version dimensions that define what the numbers MEAN — pooling across
         # them compares different metric/scoring definitions under one name (D-137)
         "kpi_sets": Counter(), "aqs_versions": Counter(), "app_versions": Counter(),
+        # measurement window — the deliverable states when the data was collected,
+        # and a reader cannot judge a heat card without knowing that (D-138)
+        "first_ms": None, "last_ms": None,
     }
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -80,9 +83,23 @@ def inventory(records):
         inv["app_versions"][cc.run_obj(rec).get("app_version_code")
                             if cc.run_obj(rec).get("app_version_code") is not None
                             else "absent"] += 1
+        started = cc.run_started_ms(rec)
+        if started is not None:
+            inv["first_ms"] = started if inv["first_ms"] is None else min(inv["first_ms"], started)
+            inv["last_ms"] = started if inv["last_ms"] is None else max(inv["last_ms"], started)
         if cc.run_aqs(rec) is not None:
             inv["aqs_present"] += 1
     return inv
+
+
+def _utc_stamp(ms):
+    """epoch ms -> 'YYYY-MM-DD HH:MM UTC'. UTC deliberately: the records carry no
+    timezone, so rendering in local time would silently assume one (and would make
+    the report non-reproducible across machines)."""
+    if ms is None:
+        return None
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(ms / 1000.0, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def _cell_label(cell, dims=("point_id", "carrier", "time_band")):
@@ -402,6 +419,9 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         f"- 时段 time_band：{dict(inv['time_bands'])}",
         f"- 服务层级 tier：{dict(inv['tiers'])}",
         f"- run 状态 status：{dict(inv['statuses'])}",
+        f"- 采集时间窗：{_utc_stamp(inv['first_ms']) or '—'} → "
+        f"{_utc_stamp(inv['last_ms']) or '—'}"
+        + ("" if inv["first_ms"] is not None else "（记录缺 started_at_epoch_ms）"),
         "",
     ]
     # Aborted/unknown runs are SURFACED, never silently dropped (survey gap 4):

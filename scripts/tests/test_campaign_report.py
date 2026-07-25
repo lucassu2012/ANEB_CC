@@ -256,6 +256,29 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_measurement_window_is_reported_in_utc():
+    """The deliverable skeleton asks the author for the collection window and
+    says to take it from 覆盖盘点 — which did not emit it (D-138). UTC, because
+    the records carry no timezone and guessing one would be a silent assumption."""
+    recs = (aqs_records(90, 2, started_ms=1783944000000)
+            + aqs_records(90, 2, started_ms=1784030400000))   # +1 day
+    inv = rpt.inventory(recs)
+    assert inv["first_ms"] == 1783944000000
+    assert inv["last_ms"] == 1784030400000
+    md = rpt.build_report_markdown(recs)
+    assert "采集时间窗" in _section(md, "覆盖盘点")
+    assert "UTC" in _section(md, "覆盖盘点")
+
+
+def test_missing_timestamps_degrade_honestly():
+    recs = aqs_records(90, 3)
+    for r in recs:
+        r["run"]["started_at_epoch_ms"] = None
+    line = [ln for ln in _section(rpt.build_report_markdown(recs), "覆盖盘点").splitlines()
+            if "采集时间窗" in ln][0]
+    assert "—" in line and "缺 started_at_epoch_ms" in line   # never a fabricated date
+
+
 def test_mixed_version_dimensions_are_surfaced():
     """kpi_set says what the metric IS, aqs_version how the score is computed,
     app_version_code which build measured it. Pooling across them may average
