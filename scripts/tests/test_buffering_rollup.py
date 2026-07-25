@@ -116,3 +116,13 @@ def test_small_score_not_rendered_as_zero():
 def test_markdown_empty_when_no_buffering():
     md = br.render_markdown(br.analyze([_rec([{}]) for _ in range(3)]))
     assert "无 buffering 数据" in md
+
+
+def test_tied_attribution_is_not_a_modal_attribution():
+    """This is a forensic verdict: network slow, or something batched the stream.
+    Deciding a tie by input order would make it depend on file order (D-148)."""
+    cells = br.buffering_cells([_rec([_b("none"), _b("middlebox_suspect")])])
+    assert cells[0]["modal_attribution"] is None
+    assert cells[0]["attribution_tie"] == ["middlebox_suspect", "none"]
+    assert "ATTR_TIE:middlebox_suspect/none" in br.render_markdown(
+        {"cells": cells, "min_samples": 5})

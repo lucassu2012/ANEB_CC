@@ -28,6 +28,7 @@ Usage:
 """
 import argparse
 import json
+import math
 import os
 import sys
 
@@ -179,11 +180,37 @@ def validate_scenario(scn, sch, path):
     return f
 
 
+def _nonfinite_paths(node, path="", out=None):
+    """Every NaN/±Infinity leaf, with its dotted path.
+
+    JSON has no such literals, but Python's json module emits and accepts the
+    bare words by default, so a producer or a converting tool can put them in a
+    corpus. The aggregates now refuse them (D-148), which keeps the numbers
+    honest — but "silently not computable" is not the same as telling the
+    operator the corpus is broken, so the gate names them.
+    """
+    out = [] if out is None else out
+    if isinstance(node, dict):
+        for k, v in node.items():
+            _nonfinite_paths(v, f"{path}.{k}" if path else str(k), out)
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            _nonfinite_paths(v, f"{path}[{i}]", out)
+    elif isinstance(node, float) and not math.isfinite(node):
+        out.append(f"{path}={node}")
+    return out
+
+
 def validate_records(records, sch):
     """Return (errors, warnings) as two lists of message strings."""
     findings = []
     for i, rec in enumerate(records):
         findings.extend(validate_record(rec, sch, i))
+        bad = _nonfinite_paths(rec)
+        if bad:
+            findings.append(("error", f"record[{i}]: 非法数值（JSON 不允许 NaN/Infinity）"
+                                      f"：{', '.join(bad[:5])}"
+                                      + (f" 等共 {len(bad)} 处" if len(bad) > 5 else "")))
     errors = [m for sev, m in findings if sev == "error"]
     warnings = [m for sev, m in findings if sev == "warn"]
     return errors, warnings

@@ -220,7 +220,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         else:
             spread_note = "；**存在单点异常的段**：" + "、".join(pointy)
         bullets.append("**分段归因**（主要贡献段）：" +
-                       "、".join(f"{k} {v} 格" for k, v in dominant.most_common()) +
+                       "、".join(f"{k} {v} 格" for k, v in cc.ranked(dominant)) +
                        (f"；最大单项 {worst[0]}={cc.fmt_num(worst[1], 1)}ms" if worst else "")
                        + spread_note + tail + "。")
 
@@ -299,7 +299,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                 f"{worst_cell['dragging_dim']}={cc.fmt_num(worst_cell['dragging_median'], 1)}"
                 ) if worst_cell else ""
         bullets.append("**分数侧归因**（拖累维度）：" +
-                       "、".join(f"{d} {n} 格" for d, n in drags.most_common()) + tail + "。")
+                       "、".join(f"{d} {n} 格" for d, n in cc.ranked(drags)) + tail + "。")
 
     # "Did it get better" — the headline question of any second round (D-143).
     inv_ = inventory(records)
@@ -334,7 +334,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         tres = trend.analyze(records, min_samples=min_samples)
         verdict = Counter(c["direction"] for c in tres["cells"] if c["direction"])
         bullets.append("**纵向趋势**：" +
-                       "、".join(f"{k} {v} 格" for k, v in verdict.most_common())
+                       "、".join(f"{k} {v} 格" for k, v in cc.ranked(verdict))
                        + f"（{len(labeled)} 个战役）。" if verdict else
                        "**纵向趋势**：各格在场点不足 2，方向不可计算。")
 
@@ -514,14 +514,19 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
             g = (scn.get("kpi") or scn.get("kpis") or {}).get(gfield)
             if isinstance(g, str):
                 buckets[key]["grades"][g] += 1
+    mixed_by_cell = campaigns_by_cell(records)
     cells = []
     for key in sorted(buckets):
         b = buckets[key]
-        modal = b["grades"].most_common(1)[0][0] if b["grades"] else None
+        # a tie is two populations, not a mode — reporting either one as THE
+        # grade is a coin flip that the input file order decides (D-148)
+        grade, tied = cc.modal(b["grades"])
         cells.append({
             "cell": dict(zip(HEAT_DIMS, key)), "kpi": kpi_key,
-            "median": cc.median(b["vals"]), "grade": modal, "n": len(b["vals"]),
+            "median": cc.median(b["vals"]), "grade": grade, "grade_tie": tied,
+            "n": len(b["vals"]),
             "low_confidence": len(b["vals"]) < min_samples,
+            "mixed_campaigns": mixed_by_cell.get(key, []),
         })
     return cells
 
@@ -534,7 +539,14 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
     lines += ["| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |",
               "|---|---|---|---|---|---|---|"]
     for c in cells:
-        note = "low_conf" if c["low_confidence"] else "—"
+        notes = []
+        if c["grade_tie"]:
+            notes.append("GRADE_TIE:" + "/".join(c["grade_tie"]))
+        if c["mixed_campaigns"]:
+            notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
+        if c["low_confidence"]:
+            notes.append("low_conf")
+        note = "; ".join(notes) or "—"
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
             f"| {cc.md_cell(c['cell']['time_band'])} | "
@@ -583,13 +595,17 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         "",
         "## 覆盖盘点",
         "",
-        f"- 战役 campaign_id：{dict(inv['campaigns'])}",
-        f"- 点位 point_id：{dict(inv['points'])}",
-        f"- 运营商 carrier：{dict(inv['carriers'])}",
-        f"- 时段 time_band：{dict(inv['time_bands'])}",
-        f"- 服务层级 tier：{dict(inv['tiers'])}",
-        f"- run 状态 status：{dict(inv['statuses'])}",
-        f"- profile 版本：{dict(inv['profile_version_sets'])}",
+        # dict(Counter) renders in insertion order, i.e. in the order the files
+        # happened to be read — the same corpus in a different order produced a
+        # different report, contradicting this report's own reproducibility
+        # claim (D-148). Count desc, then key asc, always.
+        f"- 战役 campaign_id：{dict(cc.ranked(inv['campaigns']))}",
+        f"- 点位 point_id：{dict(cc.ranked(inv['points']))}",
+        f"- 运营商 carrier：{dict(cc.ranked(inv['carriers']))}",
+        f"- 时段 time_band：{dict(cc.ranked(inv['time_bands']))}",
+        f"- 服务层级 tier：{dict(cc.ranked(inv['tiers']))}",
+        f"- run 状态 status：{dict(cc.ranked(inv['statuses']))}",
+        f"- profile 版本：{dict(cc.ranked(inv['profile_version_sets']))}",
         f"- 采集时间窗：{_utc_stamp(inv['first_ms']) or '—'} → "
         f"{_utc_stamp(inv['last_ms']) or '—'}"
         + ("" if inv["first_ms"] is not None else "（记录缺 started_at_epoch_ms）"),

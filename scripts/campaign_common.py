@@ -67,8 +67,40 @@ def force_utf8_stdout():
 
 
 def fnum(v):
-    """Numeric-or-None guard (bool excluded — JSON true/false are not measurements)."""
-    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    """Numeric-or-None guard (bool excluded — JSON true/false are not measurements).
+
+    NaN and ±Infinity are rejected too (D-148). They are not JSON per the spec,
+    but Python's json module accepts the bare literals by default, so a producer
+    or a converting tool can put them in a corpus. Letting one through does not
+    merely spoil its own cell: NaN poisons the sort, so `median([10, 20, NaN,
+    40, 50])` is NaN — one bad value destroys the median of the four good ones.
+    Not-a-measurement becomes not-computable, never a number.
+    """
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    return v if math.isfinite(v) else None
+
+
+def modal(counter):
+    """(winner, tied) for a Counter of categorical verdicts.
+
+    `Counter.most_common(1)` breaks ties by insertion order, so the same corpus
+    in a different file order hands back a different verdict — and a 50/50 split
+    is not a mode anyway, it is two populations. A tie returns winner=None with
+    the tied keys, so the caller reports "no single verdict" instead of coining
+    one (R-10). Deterministic in every case (D-148).
+    """
+    if not counter:
+        return None, []
+    top = max(counter.values())
+    tied = sorted(k for k, n in counter.items() if n == top)
+    return (tied[0], []) if len(tied) == 1 else (None, tied)
+
+
+def ranked(counter):
+    """Counter items ordered by count desc, then key asc — a stable order for
+    display lists, where `most_common()` would otherwise leak input order."""
+    return sorted(counter.items(), key=lambda kv: (-kv[1], str(kv[0])))
 
 
 def load_records(patterns, dedupe=True, stats=None, quiet=False):
@@ -346,15 +378,24 @@ def campaign_labels(rec):
 
 # ---------------------------------------------------------------- stats
 
+def _finite(vals):
+    """Drop None and non-finite values. NaN is not a measurement, and unlike a
+    merely wrong number it destroys its neighbours: it poisons the sort, so one
+    NaN makes the median of every other value NaN too. Every aggregate below
+    filters through here so no path can smuggle one in (D-148)."""
+    return [v for v in vals
+            if v is not None and not (isinstance(v, float) and not math.isfinite(v))]
+
+
 def median(vals):
-    vals = [v for v in vals if v is not None]
+    vals = _finite(vals)
     return statistics.median(vals) if vals else None
 
 
 def stdev(vals):
     """Sample standard deviation, or None below two samples (never 0 as a
     stand-in for 'spread unknown')."""
-    vals = [v for v in vals if v is not None]
+    vals = _finite(vals)
     return statistics.stdev(vals) if len(vals) > 1 else None
 
 
@@ -363,7 +404,7 @@ def mad(vals):
     which is the point when the outliers are what you are looking for. None
     below two samples (never 0 as a stand-in for 'spread unknown'); a genuine 0
     is returned as 0 and callers must decide what a zero-spread basis means."""
-    xs = [v for v in vals if v is not None]
+    xs = _finite(vals)
     if len(xs) < 2:
         return None
     m = statistics.median(xs)
@@ -407,7 +448,7 @@ def required_n(sd, effect):
 
 
 def mean(vals):
-    vals = [v for v in vals if v is not None]
+    vals = _finite(vals)
     return statistics.fmean(vals) if vals else None
 
 

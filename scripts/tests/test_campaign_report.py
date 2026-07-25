@@ -606,3 +606,83 @@ def test_single_campaign_rollup_csvs_are_unmarked():
             rows = _rollup_csv(prefix, table)
             assert rows, f"{table} produced no rows"
             assert all(r["mixed_campaigns"] == "" for r in rows), table
+
+
+def test_report_is_independent_of_input_order():
+    """Same records, different file order, byte-identical report.
+
+    The appendix of every report promises "same input + same thresholds = same
+    numbers". It was not true: Counter insertion order leaked into the coverage
+    inventory, and — far worse — a tied modal grade was decided by whichever
+    record was read first, so one cell rendered `good` or `poor` depending on
+    the order of the input files (D-148).
+    """
+    import random
+    import synth_campaign as sc
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt"),
+                       carriers=("cmcc", "cucc"), time_bands=("busy", "idle"),
+                       tiers=("metro", "regional", "core"), seed=7)
+    shuffled = list(recs)
+    random.Random(1).shuffle(shuffled)
+    assert rpt.build_report_markdown(shuffled) == rpt.build_report_markdown(recs)
+    # all three surfaces, since HTML has its own rich renderers (D-141)
+    assert (rpt.build_report_html(shuffled, "X") == rpt.build_report_html(recs, "X"))
+    import os
+    import tempfile
+
+    def _csvs(rs):
+        with tempfile.TemporaryDirectory() as d:
+            paths = rpt.write_csv_tables(rs, os.path.join(d, "c"))
+            return {os.path.basename(x): open(x, encoding="utf-8-sig").read()
+                    for x in paths}
+
+    assert _csvs(shuffled) == _csvs(recs)
+
+
+def test_tied_kpi_grade_is_not_decided_by_a_coin_flip():
+    """A 50/50 split is two populations, not a mode — naming one fabricates a
+    verdict, and naming it by input order makes it unreproducible."""
+    recs = (kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "good"})
+            + kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "poor"}))
+    c = rpt.kpi_heat_cells(recs, "n1_rtt_p50_ms")[0]
+    assert c["grade"] is None
+    assert c["grade_tie"] == ["good", "poor"]
+    md = rpt.render_kpi_heatcard_markdown([c], "n1_rtt_p50_ms")
+    assert "GRADE_TIE:good/poor" in md
+    # a clear majority still yields a grade
+    recs += kpi_scenario_records(1, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "poor"})
+    c2 = rpt.kpi_heat_cells(recs, "n1_rtt_p50_ms")[0]
+    assert c2["grade"] == "poor" and c2["grade_tie"] == []
+
+
+def test_kpi_heatcard_marks_pooled_campaigns():
+    """The AQS heat card was marked in D-135; the per-KPI one never was."""
+    recs = (kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "good"},
+                                 campaign_id="base")
+            + kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 90, "n1_grade": "good"},
+                                   campaign_id="opt"))
+    c = rpt.kpi_heat_cells(recs, "n1_rtt_p50_ms")[0]
+    assert c["mixed_campaigns"] == ["base", "opt"]
+    assert "MIXED_CAMPAIGN:base/opt" in rpt.render_kpi_heatcard_markdown([c], "n1_rtt_p50_ms")
+
+
+def test_non_finite_values_are_not_measurements():
+    """The json module accepts bare NaN/Infinity though JSON forbids them. One
+    NaN does not merely spoil its own cell — it poisons the sort, so the median
+    of every other value in the cell becomes NaN too (D-148)."""
+    assert cc.fnum(float("nan")) is None
+    assert cc.fnum(float("inf")) is None
+    assert cc.fnum(float("-inf")) is None
+    assert cc.median([10.0, 20.0, float("nan"), 40.0, 50.0]) == 30.0
+    assert cc.mean([10.0, float("inf"), 20.0]) == 15.0
+    assert cc.stdev([5.0, float("nan")]) is None      # one usable sample -> unknown
+    assert cc.mad([5.0, float("nan")]) is None
+
+
+def test_modal_and_ranked_are_deterministic():
+    from collections import Counter
+    assert cc.modal(Counter({"b": 3, "a": 3})) == (None, ["a", "b"])
+    assert cc.modal(Counter({"b": 3, "a": 1})) == ("b", [])
+    assert cc.modal(Counter()) == (None, [])
+    # ties in a display list order by key, never by insertion
+    assert cc.ranked(Counter({"z": 2, "a": 2, "m": 5})) == [("m", 5), ("a", 2), ("z", 2)]

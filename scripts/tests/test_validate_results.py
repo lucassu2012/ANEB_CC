@@ -184,3 +184,19 @@ def test_cli_missing_schema_returns_2():
         with open(p, "w", encoding="utf-8") as f:
             f.write(json.dumps(_valid_record()) + "\n")
         assert vd.main([p, "--schema", os.path.join(d, "nope.json")]) == 2
+
+
+def test_non_finite_numbers_are_contract_errors():
+    """The aggregates refuse NaN so the numbers stay honest, but "silently not
+    computable" is not the same as telling the operator the corpus is broken."""
+    from synth import contractify, kpi_scenario_records
+    recs = [contractify(r) for r in kpi_scenario_records(2, kpi={"n1_rtt_p50_ms": 20})]
+    recs[0]["scenarios"][0]["kpi"]["n1_rtt_p50_ms"] = float("nan")
+    errors, _ = vd.validate_records(recs, SCH)
+    hits = [e for e in errors if "NaN/Infinity" in e]
+    assert len(hits) == 1
+    assert "n1_rtt_p50_ms" in hits[0]
+    clean, _ = vd.validate_records(
+        [contractify(r) for r in kpi_scenario_records(2, kpi={"n1_rtt_p50_ms": 20})],
+        SCH)
+    assert not [e for e in clean if "NaN/Infinity" in e]

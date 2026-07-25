@@ -76,7 +76,9 @@ def validity_cells(records, min_rate=DEFAULT_MIN_RATE):
             "unknown": counts["unknown"],
             "valid_rate": (usable / attempted) if attempted else None,
             "below_min_rate": (usable / attempted < min_rate) if attempted else None,
-            "reasons": dict(buckets[key]["reasons"].most_common()),
+            # ranked, not most_common: reasons tied at the same count would otherwise
+            # order by input order and the CSV row differs run to run (D-148)
+            "reasons": dict(cc.ranked(buckets[key]["reasons"])),
         })
     return cells, corpus_reasons
 
@@ -108,7 +110,7 @@ def analyze(records, min_rate=DEFAULT_MIN_RATE):
     return {
         "min_rate": min_rate,
         "cells": cells,
-        "corpus_reasons": dict(reasons.most_common()),
+        "corpus_reasons": dict(cc.ranked(reasons)),
         "trend": validity_trend(records),
         "attempted": attempted,
         "usable": usable,

@@ -64,14 +64,19 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     for key in sorted(buckets):
         g = buckets[key]
         n = g["n"]
-        modal_attr = g["attr"].most_common(1)[0][0] if g["attr"] else "unknown"
+        # a tie between attributions is not a modal attribution — deciding it by
+        # input order would make this forensic verdict depend on file order (D-148)
+        modal_attr, attr_tie = cc.modal(g["attr"])
+        if modal_attr is None and not attr_tie:
+            modal_attr = "unknown"      # no evidence at all, as before
         suspect = sum(c for a, c in g["attr"].items() if a not in _BENIGN and a != "unknown")
         suspect_share = (suspect / n) if n else None
         cells.append({
             "cell": dict(zip(CELL_DIMS, key)),
             "n": n,
             "modal_attribution": modal_attr,
-            "attribution_counts": dict(g["attr"].most_common()),
+            "attribution_tie": attr_tie,
+            "attribution_counts": dict(cc.ranked(g["attr"])),
             "score_median": cc.median(g["score"]) if g["score"] else None,
             "sawtooth_median": cc.median(g["sawtooth"]) if g["sawtooth"] else None,
             "near_zero_median": cc.median(g["near_zero"]) if g["near_zero"] else None,
@@ -106,6 +111,8 @@ def render_markdown(res):
         notes = []
         if c["distortion_hotspot"]:
             notes.append("**失真热点**")
+        if c["attribution_tie"]:
+            notes.append("ATTR_TIE:" + "/".join(c["attribution_tie"]))
         if c["low_confidence"]:
             notes.append("low_conf")
         share = "—" if c["suspect_share"] is None else f"{c['suspect_share'] * 100:.0f}%"
@@ -113,7 +120,7 @@ def render_markdown(res):
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {c['n']} | "
             # 3 digits: these are 0..1 ratios — the default 1 digit renders a real
             # 0.02 as "0", which reads as "no batching detected" (R-10 honesty).
-            f"{c['modal_attribution']} | {cc.fmt_num(c['score_median'], 3)} | "
+            f"{c['modal_attribution'] or '—'} | {cc.fmt_num(c['score_median'], 3)} | "
             f"{cc.fmt_num(c['sawtooth_median'], 3)} | {cc.fmt_num(c['near_zero_median'], 3)} | "
             f"{share} | {'; '.join(notes) or '—'} |")
     return "\n".join(lines)

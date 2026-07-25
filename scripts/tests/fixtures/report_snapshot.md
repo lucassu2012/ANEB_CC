@@ -9,7 +9,7 @@
 - 点位 point_id：{'P1': 72, 'P2': 72}
 - 运营商 carrier：{'cmcc': 144}
 - 时段 time_band：{'busy': 72, 'idle': 72}
-- 服务层级 tier：{'metro': 48, 'regional': 48, 'core': 48}
+- 服务层级 tier：{'core': 48, 'metro': 48, 'regional': 48}
 - run 状态 status：{'completed': 144}
 - profile 版本：{'t': 144}
 - 采集时间窗：2026-07-13 12:00 UTC → 2026-07-13 12:00 UTC
@@ -45,10 +45,10 @@
 
 | 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |
 |---|---|---|---|---|---|---|
-| P1 | cmcc | busy | 38 | good | 36 | — |
-| P1 | cmcc | idle | 38 | good | 36 | — |
-| P2 | cmcc | busy | 38 | good | 36 | — |
-| P2 | cmcc | idle | 38 | good | 36 | — |
+| P1 | cmcc | busy | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P1 | cmcc | idle | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | busy | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | idle | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
 
 ## 复测稳定性（CV 门 ≤10%，对齐 M1 验收）
 
