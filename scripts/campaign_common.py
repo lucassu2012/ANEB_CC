@@ -238,7 +238,7 @@ def histogram_edges(scn):
 def homogeneity_acc():
     """Fresh per-cell comparability accumulator (see note_homogeneity/mixed_flags)."""
     return {"profile_versions": set(), "histogram_edges": set(),
-            "modes": set(), "profile_sources": set()}
+            "modes": set(), "profile_sources": set(), "campaigns": set()}
 
 
 def note_run_homogeneity(acc, rec):
@@ -251,6 +251,20 @@ def note_run_homogeneity(acc, rec):
         v = run.get(field)
         if isinstance(v, str) and v:
             acc[dst].add(v)
+    cid = (run.get("campaign") or {}).get("campaign_id")
+    if isinstance(cid, str) and cid:
+        acc["campaigns"].add(cid)
+
+
+def mixed_campaigns(acc):
+    """Campaign ids pooled into one cell — empty when the cell is one campaign.
+
+    Separate from mixed_run_flags so its 2-tuple contract stays intact. Campaign
+    is the most consequential incomparability of all: a cell pooling a baseline
+    round with an optimisation round shows a median that is NEITHER (D-135).
+    """
+    ids = sorted((acc or {}).get("campaigns") or [])
+    return ids if len(ids) > 1 else []
 
 
 def mixed_run_flags(acc):

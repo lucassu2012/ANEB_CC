@@ -12,6 +12,8 @@
 - 服务层级 tier：{'metro': 48, 'regional': 48, 'core': 48}
 - run 状态 status：{'completed': 144}
 
+> ⚠ 本语料含 **2 个战役**（base, opt）。除「优化前后对比」/「纵向趋势」两段外，**各段均按格池化了所有战役**——受影响的格标 `MIXED_CAMPAIGN`，其中位数**既不是前也不是后**。要看单个战役，请只喂该战役的语料。
+
 ## 摘要（先看这里）
 
 - **体验最差格**：2 个格 AQS 达 fair/poor —— P1/cmcc/busy(68)、P2/cmcc/busy(68)。
@@ -27,10 +29,10 @@
 
 | 点位 | 运营商 | 时段 | AQS中位 | 分级 | n | 备注 |
 |---|---|---|---|---|---|---|
-| P1 | cmcc | busy | 68 | fair | 36 | — |
-| P1 | cmcc | idle | 73 | good | 36 | — |
-| P2 | cmcc | busy | 68 | fair | 36 | — |
-| P2 | cmcc | idle | 73 | good | 36 | — |
+| P1 | cmcc | busy | 68 | fair | 36 | MIXED_CAMPAIGN:base/opt |
+| P1 | cmcc | idle | 73 | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | busy | 68 | fair | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | idle | 73 | good | 36 | MIXED_CAMPAIGN:base/opt |
 
 ## 分 KPI 热力卡（原始 KPI 中位 + 上报 KpiGrading 分级）
 
@@ -97,10 +99,10 @@ _无可信度证据（clock/seq/parse 块均未标注）——覆盖缺口，非
 
 | 单元 | 覆盖层级 | 接入(metro) | 区域骨干+ | 核心骨干+ | 端到端(core) | 备注 |
 |---|---|---|---|---|---|---|
-| point_id=P1 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | — |
-| point_id=P1 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | — |
-| point_id=P2 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | — |
-| point_id=P2 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | — |
+| point_id=P1 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
+| point_id=P1 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
+| point_id=P2 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
+| point_id=P2 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
 
 ## AQS 分数侧归因（各维度子分 + 拖累维度）
 

@@ -256,6 +256,30 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_cross_campaign_pooling_is_flagged_not_hidden():
+    """A cell holding a baseline round and an optimisation round shows a median
+    that is NEITHER — 55 and 75 pool to 65, which never happened. The number is
+    still reported (never silently dropped), but the cell says so (D-135)."""
+    recs = (aqs_records(55, 6, campaign_id="base")
+            + aqs_records(75, 6, campaign_id="opt"))
+    cell = rpt.heat_cells(recs)[0]
+    assert cell["aqs_median"] == 65          # the pooled value is still shown
+    assert cell["mixed_campaigns"] == ["base", "opt"]
+    md = rpt.build_report_markdown(recs)
+    assert "MIXED_CAMPAIGN:base/opt" in _section(md, "点位 × 忙闲")
+    # and the reader is warned before reaching the heat card
+    assert md.index("本语料含 **2 个战役**") < md.index("## 点位 × 忙闲")
+    assert "既不是前也不是后" in md
+
+
+def test_single_campaign_carries_no_mixing_flag():
+    """Must not cry wolf on the normal single-campaign corpus."""
+    md = rpt.build_report_markdown(aqs_records(90, 6, campaign_id="base"))
+    assert rpt.heat_cells(aqs_records(90, 6))[0]["mixed_campaigns"] == []
+    assert "MIXED_CAMPAIGN" not in md
+    assert "个战役" not in md
+
+
 def test_csv_opens_correctly_in_excel_with_cjk_labels():
     """These CSVs exist to be opened in Excel, and Excel on a Chinese Windows
     reads BOM-less UTF-8 as GBK — 深圳-CBD-01 would arrive as 娣卞湷-CBD-01

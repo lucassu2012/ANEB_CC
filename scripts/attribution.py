@@ -132,6 +132,7 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
         mixed_modes, mixed_sources = cc.mixed_run_flags(meta.get(key))
         entry["mixed_modes"] = mixed_modes
         entry["mixed_profile_sources"] = mixed_sources
+        entry["mixed_campaigns"] = cc.mixed_campaigns(meta.get(key))
         results.append(entry)
     return {
         "kpi": kpi,
@@ -181,6 +182,8 @@ def render_markdown(result):
             notes.append("MIXED_PROFILE_VERSION:" + "/".join(c["mixed_profile_versions"]))
         if c.get("mixed_histogram_edges"):
             notes.append("MIXED_HIST_EDGES")
+        if c.get("mixed_campaigns"):
+            notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
         if c.get("mixed_modes"):
             notes.append("MIXED_MODE:" + "/".join(c["mixed_modes"]))
         if c.get("mixed_profile_sources"):

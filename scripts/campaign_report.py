@@ -187,6 +187,7 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
     """AQS by (point_id, carrier, time_band). Returns sorted list of cell dicts.
     Optional campaign_id filter (for before/after)."""
     buckets = defaultdict(list)
+    seen_campaigns = {}
     for rec in records:
         labels = cc.campaign_labels(rec)
         if campaign_id is not None and labels["campaign_id"] != campaign_id:
@@ -196,16 +197,21 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
             continue
         key = tuple(labels[d] for d in HEAT_DIMS)
         buckets[key].append(aqs)
+        seen_campaigns.setdefault(key, set()).add(labels["campaign_id"])
     cells = []
     for key in sorted(buckets):
         vals = buckets[key]
         med = cc.median(vals)
+        ids = sorted(seen_campaigns.get(key) or [])
         cells.append({
             "cell": dict(zip(HEAT_DIMS, key)),
             "aqs_median": med,
             "grade": cc.aqs_grade(med),
             "n": len(vals),
             "low_confidence": len(vals) < min_samples,
+            # a cell pooling a baseline round with an optimisation round shows a
+            # median that is NEITHER of them — flag it, never hide it (D-135)
+            "mixed_campaigns": ids if len(ids) > 1 else [],
         })
     return cells
 
@@ -220,7 +226,12 @@ def render_heatcard_markdown(cells):
         "|---|---|---|---|---|---|---|",
     ]
     for c in cells:
-        note = "low_conf" if c["low_confidence"] else "—"
+        notes = []
+        if c.get("mixed_campaigns"):
+            notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
+        if c["low_confidence"]:
+            notes.append("low_conf")
+        note = "; ".join(notes) or "—"
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
             f"| {cc.md_cell(c['cell']['time_band'])} | "
@@ -401,6 +412,16 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         parts.append("> ⚠ 全部记录无 `run.campaign` 标签——热力卡/归因/前后对比塌缩为单格 "
                      "`unlabeled`。接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。")
         parts.append("")
+    # Cross-campaign pooling is the most consequential incomparability: a cell
+    # holding a baseline round and an optimisation round shows a median that is
+    # neither. Say so BEFORE the heat card, not only in the per-cell note (D-135).
+    labeled_ids = [c for c in inv["campaigns"] if c != "unlabeled"]
+    if len(labeled_ids) > 1:
+        parts.append(f"> ⚠ 本语料含 **{len(labeled_ids)} 个战役**（{', '.join(sorted(labeled_ids))}）。"
+                     "除「优化前后对比」/「纵向趋势」两段外，**各段均按格池化了所有战役**——"
+                     "受影响的格标 `MIXED_CAMPAIGN`，其中位数**既不是前也不是后**。"
+                     "要看单个战役，请只喂该战役的语料。")
+        parts.append("")
     # Signal before evidence: the findings that decide next actions, ahead of the
     # ~1600 lines of tables they point into (D-117).
     parts.append(render_summary_markdown(records, min_samples))
@@ -504,7 +525,8 @@ def _heat_grid_html(cells, value_key="aqs_median"):
                 continue
             grade = c["grade"] or "n/a"
             bg, fg = cc.GRADE_COLORS.get(grade, cc.GRADE_COLORS["n/a"])
-            lc = " *" if c["low_confidence"] else ""
+            lc = (" *" if c["low_confidence"] else "") \
+                + (" ⚠混战役" if c.get("mixed_campaigns") else "")
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
                        f"<span class='sub'>{esc(grade)} · n={c['n']}{lc}</span></td>")
         body.append("<tr>" + "".join(tds) + "</tr>")
