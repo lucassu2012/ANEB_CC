@@ -228,3 +228,15 @@ def test_tier_simultaneity_is_checked_before_publication():
     assert "共模不再抵消" in _detail(rows, "层级同时性")
     together = at("metro", 30, 0) + at("regional", 42, 600000) + at("core", 70, 1200000)
     assert _sev(pc.check(together), "层级同时性") == pc.PASS
+
+
+def test_uncheckable_premise_is_stated_not_omitted():
+    """"Same client" is not merely unchecked — the contract carries no device
+    identity at all, so it is uncheckable. Saying nothing would let a reader
+    assume it held (D-156)."""
+    rows = pc.check(_clean())
+    assert _sev(rows, "同一客户端") == pc.WARN
+    assert "无法核对" in _detail(rows, "同一客户端")
+    # …and it must be a WARN on every corpus, since nothing can ever clear it
+    for corpus in (_clean(), _two_campaigns([70, 72, 74], [80, 82, 84])):
+        assert _sev(pc.check(corpus), "同一客户端") == pc.WARN

@@ -183,6 +183,40 @@ if (run.campaignId != null || run.campaignPointId != null || run.campaignCarrier
 
 ---
 
+## 9. 附加项：设备标识（使铁律 3 的「同一客户端」可核对）
+
+**问题**：铁律 3 的共模抵消要求三层级由**同一客户端**测得。层级间的**时间**间隔现已可核对
+（D-155，`TIER_TIME_SPREAD`），但「同一客户端」**从数据上无法核对**——结果契约里
+**没有任何设备标识字段**（`run` 下只有 `app_version_*` / `mode` / `profile_source` /
+`transport` / `status` / `scenario_order`）。后果：外场中途换机（备机、双机并行赶进度）
+时，机型差异会**整个计入骨干增量**，而报告**不会出现任何标记**——分析层目前只能在归因段
+和 `publish_check` 里声明"此项无法核对"，并把它降级为 runbook §5 的人工确认项。
+
+**建议（加性，不破坏既有消费方）**：
+
+```json
+"run": {
+  "device": {
+    "model": "HUAWEI P40 Pro",
+    "build_id": "<Build.DISPLAY，定位系统版本差异>",
+    "device_uid": "<每设备稳定的匿名 id>"
+  }
+}
+```
+
+**口径要求**：`device_uid` **不得**使用 IMEI / 序列号 / 广告 ID 等可反查身份的标识——
+本项目只需要"这两条记录是不是同一台机器"，**不需要**知道是哪一台；建议用安装时生成、
+仅存本地的随机 id（与最小权限承诺一致，见设计文档 §9.1）。
+
+**验收**：三层级同格记录的 `device_uid` 一致；分析层随即可加 `MIXED_DEVICE` 标记
+（与 `MIXED_CAMPAIGN` / `MIXED_MODE` 同一守卫族），并把 runbook §5 的人工确认项
+**降级为机器核对**。
+
+**在此之前**：本项目的报告不得声称三层级"同一客户端"，只能声称"采集方确认为同一客户端"。
+
+---
+
 *v1.0 · 2026-07-25 · 分析层 lane 撰写，待 spec 属主 / P1 lane 审定实施。*
+*§9 于 2026-07-26 追加（D-156）。*
 *相关：[`CAMPAIGN_LABELS_CONVENTION.md`](CAMPAIGN_LABELS_CONVENTION.md)（口径）、*
 *[`M2_CAMPAIGN_RUNBOOK.md`](M2_CAMPAIGN_RUNBOOK.md)（外场操作）、`scripts/README.md`（分析工具集）。*

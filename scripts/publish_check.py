@@ -128,6 +128,13 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
+    # The other half of 铁律 3's premise. Unlike simultaneity this one is not
+    # merely unchecked, it is uncheckable: the contract carries no device
+    # identity at all. Saying nothing would let a reader assume it held (D-156).
+    rows.append(_row(WARN, "同一客户端",
+                     "结果契约无设备标识字段——**工具无法核对**三层级是否同一台设备所测；"
+                     "中途换机的差异会整个计入骨干增量且无任何标记，须由采集方书面确认"))
+
     # 铁律 3 cancels the common mode only if the tiers were measured together;
     # time_band is hours wide, so this is checkable and was never checked (D-155)
     conf, unknown, judged = [], 0, 0
