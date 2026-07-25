@@ -212,3 +212,19 @@ def test_veto_capped_cells_are_warned_before_publication():
     assert _sev(rows, "否决封顶") == pc.WARN
     assert "会话失败还是网络慢" in _detail(rows, "否决封顶")
     assert _sev(pc.check(_clean()), "否决封顶") == pc.PASS
+
+
+def test_tier_simultaneity_is_checked_before_publication():
+    from synth import make_record
+    def at(tier, val, off, n=5):
+        c = {"campaign_id": "base", "tier": tier, "point_id": "P1",
+             "carrier": "cmcc", "time_band": "idle"}
+        return [contractify(make_record(
+            campaign=c, scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})], aqs=80,
+            started_ms=1783944000000 + off + i * 60000)) for i in range(n)]
+    apart = at("metro", 30, 0) + at("regional", 42, 600000) + at("core", 70, 8 * 3600_000)
+    rows = pc.check(apart)
+    assert _sev(rows, "层级同时性") == pc.WARN
+    assert "共模不再抵消" in _detail(rows, "层级同时性")
+    together = at("metro", 30, 0) + at("regional", 42, 600000) + at("core", 70, 1200000)
+    assert _sev(pc.check(together), "层级同时性") == pc.PASS

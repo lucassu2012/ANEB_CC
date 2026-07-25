@@ -25,6 +25,7 @@ Usage:
 import argparse
 import sys
 
+import attribution
 import buffering_rollup
 import campaign_common as cc
 import campaign_report as rpt
@@ -126,6 +127,29 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                                          f"n<{min_samples}（标 low_conf，结论不应依赖）")
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
+
+    # 铁律 3 cancels the common mode only if the tiers were measured together;
+    # time_band is hours wide, so this is checkable and was never checked (D-155)
+    conf, unknown, judged = [], 0, 0
+    for k in attribution.ATTRIBUTABLE_KPIS:
+        for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
+            if c.get("tier_time_confound") is None:
+                if len(c.get("coverage") or []) > 1:
+                    unknown += 1
+                continue
+            judged += 1
+            if c["tier_time_confound"]:
+                conf.append(c)
+    if conf:
+        worst = max(c["tier_time_spread_ms"] for c in conf) / 3600_000.0
+        rows.append(_row(WARN, "层级同时性",
+                         f"{len(conf)}/{judged} 个格的三层级测量相隔过久（最大 {worst:.1f}h）"
+                         "——共模不再抵消，该格的骨干增量可能是时段差异"))
+    elif not judged and unknown:
+        rows.append(_row(WARN, "层级同时性", f"{unknown} 个多层级格无时间戳——无法核对同时性"))
+    else:
+        rows.append(_row(PASS, "层级同时性",
+                         f"{judged} 个格的三层级测量在门限内" if judged else "无多层级格可核对"))
 
     # A veto caps the score at 70/54 — the grade-band edges — so a low grade can
     # mean the sessions failed rather than the network being slow (D-154)

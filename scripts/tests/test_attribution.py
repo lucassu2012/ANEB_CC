@@ -263,3 +263,65 @@ def test_segment_profile_reaches_markdown_and_csv():
     assert len(rows) == 1
     assert "P99" in rows[0]["high_cells"]
     assert rows[0]["uniform"] == "False"
+
+
+HOUR_MS = 3600_000
+
+
+def _tier_at(tier, val, offset_ms, n=5, point="P1"):
+    """One tier's repeats starting at a given offset, one per minute."""
+    campaign = {"campaign_id": "base", "tier": tier, "point_id": point,
+                "carrier": "cmcc", "time_band": "idle"}
+    return [make_record(campaign=campaign,
+                        scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})],
+                        started_ms=1783944000000 + offset_ms + i * 60000)
+            for i in range(n)]
+
+
+def test_tiers_measured_hours_apart_are_flagged():
+    """铁律 3 cancels the common mode only if the tiers share conditions, and
+    time_band is hours wide — metro at 03:00 and core at 20:00 are both "idle",
+    so the core increment would be a diurnal effect in a backbone's clothes.
+    Checkable from the timestamps, and never checked before (D-155)."""
+    recs = (_tier_at("metro", 30, 0) + _tier_at("regional", 42, 10 * 60000)
+            + _tier_at("core", 70, 8 * HOUR_MS))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["tier_time_confound"] is True
+    assert abs(c["tier_time_spread_ms"] / HOUR_MS - 8) < 0.1
+    md = attribution.render_markdown(attribution.attribute(recs))
+    assert "TIER_TIME_SPREAD:8h" in md
+    assert "时段差异" in md                      # the caveat says what goes wrong
+
+
+def test_interleaved_tiers_are_not_flagged():
+    """One cell measured back to back is ~18 min — must not cry wolf (D-134)."""
+    recs = (_tier_at("metro", 30, 0) + _tier_at("regional", 42, 10 * 60000)
+            + _tier_at("core", 70, 20 * 60000))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["tier_time_confound"] is False
+    # the caveat mentions the marker too — match the form only a row carries
+    assert "**TIER_TIME_SPREAD:" not in attribution.render_markdown(
+        attribution.attribute(recs))
+
+
+def test_missing_timestamps_are_unknown_not_fine():
+    """No timestamps means the premise cannot be checked — which is not the
+    same as the premise holding (R-10)."""
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 30, 5)
+            + tier_records("core", "n1_rtt_p50_ms", 70, 5))
+    for r in recs:
+        r["run"].pop("started_at_epoch_ms", None)
+    res = attribution.attribute(recs)
+    c = res["cells"][0]
+    assert c["tier_time_spread_ms"] is None
+    assert c["tier_time_confound"] is None
+    assert "TIER_TIME_UNKNOWN" in attribution.render_markdown(res)
+
+
+def test_single_tier_cell_has_nothing_to_compare():
+    recs = tier_records("metro", "n1_rtt_p50_ms", 30, 5)
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["tier_time_spread_ms"] is None
+    # …and the note is not emitted for a cell that could never have a spread
+    assert "| TIER_TIME_UNKNOWN" not in attribution.render_markdown(
+        attribution.attribute(recs))

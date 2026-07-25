@@ -50,6 +50,7 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
            ones that pooled incomparable measurements (D-32 / R-27).
     """
     cells, meta = {}, {}
+    times = {}                      # {cell_key -> {tier -> [started_ms, ...]}}
     excluded_no_tier = 0
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -64,10 +65,40 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
             pid = scn.get("profile_id") or "?"
             key = _cell_key(labels, pid, group_by)
             cells.setdefault(key, {}).setdefault(tier, []).append(val)
+            started = cc.run_started_ms(rec)
+            if started is not None:
+                times.setdefault(key, {}).setdefault(tier, []).append(started)
             acc = meta.setdefault(key, cc.homogeneity_acc())
             cc.note_homogeneity(acc, scn)
             cc.note_run_homogeneity(acc, rec)
-    return cells, excluded_no_tier, meta
+    return cells, excluded_no_tier, meta, times
+
+
+# 铁律 3 cancels the common-mode access component only if the three tiers were
+# measured under the SAME conditions. time_band pins them to busy-or-idle, which
+# is hours wide: metro at 03:00 and core at 20:00 both say "idle", and the
+# resulting "core increment" is a diurnal effect wearing a backbone's clothes.
+# One cell interleaved is 3 tiers x 5 repeats x ~72s ~= 18 min, so an hour
+# between tier midpoints means they were not interleaved (D-155). Named, so the
+# provenance manifest records the threshold a report was built with (D-122).
+TIER_TIME_SPREAD_GATE_MS = 3600_000
+
+
+def tier_time_confound(tier_times):
+    """How far apart in time the tiers of one cell were measured.
+
+    Returns spread (ms between the earliest and latest tier midpoint), the
+    per-tier midpoints, and whether it exceeds the gate. All None when the
+    records carry no timestamps — not checkable is not the same as fine (R-10).
+    """
+    mids = {t: cc.median(v) for t, v in (tier_times or {}).items() if v}
+    if len(mids) < 2:
+        return {"tier_time_spread_ms": None, "tier_time_confound": None,
+                "tier_midpoints_ms": mids or {}}
+    spread = max(mids.values()) - min(mids.values())
+    return {"tier_time_spread_ms": spread,
+            "tier_time_confound": spread > TIER_TIME_SPREAD_GATE_MS,
+            "tier_midpoints_ms": mids}
 
 
 def attribute_cell(tier_samples, min_samples=cc.DEFAULT_MIN_SAMPLES):
@@ -121,11 +152,12 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
               min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Full attribution over a record set. Returns a dict with per-cell results
     and coverage metadata."""
-    cells, excluded, meta = collect_tier_samples(records, kpi, group_by)
+    cells, excluded, meta, times = collect_tier_samples(records, kpi, group_by)
     results = []
     for key in sorted(cells):
         cell = dict(zip(group_by, key))
         entry = {"cell": cell, **attribute_cell(cells[key], min_samples)}
+        entry.update(tier_time_confound(times.get(key)))
         mixed_pv, mixed_edges = cc.mixed_flags(meta.get(key))
         entry["mixed_profile_versions"] = mixed_pv
         entry["mixed_histogram_edges"] = mixed_edges
@@ -273,6 +305,11 @@ def render_markdown(result):
         "",
         f"> claim_scope: `{result['claim_scope']}` — 应用层路径分段，非无线层/运营商全网评级。",
         "> 方法：铁律 3 客户端差分消共模；缺层记 coverage 不外推；负增量记 inversion 不清零。",
+        "> **共模抵消的前提是三层级在同样的条件下测得**。`time_band` 只到忙/闲粒度（几小时宽），"
+        "故本表额外核对三层级测量的**时间间隔**：超过 "
+        f"{TIER_TIME_SPREAD_GATE_MS // 60000} 分钟的格标 `TIER_TIME_SPREAD`——"
+        "那样算出的「骨干增量」可能只是**时段差异**穿了骨干的外衣。记录无时间戳时留空并标 "
+        "`TIER_TIME_UNKNOWN`（**没法查 ≠ 查过了**）。",
         "",
     ]
     if result["excluded_no_tier"]:
@@ -292,6 +329,11 @@ def render_markdown(result):
         notes = []
         if c["not_computable_reason"]:
             notes.append(c["not_computable_reason"])
+        if c.get("tier_time_confound"):
+            hrs = c["tier_time_spread_ms"] / 3600_000.0
+            notes.append(f"**TIER_TIME_SPREAD:{cc.fmt_num(hrs, 1)}h**")
+        elif c.get("tier_time_spread_ms") is None and len(c.get("coverage") or []) > 1:
+            notes.append("TIER_TIME_UNKNOWN")
         if c["inversions"]:
             # "/" not "|": a literal pipe inside a markdown table cell splits the
             # row into an extra column, so the table breaks exactly on the rows
