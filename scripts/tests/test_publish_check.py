@@ -84,6 +84,15 @@ def test_distortion_hotspot_is_warn():
     assert _sev(pc.check(recs), "批化失真") == pc.WARN
 
 
+def test_mixed_versions_are_warn_not_fail():
+    """The tool cannot know whether a kpi_set bump changed the metric
+    definitions, so this needs a human, not a machine verdict (D-137)."""
+    recs = _clean()
+    recs[0]["kpi_set"] = "agent-qoe-kpi-v0.1"
+    assert _sev(pc.check(recs), "版本一致性") == pc.WARN
+    assert _sev(pc.check(_clean()), "版本一致性") == pc.PASS
+
+
 def test_no_evidence_is_warn_never_pass():
     """'Cannot judge' must not read as 'no problem' (R-10)."""
     rows = pc.check(_clean())                      # fixture has no clock block

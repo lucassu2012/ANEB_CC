@@ -58,6 +58,9 @@ def inventory(records):
         "carriers": Counter(), "time_bands": Counter(), "tiers": Counter(),
         "aqs_present": 0,
         "statuses": Counter(),
+        # version dimensions that define what the numbers MEAN — pooling across
+        # them compares different metric/scoring definitions under one name (D-137)
+        "kpi_sets": Counter(), "aqs_versions": Counter(), "app_versions": Counter(),
     }
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -72,6 +75,11 @@ def inventory(records):
         status = cc.run_obj(rec).get("status")
         inv["statuses"][(status.split(":", 1)[0] if isinstance(status, str) and status
                          else "unknown")] += 1
+        inv["kpi_sets"][rec.get("kpi_set") or "absent"] += 1
+        inv["aqs_versions"][rec.get("aqs_version") or "absent"] += 1
+        inv["app_versions"][cc.run_obj(rec).get("app_version_code")
+                            if cc.run_obj(rec).get("app_version_code") is not None
+                            else "absent"] += 1
         if cc.run_aqs(rec) is not None:
             inv["aqs_present"] += 1
     return inv
@@ -411,6 +419,22 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if inv["with_campaign"] == 0:
         parts.append("> ⚠ 全部记录无 `run.campaign` 标签——热力卡/归因/前后对比塌缩为单格 "
                      "`unlabeled`。接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。")
+        parts.append("")
+    # Version dimensions define what the numbers MEAN. Pooling two kpi_sets
+    # averages metrics that may not be the same metric; pooling two aqs_versions
+    # mixes scoring systems. The tool cannot know whether a given bump changed the
+    # definitions, so it states the fact and leaves the judgement to a human (D-137).
+    ver_mixed = []
+    for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
+                       ("app_versions", "app_version_code")):
+        if len(inv[key]) > 1:
+            ver_mixed.append(f"{label}={dict(inv[key])}")
+    if ver_mixed:
+        parts.append("> ⚠ 语料**跨版本**：" + "；".join(ver_mixed) +
+                     "。`kpi_set` 定义指标是什么、`aqs_version` 定义分数怎么算、"
+                     "`app_version_code` 是采集它的构建——**跨版本聚合可能在把不同定义"
+                     "的数字当同一指标平均**。工具无法判断该次版本变更是否改动了定义，"
+                     "请人工确认后在报告中说明，或按版本分别出报告。")
         parts.append("")
     # Cross-campaign pooling is the most consequential incomparability: a cell
     # holding a baseline round and an optimisation round shows a median that is

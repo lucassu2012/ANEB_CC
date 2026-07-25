@@ -80,6 +80,16 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if non_completed else
                 _row(PASS, "run 状态", "全部 completed"))
 
+    mixed_ver = []
+    for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
+                       ("app_versions", "app_version_code")):
+        if len(inv[key]) > 1:
+            mixed_ver.append(f"{label}={dict(inv[key])}")
+    rows.append(_row(WARN, "版本一致性", "；".join(mixed_ver) +
+                     "（跨版本聚合可能把不同定义的数字当同一指标平均，须人工确认）")
+                if mixed_ver else
+                _row(PASS, "版本一致性", "kpi_set / aqs_version / app_version 均一致"))
+
     vres = validity_rollup.analyze(records)
     low = [c for c in vres["cells"] if c["below_min_rate"]]
     if not vres["cells"]:

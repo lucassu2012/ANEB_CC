@@ -256,6 +256,28 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_mixed_version_dimensions_are_surfaced():
+    """kpi_set says what the metric IS, aqs_version how the score is computed,
+    app_version_code which build measured it. Pooling across them may average
+    numbers that are not the same number (D-137). Real corpora already carry
+    three different app_version_code values."""
+    recs = aqs_records(90, 6)
+    recs[0]["kpi_set"] = "agent-qoe-kpi-v0.1"
+    recs[1]["run"]["app_version_code"] = 30
+    inv = rpt.inventory(recs)
+    assert len(inv["kpi_sets"]) == 2
+    assert len(inv["app_versions"]) == 2
+    md = rpt.build_report_markdown(recs)
+    assert "跨版本" in md
+    assert "kpi_set=" in md and "app_version_code=" in md
+    assert "当同一指标平均" in md
+
+
+def test_single_version_corpus_is_not_flagged():
+    """No crying wolf on the normal case."""
+    assert "跨版本" not in rpt.build_report_markdown(aqs_records(90, 6))
+
+
 def test_cross_campaign_pooling_is_flagged_not_hidden():
     """A cell holding a baseline round and an optimisation round shows a median
     that is NEITHER — 55 and 75 pool to 65, which never happened. The number is
