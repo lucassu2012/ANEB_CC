@@ -16,6 +16,23 @@
  "time_bands": ["busy", "idle"]}
 ```
 
+## 0.5 出发前彩排（强烈建议：外场前一天跑一次）
+
+用合成全网格语料把整条链路预演一遍，确认工具、参数、阅读方式都就位——
+**不要**在外场当天第一次见到规模化报告长什么样：
+
+```
+python synth_campaign.py -o rehearsal.jsonl
+python campaign_report.py rehearsal.jsonl --md r.md --html r.html --csv rt
+```
+
+> ⛔ 彩排产物**数字全是虚构的**。报告顶端会印红色合成数据警告；
+> 见到该警告的报告**一律不得**外发或作为任何结论依据。彩排文件用完即删，
+> **绝不可**与外场语料放同一目录。
+
+预演时重点看：摘要六信号的读法、热力卡颜色分布、归因矩阵的层级增量、
+稳定性段的省略声明、CSV 能否被你的表格工具正常打开。
+
 ## 1. 语料进门：契约校验（每批语料先跑，坏语料早死）
 
 ```
@@ -71,6 +88,7 @@ python campaign_report.py labeled/*.jsonl \
 - [ ] 「序位效应」段无显著位置-KPI 相关（有 = 反平衡失效，样本重采）
 - [ ] 报告落款 claim_scope 原话在（`application_end_to_end_to_probe_node`，
       不表述为 MOS/无线层评级/运营商全网 SLA）
+- [ ] **报告顶端无红色「合成数据警告」**（有 = 混入了彩排语料，立即停止外发）
 - [ ] 归档四件套：report.md + report.html + tables_*.csv + provenance.json
 
 ## 已知坑速查
@@ -82,3 +100,5 @@ python campaign_report.py labeled/*.jsonl \
 | 报告全塌 `unlabeled` | 忘了步骤 2 补注 | 先 annotate 再报告 |
 | annotate 报 multiple inputs | 多文件共用一个 `-o` | 逐文件 `-o` 或 `--inplace` |
 | Windows 控制台乱码 | 非 UTF-8 code page | 工具已内置 force_utf8_stdout，无需处理 |
+| 报告顶端出现红色合成警告 | 混入 `synth_campaign.py` 彩排语料 | 剔除 `SYNTH-` 战役记录后重跑，**该报告不得外发** |
+| 稳定性段写"另有 N 个稳定单元未列出" | 规模下的声明式上限（非截断） | 正常；完整数据在 `_stability.csv` |
