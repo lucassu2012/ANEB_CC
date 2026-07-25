@@ -82,6 +82,7 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
 
     mixed_ver = []
     for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
+                       ("profile_version_sets", "profile_versions"),
                        ("app_versions", "app_version_code")):
         if len(inv[key]) > 1:
             mixed_ver.append(f"{label}={dict(inv[key])}")

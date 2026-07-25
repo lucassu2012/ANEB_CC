@@ -256,6 +256,19 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_profile_versions_are_reported():
+    """The skeleton says to take the profile version from the report; it was
+    nowhere in the output (grep count zero) — and it is the precondition for
+    comparing one point against another at all (D-139)."""
+    recs = aqs_records(90, 4)
+    md = rpt.build_report_markdown(recs)
+    assert "profile 版本" in _section(md, "覆盖盘点")
+    # mixing profile versions across the corpus is surfaced like the other versions
+    recs[0]["profile_versions"] = "s1@0.3"
+    md2 = rpt.build_report_markdown(recs)
+    assert "跨版本" in md2 and "profile_versions=" in md2
+
+
 def test_measurement_window_is_reported_in_utc():
     """The deliverable skeleton asks the author for the collection window and
     says to take it from 覆盖盘点 — which did not emit it (D-138). UTC, because

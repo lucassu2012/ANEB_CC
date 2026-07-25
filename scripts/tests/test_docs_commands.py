@@ -104,6 +104,36 @@ def test_deliverable_template_section_map_resolves():
     assert not missing, f"template maps to sections the report does not emit: {missing}"
 
 
+def test_deliverable_template_field_map_resolves():
+    """Sections existing is not enough — the skeleton asks for FIELDS inside
+    them. It asked for the collection window and the profile version, neither of
+    which the report emitted (D-138/139). This checks the fields, not the
+    headings."""
+    import provenance as prov
+    import campaign_report as rpt
+    import synth_campaign as sc
+
+    tmpl = os.path.join(REPO, "docs", "M2_REPORT_TEMPLATE.md")
+    with open(tmpl, encoding="utf-8") as f:
+        body = f.read()
+    block = re.search(r"<!-- FIELD-MAP:BEGIN -->(.*?)<!-- FIELD-MAP:END -->", body, re.S)
+    assert block, "FIELD-MAP block missing from the deliverable template"
+    wanted = []
+    for line in block.group(1).splitlines():
+        if not line.startswith("| ") or line.startswith("| 骨架索取") or set(
+                line.strip("| ")) <= set("-| "):
+            continue
+        wanted.append(line.strip("|").split("|")[1].strip())
+    assert len(wanted) >= 5, f"field map looks truncated: {wanted}"
+
+    recs = sc.generate(points=3, repeats=2, campaigns=("base",))
+    md = rpt.build_report_markdown(recs, provenance=prov.compute(
+        [], {"lines": 1, "kept": 1}, {}, generated_at="2026-01-01",
+        thresholds=rpt.effective_thresholds()))
+    missing = [w for w in wanted if w not in md]
+    assert not missing, f"template asks for fields the report never emits: {missing}"
+
+
 def test_every_tool_is_mentioned_in_the_readme():
     """The command guard checks that documented commands work; it cannot notice a
     tool nobody documented. corpus_health.py and order_effect.py sat unmentioned

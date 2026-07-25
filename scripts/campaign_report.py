@@ -61,6 +61,9 @@ def inventory(records):
         # version dimensions that define what the numbers MEAN — pooling across
         # them compares different metric/scoring definitions under one name (D-137)
         "kpi_sets": Counter(), "aqs_versions": Counter(), "app_versions": Counter(),
+        # which profile versions produced these measurements — the precondition
+        # for comparing one point against another at all (D-139)
+        "profile_version_sets": Counter(),
         # measurement window — the deliverable states when the data was collected,
         # and a reader cannot judge a heat card without knowing that (D-138)
         "first_ms": None, "last_ms": None,
@@ -78,6 +81,7 @@ def inventory(records):
         status = cc.run_obj(rec).get("status")
         inv["statuses"][(status.split(":", 1)[0] if isinstance(status, str) and status
                          else "unknown")] += 1
+        inv["profile_version_sets"][rec.get("profile_versions") or "absent"] += 1
         inv["kpi_sets"][rec.get("kpi_set") or "absent"] += 1
         inv["aqs_versions"][rec.get("aqs_version") or "absent"] += 1
         inv["app_versions"][cc.run_obj(rec).get("app_version_code")
@@ -419,6 +423,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         f"- 时段 time_band：{dict(inv['time_bands'])}",
         f"- 服务层级 tier：{dict(inv['tiers'])}",
         f"- run 状态 status：{dict(inv['statuses'])}",
+        f"- profile 版本：{dict(inv['profile_version_sets'])}",
         f"- 采集时间窗：{_utc_stamp(inv['first_ms']) or '—'} → "
         f"{_utc_stamp(inv['last_ms']) or '—'}"
         + ("" if inv["first_ms"] is not None else "（记录缺 started_at_epoch_ms）"),
@@ -446,6 +451,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # definitions, so it states the fact and leaves the judgement to a human (D-137).
     ver_mixed = []
     for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
+                       ("profile_version_sets", "profile_versions"),
                        ("app_versions", "app_version_code")):
         if len(inv[key]) > 1:
             ver_mixed.append(f"{label}={dict(inv[key])}")

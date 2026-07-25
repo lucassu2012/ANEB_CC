@@ -174,7 +174,24 @@ buffering / transport / comparison / trend 共 9 张）或 HTML 报告链接。�
 | 附录 A 溯源 | 溯源 / provenance |
 <!-- SECTION-MAP:END -->
 
-### D. 归档清单
+### D. 骨架索取的字段 ← 报告中的出处（**机器校验**）
+
+§C 的段名映射保证"段落存在"，但保证不了"段落里有那个字段"——采集时间窗与 profile
+版本就曾被骨架索取而报告从不输出（D-138/139）。此表列出骨架明确索取的**字段**，
+由测试校验其字面标记确实出现在报告中。
+
+<!-- FIELD-MAP:BEGIN -->
+| 骨架索取 | 报告中的字面标记 |
+|---|---|
+| 采集时间窗 | 采集时间窗 |
+| profile 版本 | profile 版本 |
+| 生效门限 | 生效门限 |
+| 每格样本量 | low_conf |
+| 战役分布 | 战役 campaign_id |
+| run 状态 | run 状态 status |
+<!-- FIELD-MAP:END -->
+
+### E. 归档清单
 - [ ] `report.md` / `report.html`
 - [ ] `tables_*.csv`（9 张）
 - [ ] `provenance.json`
