@@ -186,6 +186,7 @@ buffering / transport / comparison / trend 共 9 张）或 HTML 报告链接。�
 |---|---|
 | 采集时间窗 | 采集时间窗 |
 | 主要贡献段 | 分段归因 |
+| 拖累维度 | 分数侧归因 |
 | profile 版本 | profile 版本 |
 | 生效门限 | 生效门限 |
 | 每格样本量 | low_conf |
