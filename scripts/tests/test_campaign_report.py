@@ -162,7 +162,9 @@ def test_csv_export_content():
         prefix = os.path.join(d, "camp")
         paths = rpt.write_csv_tables(recs, prefix)
         assert any(p.endswith("_heat.csv") for p in paths)
-        with open(prefix + "_heat.csv", encoding="utf-8") as f:
+        # utf-8-sig, matching how the files are written (D-129) — a plain utf-8
+        # reader would carry the BOM into the first column name
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
             rows = list(csvmod.DictReader(f))
         assert rows[0]["point_id"] == "P1"
         assert rows[0]["grade"] == "excellent"
@@ -252,6 +254,26 @@ def test_summary_validity_count_matches_section():
     md = rpt.build_report_markdown(_problem_corpus())
     assert _summary_count(md, "有效率不达门") == \
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
+
+
+def test_csv_opens_correctly_in_excel_with_cjk_labels():
+    """These CSVs exist to be opened in Excel, and Excel on a Chinese Windows
+    reads BOM-less UTF-8 as GBK — 深圳-CBD-01 would arrive as 娣卞湷-CBD-01
+    (D-129). The BOM is what prevents that."""
+    import csv as csvmod
+    import tempfile
+    from synth import contractify, kpi_scenario_records
+    recs = [contractify(r) for r in
+            kpi_scenario_records(6, aqs=90, kpi={"n1_rtt_p50_ms": 20},
+                                 point="深圳-CBD-01")]
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "t")
+        rpt.write_csv_tables(recs, prefix)
+        raw = open(prefix + "_heat.csv", "rb").read()
+        assert raw.startswith(b"\xef\xbb\xbf"), "missing UTF-8 BOM"
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+        assert rows[0]["point_id"] == "深圳-CBD-01"   # round-trips, no mojibake
 
 
 def test_summary_labels_are_distinguishable():

@@ -164,6 +164,13 @@ direction 枚举、分∈[0,100]；vetoes 必填字段+比较符/种类枚举+ca
 buffering 访问器、nearest-rank 分位、AQS 四级分带（锚定系统 54/70 封顶阈值）、UTF-8
 stdout。被上述战役级工具 import。
 
+## CSV 编码（D-129）
+
+导出的 CSV 为 **UTF-8 with BOM（`utf-8-sig`）**：CSV 的用途就是给人用 Excel 打开，
+而中文 Windows 的 Excel 把无 BOM 的 UTF-8 当 GBK 读——点位 `深圳-CBD-01` 会显示成
+`娣卞湷-CBD-01`（已实测）。pandas 会自动剥除 BOM；用 Python 直读请指定
+`encoding="utf-8-sig"`（用 `utf-8` 会让 BOM 混进第一个列名）。
+
 ## 口径红线
 
 - `claim_scope` 恒为 `application_end_to_end_to_probe_node`：**应用层端到指定节点路径**，

@@ -716,6 +716,13 @@ ANEB 战役级报告 · stdlib-only 生成 · 标签约定见 docs/CAMPAIGN_LABE
 </div></body></html>"""
 
 
+# UTF-8 *with BOM*: these CSVs exist to be opened in Excel, and Excel on a
+# Chinese Windows reads a BOM-less UTF-8 file as GBK — a point named 深圳-CBD-01
+# comes out as 娣卞湷-CBD-01 (verified, D-129). pandas strips the BOM itself;
+# a plain Python reader should use encoding="utf-8-sig".
+CSV_ENCODING = "utf-8-sig"
+
+
 def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                      before_id=None, after_id=None):
     """Dump the campaign tables as CSV for external analysis (Excel/pandas).
@@ -728,7 +735,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     written = []
     heat = heat_cells(records, min_samples)
     p = prefix + "_heat.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "aqs_median", "grade", "n", "low_confidence"])
         for c in heat:
@@ -737,7 +744,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     written.append(p)
 
     p = prefix + "_attribution.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "kpi", "access",
                     "regional_incr", "core_incr", "end_to_end_core", "coverage",
@@ -754,7 +761,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     written.append(p)
 
     p = prefix + "_stability.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "tier", "profile_id", "kpi", "n",
                     "median", "mean", "cv_percent", "unstable", "low_confidence"])
@@ -771,7 +778,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # without it re-creates the survivor bias the rollup exists to expose.
     vcells = validity_rollup.analyze(records)["cells"]
     p = prefix + "_validity.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "attempted", "valid",
                     "valid_low_confidence", "invalid", "unknown", "valid_rate",
@@ -787,7 +794,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_subscores.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "runs", "dragging_dim",
                     "dragging_median", "spread", "low_confidence", "dim_medians"])
@@ -801,7 +808,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     ucells = trust_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_trust.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "scenarios", "clock_annotated",
                     "clock_suspect", "clock_suspect_share", "abs_drift_ppm_median",
@@ -819,7 +826,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     tcells = transport_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_transport.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "transport", "n", "aqs_median",
                     "low_confidence", "cellular_minus_wifi"])
@@ -837,7 +844,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if before_id is None and after_id is None:
         before_id, after_id = _auto_compare_ids(inventory(records))
     p = prefix + "_comparison.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "before_id", "after_id",
                     "before", "after", "delta"])
@@ -852,7 +859,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     tres = trend.analyze(records, min_samples=min_samples)
     p = prefix + "_trend.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "campaign_id", "order_index",
                     "median", "n", "direction", "first_last_delta", "low_confidence"])
@@ -867,7 +874,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     bcells = buffering_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_buffering.csv"
-    with open(p, "w", newline="", encoding="utf-8") as f:
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "n", "modal_attribution",
                     "score_median", "sawtooth_median", "near_zero_median",

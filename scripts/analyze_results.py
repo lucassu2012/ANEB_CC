@@ -111,7 +111,8 @@ def main(argv):
 
     if csv_out:
         import csv
-        with open(csv_out, "w", newline="", encoding="utf-8") as f:
+        # utf-8-sig so Excel on a Chinese Windows does not read it as GBK (D-129)
+        with open(csv_out, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
             w.writerow(["scenario", "kpi", "value"])
             for sid in kpis:
