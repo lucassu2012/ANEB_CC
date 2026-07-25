@@ -21,6 +21,7 @@ Usage:
 """
 import argparse
 import copy
+import glob
 import json
 import os
 import sys
@@ -136,17 +137,30 @@ def main(argv):
         with open(args.map_path, encoding="utf-8") as f:
             mapping = json.load(f)
 
+    # Expand globs HERE, not per-file inside the loop: PowerShell (the primary
+    # shell on this project) does not expand wildcards for external programs, so
+    # a documented `raw/day1_*.jsonl` would otherwise reach --out-dir as a literal
+    # filename containing '*'. A pattern matching nothing is a mistake, not a
+    # no-op — silently writing an empty output is exactly the failure mode this
+    # toolkit refuses everywhere else.
+    inputs = []
+    for pat in args.inputs:
+        hits = sorted(glob.glob(pat))
+        if not hits:
+            raise SystemExit(f"no files match: {pat}")
+        inputs.extend(hits)
+
     if sum(bool(x) for x in (args.output, args.out_dir, args.inplace)) > 1:
         raise SystemExit("choose ONE of -o/--output, --out-dir, --inplace")
-    if len(args.inputs) > 1 and not (args.inplace or args.out_dir):
+    if len(inputs) > 1 and not (args.inplace or args.out_dir):
         raise SystemExit("multiple inputs require --out-dir (batch) or --inplace "
                          "(or annotate one at a time with -o)")
-    if args.output and len(args.inputs) != 1:
+    if args.output and len(inputs) != 1:
         raise SystemExit("-o/--output is only valid with a single input")
     if args.out_dir:
         os.makedirs(args.out_dir, exist_ok=True)
         seen = {}
-        for path in args.inputs:
+        for path in inputs:
             name = os.path.basename(path)
             dest = os.path.abspath(os.path.join(args.out_dir, name))
             # never let a batch run masquerade as --inplace, and never let two
@@ -160,7 +174,7 @@ def main(argv):
             seen[dest] = path
 
     total = total_changed = 0
-    for path in args.inputs:
+    for path in inputs:
         recs, _ = cc.load_records([path])
         out, changed = annotate(recs, uniform, mapping, args.infer_time_band, args.tz_offset)
         total += len(out)

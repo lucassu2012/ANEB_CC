@@ -153,6 +153,33 @@ def test_annotate_batch_out_dir():
             assert open(os.path.join(src, n), encoding="utf-8").read() == before[n], n
 
 
+def test_annotate_expands_globs_itself():
+    """PowerShell does not expand wildcards for external programs, so the tool
+    must — otherwise a documented `raw/day1_*.jsonl` reaches --out-dir as a
+    literal filename containing '*' and crashes (D-120)."""
+    with tempfile.TemporaryDirectory() as d:
+        src = os.path.join(d, "raw")
+        os.makedirs(src)
+        for n in ("day1_p1.jsonl", "day1_p2.jsonl"):
+            _write_jsonl(os.path.join(src, n),
+                         [contractify(make_record(aqs=90, scenarios=[]))])
+        out = os.path.join(d, "labeled")
+        r = _run("annotate_campaign.py", os.path.join(src, "day1_*.jsonl"),
+                 "--out-dir", out, "--set", "point_id=P1")
+        assert r.returncode == 0, r.stderr
+        assert sorted(os.listdir(out)) == ["day1_p1.jsonl", "day1_p2.jsonl"]
+
+
+def test_annotate_pattern_matching_nothing_is_an_error():
+    """A typo'd path used to silently produce an empty output file."""
+    with tempfile.TemporaryDirectory() as d:
+        r = _run("annotate_campaign.py", os.path.join(d, "nope_*.jsonl"),
+                 "-o", os.path.join(d, "out.jsonl"), "--set", "point_id=P1")
+        assert r.returncode != 0
+        assert "no files match" in r.stderr
+        assert not os.path.exists(os.path.join(d, "out.jsonl"))
+
+
 def test_annotate_out_dir_refuses_to_overwrite_inputs():
     """--out-dir pointing at the input directory would be --inplace in disguise."""
     with tempfile.TemporaryDirectory() as d:
