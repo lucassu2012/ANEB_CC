@@ -172,15 +172,19 @@ def render_markdown(result):
         if c["not_computable_reason"]:
             notes.append(c["not_computable_reason"])
         if c["inversions"]:
-            notes.append("inversion:" + "|".join(c["inversions"]))
+            # "/" not "|": a literal pipe inside a markdown table cell splits the
+            # row into an extra column, so the table breaks exactly on the rows
+            # carrying a warning — the ones most worth reading carefully
+            # (D-127, found by the property tests).
+            notes.append("inversion:" + "/".join(c["inversions"]))
         if c.get("mixed_profile_versions"):
-            notes.append("MIXED_PROFILE_VERSION:" + "|".join(c["mixed_profile_versions"]))
+            notes.append("MIXED_PROFILE_VERSION:" + "/".join(c["mixed_profile_versions"]))
         if c.get("mixed_histogram_edges"):
             notes.append("MIXED_HIST_EDGES")
         if c.get("mixed_modes"):
-            notes.append("MIXED_MODE:" + "|".join(c["mixed_modes"]))
+            notes.append("MIXED_MODE:" + "/".join(c["mixed_modes"]))
         if c.get("mixed_profile_sources"):
-            notes.append("MIXED_PROFILE_SOURCE:" + "|".join(c["mixed_profile_sources"]))
+            notes.append("MIXED_PROFILE_SOURCE:" + "/".join(c["mixed_profile_sources"]))
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"

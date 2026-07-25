@@ -134,8 +134,9 @@ def test_mixed_mode_and_profile_source_flagged():
     assert c["mixed_modes"] == ["forensic", "quick"]
     assert c["mixed_profile_sources"] == ["assets_fallback", "server"]
     md = attribution.render_markdown(attribution.attribute(recs))
-    assert "MIXED_MODE:forensic|quick" in md
-    assert "MIXED_PROFILE_SOURCE:assets_fallback|server" in md
+    # "/" not "|" — a pipe would split the markdown table cell (D-127)
+    assert "MIXED_MODE:forensic/quick" in md
+    assert "MIXED_PROFILE_SOURCE:assets_fallback/server" in md
 
 
 def test_homogeneous_mode_not_flagged():
