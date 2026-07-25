@@ -256,6 +256,30 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_summary_names_the_dragging_score_dimension():
+    """Path attribution says which SEGMENT is slow; this says which KPI
+    DIMENSION drags the score — a different question (D-143)."""
+    recs = [make_record(campaign={"campaign_id": "base", "tier": "metro",
+                                  "point_id": "P1", "carrier": "cmcc",
+                                  "time_band": "busy"},
+                        aqs=90, scenarios=[],
+                        sub_scores={"T1": 99, "N1": 95, "N2": 70})
+            for _ in range(6)]
+    line = [ln for ln in _section(rpt.build_report_markdown(recs), "摘要").splitlines()
+            if "分数侧归因" in ln][0]
+    assert "N2" in line and "70" in line
+
+
+def test_summary_answers_did_it_get_better():
+    """The headline question of any second round (D-143)."""
+    recs = (aqs_records(55, 6, campaign_id="base")
+            + aqs_records(75, 6, campaign_id="opt"))
+    line = [ln for ln in _section(rpt.build_report_markdown(recs), "摘要").splitlines()
+            if "优化前后" in ln][0]
+    assert "改善 1" in line and "回退 0" in line
+    assert "20" in line                      # median delta 75-55
+
+
 def test_summary_names_the_dominant_path_segment():
     """The report is titled 热力卡与归因; the summary told the reader which cells
     were bad but never which segment caused it (D-142). Access 20ms, regional

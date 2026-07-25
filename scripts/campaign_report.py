@@ -268,6 +268,46 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     else:
         bullets.append("**接入介质**：无同格双介质可比，或蜂窝不劣于 wifi。")
 
+    # Score-side counterpart to the path attribution: the latency matrix says
+    # WHICH SEGMENT is slow, this says WHICH KPI DIMENSION drags the score (D-143).
+    sres = subscore_rollup.analyze(records, min_samples)
+    drags = Counter(c["dragging_dim"] for c in sres["cells"] if c["dragging_dim"])
+    if not sres["cells"]:
+        bullets.append("**分数侧归因**：无 AQS 子分（覆盖缺口，非各维皆好）。")
+    elif not drags:
+        bullets.append("**分数侧归因**：各格均无可用子分，拖累维度不可计算。")
+    else:
+        worst_cell = min((c for c in sres["cells"] if c["dragging_median"] is not None),
+                         key=lambda c: c["dragging_median"], default=None)
+        tail = ("；最低 " + _cell_label(worst_cell["cell"]) + "·" +
+                f"{worst_cell['dragging_dim']}={cc.fmt_num(worst_cell['dragging_median'], 1)}"
+                ) if worst_cell else ""
+        bullets.append("**分数侧归因**（拖累维度）：" +
+                       "、".join(f"{d} {n} 格" for d, n in drags.most_common()) + tail + "。")
+
+    # "Did it get better" — the headline question of any second round (D-143).
+    inv_ = inventory(records)
+    before_id, after_id = _auto_compare_ids(inv_)
+    labeled = [c for c in inv_["campaigns"] if c != "unlabeled"]
+    if before_id and after_id:
+        rows = compare_campaigns(records, before_id, after_id, min_samples)["rows"]
+        deltas = [r["delta"] for r in rows if r["delta"] is not None]
+        if not deltas:
+            bullets.append(f"**优化前后**：{before_id} → {after_id} 无共同单元可比。")
+        else:
+            up = sum(1 for d in deltas if d > 0)
+            down = sum(1 for d in deltas if d < 0)
+            bullets.append(f"**优化前后**（{before_id} → {after_id}）：{len(deltas)} 个共同格中"
+                           f"改善 {up}、回退 {down}、持平 {len(deltas) - up - down}；"
+                           f"AQS 中位Δ {cc.fmt_num(cc.median(deltas), 1)}。")
+    elif len(labeled) >= 3:
+        tres = trend.analyze(records, min_samples=min_samples)
+        verdict = Counter(c["direction"] for c in tres["cells"] if c["direction"])
+        bullets.append("**纵向趋势**：" +
+                       "、".join(f"{k} {v} 格" for k, v in verdict.most_common())
+                       + f"（{len(labeled)} 个战役）。" if verdict else
+                       "**纵向趋势**：各格在场点不足 2，方向不可计算。")
+
     lines += [f"- {b}" for b in bullets]
     lines += ["", "> 以上为下方各段的**指路**，证据与完整表格见对应段落；"
                   "口径与不可计算说明以各段为准。"]
