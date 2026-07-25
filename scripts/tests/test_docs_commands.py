@@ -126,10 +126,15 @@ def test_deliverable_template_field_map_resolves():
         wanted.append(line.strip("|").split("|")[1].strip())
     assert len(wanted) >= 5, f"field map looks truncated: {wanted}"
 
-    recs = sc.generate(points=3, repeats=2, campaigns=("base",))
-    md = rpt.build_report_markdown(recs, provenance=prov.compute(
-        [], {"lines": 1, "kept": 1}, {}, generated_at="2026-01-01",
-        thresholds=rpt.effective_thresholds()))
+    # union over corpus shapes, as the section map does: fields living in the
+    # conditional before/after and trend sections only exist in a multi-campaign
+    # report, and a single-campaign corpus would flag them as never emitted
+    md = ""
+    for campaigns in (("base",), ("base", "opt"), ("base", "opt", "r3")):
+        recs = sc.generate(points=3, repeats=2, campaigns=campaigns)
+        md += rpt.build_report_markdown(recs, provenance=prov.compute(
+            [], {"lines": 1, "kept": 1}, {}, generated_at="2026-01-01",
+            thresholds=rpt.effective_thresholds()))
     missing = [w for w in wanted if w not in md]
     assert not missing, f"template asks for fields the report never emits: {missing}"
 

@@ -351,6 +351,13 @@ def median(vals):
     return statistics.median(vals) if vals else None
 
 
+def stdev(vals):
+    """Sample standard deviation, or None below two samples (never 0 as a
+    stand-in for 'spread unknown')."""
+    vals = [v for v in vals if v is not None]
+    return statistics.stdev(vals) if len(vals) > 1 else None
+
+
 def mean(vals):
     vals = [v for v in vals if v is not None]
     return statistics.fmean(vals) if vals else None

@@ -27,6 +27,13 @@ def _sev(rows, item):
     raise AssertionError(f"no such check item: {item}")
 
 
+def _detail(rows, item):
+    for r in rows:
+        if r["item"] == item:
+            return r["detail"]
+    raise AssertionError(f"no such check item: {item}")
+
+
 def _clean():
     """Labelled, contract-complete, WITH scenarios, no seeded problems.
 
@@ -103,6 +110,31 @@ def test_no_evidence_is_warn_never_pass():
 def test_low_confidence_cells_warn():
     assert _sev(pc.check([contractify(r) for r in aqs_records(90, 2)]),
                 "样本充分性") == pc.WARN
+
+
+def _two_campaigns(before_vals, after_vals):
+    recs = [r for v in before_vals for r in aqs_records(v, 1, campaign_id="base")]
+    recs += [r for v in after_vals for r in aqs_records(v, 1, campaign_id="opt")]
+    return [contractify(r) for r in recs]
+
+
+def test_effect_within_noise_is_warn():
+    """A round whose every Δ sits inside the noise must not ship as 'improved'."""
+    rows = pc.check(_two_campaigns([60, 70, 80, 90, 100], [62, 72, 82, 92, 102]))
+    assert _sev(rows, "效应量") == pc.WARN
+    assert "不得表述为改善或回退" in _detail(rows, "效应量")
+
+
+def test_effect_beyond_noise_passes():
+    rows = pc.check(_two_campaigns([60, 70, 80, 90, 100], [110, 120, 130, 140, 150]))
+    assert _sev(rows, "效应量") == pc.PASS
+
+
+def test_effect_unknown_noise_is_warn_not_pass():
+    """n=1 per side: spread unknown, so the delta cannot be called real (R-10)."""
+    rows = pc.check(_two_campaigns([70], [85]))
+    assert _sev(rows, "效应量") == pc.WARN
+    assert "噪声不可估" in _detail(rows, "效应量")
 
 
 def test_verdict_wording_states_the_warn_contract():

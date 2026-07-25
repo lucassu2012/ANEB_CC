@@ -127,6 +127,35 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
+    # "It got better" is the claim a second round exists to make. Publishing it
+    # when every cell's Δ sits inside the measurement noise is the failure mode
+    # this check is here to catch (D-144).
+    b_id, a_id = rpt.auto_compare_ids(inv)
+    if b_id and a_id:
+        cmp_rows = [r for r in rpt.compare_campaigns(records, b_id, a_id, min_samples)["rows"]
+                    if r["delta"] is not None]
+        real = [r for r in cmp_rows if r["within_noise"] is False]
+        noisy = [r for r in cmp_rows if r["within_noise"] is True]
+        unknown = [r for r in cmp_rows if r["within_noise"] is None]
+        # each bucket stays visible in every branch — "noise not estimable" must
+        # never be folded into "within noise", nor either into "no effect" (R-10)
+        parts = []
+        if real:
+            parts.append(f"{len(real)} 个格 Δ 超出噪声")
+        if noisy:
+            parts.append(f"{len(noisy)} 个格 Δ 在噪声内")
+        if unknown:
+            parts.append(f"{len(unknown)} 个格噪声不可估（样本不足）")
+        detail = f"{b_id} → {a_id}：" + "；".join(parts)
+        if not cmp_rows:
+            rows.append(_row(WARN, "效应量", f"{b_id} → {a_id} 无共同单元——无法判断是否改善"))
+        elif not real:
+            rows.append(_row(WARN, "效应量", detail + "——**不得表述为改善或回退**"))
+        elif unknown:
+            rows.append(_row(WARN, "效应量", detail + "——不可估的格不得计入结论"))
+        else:
+            rows.append(_row(PASS, "效应量", detail))
+
     biased, judged = [], 0
     for k in order_effect.ORDER_SENSITIVE_KPIS:
         for p in order_effect.analyze(records, kpi=k, min_samples=min_samples)["profiles"]:

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """ANEB campaign-level comprehensive report generator (stdlib only).
 
 The M2 deliverable《城市 AI 业务网络体验热力卡与归因报告》/ standing-goal
@@ -287,19 +287,33 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     # "Did it get better" — the headline question of any second round (D-143).
     inv_ = inventory(records)
-    before_id, after_id = _auto_compare_ids(inv_)
+    before_id, after_id = auto_compare_ids(inv_)
     labeled = [c for c in inv_["campaigns"] if c != "unlabeled"]
     if before_id and after_id:
-        rows = compare_campaigns(records, before_id, after_id, min_samples)["rows"]
-        deltas = [r["delta"] for r in rows if r["delta"] is not None]
-        if not deltas:
+        rows = [r for r in compare_campaigns(records, before_id, after_id,
+                                             min_samples)["rows"]
+                if r["delta"] is not None]
+        if not rows:
             bullets.append(f"**优化前后**：{before_id} → {after_id} 无共同单元可比。")
         else:
-            up = sum(1 for d in deltas if d > 0)
-            down = sum(1 for d in deltas if d < 0)
-            bullets.append(f"**优化前后**（{before_id} → {after_id}）：{len(deltas)} 个共同格中"
-                           f"改善 {up}、回退 {down}、持平 {len(deltas) - up - down}；"
-                           f"AQS 中位Δ {cc.fmt_num(cc.median(deltas), 1)}。")
+            # a change smaller than the measurement noise is not a change; a cell
+            # whose noise cannot be estimated is neither one nor the other, so it
+            # gets its own bucket rather than being counted as real (D-144, R-10)
+            noisy = [r for r in rows if r.get("within_noise") is True]
+            unknown = [r for r in rows if r.get("within_noise") is None]
+            real = [r for r in rows if r.get("within_noise") is False]
+            up = sum(1 for r in real if r["delta"] > 0)
+            down = sum(1 for r in real if r["delta"] < 0)
+            tail = ""
+            if noisy:
+                tail += f"；{len(noisy)} 个格 Δ 在噪声内（不作结论）"
+            if unknown:
+                tail += f"；{len(unknown)} 个格噪声无法估计（样本不足，不作结论）"
+            bullets.append(f"**优化前后**（{before_id} → {after_id}）：{len(rows)} 个共同格中 "
+                           f"{len(real)} 个 Δ 超出噪声——改善 {up}、回退 {down}、"
+                           f"持平 {len(real) - up - down}"
+                           f"{tail}；AQS 中位Δ "
+                           f"{cc.fmt_num(cc.median([r['delta'] for r in rows]), 1)}。")
     elif len(labeled) >= 3:
         tres = trend.analyze(records, min_samples=min_samples)
         verdict = Counter(c["direction"] for c in tres["cells"] if c["direction"])
@@ -341,6 +355,7 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
             "aqs_median": med,
             "grade": cc.aqs_grade(med),
             "n": len(vals),
+            "stdev": cc.stdev(vals),          # spread, for the noise scale (D-144)
             "low_confidence": len(vals) < min_samples,
             # a cell pooling a baseline round with an optimisation round shows a
             # median that is NEITHER of them — flag it, never hide it (D-135)
@@ -385,13 +400,39 @@ def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_S
         bm = b["aqs_median"] if b else None
         am = a["aqs_median"] if a else None
         delta = (am - bm) if (bm is not None and am is not None) else None
+        # Indicative noise scale for the delta, so a change smaller than the
+        # measurement spread is not read as a finding (D-144). SE(median) ~
+        # 1.253*sd/sqrt(n) under a normal approximation; the difference of two
+        # medians adds in quadrature. Latency is right-skewed, so this is an
+        # ORDER-OF-MAGNITUDE guide, NOT a significance test — the renderer says so.
+        def _se(cell):
+            if not cell or cell["stdev"] is None or not cell["n"]:
+                return None
+            return 1.253 * cell["stdev"] / (cell["n"] ** 0.5)
+        se_b, se_a = _se(b), _se(a)
+        noise = ((se_b ** 2 + se_a ** 2) ** 0.5) if (se_b is not None and se_a is not None) else None
         rows.append({
             "cell": dict(zip(HEAT_DIMS, key)),
             "before": bm, "after": am, "delta": delta,
+            "noise": noise,
+            "within_noise": (abs(delta) < noise) if (delta is not None and noise is not None)
+                            else None,
             "low_confidence": bool((b and b["low_confidence"]) or (a and a["low_confidence"])
                                    or b is None or a is None),
         })
     return {"before_id": before_id, "after_id": after_id, "rows": rows}
+
+
+# One wording for all three surfaces — markdown, HTML and anyone quoting it.
+# The caveat is the load-bearing half of the noise scale: a number without it
+# invites exactly the over-reading it exists to prevent (D-144).
+NOISE_CAVEAT = (
+    "Δ 旁的 `±` 是该格测量离散度推得的**指示性**噪声量级"
+    "（正态近似 SE≈1.253·sd/√n，两格求和取方根）。时延右偏，故它只指示**量级、"
+    "不是显著性检验**；|Δ| 小于它的格标 `噪声内`——**不应作为改善/回退的结论**。"
+    "`±0` 只表示这几次复测未观察到离散，**不等于没有噪声**；样本不足的格"
+    "（标 `low_conf`）其噪声估计本身也不可靠，噪声无法估计时留 `—`、不以 0 顶替。"
+)
 
 
 def render_comparison_markdown(cmp):
@@ -400,6 +441,8 @@ def render_comparison_markdown(cmp):
         lines.append("_两战役无共同单元可比。_")
         return "\n".join(lines)
     lines += [
+        "> **噪声尺度**：" + NOISE_CAVEAT,
+        "",
         "| 点位 | 运营商 | 时段 | before | after | Δ | 备注 |",
         "|---|---|---|---|---|---|---|",
     ]
@@ -408,7 +451,13 @@ def render_comparison_markdown(cmp):
         arrow = ""
         if d is not None:
             arrow = " ↑" if d > 0 else (" ↓" if d < 0 else " =")
+        if r.get("noise") is not None:
+            arrow += f" ±{cc.fmt_num(r['noise'], 1)}"
         notes = []
+        if r["within_noise"] is True:
+            notes.append("**噪声内**")
+        elif r["noise"] is None and d is not None:
+            notes.append("噪声不可估")   # unknown, not "beyond noise" (R-10)
         if r["before"] is None:
             notes.append("仅 after")
         if r["after"] is None:
@@ -482,7 +531,7 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
 
 # ---------------------------------------------------------------- assembly
 
-def _auto_compare_ids(inv):
+def auto_compare_ids(inv):
     """If exactly two labeled campaigns exist, return (before, after) by name sort."""
     labeled = sorted(c for c in inv["campaigns"] if c != "unlabeled")
     return (labeled[0], labeled[1]) if len(labeled) == 2 else (None, None)
@@ -496,7 +545,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     cells = heat_cells(records, min_samples)
 
     if before_id is None and after_id is None:
-        before_id, after_id = _auto_compare_ids(inv)
+        before_id, after_id = auto_compare_ids(inv)
 
     parts = [
         "# ANEB 战役级综合报告",
@@ -785,7 +834,7 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     inv = inventory(records)
     cells = heat_cells(records, min_samples)
     if before_id is None and after_id is None:
-        before_id, after_id = _auto_compare_ids(inv)
+        before_id, after_id = auto_compare_ids(inv)
 
     kpi_grids = ""
     for k in DEFAULT_KPI_HEAT:
@@ -806,16 +855,26 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
         crows = []
         for r in cmp["rows"]:
             d = r["delta"]
-            color = "#137333" if (d is not None and d > 0) else ("#c5221f" if (d is not None and d < 0) else "#444")
+            # a sub-noise delta must not be coloured like a result (D-144)
+            if r["within_noise"] is not False:
+                color = "#666"
+            else:
+                color = "#137333" if (d is not None and d > 0) else ("#c5221f" if (d is not None and d < 0) else "#444")
+            note = ("噪声内" if r["within_noise"] is True
+                    else ("噪声不可估" if r["noise"] is None and d is not None else ""))
             crows.append(
                 f"<tr><td class='lbl'>{esc(r['cell']['point_id'])} · {esc(r['cell']['carrier'])} · "
                 f"{esc(r['cell']['time_band'])}</td><td>{cc.fmt_num(r['before'])}</td>"
                 f"<td>{cc.fmt_num(r['after'])}</td>"
-                f"<td style='color:{color};font-weight:600'>{cc.fmt_num(d)}</td></tr>")
+                f"<td style='color:{color};font-weight:600'>{cc.fmt_num(d)}</td>"
+                f"<td>{('±' + cc.fmt_num(r['noise'], 1)) if r['noise'] is not None else '—'}</td>"
+                f"<td>{note}</td></tr>")
         cmp_html = (
             f"<h2>优化前后对比（{esc(before_id)} → {esc(after_id)}）</h2>"
-            "<div class='scroll'><table><tr><th>单元</th><th>before</th><th>after</th><th>Δ AQS</th></tr>"
-            + ("".join(crows) or "<tr><td colspan='4' class='empty'>无共同单元</td></tr>")
+            f"<p class='warn'><b>噪声尺度</b>：{_md_inline(NOISE_CAVEAT)}</p>"
+            "<div class='scroll'><table><tr><th>单元</th><th>before</th><th>after</th>"
+            "<th>Δ AQS</th><th>噪声</th><th>备注</th></tr>"
+            + ("".join(crows) or "<tr><td colspan='6' class='empty'>无共同单元</td></tr>")
             + "</table></div>")
 
     warn = ""
@@ -1018,19 +1077,20 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # The headline "did it get better" payloads (survey gap 6): before/after delta
     # and the N-campaign trajectory, in spreadsheet-consumable long format (D-114).
     if before_id is None and after_id is None:
-        before_id, after_id = _auto_compare_ids(inventory(records))
+        before_id, after_id = auto_compare_ids(inventory(records))
     p = prefix + "_comparison.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "before_id", "after_id",
-                    "before", "after", "delta"])
+                    "before", "after", "delta", "noise", "within_noise"])
         if before_id and after_id:
             cmp_res = compare_campaigns(records, before_id, after_id, min_samples)
             for r in cmp_res["rows"]:
                 cell = r["cell"]
                 w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             before_id, after_id, _cell(r["before"]), _cell(r["after"]),
-                            _cell(r["delta"])])
+                            _cell(r["delta"]), _cell(r.get("noise")),
+                            _cell(r.get("within_noise"))])
     written.append(p)
 
     tres = trend.analyze(records, min_samples=min_samples)

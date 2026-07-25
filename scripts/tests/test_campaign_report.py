@@ -73,6 +73,90 @@ def test_before_after_only_one_side():
     assert r["low_confidence"] is True  # one side missing -> flagged
 
 
+def _spread(values, **kw):
+    """One record per value, so the cell has real spread (aqs_records is constant)."""
+    return [r for v in values for r in aqs_records(v, 1, **kw)]
+
+
+def test_noise_scale_flags_subnoise_delta():
+    # same wide spread on both sides, tiny shift -> the shift is not a finding
+    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
+            + _spread([62, 72, 82, 92, 102], point="P1", campaign_id="opt"))
+    r = rpt.compare_campaigns(recs, "base", "opt")["rows"][0]
+    assert r["delta"] == 2
+    assert r["noise"] > 2
+    assert r["within_noise"] is True
+
+
+def test_noise_scale_lets_real_delta_through():
+    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
+            + _spread([110, 120, 130, 140, 150], point="P1", campaign_id="opt"))
+    r = rpt.compare_campaigns(recs, "base", "opt")["rows"][0]
+    assert r["delta"] == 50
+    assert r["within_noise"] is False
+
+
+def test_noise_unknown_is_not_reported_as_real():
+    # one sample per side -> spread unknown -> noise unknown; R-10: not False, not 0
+    recs = (aqs_records(70, 1, point="P1", campaign_id="base")
+            + aqs_records(85, 1, point="P1", campaign_id="opt"))
+    r = rpt.compare_campaigns(recs, "base", "opt")["rows"][0]
+    assert r["delta"] == 15
+    assert r["noise"] is None
+    assert r["within_noise"] is None
+    # and the summary must not bank it as an improvement
+    summary = rpt.render_summary_markdown(recs, min_samples=1)
+    assert "噪声无法估计" in summary
+    assert "0 个 Δ 超出噪声——改善 0" in summary
+
+
+def test_summary_noise_buckets_add_up():
+    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
+            + _spread([62, 72, 82, 92, 102], point="P1", campaign_id="opt")
+            + _spread([60, 70, 80, 90, 100], point="P2", campaign_id="base")
+            + _spread([110, 120, 130, 140, 150], point="P2", campaign_id="opt"))
+    summary = rpt.render_summary_markdown(recs)
+    line = [l for l in summary.splitlines() if "优化前后" in l][0]
+    assert "2 个共同格中 1 个 Δ 超出噪声——改善 1、回退 0、持平 0" in line
+    assert "1 个格 Δ 在噪声内" in line
+
+
+def test_noise_reaches_all_three_surfaces():
+    """The same defect once per surface is this repo's most repeated bug (D-140).
+    Markdown, HTML and CSV must agree on which cells are within noise."""
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
+            + _spread([62, 72, 82, 92, 102], point="P1", campaign_id="opt")     # noisy
+            + _spread([60, 70, 80, 90, 100], point="P2", campaign_id="base")
+            + _spread([110, 120, 130, 140, 150], point="P2", campaign_id="opt")  # real
+            + aqs_records(70, 1, point="P3", campaign_id="base")                 # unknown
+            + aqs_records(85, 1, point="P3", campaign_id="opt"))
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_comparison.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+    csv_noisy = [r for r in rows if r["within_noise"] == "True"]
+    csv_unknown = [r for r in rows if not r["within_noise"]]
+    assert len(csv_noisy) == 1 and len(csv_unknown) == 1
+    # the caveat is the load-bearing half — a bare number invites over-reading
+    assert "不是显著性检验" in md and "不是显著性检验" in html
+    # match markers that only occur in table rows — the caveat mentions both
+    # phrases too, and the summary bullet words it a third way
+    assert md.count("**噪声内**") == len(csv_noisy)
+    assert html.count("<td>噪声内</td>") == len(csv_noisy)
+    assert md.count("噪声不可估") == len(csv_unknown)
+    assert html.count("<td>噪声不可估</td>") == len(csv_unknown)
+    # …and the summary must carry the same two counts in prose
+    assert "1 个格 Δ 在噪声内" in md and "1 个格噪声无法估计" in md
+    # unknown noise stays empty in CSV — never 0, never False (R-10)
+    assert csv_unknown[0]["noise"] == ""
+
+
 def test_graceful_without_labels():
     recs = [make_record(aqs=88, scenarios=[]) for _ in range(3)]  # no campaign block
     inv = rpt.inventory(recs)
