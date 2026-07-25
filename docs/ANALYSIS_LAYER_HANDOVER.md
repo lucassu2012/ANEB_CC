@@ -14,7 +14,9 @@
 把 ANEB 探针产出的 **result-run JSONL** 变成 M2 交付物《城市 AI 业务网络体验热力卡与归因
 报告》。纯 Python 标准库、无第三方依赖、锁无关、设备无关——**任何人在任何机器上都能跑**。
 
-21 个工具、286 条 golden，接入 `verify_all.ps1` 的 `campaign-analysis-unit` 门。
+21 个工具，接入 `verify_all.ps1` 的 `campaign-analysis-unit` 门。
+（golden 条数以 `run_all.py` 的实际输出为准——**此处不写死数字**：写死的计数是本层反复
+治理的那种文档漂移，两次提交就会过时。）
 
 ---
 
@@ -96,7 +98,7 @@ schema 不可读、无 `order_index` 证据、无 clock 标注——一律记 WA
 
 ## 5. 接手后从哪开始
 
-1. `python scripts/tests/run_all.py` —— 应 286/286；跑不过先修环境，别改码。
+1. `python scripts/tests/run_all.py` —— 应**全部通过**；跑不过先修环境，别改码。
 2. 跑一次彩排（runbook §0.5 四步），看报告长什么样、摘要六信号怎么读。
 3. 读本文 §2 六条原则 —— **改动前确认自己不是在拆守卫**。
 4. 要加分析段：仿 `buffering_rollup.py`（最小完整样板：`analyze` / `render_markdown` / CLI
