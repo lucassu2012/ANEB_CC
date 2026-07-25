@@ -151,7 +151,8 @@ def _top(items, n=3):
     return "、".join(items[:n]) + (f" 等 {len(items)} 个" if len(items) > n else "")
 
 
-def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
+def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
+                            attr_kpi=attribution.DEFAULT_KPI):
     """Signal before evidence (D-117).
 
     At M2 grid scale the report is ~1600 lines; the findings that decide what to
@@ -176,6 +177,36 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         bullets.append(f"**体验最差格**：无 fair/poor 格（最低 "
                        f"{_cell_label(scored[0]['cell'])}="
                        f"{cc.fmt_num(scored[0]['aqs_median'], 1)}）。")
+
+    # The report is titled "heat card AND ATTRIBUTION"; the summary told the
+    # reader which cells are bad but never which path segment caused it — the
+    # whole point of the attribution matrix (D-142).
+    attr = attribution.attribute(records, kpi=attr_kpi, min_samples=min_samples)
+    seg_names = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
+                 "core_backbone_incr": "核心骨干"}
+    dominant, not_computable = Counter(), 0
+    worst = None
+    for c in attr["cells"]:
+        parts_ = {k: c[k] for k in seg_names if c[k] is not None}
+        if not parts_:
+            not_computable += 1
+            continue
+        top = max(parts_, key=lambda k: parts_[k])
+        dominant[seg_names[top]] += 1
+        if worst is None or parts_[top] > worst[1]:
+            worst = (f"{_cell_label(c['cell'], attr['group_by'])}·{seg_names[top]}",
+                     parts_[top])
+    if not attr["cells"]:
+        bullets.append(f"**分段归因**：无可归因单元（`{attr_kpi}` 缺数据或缺层级）。")
+    elif not dominant:
+        bullets.append(f"**分段归因**：{not_computable} 个格不可计算"
+                       "（层级缺失，记 TIER_MISSING，不外推）。")
+    else:
+        tail = f"；另有 {not_computable} 个格不可计算" if not_computable else ""
+        bullets.append("**分段归因**（主要贡献段）：" +
+                       "、".join(f"{k} {v} 格" for k, v in dominant.most_common()) +
+                       (f"；最大单项 {worst[0]}={cc.fmt_num(worst[1], 1)}ms" if worst else "")
+                       + tail + "。")
 
     bres = buffering_rollup.analyze(records, min_samples)
     hot = [_cell_label(c["cell"]) for c in bres["cells"] if c["distortion_hotspot"]]
@@ -487,7 +518,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         parts.append("")
     # Signal before evidence: the findings that decide next actions, ahead of the
     # ~1600 lines of tables they point into (D-117).
-    parts.append(render_summary_markdown(records, min_samples))
+    parts.append(render_summary_markdown(records, min_samples, attr_kpi))
     parts.append("")
     parts.append(render_heatcard_markdown(cells))
     parts.append("")

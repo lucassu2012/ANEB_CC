@@ -256,6 +256,31 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_summary_names_the_dominant_path_segment():
+    """The report is titled 热力卡与归因; the summary told the reader which cells
+    were bad but never which segment caused it (D-142). Access 20ms, regional
+    +18, core +27 -> core dominates."""
+    from synth import tier_records
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 5)
+            + tier_records("regional", "n1_rtt_p50_ms", 38, 5)
+            + tier_records("core", "n1_rtt_p50_ms", 65, 5))
+    summary = _section(rpt.build_report_markdown(recs), "摘要")
+    line = [ln for ln in summary.splitlines() if "分段归因" in ln][0]
+    assert "核心骨干 1 格" in line
+    assert "27" in line                      # the largest single increment
+
+
+def test_summary_attribution_reports_not_computable_honestly():
+    """A cell missing a tier is not computable — never folded into a segment."""
+    from synth import tier_records
+    recs = tier_records("metro", "n1_rtt_p50_ms", 20, 5)     # no regional/core
+    line = [ln for ln in _section(rpt.build_report_markdown(recs), "摘要").splitlines()
+            if "分段归因" in ln][0]
+    assert "接入 1 格" in line               # access alone is still computable
+    assert "TIER_MISSING" in _section(rpt.build_report_markdown(recs),
+                                      "三级差分归因矩阵（n1")
+
+
 def test_csv_carries_the_incomparability_flags():
     """CSV is the surface analysts compute on, and it shows only columns — a
     pooled median arrived there looking like an ordinary trustworthy number,
