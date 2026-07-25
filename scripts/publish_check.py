@@ -128,6 +128,18 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
+    mixed_tp = []
+    for k in attribution.ATTRIBUTABLE_KPIS:
+        for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
+            if c.get("mixed_transports"):
+                mixed_tp.append(c)
+    if mixed_tp:
+        rows.append(_row(WARN, "同一接入",
+                         f"{len(mixed_tp)} 个格的三层级混用了不同接入介质"
+                         "——该格的骨干增量其实含 wifi/蜂窝差，不可用"))
+    else:
+        rows.append(_row(PASS, "同一接入", "各格三层级接入介质一致"))
+
     # The other half of 铁律 3's premise. Unlike simultaneity this one is not
     # merely unchecked, it is uncheckable: the contract carries no device
     # identity at all. Saying nothing would let a reader assume it held (D-156).

@@ -18,6 +18,7 @@ report can show a coverage gap instead of a fabricated cell.
 import glob
 import json
 import math
+import re
 import statistics
 import sys
 import unicodedata
@@ -282,10 +283,47 @@ def histogram_edges(scn):
     return tuple(edges) if isinstance(edges, list) and edges else None
 
 
+# Access medium, shared by the transport section and the attribution guard:
+# 铁律 3 also requires the SAME ACCESS across tiers, so both sides must agree
+# on what counts as wifi vs cellular (D-157).
+TRANSPORT_EXPLICIT = frozenset(("wifi", "cellular"))
+
+
+def _transport_medium(s):
+    """Normalize one transport string to wifi|cellular|None. The real producer
+    writes the RESOLVED medium in a compound form — e.g. `auto(cellular)`
+    (observed on real corpus, D-110) — so the parenthesized part wins."""
+    if not isinstance(s, str) or not s:
+        return None
+    s = s.lower()
+    if s in TRANSPORT_EXPLICIT:
+        return s
+    m = re.fullmatch(r"\w+\((wifi|cellular)\)", s)
+    return m.group(1) if m else None
+
+
+def resolve_transport(rec):
+    """One transport label per run: explicit setting, else observed consensus."""
+    t = _transport_medium((rec.get("run") or {}).get("transport"))
+    if t:
+        return t
+    seen = set()
+    for scn in iter_scenarios(rec):
+        ns = scn.get("network_snapshot")
+        if isinstance(ns, dict):
+            o = _transport_medium(ns.get("transport"))
+            if o:
+                seen.add(o)
+    if not seen:
+        return "unknown"
+    return seen.pop() if len(seen) == 1 else "mixed"
+
+
 def homogeneity_acc():
     """Fresh per-cell comparability accumulator (see note_homogeneity/mixed_flags)."""
     return {"profile_versions": set(), "histogram_edges": set(),
-            "modes": set(), "profile_sources": set(), "campaigns": set()}
+            "modes": set(), "profile_sources": set(), "campaigns": set(),
+            "transports": set()}
 
 
 def note_run_homogeneity(acc, rec):
@@ -301,6 +339,10 @@ def note_run_homogeneity(acc, rec):
     cid = (run.get("campaign") or {}).get("campaign_id")
     if isinstance(cid, str) and cid:
         acc["campaigns"].add(cid)
+    # 铁律 3 requires the same ACCESS across tiers. metro over venue wifi and
+    # core over the SIM makes the "core increment" a wifi-vs-cellular gap
+    # wearing a backbone label — and the field is right there (D-157).
+    acc["transports"].add(resolve_transport(rec))
 
 
 def mixed_campaigns(acc):
@@ -320,6 +362,12 @@ def mixed_run_flags(acc):
     modes = sorted(acc.get("modes") or [])
     sources = sorted(acc.get("profile_sources") or [])
     return (modes if len(modes) > 1 else []), (sources if len(sources) > 1 else [])
+
+
+def mixed_transports(acc):
+    """Access media pooled into one cell — empty when homogeneous."""
+    ts = sorted((acc or {}).get("transports") or [])
+    return ts if len(ts) > 1 else []
 
 
 def note_homogeneity(acc, scn):

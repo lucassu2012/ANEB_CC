@@ -325,3 +325,38 @@ def test_single_tier_cell_has_nothing_to_compare():
     # …and the note is not emitted for a cell that could never have a spread
     assert "| TIER_TIME_UNKNOWN" not in attribution.render_markdown(
         attribution.attribute(recs))
+
+
+def _tier_on(tier, val, transport, n=5):
+    campaign = {"campaign_id": "base", "tier": tier, "point_id": "P1",
+                "carrier": "cmcc", "time_band": "busy"}
+    out = []
+    for _ in range(n):
+        r = make_record(campaign=campaign,
+                        scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})])
+        r["run"]["transport"] = transport
+        out.append(r)
+    return out
+
+
+def test_tiers_on_different_access_media_are_flagged():
+    """铁律 3 also requires the same ACCESS. metro over venue wifi and core over
+    the SIM makes the core increment a wifi-vs-cellular gap wearing a backbone
+    label — and transport is right there in the record (D-157)."""
+    recs = (_tier_on("metro", 20, "wifi") + _tier_on("regional", 35, "wifi")
+            + _tier_on("core", 90, "auto(cellular)"))     # compound form, D-110
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["mixed_transports"] == ["cellular", "wifi"]
+    assert c["core_backbone_incr"] == 55                  # reported, not suppressed
+    md = attribution.render_markdown(attribution.attribute(recs))
+    assert "**MIXED_TRANSPORT:cellular/wifi**" in md
+    assert "接入差" in md                                  # the caveat says what it is
+
+
+def test_same_access_across_tiers_is_not_flagged():
+    recs = (_tier_on("metro", 20, "wifi") + _tier_on("regional", 35, "wifi")
+            + _tier_on("core", 90, "wifi"))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["mixed_transports"] == []
+    assert "MIXED_TRANSPORT:" not in attribution.render_markdown(
+        attribution.attribute(recs))

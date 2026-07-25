@@ -33,33 +33,12 @@ EXPLICIT = ("wifi", "cellular")
 
 
 def _medium(s):
-    """Normalize one transport string to wifi|cellular|None. The real producer
-    writes the RESOLVED medium in a compound form — e.g. `auto(cellular)`
-    (observed on real corpus, D-110) — so the parenthesized part wins."""
-    if not isinstance(s, str) or not s:
-        return None
-    s = s.lower()
-    if s in EXPLICIT:
-        return s
-    m = re.fullmatch(r"\w+\((wifi|cellular)\)", s)
-    return m.group(1) if m else None
+    return cc._transport_medium(s)
 
 
 def resolve_transport(rec):
-    """One transport label per run: explicit setting, else observed consensus."""
-    t = _medium((rec.get("run") or {}).get("transport"))
-    if t:
-        return t
-    seen = set()
-    for scn in cc.iter_scenarios(rec):
-        ns = scn.get("network_snapshot")
-        if isinstance(ns, dict):
-            o = _medium(ns.get("transport"))
-            if o:
-                seen.add(o)
-    if not seen:
-        return "unknown"
-    return seen.pop() if len(seen) == 1 else "mixed"
+    """One transport label per run — see campaign_common (D-157)."""
+    return cc.resolve_transport(rec)
 
 
 def transport_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):

@@ -240,3 +240,21 @@ def test_uncheckable_premise_is_stated_not_omitted():
     # …and it must be a WARN on every corpus, since nothing can ever clear it
     for corpus in (_clean(), _two_campaigns([70, 72, 74], [80, 82, 84])):
         assert _sev(pc.check(corpus), "同一客户端") == pc.WARN
+
+
+def test_mixed_access_media_across_tiers_is_warned():
+    from synth import make_record
+    def at(tier, val, transport, n=5):
+        c = {"campaign_id": "base", "tier": tier, "point_id": "P1",
+             "carrier": "cmcc", "time_band": "busy"}
+        out = []
+        for _ in range(n):
+            r = make_record(campaign=c, aqs=80,
+                            scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})])
+            r["run"]["transport"] = transport
+            out.append(contractify(r))
+        return out
+    mixed = at("metro", 20, "wifi") + at("core", 90, "auto(cellular)")
+    assert _sev(pc.check(mixed), "同一接入") == pc.WARN
+    same = at("metro", 20, "wifi") + at("core", 90, "wifi")
+    assert _sev(pc.check(same), "同一接入") == pc.PASS

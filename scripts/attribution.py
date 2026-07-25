@@ -165,6 +165,7 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
         entry["mixed_modes"] = mixed_modes
         entry["mixed_profile_sources"] = mixed_sources
         entry["mixed_campaigns"] = cc.mixed_campaigns(meta.get(key))
+        entry["mixed_transports"] = cc.mixed_transports(meta.get(key))
         results.append(entry)
     return {
         "kpi": kpi,
@@ -310,6 +311,10 @@ def render_markdown(result):
         f"{TIER_TIME_SPREAD_GATE_MS // 60000} 分钟的格标 `TIER_TIME_SPREAD`——"
         "那样算出的「骨干增量」可能只是**时段差异**穿了骨干的外衣。记录无时间戳时留空并标 "
         "`TIER_TIME_UNKNOWN`（**没法查 ≠ 查过了**）。",
+        "> **同一接入**同样是前提：`metro` 走场地 wifi、`core` 走 SIM 卡时，"
+        "算出的「核心骨干增量」是 **wifi 与蜂窝的接入差**顶着骨干的名字。这一条"
+        "**可以核对**（记录带 `transport`），混用的格标 `MIXED_TRANSPORT`——"
+        "**该格的增量不可用**，只能各介质分开重测。",
         "> **铁律 3 的另一半前提「同一客户端」本工具无法核对**：结果契约不含任何设备标识"
         "字段（`run` 下只有 app 版本/模式/接入等）。若本轮中途换过设备，机型差异会整个"
         "计入骨干增量，而**没有任何标记会出现**——这一条只能由采集方书面确认（见 runbook "
@@ -350,6 +355,8 @@ def render_markdown(result):
             notes.append("MIXED_HIST_EDGES")
         if c.get("mixed_campaigns"):
             notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
+        if c.get("mixed_transports"):
+            notes.append("**MIXED_TRANSPORT:" + "/".join(c["mixed_transports"]) + "**")
         if c.get("mixed_modes"):
             notes.append("MIXED_MODE:" + "/".join(c["mixed_modes"]))
         if c.get("mixed_profile_sources"):
