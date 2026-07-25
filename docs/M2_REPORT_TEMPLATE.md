@@ -148,7 +148,33 @@ python campaign_report.py labeled.jsonl --md report.md --html report.html --csv 
 【占位：附 `tables_*.csv`（heat / attribution / stability / validity / subscores /
 buffering / transport / comparison / trend 共 9 张）或 HTML 报告链接。】
 
-### C. 归档清单
+### C. 骨架章节 ← 报告段落映射（**机器校验**）
+
+组稿时按此表取数；表内段名由 `tests/test_docs_commands.py` 校验**确实存在于报告中**——
+段名若被改动而此表未同步，测试直接失败，不会让骨架静默指向一个不存在的段落。
+
+<!-- SECTION-MAP:BEGIN -->
+| 骨架章节 | 取自报告段落 |
+|---|---|
+| §1 摘要 | 摘要（先看这里） |
+| §1 测量范围 | 覆盖盘点 |
+| §4 采集概况 | 覆盖盘点 |
+| §5.1 体验热力卡 | 点位 × 忙闲 × 运营商 热力卡 |
+| §5.1 分 KPI | 分 KPI 热力卡 |
+| §5.2 分段归因 | 三级差分归因矩阵 |
+| §5.2 分数侧 | AQS 分数侧归因 |
+| §5.3 介质对比 | 接入介质对比 |
+| §5.4 前后对比（2 战役） | 优化前后对比 |
+| §5.4 纵向趋势（≥3 战役） | 纵向趋势 |
+| §6 有效率 | 有效性与失效原因 |
+| §6 测量可信度 | 测量可信度 |
+| §6 批化失真 | 批化(buffering)归因 |
+| §6 复测稳定性 | 复测稳定性 |
+| §6 序位效应 | 序位效应诊断 |
+| 附录 A 溯源 | 溯源 / provenance |
+<!-- SECTION-MAP:END -->
+
+### D. 归档清单
 - [ ] `report.md` / `report.html`
 - [ ] `tables_*.csv`（9 张）
 - [ ] `provenance.json`

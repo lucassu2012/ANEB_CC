@@ -63,6 +63,47 @@ def test_documented_scripts_exist():
     assert not missing, f"docs reference scripts that do not exist: {missing}"
 
 
+def test_deliverable_template_section_map_resolves():
+    """The deliverable skeleton tells the author which report section each of its
+    chapters comes from. If a section is renamed and the map is not updated, the
+    skeleton silently points at nothing — and the author only finds out while
+    assembling the report (D-134).
+
+    Checked against an EXPLICIT map block rather than by scraping prose: a regex
+    over free text also matches phrases, banners and bullet labels, and a guard
+    that cries wolf trains people to ignore it.
+    """
+    import provenance as prov
+    import campaign_report as rpt
+    import synth_campaign as sc
+
+    tmpl = os.path.join(REPO, "docs", "M2_REPORT_TEMPLATE.md")
+    with open(tmpl, encoding="utf-8") as f:
+        body = f.read()
+    block = re.search(r"<!-- SECTION-MAP:BEGIN -->(.*?)<!-- SECTION-MAP:END -->",
+                      body, re.S)
+    assert block, "SECTION-MAP block missing from the deliverable template"
+    wanted = []
+    for line in block.group(1).splitlines():
+        if not line.startswith("| ") or line.startswith("| 骨架章节") or set(
+                line.strip("| ")) <= set("-| "):
+            continue
+        wanted.append(line.strip("|").split("|")[1].strip())
+    assert len(wanted) >= 10, f"section map looks truncated: {wanted}"
+
+    # union over corpus shapes: 2 campaigns render before/after, 3+ render trend
+    headings = set()
+    for campaigns in (("base", "opt"), ("base", "opt", "r3")):
+        recs = sc.generate(points=3, repeats=5, campaigns=campaigns)
+        md = rpt.build_report_markdown(recs, provenance=prov.compute(
+            [], {"lines": 1, "kept": 1}, {}, generated_at="2026-01-01",
+            thresholds=rpt.effective_thresholds()))
+        headings |= {ln[3:].strip() for ln in md.splitlines() if ln.startswith("## ")}
+
+    missing = [w for w in wanted if not any(w in h for h in headings)]
+    assert not missing, f"template maps to sections the report does not emit: {missing}"
+
+
 def test_every_tool_is_mentioned_in_the_readme():
     """The command guard checks that documented commands work; it cannot notice a
     tool nobody documented. corpus_health.py and order_effect.py sat unmentioned
