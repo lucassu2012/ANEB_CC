@@ -159,6 +159,26 @@ def run_started_ms(rec):
     return fnum(run_obj(rec).get("started_at_epoch_ms"))
 
 
+# Records produced by scripts/synth_campaign.py carry BOTH of these markers.
+# Either one alone is enough to detect them: a re-labelled corpus
+# (annotate_campaign) keeps the additive block, and a corpus stripped of the
+# block still carries the campaign_id prefix. Fabricated numbers must never be
+# able to launder themselves into looking like field measurements.
+SYNTHETIC_CAMPAIGN_PREFIX = "SYNTH-"
+
+
+def is_synthetic(rec):
+    """True when this record is generated, not measured (see synth_campaign.py)."""
+    if isinstance(rec.get("synthetic"), dict):
+        return True
+    cid = (run_obj(rec).get("campaign") or {}).get("campaign_id")
+    return isinstance(cid, str) and cid.startswith(SYNTHETIC_CAMPAIGN_PREFIX)
+
+
+def count_synthetic(records):
+    return sum(1 for r in records if is_synthetic(r))
+
+
 def run_sub_scores(rec):
     """run.aqs.sub_scores: {KPI-dimension id -> 0-100 sub-score}, numbers only.
 

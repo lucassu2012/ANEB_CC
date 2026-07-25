@@ -68,6 +68,22 @@ unknown，**均不并入任何介质**。全 unknown → 覆盖缺口告示，�
 实际带标注的场景数，未标注**不算干净**；全无证据 → 覆盖缺口告示。时钟可疑过半标
 `时钟可疑热点`。集成进综合报告 + 独立 CLI。
 
+### `synth_campaign.py` — 合成全网格语料（**仅供彩排**，D-116/117）
+> ⛔ **产出的数字是虚构的、不是实测**。每条记录带**双重标记**（加性 `synthetic` 块 +
+> `SYNTH-` 战役前缀），`campaign_report` 检出后在报告最顶端印**不可能被忽略的红色警告**；
+> 两个标记任缺其一仍可检出（改标签洗不掉、删块也洗不掉）。绝不可与真实语料混合。
+
+生成 M2 规模网格（默认 8 点位×2 运营商×忙闲×3 层级×5 重复×2 战役 = 960 run/2880 场景，
+<1 秒）：按层级基准 RTT + 点位质量因子 + 忙时惩罚 + 相对噪声派生全部 KPI，并**刻意埋入**
+失效场景、可疑时钟点位、批化热点、双介质点位、抖动点位、轮转序位——让报告每一段都有东西可渲染。
+`--seed` 决定论：同种子产出逐字节一致，彩排可复现。分级与 AQS 为**近似合理值**，
+KpiGrading.kt / spec/scoring 仍是权威。
+
+```
+python synth_campaign.py -o rehearsal.jsonl
+python campaign_report.py rehearsal.jsonl --md r.md --html r.html --csv t
+```
+
 ### `annotate_campaign.py` — 离线战役标签补注
 加性注入 `run.campaign`：`--set KEY=VALUE`（统一）/ `--map map.json`（per run_id）/
 `--infer-time-band`（由 `started_at_epoch_ms`+`--tz-offset` 推 busy/idle，标 inferred）。

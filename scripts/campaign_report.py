@@ -77,6 +77,105 @@ def inventory(records):
     return inv
 
 
+def _cell_label(cell, dims=("point_id", "carrier", "time_band")):
+    """Compact cell label. Callers whose cells are keyed on more dimensions must
+    pass them all — a label that drops key dimensions renders as duplicates and
+    the reader cannot tell which cell is meant."""
+    return "/".join(str(cell.get(k, "?")) for k in dims if cell.get(k) is not None)
+
+
+def _top(items, n=3):
+    return "、".join(items[:n]) + (f" 等 {len(items)} 个" if len(items) > n else "")
+
+
+def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
+    """Signal before evidence (D-117).
+
+    At M2 grid scale the report is ~1600 lines; the findings that decide what to
+    do next — bad cells, distortion hot-spots, suspect clocks, low validity,
+    unstable cells — were buried in the middle of it. This lifts them to the top.
+    It only points INTO the detailed sections below; nothing is hidden, and the
+    distinction between "no problem" and "no data" is kept explicit (R-10).
+    """
+    lines = ["## 摘要（先看这里）", ""]
+    bullets = []
+
+    cells = heat_cells(records, min_samples)
+    scored = sorted((c for c in cells if c["aqs_median"] is not None),
+                    key=lambda c: c["aqs_median"])
+    weak = [f"{_cell_label(c['cell'])}({cc.fmt_num(c['aqs_median'], 1)})"
+            for c in scored if c["grade"] in ("poor", "fair")]
+    if not scored:
+        bullets.append("**体验最差格**：无 AQS 数据（覆盖缺口，非全部良好）。")
+    elif weak:
+        bullets.append(f"**体验最差格**：{len(weak)} 个格 AQS 达 fair/poor —— {_top(weak)}。")
+    else:
+        bullets.append(f"**体验最差格**：无 fair/poor 格（最低 "
+                       f"{_cell_label(scored[0]['cell'])}="
+                       f"{cc.fmt_num(scored[0]['aqs_median'], 1)}）。")
+
+    bres = buffering_rollup.analyze(records, min_samples)
+    hot = [_cell_label(c["cell"]) for c in bres["cells"] if c["distortion_hotspot"]]
+    if not bres["cells"]:
+        bullets.append("**批化失真**：无批化标注（覆盖缺口，非未见失真）。")
+    else:
+        bullets.append(f"**批化失真热点**：{len(hot)} 个 —— {_top(hot)}。" if hot
+                       else "**批化失真**：无热点格。")
+
+    tres = trust_rollup.analyze(records, min_samples)
+    clock_hot = [_cell_label(c["cell"]) for c in tres["cells"] if c["clock_hotspot"]]
+    if tres["no_evidence"]:
+        bullets.append("**测量可信度**：无 clock/seq/parse 证据（覆盖缺口，非全部可信）。")
+    else:
+        bullets.append(f"**时钟可疑热点**：{len(clock_hot)} 个 —— {_top(clock_hot)}"
+                       "（该格时延中位数存疑）。" if clock_hot else "**时钟可疑热点**：无。")
+
+    vres = validity_rollup.analyze(records)
+    low_valid = [f"{_cell_label(c['cell'])}({c['valid_rate'] * 100:.0f}%)"
+                 for c in vres["cells"] if c["below_min_rate"]]
+    if not vres["cells"]:
+        bullets.append("**有效率**：无场景数据。")
+    else:
+        bullets.append(f"**有效率不达门**：{len(low_valid)} 个格 —— {_top(low_valid)}。"
+                       if low_valid else
+                       f"**有效率**：全部达门（≥{vres['min_rate'] * 100:.0f}%）。")
+
+    unstable, measured = [], 0
+    for k in stability.DEFAULT_STABILITY_KPIS:
+        for c in stability.stability_cells(records, k, min_samples=min_samples):
+            if c["cv_percent"] is None:
+                continue
+            measured += 1
+            if c["unstable"]:
+                # stability cells are keyed on tier+profile too — include them,
+                # or the labels collapse into indistinguishable duplicates
+                unstable.append(_cell_label(
+                    c["cell"], ("point_id", "carrier", "time_band", "tier",
+                                "profile_id")) + f"·{k}")
+    if not measured:
+        bullets.append("**复测稳定性**：无可计算 CV 的单元。")
+    else:
+        bullets.append(f"**复测不稳定**：{len(unstable)}/{measured} 单元超 CV 门 —— "
+                       f"{_top(unstable)}。" if unstable else
+                       f"**复测稳定性**：{measured} 个单元全部达门。")
+
+    tr = transport_rollup.analyze(records, min_samples)
+    worse = [f"{_cell_label(c['cell'])}(Δ{cc.fmt_num(c['cellular_minus_wifi'], 1)})"
+             for c in tr["cells"]
+             if c["cellular_minus_wifi"] is not None and c["cellular_minus_wifi"] < 0]
+    if tr["only_unknown"]:
+        bullets.append("**接入介质**：无 transport 证据（覆盖缺口）。")
+    elif worse:
+        bullets.append(f"**蜂窝劣于 wifi**：{len(worse)} 个格 —— {_top(worse)}。")
+    else:
+        bullets.append("**接入介质**：无同格双介质可比，或蜂窝不劣于 wifi。")
+
+    lines += [f"- {b}" for b in bullets]
+    lines += ["", "> 以上为下方各段的**指路**，证据与完整表格见对应段落；"
+                  "口径与不可计算说明以各段为准。"]
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------- heat card
 
 def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
@@ -250,6 +349,19 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     parts = [
         "# ANEB 战役级综合报告",
         "",
+    ]
+    # Fabricated numbers must never be mistakable for field results (D-116).
+    # First thing after the title, ahead of any measurement claim.
+    n_synth = cc.count_synthetic(records)
+    if n_synth:
+        parts += [
+            f"> # ⛔ 合成数据警告：本报告 {n_synth}/{len(records)} 条记录为**合成语料**",
+            "> ",
+            "> 由 `scripts/synth_campaign.py` **生成**，数字是**虚构的**、**不是实测**。"
+            "仅供工具链彩排/演示——**不得**作为外场结论、进局点材料或任何对外结论的依据。",
+            "",
+        ]
+    parts += [
         "> claim_scope: `application_end_to_end_to_probe_node` — 应用层端到指定节点路径；"
         "**不表述为** MOS / 无线层评级 / 运营商全网 SLA。",
         f"> 输入记录：{inv['records']}；含 run.aqs：{inv['aqs_present']}；"
@@ -281,6 +393,10 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         parts.append("> ⚠ 全部记录无 `run.campaign` 标签——热力卡/归因/前后对比塌缩为单格 "
                      "`unlabeled`。接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。")
         parts.append("")
+    # Signal before evidence: the findings that decide next actions, ahead of the
+    # ~1600 lines of tables they point into (D-117).
+    parts.append(render_summary_markdown(records, min_samples))
+    parts.append("")
     parts.append(render_heatcard_markdown(cells))
     parts.append("")
     parts.append("## 分 KPI 热力卡（原始 KPI 中位 + 上报 KpiGrading 分级）")
@@ -542,6 +658,13 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if inv["with_campaign"] == 0:
         warn = ("<p class='warn'>全部记录无 run.campaign 标签——热力卡/归因/对比塌缩为单格。"
                 "接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。</p>")
+    # Same unmissable synthetic-data banner as the markdown report (D-116).
+    n_synth = cc.count_synthetic(records)
+    synth_banner = ("" if not n_synth else
+                    f"<div class='synth'><b>⛔ 合成数据警告：本报告 {n_synth}/{len(records)} "
+                    "条记录为合成语料</b><br>由 <code>scripts/synth_campaign.py</code> 生成，"
+                    "数字是虚构的、不是实测。仅供工具链彩排/演示——<b>不得</b>作为外场结论、"
+                    "进局点材料或任何对外结论的依据。</div>")
 
     # 溯源/稳定性/序位/有效性/分数侧/批化/趋势 — converted from the markdown
     # renderers (single source of truth), appended after the rich grids (D-107).
@@ -564,10 +687,14 @@ td .sub{{display:block;font-size:10px;opacity:.75;font-weight:400}}
 .scroll{{overflow-x:auto}}
 .empty{{color:#5f6368;font-style:italic;text-align:center}}
 .warn{{color:#b06000;background:#fef7e0;padding:8px 12px;border-radius:6px}}
+.synth{{color:#fff;background:#c5221f;padding:14px 16px;border-radius:8px;font-size:15px;
+        line-height:1.6;margin:16px 0;border:3px solid #7f0f0d}}
+.synth code{{background:rgba(255,255,255,.22);padding:1px 4px;border-radius:3px}}
 .note{{font-size:12px;color:#5f6368}}
 footer{{margin-top:36px;font-size:12px;color:#5f6368;border-top:1px solid #ddd;padding-top:12px}}
 </style></head><body><div class="wrap">
 <h1>ANEB 战役级综合报告</h1>
+{synth_banner}
 <p class="note">生成时间：{esc(generated_at)} · 记录 {inv['records']} · 含 AQS {inv['aqs_present']} · 含标签 {inv['with_campaign']} · min_samples={min_samples}</p>
 {warn}
 <h2>点位 × 忙闲 × 运营商 热力卡（AQS 中位；* = 样本不足 low_conf）</h2>

@@ -23,6 +23,37 @@ def test_cv_below_two_samples_is_none():
     assert stability.cv_percent([]) is None
 
 
+def _cell(i, *, unstable=False, cv=3.0):
+    return {"cell": {"point_id": f"P{i:02d}", "carrier": "cmcc", "time_band": "busy",
+                     "tier": "metro", "profile_id": "s1_chat"},
+            "n": 5, "median": 100.0, "mean": 100.0, "cv_percent": cv,
+            "unstable": unstable, "low_confidence": False, "kpi": "t1_ttft_ms"}
+
+
+def test_stable_row_cap_declares_what_it_omitted():
+    """No silent truncation (D-117): the omission is stated, with a pointer to
+    the complete data."""
+    cells = [_cell(i) for i in range(40)]
+    md = stability.render_markdown(cells, "t1_ttft_ms", max_stable_rows=25)
+    assert md.count("point_id=P") == 25
+    assert "另有 **15**" in md
+    assert "_stability.csv" in md
+
+
+def test_cap_never_drops_unstable_or_not_computable_rows():
+    """The signal rows survive any cap — only stable ones fold away."""
+    cells = ([_cell(i) for i in range(30)]
+             + [_cell(90, unstable=True, cv=42.0), _cell(91, cv=None)])
+    md = stability.render_markdown(cells, "t1_ttft_ms", max_stable_rows=5)
+    assert "point_id=P90" in md and "point_id=P91" in md
+    assert md.count("point_id=P") == 7   # 5 stable + unstable + not-computable
+
+
+def test_no_cap_note_when_under_the_limit():
+    md = stability.render_markdown([_cell(i) for i in range(3)], "t1_ttft_ms")
+    assert "另有" not in md
+
+
 def test_cv_mean_zero_is_none():
     assert stability.cv_percent([2, -2]) is None      # mean 0 -> undefined, not 0
 

@@ -64,11 +64,27 @@ def stability_cells(records, kpi_key, group_by=STAB_GROUP_BY,
     return cells
 
 
-def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE):
+# At M2 grid scale this table is (point x carrier x band x tier x profile) per KPI
+# — ~290 rows each, which buried every other section in the rehearsal (D-117).
+# Above the cap, STABLE rows are folded away and the omission is stated in full:
+# unstable and not-computable rows are never dropped, and the CSV keeps everything.
+DEFAULT_MAX_STABLE_ROWS = 25
+
+
+def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE,
+                    max_stable_rows=DEFAULT_MAX_STABLE_ROWS):
     lines = [f"### 复测稳定性：`{kpi_key}`（CV% = 样本 stdev/mean；门 ≤{cc.fmt_num(cv_gate)}% 为稳定）", ""]
     if not cells:
         lines.append(f"_无 `{kpi_key}` 数据。_")
         return "\n".join(lines)
+    stable_ids = [id(c) for c in cells
+                  if c["cv_percent"] is not None and not c["unstable"]]
+    omitted = 0
+    if max_stable_rows is not None and len(stable_ids) > max_stable_rows:
+        keep = set(stable_ids[:max_stable_rows])
+        omitted = len(stable_ids) - max_stable_rows
+        cells = [c for c in cells
+                 if c["cv_percent"] is None or c["unstable"] or id(c) in keep]
     lines += ["| 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |",
               "|---|---|---|---|---|---|---|"]
     for c in cells:
@@ -86,6 +102,10 @@ def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE):
         lines.append(
             f"| {cell_label} | {c['n']} | {cc.fmt_num(c['median'], 2)} | "
             f"{cc.fmt_num(c['mean'], 2)} | {cc.fmt_num(c['cv_percent'], 1)} | {stable} | {note} |")
+    if omitted:
+        lines += ["", f"> 另有 **{omitted}** 个**稳定**单元未列出（表内保留全部 ✗超门 与 "
+                      f"CV 不可计算单元，以及前 {max_stable_rows} 个稳定单元）。"
+                      "完整数据见 `<prefix>_stability.csv`。"]
     return "\n".join(lines)
 
 
