@@ -374,6 +374,10 @@ def main(argv):
     ap.add_argument("--campaigns", default="base,opt",
                     help="comma-separated campaign ids (all get the SYNTH- prefix)")
     ap.add_argument("--seed", type=int, default=20260725)
+    ap.add_argument("--unlabelled", action="store_true",
+                    help="strip run.campaign, matching what the app emits TODAY "
+                         "(label wiring not landed) — so a rehearsal also practises "
+                         "the annotate step, the one most likely to go wrong")
     ap.add_argument("--chaos", action="store_true",
                     help="seed realistic field pathologies (missing tier, aborted "
                          "runs, mixed profile versions, clock jumps, all-invalid "
@@ -388,6 +392,12 @@ def main(argv):
     if args.chaos:
         recs = inject_chaos(recs, seed=args.seed + 1)
         print("chaos: " + "; ".join(name for name, _ in CHAOS_PATHOLOGIES))
+    if args.unlabelled:
+        # the additive `synthetic` block stays, so these are still detectable as
+        # fabricated even with no campaign_id prefix to give them away
+        for r in recs:
+            r["run"].pop("campaign", None)
+        print("unlabelled: run.campaign stripped (rehearse the annotate step)")
     with open(args.out, "w", encoding="utf-8") as f:
         for r in recs:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")

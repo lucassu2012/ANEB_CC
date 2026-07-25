@@ -180,6 +180,45 @@ def test_annotate_pattern_matching_nothing_is_an_error():
         assert not os.path.exists(os.path.join(d, "out.jsonl"))
 
 
+def test_annotate_warns_when_one_point_id_covers_many_files():
+    """A field day spans several points; a day-wide glob plus one --set point_id
+    stamps them all identically — wrong labels that look perfectly normal. The
+    tool cannot know, so it warns rather than refuses (D-132)."""
+    with tempfile.TemporaryDirectory() as d:
+        src = os.path.join(d, "raw")
+        os.makedirs(src)
+        for n in ("a.jsonl", "b.jsonl"):
+            _write_jsonl(os.path.join(src, n),
+                         [contractify(make_record(aqs=90, scenarios=[]))])
+        r = _run("annotate_campaign.py", os.path.join(src, "a.jsonl"),
+                 os.path.join(src, "b.jsonl"), "--out-dir", os.path.join(d, "out"),
+                 "--set", "point_id=SZ-CBD-01")
+        assert r.returncode == 0, r.stderr          # a warning, not a refusal
+        assert "统一打到 2 个文件" in r.stderr
+    # one file, one point: the normal case must stay quiet
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "a.jsonl")
+        _write_jsonl(p, [contractify(make_record(aqs=90, scenarios=[]))])
+        r = _run("annotate_campaign.py", p, "-o", os.path.join(d, "o.jsonl"),
+                 "--set", "point_id=SZ-CBD-01")
+        assert "统一打到" not in r.stderr
+
+
+def test_synth_unlabelled_matches_todays_app_output():
+    """The rehearsal corpus must look like what the app emits today (no
+    run.campaign), or step 2 of the runbook never gets practised — while still
+    being detectable as synthetic (D-132)."""
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "raw.jsonl")
+        r = _run("synth_campaign.py", "-o", out, "--points", "2", "--repeats", "1",
+                 "--campaigns", "base", "--unlabelled")
+        assert r.returncode == 0, r.stderr
+        with open(out, encoding="utf-8") as f:
+            rec = json.loads(f.readline())
+        assert "campaign" not in rec["run"]
+        assert isinstance(rec["synthetic"], dict)   # still launder-proof
+
+
 def test_annotate_is_idempotent():
     """Re-annotating an already-labelled corpus must be a no-op: labels already
     on the record win over every layer (D-130 check of the documented rule)."""

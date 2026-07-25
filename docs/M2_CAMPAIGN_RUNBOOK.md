@@ -27,9 +27,15 @@
 **不要**在外场当天第一次见到规模化报告长什么样：
 
 ```
-python synth_campaign.py -o rehearsal.jsonl
+python synth_campaign.py -o rehearsal_raw.jsonl --unlabelled
+python annotate_campaign.py rehearsal_raw.jsonl -o rehearsal.jsonl --set campaign_id=drill --set point_id=DRILL-01 --set carrier=cmcc --set tier=metro --infer-time-band
 python campaign_report.py rehearsal.jsonl --md r.md --html r.html --csv rt
+python publish_check.py rehearsal.jsonl
 ```
+
+`--unlabelled` 让彩排语料与**今天 app 的实际输出一致**（标签接线未落地 = 无 `run.campaign`），
+这样第 2 步补注也被演练到——它是整条链路上最容易出错的一步。
+（`publish_check` 必然报 FAIL：彩排语料本就是合成的，正是它该拦的。）
 
 > ⛔ 彩排产物**数字全是虚构的**。报告顶端会印红色合成数据警告；
 > 见到该警告的报告**一律不得**外发或作为任何结论依据。彩排文件用完即删，
@@ -52,13 +58,20 @@ python validate_results.py field_raw.jsonl
 
 ## 2. 补注战役标签（app 侧写入落地前的桥）
 
-同一批（同点位同层级）多个文件用 `--out-dir` 一次补注；跨点位混装时用 `--map` 按 run_id 精确打标：
+> ⛔ **最容易犯的错**：一天的语料跨**多个点位**，而 `--set point_id=X` 会把它们**全部**
+> 打成同一个点位——标签看起来完全正常，热力卡却是错的，下游无人能发现。
+> **按点位分目录**（推荐）或用 `--map` 按 run_id 精确打标。多文件配统一 `point_id` 时
+> 工具会告警，但它无法替你判断这些文件是否真的同点位。
+
+采集时就按点位分目录存放（`raw/SZ-CBD-01/`、`raw/SZ-UNIV-02/`…），然后**逐点位**补注：
 
 ```
-python annotate_campaign.py raw/day1_*.jsonl --out-dir labeled \
+python annotate_campaign.py raw/SZ-CBD-01/*.jsonl --out-dir labeled \
     --set campaign_id=sz-2026Q3-baseline --set point_id=SZ-CBD-01 \
     --set carrier=cmcc --set tier=metro --infer-time-band
 ```
+
+若已混装在一个目录里，用 `--map map.json`（`{run_id: {point_id: …}}`）按台账精确打标。
 
 `--out-dir` 输出同名文件、不动输入；若输出会覆盖输入或不同目录存在同名文件，工具**直接拒绝**
 （分别提示用 `--inplace`、或先改名）。单文件仍可用 `-o`。
@@ -121,6 +134,8 @@ WARN=**须由人解释**后才可发布（低有效率 / 失真热点 / 时钟�
 | 契约门报 run 缺 7 字段 | 旧版生产者历史语料 | 隔离，不进战役 |
 | 报告全塌 `unlabeled` | 忘了步骤 2 补注 | 先 annotate 再报告 |
 | annotate 报 multiple inputs | 多文件共用一个 `-o` | 改用 `--out-dir DIR` 批量 |
+| annotate 告警"正把 point_id 统一打到 N 个文件上" | 语料可能跨多点位 | 确认同点位再继续；否则分目录或用 `--map` |
+| 热力卡只有一两格、样本数异常大 | 多点位被打成同一点位 | 回查步骤 2 的打标口径，重新补注 |
 | annotate 报 collide / overwrite the input | 不同目录同名文件，或 out-dir 指向输入目录 | 先改名；确要原地改用 `--inplace` |
 | 语料很大担心跑不动 | — | 实测 12960 run/38880 场景（13× M2 规模）全报告 24s，线性无 O(n²) |
 | Windows 控制台乱码 | 非 UTF-8 code page | 工具已内置 force_utf8_stdout，无需处理 |

@@ -150,6 +150,16 @@ def main(argv):
             raise SystemExit(f"no files match: {pat}")
         inputs.extend(hits)
 
+    # A field day spans several points, so a day-wide glob plus one --set
+    # point_id stamps every one of them with the same point — plausible-looking
+    # labels that are simply wrong, and nothing downstream can detect it. Warn
+    # rather than refuse: annotating several files from ONE point is legitimate
+    # (D-132, found by walking the runbook literally).
+    if len(inputs) > 1 and uniform.get("point_id"):
+        print(f"⚠ 正把 point_id={uniform['point_id']} 统一打到 {len(inputs)} 个文件上——"
+              "仅当这些文件确实**全部来自该点位**时才正确。一天跨多点位时请按点位分目录，"
+              "或用 --map 按 run_id 精确打标。", file=sys.stderr)
+
     if sum(bool(x) for x in (args.output, args.out_dir, args.inplace)) > 1:
         raise SystemExit("choose ONE of -o/--output, --out-dir, --inplace")
     if len(inputs) > 1 and not (args.inplace or args.out_dir):
