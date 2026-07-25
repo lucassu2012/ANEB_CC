@@ -256,6 +256,19 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_html_carries_the_corpus_notices_and_inventory():
+    """HTML is the deliverable surface. The md->html conversion splits on '## ',
+    so anything in the markdown preamble was dropped — every corpus-wide notice
+    plus the whole coverage inventory were missing from HTML (D-140)."""
+    recs = aqs_records(90, 6, campaign_id="base") + aqs_records(70, 6, campaign_id="opt")
+    recs[0]["kpi_set"] = "agent-qoe-kpi-v0.1"
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00 +0800")
+    for marker in ("采集时间窗", "profile 版本", "跨版本", "个战役", "run 状态", "覆盖盘点"):
+        assert marker in md, f"markdown lost {marker}"
+        assert marker in html, f"HTML lost {marker}"
+
+
 def test_profile_versions_are_reported():
     """The skeleton says to take the profile version from the report; it was
     nowhere in the output (grep count zero) — and it is the precondition for

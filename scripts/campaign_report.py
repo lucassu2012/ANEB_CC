@@ -106,6 +106,39 @@ def _utc_stamp(ms):
     return datetime.fromtimestamp(ms / 1000.0, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 
+def corpus_warnings(inv):
+    """Corpus-wide incomparability notices, as plain strings.
+
+    Shared by the markdown and HTML reports: these used to be emitted only in the
+    markdown preamble, which the md->html conversion drops (it splits on '## '),
+    so the HTML deliverable silently lacked every one of them (D-140).
+    """
+    out = []
+    ver_mixed = []
+    for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
+                       ("profile_version_sets", "profile_versions"),
+                       ("app_versions", "app_version_code")):
+        if len(inv[key]) > 1:
+            ver_mixed.append(f"{label}={dict(inv[key])}")
+    if ver_mixed:
+        out.append("语料**跨版本**：" + "；".join(ver_mixed) +
+                   "。`kpi_set` 定义指标是什么、`aqs_version` 定义分数怎么算、"
+                   "`profile_versions` 决定跨点位是否可比、`app_version_code` 是采集它的"
+                   "构建——**跨版本聚合可能在把不同定义的数字当同一指标平均**。工具无法"
+                   "判断该次版本变更是否改动了定义，请人工确认后在报告中说明，或按版本"
+                   "分别出报告。")
+    # Cross-campaign pooling is the most consequential incomparability: a cell
+    # holding a baseline round and an optimisation round shows a median that is
+    # neither. Say so BEFORE the heat card, not only in the per-cell note (D-135).
+    labeled_ids = [c for c in inv["campaigns"] if c != "unlabeled"]
+    if len(labeled_ids) > 1:
+        out.append(f"本语料含 **{len(labeled_ids)} 个战役**（{', '.join(sorted(labeled_ids))}）。"
+                   "除「优化前后对比」/「纵向趋势」两段外，**各段均按格池化了所有战役**——"
+                   "受影响的格标 `MIXED_CAMPAIGN`，其中位数**既不是前也不是后**。"
+                   "要看单个战役，用 `--campaign <id>`。")
+    return out
+
+
 def _cell_label(cell, dims=("point_id", "carrier", "time_band")):
     """Compact cell label. Callers whose cells are keyed on more dimensions must
     pass them all — a label that drops key dimensions renders as duplicates and
@@ -449,28 +482,8 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # averages metrics that may not be the same metric; pooling two aqs_versions
     # mixes scoring systems. The tool cannot know whether a given bump changed the
     # definitions, so it states the fact and leaves the judgement to a human (D-137).
-    ver_mixed = []
-    for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
-                       ("profile_version_sets", "profile_versions"),
-                       ("app_versions", "app_version_code")):
-        if len(inv[key]) > 1:
-            ver_mixed.append(f"{label}={dict(inv[key])}")
-    if ver_mixed:
-        parts.append("> ⚠ 语料**跨版本**：" + "；".join(ver_mixed) +
-                     "。`kpi_set` 定义指标是什么、`aqs_version` 定义分数怎么算、"
-                     "`app_version_code` 是采集它的构建——**跨版本聚合可能在把不同定义"
-                     "的数字当同一指标平均**。工具无法判断该次版本变更是否改动了定义，"
-                     "请人工确认后在报告中说明，或按版本分别出报告。")
-        parts.append("")
-    # Cross-campaign pooling is the most consequential incomparability: a cell
-    # holding a baseline round and an optimisation round shows a median that is
-    # neither. Say so BEFORE the heat card, not only in the per-cell note (D-135).
-    labeled_ids = [c for c in inv["campaigns"] if c != "unlabeled"]
-    if len(labeled_ids) > 1:
-        parts.append(f"> ⚠ 本语料含 **{len(labeled_ids)} 个战役**（{', '.join(sorted(labeled_ids))}）。"
-                     "除「优化前后对比」/「纵向趋势」两段外，**各段均按格池化了所有战役**——"
-                     "受影响的格标 `MIXED_CAMPAIGN`，其中位数**既不是前也不是后**。"
-                     "要看单个战役，请只喂该战役的语料。")
+    for w in corpus_warnings(inv):
+        parts.append("> ⚠ " + w)
         parts.append("")
     # Signal before evidence: the findings that decide next actions, ahead of the
     # ~1600 lines of tables they point into (D-117).
@@ -679,7 +692,7 @@ def _md_section_html(md):
 
 
 # Sections the HTML report renders natively (colored grids, richer than a table).
-_HTML_RICH_PREFIXES = ("覆盖盘点", "点位 × 忙闲", "分 KPI 热力卡", "三级差分归因矩阵",
+_HTML_RICH_PREFIXES = ("点位 × 忙闲", "分 KPI 热力卡", "三级差分归因矩阵",
                        "优化前后对比")
 
 
@@ -738,6 +751,9 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if inv["with_campaign"] == 0:
         warn = ("<p class='warn'>全部记录无 run.campaign 标签——热力卡/归因/对比塌缩为单格。"
                 "接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。</p>")
+    # same corpus-wide notices the markdown carries — they used to exist only in
+    # the markdown preamble, which the md->html conversion drops (D-140)
+    warn += "".join(f"<p class='warn'>⚠ {_md_inline(w)}</p>" for w in corpus_warnings(inv))
     # Same unmissable synthetic-data banner as the markdown report (D-116).
     n_synth = cc.count_synthetic(records)
     synth_banner = ("" if not n_synth else
