@@ -81,6 +81,10 @@ python campaign_report.py labeled/*.jsonl \
     --md report.md --html report.html --csv tables --provenance provenance.json
 ```
 
+> 出表之后要**组装成交付物**（工具产出的是表格集合，不是报告）：
+> 骨架见 [`M2_REPORT_TEMPLATE.md`](M2_REPORT_TEMPLATE.md)——口径边界/方法学/免责措辞
+> 已预写（§2 为红线，照抄勿改），结论与数字留占位并注明从哪一段取。
+
 产物：markdown 报告 + 自包含 HTML + 3 张 CSV（heat/attribution/stability）+
 溯源 sidecar（输入文件 sha256 / 去重与坏行计数 / 塑形参数——归档必带，
 "进局点的弹药"须可复现）。优化前后对比给 `--before ID --after ID`；
