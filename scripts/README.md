@@ -92,6 +92,13 @@ python synth_campaign.py -o rehearsal.jsonl
 python campaign_report.py rehearsal.jsonl --md r.md --html r.html --csv t
 ```
 
+**`--chaos`：混乱语料彩排（D-125）**——真实外场数据没那么干净。该开关注入 10 种真实病理
+（某点位缺 core 层 / 只测到一个运营商 / 中途 abort / 同格混 profile 版本或直方图边界或
+quick-forensic / 时钟跳变 / 极端离群 / 全无效格 / 未标注记录），用来验证分析层**诚实降级**：
+不崩、不编数、每种病理报在正确位置（`TIER_MISSING` 不外推、abort 的 null AQS 不进中位、
+不可比混池标 `MIXED_*`、离群拉不动中位数但撑爆 CV、空值恒渲染 `—` 而非 0）。
+守卫见 `tests/test_chaos_rehearsal.py`。
+
 ### `annotate_campaign.py` — 离线战役标签补注
 加性注入 `run.campaign`：`--set KEY=VALUE`（统一）/ `--map map.json`（per run_id）/
 `--infer-time-band`（由 `started_at_epoch_ms`+`--tz-offset` 推 busy/idle，标 inferred）。

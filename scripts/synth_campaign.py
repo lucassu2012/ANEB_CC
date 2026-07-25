@@ -263,6 +263,104 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
     return records
 
 
+# --------------------------------------------------------------- chaos mode
+#
+# The clean corpus above rehearses the happy path. Real field data is messier,
+# and every mess has a specific honest-degradation behaviour the analysis layer
+# is supposed to show. This seeds those messes on purpose so a rehearsal can
+# check the layer degrades honestly instead of crashing or inventing numbers.
+# Each entry names the pathology and the behaviour it should produce (D-125).
+CHAOS_PATHOLOGIES = (
+    ("missing_tier", "某点位缺 core 层 → 归因记 TIER_MISSING，不外推"),
+    ("single_carrier", "某点位只测到一个运营商 → 覆盖矩阵列为未测，不补齐"),
+    ("aborted_runs", "中途 abort 的 run → 盘点显示非 completed，AQS 为 null 不进中位"),
+    ("mixed_profile_version", "同格混 profile 版本 → 标 MIXED_PROFILE_VERSION"),
+    ("mixed_histogram_edges", "同格混直方图边界 → 标 MIXED_HIST_EDGES（R-27 不可相加）"),
+    ("mixed_mode", "同格混 quick/forensic → 标 MIXED_MODE"),
+    ("clock_jump", "某格时钟跳变 → 时钟可疑热点，该格时延中位数存疑"),
+    ("extreme_outlier", "单条极端离群 → 中位数稳健但 CV 超门（复测不稳定）"),
+    ("all_invalid_cell", "某格全部失效 → 有效率 0%，KPI 值全 null"),
+    ("unlabelled_records", "部分记录无战役标签 → 落 unlabeled 桶，覆盖盘点显示"),
+)
+
+
+def inject_chaos(records, seed=20260726):
+    """Seed realistic field pathologies into a clean corpus. Returns a new list.
+
+    NOT a fuzzer: each pathology is one a field crew actually produces, and each
+    has an expected honest-degradation behaviour listed in CHAOS_PATHOLOGIES.
+    Duplicate run_ids are deliberately NOT seeded — the report front door refuses
+    those outright (D-109), which would stop the rehearsal before it could look
+    at how everything else degrades; that path has its own golden.
+    """
+    rng = random.Random(seed)
+    if not records:
+        return records
+    points = sorted({r["run"]["campaign"]["point_id"] for r in records})
+    if len(points) < 4:
+        return records                     # too small a grid to place pathologies
+
+    kept = []
+    for rec in records:
+        c = rec["run"]["campaign"]
+        # 1. a point where the core tier was never reached
+        if c["point_id"] == points[0] and c["tier"] == "core":
+            continue
+        # 2. a point measured on one carrier only
+        if c["point_id"] == points[1] and c["carrier"] != "cmcc":
+            continue
+        kept.append(rec)
+
+    for i, rec in enumerate(kept):
+        c = rec["run"]["campaign"]
+        scns = rec.get("scenarios") or []
+        cell = (c["point_id"], c["carrier"], c["time_band"])
+
+        # 3. aborted runs (AQS not computable — never a zero)
+        if i % 37 == 0:
+            rec["run"]["status"] = "aborted:" + rng.choice(["timeout", "user", "network"])
+            rec["run"]["aqs"] = {"score": None, "low_confidence": True,
+                                 "veto_applied": False,
+                                 "not_computable_reason": "RUN_ABORTED",
+                                 "input_mapping": "synthetic", "sub_scores": {}}
+        # 4/5/6. incomparable things pooled into one cell
+        if c["point_id"] == points[2] and c["time_band"] == "busy":
+            if i % 2 == 0:
+                for s in scns:
+                    s["profile_version"] = "0.3"
+            if i % 3 == 0:
+                for s in scns:
+                    h = s.get("itl_histogram")
+                    if isinstance(h, dict):
+                        h["edges_ms"] = [10, 25, 50, 120]
+            if i % 5 == 0:
+                rec["run"]["mode"] = "forensic"
+        # 7. a clock that jumped (drift far beyond the R-22 threshold)
+        if c["point_id"] == points[3] and c["time_band"] == "idle":
+            for s in scns:
+                s["clock"] = dict(s.get("clock") or {},
+                                  drift_ppm=round(rng.uniform(600, 1500), 2),
+                                  offset_suspect=True)
+        # 8. one extreme outlier run (median must stay robust, CV must not)
+        if i == len(kept) // 2:
+            for s in scns:
+                kpi = s.get("kpi") or {}
+                if kpi.get("n1_rtt_p50_ms") is not None:
+                    kpi["n1_rtt_p50_ms"] = round(kpi["n1_rtt_p50_ms"] * 50, 2)
+        # 9. a cell where everything failed
+        if cell == (points[-1], "cucc", "busy"):
+            for s in scns:
+                s["validity"] = "invalid"
+                s["invalid_reasons"] = "STREAM_ABORTED;RETRY_EXHAUSTED"
+                for k in GRADED:
+                    s["kpi"][k] = None
+                    s["kpi"][k.split("_")[0] + "_grade"] = None
+        # 10. records that never got labelled
+        if i % 53 == 0:
+            rec["run"].pop("campaign", None)
+    return kept
+
+
 def main(argv):
     ap = argparse.ArgumentParser(
         description="Generate a SYNTHETIC ANEB campaign corpus (rehearsal only — "
@@ -276,6 +374,10 @@ def main(argv):
     ap.add_argument("--campaigns", default="base,opt",
                     help="comma-separated campaign ids (all get the SYNTH- prefix)")
     ap.add_argument("--seed", type=int, default=20260725)
+    ap.add_argument("--chaos", action="store_true",
+                    help="seed realistic field pathologies (missing tier, aborted "
+                         "runs, mixed profile versions, clock jumps, all-invalid "
+                         "cell, unlabelled records…) to rehearse honest degradation")
     args = ap.parse_args(argv)
 
     recs = generate(points=args.points, repeats=args.repeats,
@@ -283,6 +385,9 @@ def main(argv):
                     time_bands=tuple(args.time_bands.split(",")),
                     tiers=tuple(args.tiers.split(",")),
                     campaigns=tuple(args.campaigns.split(",")), seed=args.seed)
+    if args.chaos:
+        recs = inject_chaos(recs, seed=args.seed + 1)
+        print("chaos: " + "; ".join(name for name, _ in CHAOS_PATHOLOGIES))
     with open(args.out, "w", encoding="utf-8") as f:
         for r in recs:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")

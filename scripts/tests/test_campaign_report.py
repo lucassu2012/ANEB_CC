@@ -254,6 +254,30 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_summary_labels_are_distinguishable():
+    """Every name listed in a summary bullet must identify ONE cell. A label that
+    drops key dimensions renders duplicates the reader cannot act on — found by
+    the chaos rehearsal, where three profiles of one cell all failed (D-125)."""
+    recs = _problem_corpus()
+    # make all three profiles of P1 fail, so validity has three cells in one
+    # (point, carrier, time_band) — they must still render distinguishably
+    for r in recs:
+        if r["run"]["campaign"]["point_id"] != "P1":
+            continue
+        base = r["scenarios"][0]
+        r["scenarios"] = []
+        for pid in ("s1_chat", "s2_coding_agent", "s3_multimodal"):
+            s = dict(base, profile_id=pid, validity="invalid",
+                     invalid_reasons="STREAM_ABORTED")
+            r["scenarios"].append(s)
+    summary = _section(rpt.build_report_markdown(recs), "摘要")
+    for line in summary.splitlines():
+        if not line.startswith("- **"):
+            continue
+        names = re.findall(r"[／/\w\-.·]+\([^)]*\)", line.split("：", 1)[-1])
+        assert len(names) == len(set(names)), f"duplicate labels in bullet: {line}"
+
+
 def test_summary_says_no_problem_not_no_data_when_clean():
     """A clean corpus must read 'none found', never a bare zero that could be
     mistaken for 'not measured' (R-10)."""

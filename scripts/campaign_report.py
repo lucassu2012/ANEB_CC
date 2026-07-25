@@ -131,7 +131,11 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                        "（该格时延中位数存疑）。" if clock_hot else "**时钟可疑热点**：无。")
 
     vres = validity_rollup.analyze(records)
-    low_valid = [f"{_cell_label(c['cell'])}({c['valid_rate'] * 100:.0f}%)"
+    # validity cells are keyed on profile_id too — drop it and several cells
+    # render as the same label, which the reader cannot act on (D-125)
+    low_valid = [_cell_label(c["cell"], ("point_id", "carrier", "time_band",
+                                         "profile_id"))
+                 + f"({c['valid_rate'] * 100:.0f}%)"
                  for c in vres["cells"] if c["below_min_rate"]]
     if not vres["cells"]:
         bullets.append("**有效率**：无场景数据。")
