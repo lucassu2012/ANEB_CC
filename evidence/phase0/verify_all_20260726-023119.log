@@ -1,0 +1,134 @@
+﻿verify_all run at 20260726-023119
+repo: E:\C Project\ANEB
+go: C:\Program Files\Go\bin\go.exe
+--- server-vet (exit 0) ---
+
+PASS  server-vet  go vet ./...
+--- server-build (exit 0) ---
+
+PASS  server-build  go build ./...
+--- server-test (exit 0) ---
+ok  	aneb-server	3.300s
+?   	aneb-server/tools/capture	[no test files]
+?   	aneb-server/tools/gencert	[no test files]
+?   	aneb-server/tools/h3check	[no test files]
+?   	aneb-server/tools/mockllm	[no test files]
+
+PASS  server-test  go test -count=1 ./...
+PASS  profiles-valid  3 profiles ok
+--- portraits-redline (exit 0) ---
+Checked 4 portraits: deepseek.yaml, doubao.yaml, kimi.yaml, tongyi.yaml
+OK: all red-line invariants hold (R1-R18: params gate intact, no caliber overclaim, provenance consistent).
+
+PASS  portraits-redline  check_redline.py
+--- portraits-redline-unit (exit 0) ---
+ran 20 reflex tests: 20 passed, 0 failed
+
+PASS  portraits-redline-unit  ran 20 reflex tests: 20 passed, 0 failed
+--- portraits-schema (exit 0) ---
+OK: 4 portrait(s) conform to portrait.schema.json (shape gate).
+
+PASS  portraits-schema  validate_schema.py
+--- portraits-schema-unit (exit 0) ---
+ran 10 schema reflex tests: 10 passed, 0 failed
+
+PASS  portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+--- campaign-analysis-unit (exit 0) ---
+python.exe : cannot read schema C:\Users\lucas\AppData\Local\Temp\tmp394i6ljy\nope.json: [Errno 2] No such file or dire
+ctory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\tmp394i6ljy\\nope.json'
+At E:\C Project\ANEB\scripts\verify_all.ps1:164 char:12
++     $out = & $py $campaignTest 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (cannot read sch...ljy\\nope.json':String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+⚠ --config: ignoring unknown key(s) carriers (target dims are point_id, carrier, time_band)
+contract VIOLATIONS: 1 in 1 record(s)
+  - record[0].claim_scope: must be 'application_end_to_end_to_probe_node', got 'wrong'
+campaign-analysis reflex: 300/300 passed
+
+PASS  campaign-analysis-unit  campaign-analysis reflex: 300/300 passed
+--- results-contract-unit (exit 0) ---
+advisories (non-fatal, 3 occurrence(s), 1 distinct):
+  ~ record[0].scenarios[0].validity: 'valid_low_confidence' matches a valid state only by case-fold; schema enum is ['VALID', 'VALID_LOW_CONFIDENCE', 'INVALID'] — schema/producer case drift
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+
+PASS  results-contract-unit  contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+--- spec-scoring-unit (exit 0) ---
+spec-scoring OK: 3 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+
+PASS  spec-scoring-unit  spec-scoring OK: 3 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+--- profiles-deep (exit 0) ---
+profiles OK: 3 profile(s) - spec<->runtime parity + phase structure hold
+
+PASS  profiles-deep  profiles OK: 3 profile(s) - spec<->runtime parity + phase structure hold
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:compileDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:compressDebugAssets UP-TO-DATE
+> Task :probe:desugarDebugFileDependencies UP-TO-DATE
+> Task :probe:dexBuilderDebug UP-TO-DATE
+> Task :probe:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :probe:processDebugJavaRes UP-TO-DATE
+> Task :probe:mergeDebugJavaResource UP-TO-DATE
+> Task :probe:checkDebugDuplicateClasses UP-TO-DATE
+> Task :probe:mergeDebugStartupProfile UP-TO-DATE
+> Task :probe:mergeExtDexDebug UP-TO-DATE
+> Task :probe:mergeLibDexDebug UP-TO-DATE
+> Task :probe:mergeProjectDexDebug UP-TO-DATE
+> Task :probe:mergeDebugJniLibFolders UP-TO-DATE
+> Task :probe:mergeDebugNativeLibs UP-TO-DATE
+> Task :probe:stripDebugDebugSymbols UP-TO-DATE
+> Task :probe:validateSigningDebug UP-TO-DATE
+> Task :probe:writeDebugAppMetadata UP-TO-DATE
+> Task :probe:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :probe:packageDebug UP-TO-DATE
+> Task :probe:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :probe:assembleDebug UP-TO-DATE
+
+BUILD SUCCESSFUL in 29s
+39 actionable tasks: 39 up-to-date
+
+PASS  app-assembleDebug  gradlew :probe:assembleDebug
