@@ -256,6 +256,26 @@ def test_summary_validity_count_matches_section():
         _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
 
 
+def test_csv_carries_the_incomparability_flags():
+    """CSV is the surface analysts compute on, and it shows only columns — a
+    pooled median arrived there looking like an ordinary trustworthy number,
+    with low_confidence=False (D-141)."""
+    import csv as csvmod
+    import tempfile
+    from synth import contractify
+    recs = [contractify(r) for r in
+            (aqs_records(55, 6, campaign_id="base") + aqs_records(75, 6, campaign_id="opt"))]
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "t")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+        assert rows[0]["aqs_median"] == "65.0"          # the pooled value
+        assert rows[0]["mixed_campaigns"] == "base/opt"  # …and it says so
+        with open(prefix + "_attribution.csv", encoding="utf-8-sig") as f:
+            assert "incomparability" in csvmod.DictReader(f).fieldnames
+
+
 def test_html_carries_the_corpus_notices_and_inventory():
     """HTML is the deliverable surface. The md->html conversion splits on '## ',
     so anything in the markdown preamble was dropped — every corpus-wide notice

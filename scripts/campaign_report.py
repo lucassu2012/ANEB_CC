@@ -825,10 +825,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     p = prefix + "_heat.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
-        w.writerow(["point_id", "carrier", "time_band", "aqs_median", "grade", "n", "low_confidence"])
+        # mixed_campaigns must reach the CSV too: an analyst working from the
+        # tables sees only columns — without it, a pooled median arrives looking
+        # like an ordinary trustworthy number (D-141)
+        w.writerow(["point_id", "carrier", "time_band", "aqs_median", "grade", "n",
+                    "low_confidence", "mixed_campaigns"])
         for c in heat:
             w.writerow([c["cell"]["point_id"], c["cell"]["carrier"], c["cell"]["time_band"],
-                        _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"]])
+                        _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"],
+                        "/".join(c.get("mixed_campaigns") or [])])
     written.append(p)
 
     p = prefix + "_attribution.csv"
@@ -836,16 +841,28 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "kpi", "access",
                     "regional_incr", "core_incr", "end_to_end_core", "coverage",
-                    "low_confidence", "not_computable_reason"])
+                    "low_confidence", "not_computable_reason", "incomparability"])
         for k in attribution.ATTRIBUTABLE_KPIS:
             attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
             for c in attr["cells"]:
                 cell = c["cell"]
+                # same markers the rendered notes column carries, so a filter like
+                # incomparability.str.contains('MIXED_CAMPAIGN') works (D-141)
+                flags = []
+                for field, tag in (("mixed_campaigns", "MIXED_CAMPAIGN"),
+                                   ("mixed_profile_versions", "MIXED_PROFILE_VERSION"),
+                                   ("mixed_modes", "MIXED_MODE"),
+                                   ("mixed_profile_sources", "MIXED_PROFILE_SOURCE")):
+                    if c.get(field):
+                        flags.append(f"{tag}:" + "/".join(c[field]))
+                if c.get("mixed_histogram_edges"):
+                    flags.append("MIXED_HIST_EDGES")
                 w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             cell.get("profile_id"), attr["kpi"], _cell(c["access_component"]),
                             _cell(c["regional_backbone_incr"]), _cell(c["core_backbone_incr"]),
                             _cell(c["end_to_end_core"]), "|".join(c["coverage"]),
-                            c["low_confidence"], c["not_computable_reason"] or ""])
+                            c["low_confidence"], c["not_computable_reason"] or "",
+                            ";".join(flags)])
     written.append(p)
 
     p = prefix + "_stability.csv"
