@@ -6,6 +6,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
+import re
+
 import campaign_common as cc
 import campaign_report as rpt
 from synth import aqs_records, make_record, kpi_scenario_records
@@ -165,3 +167,104 @@ def test_csv_export_content():
         assert rows[0]["point_id"] == "P1"
         assert rows[0]["grade"] == "excellent"
         assert float(rows[0]["aqs_median"]) == 91.0
+
+
+# ---------------------------------------------------------------- summary parity
+#
+# The summary (D-117) re-states each filter condition instead of reusing the
+# renderers, so a future threshold edit on either side could make it disagree
+# with the very tables it points into — a report that lies about itself. These
+# pin the invariant: the count in a summary bullet equals the number of rows a
+# READER can count in the corresponding section.
+
+def _section(md, title_startswith):
+    """The markdown of one '## ' section, by title prefix."""
+    for chunk in re.split(r"(?m)^## ", md)[1:]:
+        if chunk.startswith(title_startswith):
+            return chunk
+    raise AssertionError(f"section not found: {title_startswith}")
+
+
+def _rows_containing(section, marker):
+    return sum(1 for ln in section.splitlines()
+               if ln.startswith("| ") and marker in ln)
+
+
+def _summary_count(md, bullet_prefix):
+    """The leading integer of a summary bullet, e.g. '**批化失真热点**：2 个'."""
+    summary = _section(md, "摘要")
+    for ln in summary.splitlines():
+        if ln.startswith(f"- **{bullet_prefix}"):
+            m = re.search(r"[：:]\s*\*?\*?(\d+)", ln)
+            assert m, f"no count in bullet: {ln}"
+            return int(m.group(1))
+    return None          # bullet worded as "no problem" / "no data"
+
+
+def _problem_corpus():
+    """Two points: P1 seeded with a batching hot-spot, a suspect clock and a
+    low validity rate; P2 clean. Grades: P1 fair (68), P2 excellent (95)."""
+    recs = []
+    for point, aqs, bad in (("P1", 68, True), ("P2", 95, False)):
+        for i in range(6):
+            rec = make_record(
+                campaign={"campaign_id": "base", "tier": "metro", "point_id": point,
+                          "carrier": "cmcc", "time_band": "busy"},
+                aqs=aqs, scenarios=[("s1_chat", {"n1_rtt_p50_ms": 20 + i})])
+            scn = rec["scenarios"][0]
+            scn["buffering"] = ({"score": 0.5, "attribution": "middlebox_suspect",
+                                 "sample_count": 100, "sawtooth_ratio": 0.4,
+                                 "near_zero_arrival_ratio": 0.3}
+                                if bad else
+                                {"score": 0.01, "attribution": "none",
+                                 "sample_count": 100, "sawtooth_ratio": 0.0,
+                                 "near_zero_arrival_ratio": 0.0})
+            scn["clock"] = {"offset_suspect": bool(bad), "drift_ppm": 200.0 if bad else 5.0}
+            if bad and i >= 3:                 # 3/6 invalid -> 50% < 80% gate
+                scn["validity"] = "invalid"
+                scn["invalid_reasons"] = "STREAM_ABORTED"
+            recs.append(rec)
+    return recs
+
+
+def test_summary_distortion_count_matches_section():
+    md = rpt.build_report_markdown(_problem_corpus())
+    assert _summary_count(md, "批化失真热点") == \
+        _rows_containing(_section(md, "批化(buffering)归因"), "**失真热点**")
+
+
+def test_summary_clock_count_matches_section():
+    md = rpt.build_report_markdown(_problem_corpus())
+    assert _summary_count(md, "时钟可疑热点") == \
+        _rows_containing(_section(md, "测量可信度"), "**时钟可疑热点**")
+
+
+def test_summary_weak_cell_count_matches_heatcard():
+    """fair/poor cells named in the summary must be exactly those graded so."""
+    md = rpt.build_report_markdown(_problem_corpus())
+    heat = _section(md, "点位 × 忙闲")
+    graded_bad = sum(1 for ln in heat.splitlines()
+                     if ln.startswith("| ") and ("| fair " in ln or "| poor " in ln))
+    assert _summary_count(md, "体验最差格") == graded_bad
+
+
+def test_summary_validity_count_matches_section():
+    md = rpt.build_report_markdown(_problem_corpus())
+    assert _summary_count(md, "有效率不达门") == \
+        _rows_containing(_section(md, "有效性与失效原因"), "LOW_VALID_RATE")
+
+
+def test_summary_says_no_problem_not_no_data_when_clean():
+    """A clean corpus must read 'none found', never a bare zero that could be
+    mistaken for 'not measured' (R-10)."""
+    clean = [r for r in _problem_corpus()
+             if r["run"]["campaign"]["point_id"] == "P2"]
+    summary = _section(rpt.build_report_markdown(clean), "摘要")
+    bullets = {ln.split("**")[1]: ln for ln in summary.splitlines()
+               if ln.startswith("- **")}
+    # batching and clock DO have evidence here -> must read "none found"
+    assert "无热点格" in bullets["批化失真"]
+    assert "覆盖缺口" not in bullets["批化失真"]
+    assert bullets["时钟可疑热点"].endswith("无。")
+    # transport genuinely has no evidence -> must say so, NOT "no problem"
+    assert "覆盖缺口" in bullets["接入介质"]
