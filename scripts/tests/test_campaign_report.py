@@ -992,6 +992,27 @@ def test_veto_capped_runs_are_visible_in_the_heat_card():
     assert "VETO_CAPPED" not in rpt.render_heatcard_markdown(clean)
 
 
+def test_heatcard_note_column_is_exactly_the_shared_flag_list():
+    """The structural guard behind D-160 / D-166 / D-181, which were all the same
+    defect: a marker appended inline in ONE renderer, so the other surfaces never
+    learned about it. Appending inline here again breaks this equality — no
+    hand-maintained marker table to go stale, just "markdown says what the shared
+    list says"."""
+    import attribution
+    import synth_campaign as sc
+    recs = sc.inject_chaos(sc.generate(points=3, repeats=3, seed=5), seed=3)
+    cells = rpt.heat_cells(recs)
+    flagged = [c for c in cells if attribution.incomparability_flags(c)]
+    assert flagged, "corpus must produce flagged cells, or this proves nothing"
+    md = rpt.render_heatcard_markdown(cells)
+    rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "---" not in ln][1:]
+    assert len(rows) == len(cells)
+    for cell, row in zip(cells, rows):
+        note = row.rsplit("|", 2)[-2].strip().replace("**", "")
+        got = [] if note == "—" else note.split("; ")
+        assert got == attribution.incomparability_flags(cell), cell["cell"]
+
+
 def test_heatcard_markers_all_reach_the_shared_filter_column():
     """`incomparability` exists so ONE filter finds problem cells across tables
     (D-166). TIER_INCOMPLETE / VETO_CAPPED / SCORER_LOW_CONF were appended inline
