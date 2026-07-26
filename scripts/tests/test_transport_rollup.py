@@ -25,6 +25,41 @@ def _observed(rec, *transports):
     return rec
 
 
+def _spread(transport, values, *, point="P1"):
+    """One record per value so the bucket has real spread."""
+    return [r for v in values for r in _recs(transport, v, 1, point=point)]
+
+
+def test_small_media_delta_is_marked_as_noise():
+    """D-144 gave the before/after delta a noise scale; this section differences
+    two medians the same way and never got one. On the rehearsal grid all seven
+    cells the summary called "cellular worse than wifi" sat inside the noise — a
+    flat claim in the section decision-makers actually read (D-180)."""
+    recs = (_spread("wifi", [60, 70, 80, 90, 100])
+            + _spread("cellular", [58, 68, 78, 88, 98]))
+    c = tr.analyze(recs)["cells"][0]
+    assert c["cellular_minus_wifi"] == -2
+    assert c["noise"] > 2
+    assert c["within_noise"] is True
+    md = tr.render_markdown(tr.analyze(recs))
+    assert "**噪声内**" in md
+    assert "不是显著性检验" in md          # the caveat, not just the number
+
+
+def test_real_media_delta_still_gets_through():
+    """Negative verification: the guard must not swallow a genuine difference."""
+    recs = (_spread("wifi", [60, 70, 80, 90, 100])
+            + _spread("cellular", [10, 20, 30, 40, 50]))
+    c = tr.analyze(recs)["cells"][0]
+    assert c["cellular_minus_wifi"] == -50
+    assert c["within_noise"] is False
+    # …and one sample per side resolves nothing: not False, not 0
+    one = tr.analyze(_recs("wifi", 80, 1) + _recs("cellular", 60, 1))["cells"][0]
+    assert one["cellular_minus_wifi"] == -20
+    assert one["noise"] is None
+    assert one["within_noise"] is None
+
+
 def test_resolve_explicit_setting_wins():
     assert tr.resolve_transport(_recs("wifi", 90, 1)[0]) == "wifi"
     assert tr.resolve_transport(_recs("CELLULAR", 90, 1)[0]) == "cellular"

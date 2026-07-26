@@ -609,6 +609,50 @@ def median_se(sd, n):
     return MEDIAN_SE_FACTOR * sd / (n ** 0.5)
 
 
+# One wording for every surface and every section that differences two medians.
+# The caveat is the load-bearing half of the noise scale: a number without it
+# invites exactly the over-reading it exists to prevent (D-144). It lives here,
+# not in campaign_report, because the transport comparison needs it too and
+# campaign_report imports transport_rollup — a second copy is how a marker ends
+# up meaning two different things in one report (D-180).
+NOISE_CAVEAT = (
+    "Δ 旁的 `±` 是该格测量离散度推得的**指示性**噪声量级"
+    "（正态近似 SE≈1.253·sd/√n，两格求和取方根）。时延右偏，故它只指示**量级、"
+    "不是显著性检验**；|Δ| 小于它的格标 `噪声内`——**不应作为改善/回退的结论**。"
+    "`±0` 只表示这几次复测未观察到离散，**不等于没有噪声**；样本不足的格"
+    "（标 `low_conf`）其噪声估计本身也不可靠，噪声无法估计时留 `—`、不以 0 顶替。"
+)
+
+
+def noise_scale(a_vals, b_vals):
+    """Indicative noise scale for the difference of two medians.
+
+    Quadrature sum of the two medians' standard errors. None when either side
+    has too few samples to have a spread at all — never 0, which would read as
+    "this difference is certainly real"."""
+    se_a = median_se(stdev(a_vals or []), len(a_vals or []))
+    se_b = median_se(stdev(b_vals or []), len(b_vals or []))
+    if se_a is None or se_b is None:
+        return None
+    return (se_a ** 2 + se_b ** 2) ** 0.5
+
+
+def within_noise(delta, noise):
+    """True = inside the noise, False = beyond it, None = cannot say.
+
+    None covers both "spread unknown" (<2 samples) and "spread observed as
+    zero", which bounds nothing: identical repeats mean this sample saw no
+    variation, not that the measurement has none.
+    """
+    if delta is None or noise is None:
+        return None
+    if delta == 0:
+        return True            # no difference is never a difference
+    if noise == 0:
+        return None            # zero observed spread cannot resolve anything
+    return abs(delta) < noise
+
+
 def min_detectable_effect(sd, n):
     """Smallest difference between two same-sized cells that would clear the
     noise scale at this spread — i.e. what the sample actually resolves.

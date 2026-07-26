@@ -386,13 +386,29 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        f"**复测稳定性**：{measured} 个单元全部达门。")
 
     tr = transport_rollup.analyze(records, min_samples)
-    worse = [f"{_cell_label(c['cell'])}(Δ{cc.fmt_num(c['cellular_minus_wifi'], 1)})"
-             for c in tr["cells"]
-             if c["cellular_minus_wifi"] is not None and c["cellular_minus_wifi"] < 0]
+    # Δ<0 alone is not "cellular is worse" — it is a difference that may be
+    # smaller than the repeat spread. On the rehearsal grid every one of the
+    # seven cells this used to name was inside the noise (D-180). Three buckets,
+    # so "cannot estimate" never gets counted as either answer.
+    neg = [c for c in tr["cells"]
+           if c["cellular_minus_wifi"] is not None and c["cellular_minus_wifi"] < 0]
+    worse = [f"{_cell_label(c['cell'])}(Δ{cc.fmt_num(c['cellular_minus_wifi'], 1)}"
+             f"±{cc.fmt_num(c['noise'], 1)})" for c in neg if c["within_noise"] is False]
+    noisy = [c for c in neg if c["within_noise"] is True]
+    unknown = [c for c in neg if c["within_noise"] is None]
+    tail = ""
+    if noisy or unknown:
+        bits = ([f"{len(noisy)} 个格 Δ 在噪声内"] if noisy else []) + \
+               ([f"{len(unknown)} 个格噪声不可估" for _ in [0]] if unknown else [])
+        tail = "；另有 " + "、".join(bits) + "——**不作介质差异的结论**"
     if tr["only_unknown"]:
         bullets.append("**接入介质**：无 transport 证据（覆盖缺口）。")
     elif worse:
-        bullets.append(f"**蜂窝劣于 wifi**：{len(worse)} 个格 —— {_top(worse)}。")
+        bullets.append(f"**蜂窝劣于 wifi**：{len(worse)} 个格超出噪声 —— {_top(worse)}{tail}。")
+    elif neg:
+        bullets.append(f"**接入介质**：{len(neg)} 个格 Δ 为负但**无一超出噪声尺度**"
+                       f"（{len(noisy)} 个噪声内、{len(unknown)} 个不可估）"
+                       "——本轮**未观察到超出测量噪声的介质差异**。")
     else:
         bullets.append("**接入介质**：无同格双介质可比，或蜂窝不劣于 wifi。")
 
@@ -625,20 +641,10 @@ def render_heatcard_markdown(cells):
 
 # ---------------------------------------------------------------- before/after
 
-def _within_noise(delta, noise):
-    """True = inside the noise, False = beyond it, None = cannot say.
-
-    None covers both "spread unknown" (<2 samples) and "spread observed as
-    zero", which bounds nothing: identical repeats mean this sample saw no
-    variation, not that the measurement has none.
-    """
-    if delta is None or noise is None:
-        return None
-    if delta == 0:
-        return True            # no difference is never a difference
-    if noise == 0:
-        return None            # zero observed spread cannot resolve anything
-    return abs(delta) < noise
+# Both moved to campaign_common so the transport comparison — the report's other
+# difference-of-two-medians — computes and words its noise scale identically
+# instead of growing a second version of the same idea (D-180).
+_within_noise = cc.within_noise
 
 
 def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_SAMPLES):
@@ -652,9 +658,9 @@ def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_S
         am = a["aqs_median"] if a else None
         delta = (am - bm) if (bm is not None and am is not None) else None
         # Indicative noise scale for the delta, so a change smaller than the
-        # measurement spread is not read as a finding (D-144). The difference of
-        # two medians adds in quadrature; cc owns the SE constant so this and the
-        # sample-size planning side cannot drift apart.
+        # measurement spread is not read as a finding (D-144). cc owns the maths
+        # so this, the transport comparison and the sample-size planning side
+        # cannot drift apart (D-180).
         def _se(cell):
             return cc.median_se(cell["stdev"], cell["n"]) if cell else None
         se_b, se_a = _se(b), _se(a)
@@ -677,16 +683,9 @@ def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_S
     return {"before_id": before_id, "after_id": after_id, "rows": rows}
 
 
-# One wording for all three surfaces — markdown, HTML and anyone quoting it.
-# The caveat is the load-bearing half of the noise scale: a number without it
-# invites exactly the over-reading it exists to prevent (D-144).
-NOISE_CAVEAT = (
-    "Δ 旁的 `±` 是该格测量离散度推得的**指示性**噪声量级"
-    "（正态近似 SE≈1.253·sd/√n，两格求和取方根）。时延右偏，故它只指示**量级、"
-    "不是显著性检验**；|Δ| 小于它的格标 `噪声内`——**不应作为改善/回退的结论**。"
-    "`±0` 只表示这几次复测未观察到离散，**不等于没有噪声**；样本不足的格"
-    "（标 `low_conf`）其噪声估计本身也不可靠，噪声无法估计时留 `—`、不以 0 顶替。"
-)
+# Lives in campaign_common (see there for why); aliased so existing references
+# keep working and so there is provably one wording, not two that agree today.
+NOISE_CAVEAT = cc.NOISE_CAVEAT
 
 
 def render_comparison_markdown(cmp):
@@ -1476,15 +1475,21 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     p = prefix + "_transport.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
+        # the delta's noise scale belongs on the surface analysts compute on —
+        # a bare Δ column is an invitation to rank cells by repeat jitter (D-180)
         w.writerow(["point_id", "carrier", "time_band", "transport", "n", "aqs_median",
-                    "low_confidence", "cellular_minus_wifi", "mixed_campaigns"])
+                    "low_confidence", "cellular_minus_wifi", "noise", "within_noise",
+                    "mixed_campaigns"])
         for c in tcells:
             cell = c["cell"]
             for t in sorted(c["transports"]):
                 b = c["transports"][t]
+                is_cell = t == "cellular"
                 w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             t, b["n"], _cell(b["aqs_median"]), b["low_confidence"],
-                            _cell(c["cellular_minus_wifi"]) if t == "cellular" else "",
+                            _cell(c["cellular_minus_wifi"]) if is_cell else "",
+                            _cell(c["noise"]) if is_cell else "",
+                            _cell(c["within_noise"]) if is_cell else "",
                             _mixed(cell)])
     written.append(p)
 

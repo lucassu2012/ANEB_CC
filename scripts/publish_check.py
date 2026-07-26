@@ -30,6 +30,7 @@ import buffering_rollup
 import campaign_common as cc
 import campaign_report as rpt
 import order_effect
+import transport_rollup
 import trust_rollup
 import validity_rollup
 
@@ -336,6 +337,25 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         # every other item emits a row in every case; a silently absent one
         # cannot be told apart from a check that was forgotten (D-150)
         rows.append(_row(PASS, "效应量", "单战役语料，无前后对比可核算"))
+
+    # Same claim shape as 效应量, different section: "cellular is worse than wifi
+    # here" is a difference of two medians and was published from the sign alone
+    # (D-180). Judged on the same three buckets so the two cannot disagree.
+    tres = transport_rollup.analyze(records, min_samples)
+    tneg = [c for c in tres["cells"]
+            if c["cellular_minus_wifi"] is not None and c["cellular_minus_wifi"] < 0]
+    treal = [c for c in tneg if c["within_noise"] is False]
+    if tres["only_unknown"]:
+        rows.append(_row(PASS, "介质效应量", "无 transport 证据，无介质差异可核算"))
+    elif not tneg:
+        rows.append(_row(PASS, "介质效应量", "无同格双介质可比，或蜂窝不劣于 wifi"))
+    elif not treal:
+        rows.append(_row(WARN, "介质效应量",
+                         f"{len(tneg)} 个格 Δ(cellular−wifi) 为负但无一超出噪声尺度"
+                         "——**不得表述为蜂窝劣于 wifi**"))
+    else:
+        rows.append(_row(PASS, "介质效应量",
+                         f"{len(treal)}/{len(tneg)} 个负 Δ 超出噪声尺度"))
 
     biased, judged = [], 0
     no_evidence, never_rotated = True, False

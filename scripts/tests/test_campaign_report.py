@@ -728,6 +728,36 @@ def test_bad_epoch_is_visible_on_every_surface():
     assert "不自动配对" in bullet
 
 
+def test_summary_will_not_call_sub_noise_media_delta_a_difference():
+    """The summary counted every Δ<0 as "cellular worse than wifi". On the
+    rehearsal grid that was seven cells, none of which cleared the noise — the
+    D-144 lesson never reached the report's other difference-of-two-medians
+    (D-180). Three buckets, and the CSV carries the same verdict."""
+    import csv as csvmod
+    import os
+    import tempfile
+    from synth import contractify
+    def spread(transport, values):
+        out = []
+        for v in values:
+            for r in aqs_records(v, 1, point="P1"):
+                r["run"]["transport"] = transport
+                out.append(contractify(r))
+        return out
+    recs = spread("wifi", [60, 70, 80, 90, 100]) + spread("cellular", [58, 68, 78, 88, 98])
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if ln.startswith("- **接入介质") or ln.startswith("- **蜂窝劣")][0]
+    assert "无一超出噪声尺度" in line
+    assert "未观察到超出测量噪声的介质差异" in line
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_transport.csv", encoding="utf-8-sig") as f:
+            rows = [r for r in csvmod.DictReader(f) if r["transport"] == "cellular"]
+    assert rows and rows[0]["within_noise"] == "True"
+    assert float(rows[0]["noise"]) > 2
+
+
 def test_every_declared_range_is_actually_evaluated_somewhere():
     """A declared range that nothing ever evaluates is a check that never runs —
     §2.9's silent-check trap wearing a table's clothes. The fields do not all

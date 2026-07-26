@@ -63,11 +63,20 @@ def transport_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         delta = None
         if wifi and cell and wifi["aqs_median"] is not None and cell["aqs_median"] is not None:
             delta = cell["aqs_median"] - wifi["aqs_median"]
+        # The same treatment the before/after delta got in D-144, which this
+        # section never received although it is the same shape: two medians
+        # differenced. On the rehearsal grid ALL SEVEN cells the summary was
+        # reporting as "cellular worse than wifi" turned out to sit inside the
+        # noise — a flat claim in the one section decision-makers read (D-180).
+        noise = cc.noise_scale(buckets[key].get("cellular", {}).get("aqs"),
+                               buckets[key].get("wifi", {}).get("aqs"))
         cells.append({
             "cell": dict(zip(CELL_DIMS, key)),
             "transports": by_t,
             # cellular - wifi on AQS (higher = better): negative => cellular worse
             "cellular_minus_wifi": delta,
+            "noise": noise,
+            "within_noise": cc.within_noise(delta, noise),
         })
     return cells
 
@@ -97,17 +106,29 @@ def render_markdown(res):
     if res["only_unknown"]:
         lines.append("_无 transport 证据（run 均为 auto 且无 network_snapshot 观测）——覆盖缺口，非数据。_")
         return "\n".join(lines)
-    lines += ["| 点位 | 运营商 | 时段 | wifi | cellular | Δ(cell−wifi) | 其他桶 |",
-              "|---|---|---|---|---|---|---|"]
+    # after the no-evidence early return: a noise caveat above a "no data" line
+    # would be a caveat about nothing
+    lines += ["> **噪声尺度**：" + cc.NOISE_CAVEAT, "",
+              "| 点位 | 运营商 | 时段 | wifi | cellular | Δ(cell−wifi) | 噪声 | 备注 | 其他桶 |",
+              "|---|---|---|---|---|---|---|---|---|"]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         others = [f"{t}:n={b['n']}" for t, b in sorted(c["transports"].items())
                   if t not in EXPLICIT]
+        # three states, never two: "cannot estimate" is not "no difference"
+        if c["within_noise"] is True:
+            note = "**噪声内**"
+        elif c["within_noise"] is None and c["cellular_minus_wifi"] is not None:
+            note = "噪声不可估"
+        else:
+            note = "—"
+        noise = f"±{cc.fmt_num(c['noise'], 1)}" if c["noise"] is not None else "—"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "
             f"{_fmt_bucket(c['transports'].get('wifi'))} | "
             f"{_fmt_bucket(c['transports'].get('cellular'))} | "
-            f"{cc.fmt_num(c['cellular_minus_wifi'])} | {'; '.join(others) or '—'} |")
+            f"{cc.fmt_num(c['cellular_minus_wifi'])} | {noise} | {note} | "
+            f"{'; '.join(others) or '—'} |")
     return "\n".join(lines)
 
 
