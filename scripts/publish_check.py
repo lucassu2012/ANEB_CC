@@ -177,7 +177,8 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         n_runs = sum(c["veto_n"] for c in veto_cells)
         rows.append(_row(WARN, "否决封顶",
                          f"{len(veto_cells)}/{len(cells)} 个格含被否决封顶的 run（共 {n_runs} 条，"
-                         "分数被封在 70/54）——低分格须先分清是会话失败还是网络慢"))
+                         "T4 严重卡顿率 >1% → 封顶 54）——封顶分只说明「至少这么差」，"
+                         "不是该格体验的度量，须回到卡顿证据本身"))
     else:
         rows.append(_row(PASS, "否决封顶", "无被否决封顶的 run"))
 

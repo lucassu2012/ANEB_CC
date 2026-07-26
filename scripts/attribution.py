@@ -177,6 +177,47 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
     }
 
 
+# Markers whose meaning is "this cell's increments are NOT USABLE", as opposed to
+# "read with care" — renderers that can emphasise, should emphasise these.
+SEVERE_FLAGS = ("TIER_TIME_SPREAD", "MIXED_TRANSPORT")
+
+
+def incomparability_flags(cell):
+    """Every per-cell marker saying why this row is not comparable or not usable.
+
+    ONE list for ALL THREE surfaces. Markdown, HTML and CSV each used to build
+    their own version of it, which is exactly how MIXED_TRANSPORT (D-157) and the
+    tier-time markers (D-155) ended up markdown-only while the HTML deliverable
+    printed a bare em-dash and the CSV filter column stayed empty (D-160).
+    Returned as plain strings in a fixed order; each surface styles them.
+    """
+    out = []
+    if cell.get("not_computable_reason"):
+        out.append(cell["not_computable_reason"])
+    if cell.get("tier_time_confound"):
+        hrs = cell["tier_time_spread_ms"] / 3600_000.0
+        out.append(f"TIER_TIME_SPREAD:{cc.fmt_num(hrs, 1)}h")
+    elif cell.get("tier_time_spread_ms") is None and len(cell.get("coverage") or []) > 1:
+        out.append("TIER_TIME_UNKNOWN")
+    if cell.get("inversions"):
+        # "/" not "|": a literal pipe inside a markdown table cell splits the row
+        # into an extra column, so the table would break exactly on the rows
+        # carrying a warning — the ones most worth reading (D-127).
+        out.append("inversion:" + "/".join(cell["inversions"]))
+    for field, tag in (("mixed_profile_versions", "MIXED_PROFILE_VERSION"),
+                       ("mixed_campaigns", "MIXED_CAMPAIGN"),
+                       ("mixed_transports", "MIXED_TRANSPORT"),
+                       ("mixed_modes", "MIXED_MODE"),
+                       ("mixed_profile_sources", "MIXED_PROFILE_SOURCE")):
+        if cell.get(field):
+            out.append(f"{tag}:" + "/".join(cell[field]))
+    if cell.get("mixed_histogram_edges"):
+        out.append("MIXED_HIST_EDGES")
+    if cell.get("low_confidence"):
+        out.append("low_conf")
+    return out
+
+
 # ------------------------------------------------- cross-cell segment profile
 
 SEGMENTS = (("access_component", "接入(metro)"),
@@ -299,29 +340,39 @@ def render_segment_profile_markdown(prof):
 
 # ---------------------------------------------------------------- rendering
 
-def render_markdown(result):
-    kpi = result["kpi"]
-    lines = [
-        f"## 三级差分归因矩阵（{kpi}，单位 ms）",
-        "",
-        f"> claim_scope: `{result['claim_scope']}` — 应用层路径分段，非无线层/运营商全网评级。",
-        "> 方法：铁律 3 客户端差分消共模；缺层记 coverage 不外推；负增量记 inversion 不清零。",
-        "",
-        "> **前提核对**——共模抵消只在三层级条件相同时成立，逐条列出本表核对到什么程度：",
-        f"> - **同一时段**：已核对。`time_band` 只到忙/闲（几小时宽），故另比测量时刻，"
+def premise_notes(result):
+    """Everything the attribution section says ABOVE its table, as plain strings.
+
+    Single source for markdown and HTML. The HTML path re-renders only the table
+    (`_attr_table_html`), so everything the markdown put above it — the 铁律 3
+    premise checklist and the tier-less coverage line — was silently absent from
+    the sendable deliverable (D-160). Same remedy D-140 used for corpus warnings.
+    """
+    out = [
+        f"claim_scope: `{result['claim_scope']}` — 应用层路径分段，非无线层/运营商全网评级。",
+        "方法：铁律 3 客户端差分消共模；缺层记 coverage 不外推；负增量记 inversion 不清零。",
+        "**前提核对**——共模抵消只在三层级条件相同时成立，逐条列出本表核对到什么程度：",
+        f"- **同一时段**：已核对。`time_band` 只到忙/闲（几小时宽），故另比测量时刻，"
         f"相隔超 {TIER_TIME_SPREAD_GATE_MS // 60000} 分钟标 `TIER_TIME_SPREAD`——"
         "那样的增量可能只是**时段差异**穿了骨干的外衣；无时间戳标 `TIER_TIME_UNKNOWN`"
         "（**没法查 ≠ 查过了**）。",
-        "> - **同一接入**：已核对。混用的格标 `MIXED_TRANSPORT`——`metro` 走场地 wifi、"
+        "- **同一接入**：已核对。混用的格标 `MIXED_TRANSPORT`——`metro` 走场地 wifi、"
         "`core` 走 SIM 时，增量其实是 **wifi 与蜂窝的接入差**，**该格增量不可用**，"
         "只能各介质分开重测。",
-        "> - **同一客户端**：**无法核对**（契约无任何设备标识字段）。中途换机的机型差异会"
+        "- **同一客户端**：**无法核对**（契约无任何设备标识字段）。中途换机的机型差异会"
         "整个计入骨干增量且**不会有任何标记**——只能由采集方书面确认（runbook §5 清单）。",
-        "",
     ]
     if result["excluded_no_tier"]:
-        lines.append(f"> ⚠ coverage：{result['excluded_no_tier']} 条记录无 tier 标签，未进归因。")
-        lines.append("")
+        out.append(f"⚠ coverage：{result['excluded_no_tier']} 条记录无 tier 标签，未进归因。")
+    return out
+
+
+def render_markdown(result):
+    kpi = result["kpi"]
+    lines = [f"## 三级差分归因矩阵（{kpi}，单位 ms）", ""]
+    for note in premise_notes(result):
+        lines.append("> " + note)
+    lines.append("")
     if not result["cells"]:
         lines.append("_无可归因单元（记录均缺 tier 标签或缺该 KPI）。_")
         return "\n".join(lines)
@@ -333,34 +384,8 @@ def render_markdown(result):
     for c in result["cells"]:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in c["cell"].items())
         cov = ",".join(cc.TIER_LABELS.get(t, t) for t in c["coverage"]) or "—"
-        notes = []
-        if c["not_computable_reason"]:
-            notes.append(c["not_computable_reason"])
-        if c.get("tier_time_confound"):
-            hrs = c["tier_time_spread_ms"] / 3600_000.0
-            notes.append(f"**TIER_TIME_SPREAD:{cc.fmt_num(hrs, 1)}h**")
-        elif c.get("tier_time_spread_ms") is None and len(c.get("coverage") or []) > 1:
-            notes.append("TIER_TIME_UNKNOWN")
-        if c["inversions"]:
-            # "/" not "|": a literal pipe inside a markdown table cell splits the
-            # row into an extra column, so the table breaks exactly on the rows
-            # carrying a warning — the ones most worth reading carefully
-            # (D-127, found by the property tests).
-            notes.append("inversion:" + "/".join(c["inversions"]))
-        if c.get("mixed_profile_versions"):
-            notes.append("MIXED_PROFILE_VERSION:" + "/".join(c["mixed_profile_versions"]))
-        if c.get("mixed_histogram_edges"):
-            notes.append("MIXED_HIST_EDGES")
-        if c.get("mixed_campaigns"):
-            notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
-        if c.get("mixed_transports"):
-            notes.append("**MIXED_TRANSPORT:" + "/".join(c["mixed_transports"]) + "**")
-        if c.get("mixed_modes"):
-            notes.append("MIXED_MODE:" + "/".join(c["mixed_modes"]))
-        if c.get("mixed_profile_sources"):
-            notes.append("MIXED_PROFILE_SOURCE:" + "/".join(c["mixed_profile_sources"]))
-        if c["low_confidence"]:
-            notes.append("low_conf")
+        notes = [f"**{f}**" if f.split(":")[0] in SEVERE_FLAGS else f
+                 for f in incomparability_flags(c)]
         note = "; ".join(notes) or "—"
         lines.append(
             f"| {cell_label} | {cov} | {cc.fmt_num(c['access_component'])} | "

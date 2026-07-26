@@ -183,12 +183,16 @@ def run_id(rec):
 def run_aqs_flags(rec):
     """(veto_applied, scorer_low_confidence) as declared by the scorer itself.
 
-    A veto CAPS the score (S1<0.95 -> 70, S1<0.90 -> 54), and 70 and 54 are
-    exactly the grade-band edges — so a capped run lands on a boundary and a
-    cell pooling capped with uncapped runs has a median that characterises
-    neither. Only dashboard.py (the per-run view) ever read these; the campaign
-    layer showed the number without the reason, which is the difference between
-    "the network is poor here" and "the sessions failed" (D-154).
+    `run.aqs.veto_applied` is the T4 veto: severe-stall rate > 1% caps the score
+    at 54 (spec/scoring/vetoes.yaml; AqsScorer.kt raises the same flag for the
+    voice-only M1 mouth-to-ear red line, same cap). 54 is exactly a grade-band
+    edge, so a capped run lands on the boundary and a cell pooling capped with
+    uncapped runs has a median that characterises neither.
+
+    NOT the session-success veto. S1 (<0.95 -> 70, <0.90 -> 54) is a SEPARATE
+    field, `run.aqs_token.s1_veto_applied`, produced only in Token mode, which
+    this layer does not read — so session failure is not observable at campaign
+    level at all. D-159 corrects the inverted causal reading D-154 shipped.
     """
     aqs_obj = run_obj(rec).get("aqs") or {}
     return bool(aqs_obj.get("veto_applied")), bool(aqs_obj.get("low_confidence"))

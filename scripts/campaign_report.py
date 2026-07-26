@@ -203,7 +203,8 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         capped = [c for c in scored
                   if c["grade"] in ("poor", "fair") and c.get("veto_n")]
         veto_note = (f"；其中 {len(capped)} 个格含**被否决封顶**的 run"
-                     "（分低可能源于会话失败而非网络，见热力卡 `VETO_CAPPED`）"
+                     "（T4 严重卡顿率 >1% 封顶 54，分数只说明「至少这么差」，"
+                     "见热力卡 `VETO_CAPPED`）"
                      if capped else "")
         bullets.append(f"**体验最差格**：{len(weak)} 个格 AQS 达 fair/poor —— {_top(weak)}"
                        f"{veto_note}。")
@@ -437,10 +438,15 @@ def render_heatcard_markdown(cells):
         lines.append("_无 AQS 数据可成卡（记录缺 run.aqs.score）。_")
         return "\n".join(lines)
     if any(c.get("veto_n") for c in cells):
-        lines += ["> ⚠ **本卡含被否决封顶的 run**（标 `VETO_CAPPED`）。否决把分数**封顶**在 "
-                  "70 / 54，而 70 与 54 正是分带边界——这样的格分低，可能是**会话没跑成**，"
-                  "而不是网络慢，两者处置完全不同。封顶与未封顶的 run 混在一格里，其中位数"
-                  "**两种情形都不代表**；下结论前先看该格的 `VETO_CAPPED:n/N`。", ""]
+        lines += ["> ⚠ **本卡含被否决封顶的 run**（标 `VETO_CAPPED`）。触发的是 **T4 严重卡顿率"
+                  " > 1%** 一票否决，分数**封顶 54**（语音模式下 M1 口到耳超红线同样置位、同一"
+                  "上限）——**这本身就是体验侧的故障信号**。要点在于：封顶分**不是该格真实体验"
+                  "的度量**（它只说明「至少这么差」），封顶与未封顶的 run 混在一格，其中位数"
+                  "**两种情形都不代表**；下结论前先看该格的 `VETO_CAPPED:n/N`，并回到卡顿证据"
+                  "本身，而不是把它当成一个普通低分。",
+                  "> 另注：**会话完成率否决（S1）本层看不到**——它写在 `run.aqs_token."
+                  "s1_veto_applied`（仅 Token 模式产出），战役层不读该块，故「会话没跑成」"
+                  "在本报告中**无法观测**（不是未发生）。", ""]
     lines += [
         "| 点位 | 运营商 | 时段 | AQS中位 | 分级 | n | 备注 |",
         "|---|---|---|---|---|---|---|",
@@ -487,6 +493,8 @@ def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_S
         rows.append({
             "cell": dict(zip(HEAT_DIMS, key)),
             "before": bm, "after": am, "delta": delta,
+            "before_n": b["n"] if b else None,
+            "after_n": a["n"] if a else None,
             "noise": noise,
             "within_noise": (abs(delta) < noise) if (delta is not None and noise is not None)
                             else None,
@@ -818,28 +826,18 @@ def _attr_table_html(attr):
     for c in attr["cells"]:
         cell_label = " · ".join(f"{k}={v}" for k, v in c["cell"].items())
         cov = ",".join(cc.TIER_LABELS.get(t, t) for t in c["coverage"]) or "—"
-        notes = []
-        if c["not_computable_reason"]:
-            notes.append(c["not_computable_reason"])
-        if c["inversions"]:
-            notes.append("inversion:" + "/".join(c["inversions"]))   # same separator as md
-        if c.get("mixed_profile_versions"):
-            notes.append("MIXED_PROFILE_VERSION:" + "/".join(c["mixed_profile_versions"]))
-        if c.get("mixed_histogram_edges"):
-            notes.append("MIXED_HIST_EDGES")
-        if c.get("mixed_modes"):
-            notes.append("MIXED_MODE:" + "/".join(c["mixed_modes"]))
-        if c.get("mixed_profile_sources"):
-            notes.append("MIXED_PROFILE_SOURCE:" + "/".join(c["mixed_profile_sources"]))
-        if c["low_confidence"]:
-            notes.append("low_conf")
+        # same list markdown and CSV use — this hand-maintained duplicate is how
+        # MIXED_TRANSPORT and the tier-time markers went missing here (D-160)
+        notes = attribution.incomparability_flags(c)
+        severe = [f for f in notes if f.split(":")[0] in attribution.SEVERE_FLAGS]
         rows.append(
             f"<tr><td class='lbl'>{esc(cell_label)}</td><td>{esc(cov)}</td>"
             f"<td>{cc.fmt_num(c['access_component'])}</td>"
             f"<td>{cc.fmt_num(c['regional_backbone_incr'])}</td>"
             f"<td>{cc.fmt_num(c['core_backbone_incr'])}</td>"
             f"<td>{cc.fmt_num(c['end_to_end_core'])}</td>"
-            f"<td>{esc('; '.join(notes) or '—')}</td></tr>")
+            + (f"<td class='warn'><b>{esc('; '.join(notes))}</b></td></tr>" if severe
+               else f"<td>{esc('; '.join(notes) or '—')}</td></tr>"))
     return (
         "<div class='scroll'><table><tr><th>单元</th><th>覆盖</th><th>接入</th>"
         "<th>区域骨干+</th><th>核心骨干+</th><th>端到端</th><th>备注</th></tr>"
@@ -943,7 +941,14 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     for k in attribution.ATTRIBUTABLE_KPIS:
         attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
         if k == attr_kpi or attr["cells"]:
-            attr_sections += (f"<h2>三级差分归因矩阵（{esc(k)}，ms）</h2>" + _attr_table_html(attr))
+            attr_sections += (f"<h2>三级差分归因矩阵（{esc(k)}，ms）</h2>"
+                              # the premise checklist and the tier-less coverage
+                              # line live above the table in markdown; the HTML
+                              # path rebuilds only the table, so they have to be
+                              # emitted here from the same source (D-160)
+                              + "".join(f"<p class='warn'>{_md_inline(n)}</p>"
+                                        for n in attribution.premise_notes(attr))
+                              + _attr_table_html(attr))
 
     cmp_html = ""
     if before_id and after_id:
@@ -956,8 +961,18 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
                 color = "#666"
             else:
                 color = "#137333" if (d is not None and d > 0) else ("#c5221f" if (d is not None and d < 0) else "#444")
-            note = ("噪声内" if r["within_noise"] is True
-                    else ("噪声不可估" if r["noise"] is None and d is not None else ""))
+            notes = []
+            if r["within_noise"] is True:
+                notes.append("噪声内")
+            elif r["noise"] is None and d is not None:
+                notes.append("噪声不可估")
+            if r["before"] is None:
+                notes.append("仅 after")
+            if r["after"] is None:
+                notes.append("仅 before")
+            if r["low_confidence"]:
+                notes.append("low_conf")
+            note = "; ".join(notes)
             crows.append(
                 f"<tr><td class='lbl'>{esc(r['cell']['point_id'])} · {esc(r['cell']['carrier'])} · "
                 f"{esc(r['cell']['time_band'])}</td><td>{cc.fmt_num(r['before'])}</td>"
@@ -1094,28 +1109,23 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "kpi", "access",
                     "regional_incr", "core_incr", "end_to_end_core", "coverage",
-                    "low_confidence", "not_computable_reason", "incomparability"])
+                    "low_confidence", "not_computable_reason", "incomparability",
+                    # numeric so an analyst can threshold it directly instead of
+                    # parsing TIER_TIME_SPREAD out of the flag string (D-160)
+                    "tier_time_spread_ms"])
         for k in attribution.ATTRIBUTABLE_KPIS:
             attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
             for c in attr["cells"]:
                 cell = c["cell"]
                 # same markers the rendered notes column carries, so a filter like
                 # incomparability.str.contains('MIXED_CAMPAIGN') works (D-141)
-                flags = []
-                for field, tag in (("mixed_campaigns", "MIXED_CAMPAIGN"),
-                                   ("mixed_profile_versions", "MIXED_PROFILE_VERSION"),
-                                   ("mixed_modes", "MIXED_MODE"),
-                                   ("mixed_profile_sources", "MIXED_PROFILE_SOURCE")):
-                    if c.get(field):
-                        flags.append(f"{tag}:" + "/".join(c[field]))
-                if c.get("mixed_histogram_edges"):
-                    flags.append("MIXED_HIST_EDGES")
+                flags = attribution.incomparability_flags(c)
                 w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             cell.get("profile_id"), attr["kpi"], _cell(c["access_component"]),
                             _cell(c["regional_backbone_incr"]), _cell(c["core_backbone_incr"]),
                             _cell(c["end_to_end_core"]), "|".join(c["coverage"]),
                             c["low_confidence"], c["not_computable_reason"] or "",
-                            ";".join(flags)])
+                            ";".join(flags), _cell(c.get("tier_time_spread_ms"))])
     written.append(p)
 
     # Which segment is a point's own problem vs the path's (D-146). The verdict
@@ -1231,7 +1241,10 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "before_id", "after_id",
-                    "before", "after", "delta", "noise", "within_noise"])
+                    "before", "after", "delta", "noise", "within_noise",
+                    # without these an n=3-vs-n=3 delta publishes as a clean
+                    # result: markdown flagged it, CSV and HTML did not (D-160)
+                    "low_confidence", "before_n", "after_n"])
         if before_id and after_id:
             cmp_res = compare_campaigns(records, before_id, after_id, min_samples)
             for r in cmp_res["rows"]:
@@ -1239,7 +1252,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                 w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             before_id, after_id, _cell(r["before"]), _cell(r["after"]),
                             _cell(r["delta"]), _cell(r.get("noise")),
-                            _cell(r.get("within_noise"))])
+                            _cell(r.get("within_noise")), r["low_confidence"],
+                            _cell(r.get("before_n")), _cell(r.get("after_n"))])
     written.append(p)
 
     tres = trend.analyze(records, min_samples=min_samples)

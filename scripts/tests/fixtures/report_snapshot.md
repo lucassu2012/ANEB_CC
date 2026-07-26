@@ -114,7 +114,6 @@ _无可信度证据（clock/seq/parse 块均未标注）——覆盖缺口，非
 
 > claim_scope: `application_end_to_end_to_probe_node` — 应用层路径分段，非无线层/运营商全网评级。
 > 方法：铁律 3 客户端差分消共模；缺层记 coverage 不外推；负增量记 inversion 不清零。
-
 > **前提核对**——共模抵消只在三层级条件相同时成立，逐条列出本表核对到什么程度：
 > - **同一时段**：已核对。`time_band` 只到忙/闲（几小时宽），故另比测量时刻，相隔超 60 分钟标 `TIER_TIME_SPREAD`——那样的增量可能只是**时段差异**穿了骨干的外衣；无时间戳标 `TIER_TIME_UNKNOWN`（**没法查 ≠ 查过了**）。
 > - **同一接入**：已核对。混用的格标 `MIXED_TRANSPORT`——`metro` 走场地 wifi、`core` 走 SIM 时，增量其实是 **wifi 与蜂窝的接入差**，**该格增量不可用**，只能各介质分开重测。

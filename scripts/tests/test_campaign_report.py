@@ -148,9 +148,25 @@ def test_noise_reaches_all_three_surfaces():
     # match markers that only occur in table rows — the caveat mentions both
     # phrases too, and the summary bullet words it a third way
     assert md.count("**噪声内**") == len(csv_noisy)
-    assert html.count("<td>噪声内</td>") == len(csv_noisy)
+    # the HTML note cell is a composite now (D-160 added 仅before/仅after/low_conf),
+    # so match the leading marker rather than the whole cell
+    assert html.count("<td>噪声内") == len(csv_noisy)
     assert md.count("噪声不可估") == len(csv_unknown)
-    assert html.count("<td>噪声不可估</td>") == len(csv_unknown)
+    assert html.count("<td>噪声不可估") == len(csv_unknown)
+    # low_conf must reach all three surfaces too — it used to be markdown-only,
+    # so an n=1-vs-n=1 delta published as a clean result (D-160)
+    csv_lowconf = [r for r in rows if r["low_confidence"] == "True"]
+    assert csv_lowconf, "fixture must contain a low-confidence comparison row"
+    # scope to the comparison section: low_conf legitimately appears in the
+    # attribution notes too, so a whole-document count would not mean anything
+    # split on the HEADING, not the phrase: the corpus banner names the section
+    # too, so splitting on the bare words lands in the banner instead
+    cmp_html = html.split("<h2>优化前后对比", 1)[1].split("<h2>", 1)[0]
+    # …and match the ROW form: the noise caveat names `low_conf` too, which is
+    # the third time a caveat word got used as a row-marker proxy (D-152/155/160)
+    assert cmp_html.count("low_conf</td>") == len(csv_lowconf)
+    cmp_md = md.split("## 优化前后对比", 1)[1].split("\n## ", 1)[0]
+    assert cmp_md.count("low_conf |") == len(csv_lowconf)
     # …and the summary must carry the same two counts in prose
     assert "1 个格 Δ 在噪声内" in md and "1 个格噪声无法估计" in md
     # unknown noise stays empty in CSV — never 0, never False (R-10)
@@ -794,7 +810,11 @@ def test_veto_capped_runs_are_visible_in_the_heat_card():
     assert c["veto_n"] == 4 and c["n"] == 6
     md = rpt.render_heatcard_markdown([c])
     assert "**VETO_CAPPED:4/6**" in md
-    assert "会话没跑成" in md                     # the caveat says what it means
+    assert "T4 严重卡顿率" in md                  # the caveat names the real cause
+    assert "至少这么差" in md                     # and what a capped score does mean
+    # S1 session-success veto lives in run.aqs_token and this layer never reads it,
+    # so the report must say it is unobservable rather than imply it was ruled out
+    assert "无法观测" in md
     # and a clean corpus stays quiet
     clean = rpt.heat_cells(aqs_records(54, 6, point="P1"))
     assert clean[0]["veto_n"] == 0
@@ -832,3 +852,68 @@ def test_scorer_low_confidence_is_separate_from_sample_count():
     md = rpt.render_heatcard_markdown([c])
     assert "SCORER_LOW_CONF:2/6" in md
     assert "low_conf;" not in md and not md.rstrip().endswith("low_conf |")
+
+
+def _every_marker_corpus():
+    """One cell that trips every per-cell incomparability flag at once."""
+    from synth import contractify
+    HOUR = 3600_000
+    out = []
+    for camp in ("base", "opt"):
+        for tier, val, off, tp in (("metro", 20, 0, "wifi"),
+                                   ("regional", 35, 600_000, "wifi"),
+                                   ("core", 90, 9 * HOUR, "auto(cellular)")):
+            c = {"campaign_id": camp, "tier": tier, "point_id": "P1",
+                 "carrier": "cmcc", "time_band": "busy"}
+            for i in range(5):
+                r = make_record(campaign=c, aqs=60,
+                                scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})],
+                                started_ms=1783944000000 + off + i * 60_000)
+                r["run"]["transport"] = tp
+                out.append(contractify(r))
+    return out
+
+
+def test_every_attribution_marker_reaches_all_three_surfaces():
+    """The renderers used to build three separate marker lists, which is how
+    MIXED_TRANSPORT (D-157) and the tier-time markers (D-155) shipped in
+    markdown only while the HTML deliverable printed a bare em-dash (D-160).
+    They now share attribution.incomparability_flags — this pins that."""
+    import csv as csvmod
+    import os
+    import tempfile
+    import attribution
+    recs = _every_marker_corpus()
+    attr = attribution.attribute(recs)
+    flags = attribution.incomparability_flags(attr["cells"][0])
+    tags = sorted({f.split(":")[0] for f in flags})
+    assert {"TIER_TIME_SPREAD", "MIXED_TRANSPORT", "MIXED_CAMPAIGN"} <= set(tags), tags
+
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_attribution.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+    csv_flags = " ".join(r["incomparability"] for r in rows)
+    for tag in tags:
+        assert tag in md, f"{tag} missing from markdown"
+        assert tag in html, f"{tag} missing from HTML"
+        assert tag in csv_flags, f"{tag} missing from CSV incomparability column"
+    # the numeric spread is filterable, not just embedded in a string
+    assert any(r["tier_time_spread_ms"] for r in rows)
+
+
+def test_attribution_premise_checklist_reaches_html():
+    """The HTML path rebuilds only the table, so everything markdown puts above
+    it was absent from the sendable deliverable (D-160)."""
+    import attribution
+    recs = _every_marker_corpus()
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    for note in attribution.premise_notes(attribution.attribute(recs)):
+        probe = note.replace("**", "").replace("`", "")[:12]
+        assert probe in md.replace("**", "").replace("`", ""), probe
+        assert probe in html.replace("<b>", "").replace("</b>", "").replace(
+            "<code>", "").replace("</code>", ""), f"{probe} missing from HTML"

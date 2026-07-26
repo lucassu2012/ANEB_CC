@@ -210,7 +210,10 @@ def test_veto_capped_cells_are_warned_before_publication():
         r["run"]["aqs"]["veto_applied"] = True
     rows = pc.check(recs)
     assert _sev(rows, "否决封顶") == pc.WARN
-    assert "会话失败还是网络慢" in _detail(rows, "否决封顶")
+    # the flag is the T4 severe-stall veto, a network-side fault — the wording
+    # must not send the reader looking at session failures (D-159)
+    assert "T4 严重卡顿率" in _detail(rows, "否决封顶")
+    assert "会话" not in _detail(rows, "否决封顶")
     assert _sev(pc.check(_clean()), "否决封顶") == pc.PASS
 
 
