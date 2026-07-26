@@ -182,6 +182,20 @@ def test_effect_size_row_exists_even_with_one_campaign():
     assert "无前后对比可核算" in _detail(pc.check(recs), "效应量")
 
 
+def test_implausible_epoch_is_warned_before_publication():
+    """WARN, not FAIL: this layer cannot tell a producer bug from a corpus
+    stitched out of something else. But it must not PASS — an epoch of the wrong
+    magnitude still sorts, so before/after comes out backwards with confidence."""
+    recs = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
+    for r in recs[:2]:
+        r["run"]["started_at_epoch_ms"] = 1783944000       # seconds, not ms
+    rows = pc.check(recs)
+    assert _sev(rows, "时间戳量级") == pc.WARN
+    assert "疑似秒" in _detail(rows, "时间戳量级")
+    clean = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
+    assert _sev(pc.check(clean), "时间戳量级") == pc.PASS
+
+
 def test_every_check_item_appears_for_every_corpus_shape():
     """The runbook checklist is read against this output — an item that only
     appears for some corpora makes the checklist unverifiable."""

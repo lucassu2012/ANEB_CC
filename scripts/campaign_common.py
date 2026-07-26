@@ -49,6 +49,35 @@ _CARRIER_ALIASES = {
 }
 
 DEFAULT_MIN_SAMPLES = 5   # per-tier / per-cell sample floor for low_confidence
+
+# run.started_at_epoch_ms carries real weight: it orders before/after (D-161),
+# bounds the reported collection window (D-138), decides the tier-simultaneity
+# verdict (D-155) and drives --infer-time-band (D-153). Nothing ever checked its
+# magnitude, so a seconds-valued epoch — the classic 1e9-vs-1e12 slip — sorts a
+# campaign to 1970 and re-creates the D-161 inversion through a different door,
+# while the report still states its ordering basis as "time".
+EPOCH_MS_MIN = 1_577_836_800_000    # 2020-01-01T00:00:00Z
+EPOCH_MS_MAX = 4_102_444_800_000    # 2100-01-01T00:00:00Z
+
+
+def epoch_ms_problem(v):
+    """Why this value cannot be a millisecond epoch from this project, or None.
+
+    Names the likely unit slip rather than just saying 'out of range', because
+    the fix differs: seconds is one producer bug, microseconds another, and a
+    small positive number is usually an uptime clock rather than a wall clock."""
+    v = fnum(v)
+    if v is None:
+        return None                    # absent is a separate, already-handled case
+    if v <= 0:
+        return "非正值"
+    if EPOCH_MS_MIN <= v <= EPOCH_MS_MAX:
+        return None
+    if 1e9 <= v < 1e11:
+        return "疑似秒(应为毫秒)"
+    if v >= 1e15:
+        return "疑似微秒/纳秒(应为毫秒)"
+    return "超出合理范围"
 # The contract's claim-scope red line (R-10). Any record declaring something else
 # is NOT comparable with this corpus and must be surfaced, never silently pooled.
 CLAIM_SCOPE = "application_end_to_end_to_probe_node"

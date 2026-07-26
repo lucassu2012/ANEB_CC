@@ -76,6 +76,10 @@ def inventory(records):
         # earliest run per campaign — before/after ordering is a CHRONOLOGY
         # question, and campaign_id sort need not match time (D-161)
         "campaign_first_ms": {},
+        # …and a timestamp only answers that question if it is a plausible
+        # millisecond epoch. A seconds-valued one sorts its campaign to 1970 and
+        # inverts every delta while the basis still reads "time" (D-176).
+        "implausible_ms": Counter(), "campaigns_bad_ms": set(),
     }
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -104,6 +108,12 @@ def inventory(records):
             inv["aqs_present"] += 1
         started = cc.run_started_ms(rec)
         cid = labels["campaign_id"]
+        # Kept in campaign_first_ms even when implausible — dropping it would
+        # hide the problem, and the report exists to surface it (R-10).
+        bad = cc.epoch_ms_problem(started)
+        if bad:
+            inv["implausible_ms"][bad] += 1
+            inv["campaigns_bad_ms"].add(cid)
         if started is not None and (cid not in inv["campaign_first_ms"]
                                     or started < inv["campaign_first_ms"][cid]):
             inv["campaign_first_ms"][cid] = started
@@ -140,6 +150,17 @@ def corpus_warnings(inv):
                    "它们被当作**不同的格**统计（各分走一部分样本，可能都因此被标 `low_conf`），"
                    "而渲染出来几乎看不出区别。**这不是自动合并的**——"
                    "确属同一对象请回改语料后重出报告，确属不同对象请改成可区分的名字。")
+    bad_ms = inv.get("implausible_ms") or {}
+    if bad_ms:
+        total = inv.get("records") or 1
+        n_bad = sum(bad_ms.values())
+        out.append(f"**{n_bad}/{total} 条记录的 `started_at_epoch_ms` 不像毫秒时间戳**"
+                   f"（{'；'.join(f'{r} × {n}' for r, n in sorted(bad_ms.items()))}）。"
+                   "该字段决定**前后配对的先后**、报告顶部的**采集时间窗**、"
+                   "「层级同时性」判定与 `--infer-time-band` 的推断——"
+                   "**一个数量级写错不会报错,只会安静地给出错误的先后**"
+                   "（秒当毫秒会把该战役排到 1970,于是改善被印成回退）。"
+                   "工具**不猜测也不换算**：受影响的战役不参与自动配对,请先修生产端。")
     inferred_tb = sum(n for src, n in (inv.get("label_sources") or {}).items()
                       if "inferred:time_band" in src)
     if inferred_tb:
@@ -390,6 +411,11 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         bullets.append(f"**优化前后**：语料含 2 个战役（{'、'.join(sorted(labeled))}）但"
                        "**缺 `started_at_epoch_ms`，无法确定先后**——不按名称猜，"
                        "请显式 `--before/--after` 后重出。")
+    elif compare_basis(inv_) == "bad_timestamps":
+        bullets.append(f"**优化前后**：语料含 2 个战役（{'、'.join(sorted(labeled))}）但"
+                       "**`started_at_epoch_ms` 取值不像毫秒时间戳**（见语料级告警），"
+                       "按它排序会把战役排到错误的先后上、把改善印成回退——**本轮不自动配对**；"
+                       "先修生产端时间戳，或确认先后后显式 `--before/--after`。")
     else:
         # Every other signal says something even with no data ("无 transport
         # 证据（覆盖缺口）"). This one used to vanish, so the reader could not
@@ -717,8 +743,9 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
 def compare_basis(inv):
     """Why (or why not) a before/after pair could be formed automatically.
 
-    "not_two" | "no_timestamps" | "time". Kept separate from the pair itself so
-    a caller can say WHICH case it is instead of the section silently vanishing.
+    "not_two" | "no_timestamps" | "bad_timestamps" | "time". Kept separate from
+    the pair itself so a caller can say WHICH case it is instead of the section
+    silently vanishing.
     """
     labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
     if len(labeled) != 2:
@@ -726,6 +753,11 @@ def compare_basis(inv):
     firsts = inv.get("campaign_first_ms") or {}
     if any(c not in firsts for c in labeled):
         return "no_timestamps"
+    # An implausible epoch is worse than a missing one: it still sorts, so the
+    # pair comes out confidently backwards. Refuse to order rather than order
+    # by a number that is not a time (D-176).
+    if any(c in (inv.get("campaigns_bad_ms") or set()) for c in labeled):
+        return "bad_timestamps"
     return "time"
 
 
@@ -795,7 +827,12 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         f"- 标签来源 label_source：{dict(cc.ranked(inv['label_sources']))}",
         f"- 采集时间窗：{_utc_stamp(inv['first_ms']) or '—'} → "
         f"{_utc_stamp(inv['last_ms']) or '—'}"
-        + ("" if inv["first_ms"] is not None else "（记录缺 started_at_epoch_ms）"),
+        + ("" if inv["first_ms"] is not None else "（记录缺 started_at_epoch_ms）")
+        # A 1970 endpoint is arithmetic on a bad number, not a measurement window;
+        # printed bare it reads as a fact about when the data was collected.
+        + ("" if not inv.get("implausible_ms") else
+           f"（⚠ 含 {sum(inv['implausible_ms'].values())} 条不像毫秒时间戳的取值，"
+           "**此窗口不可信**，见语料级告警）"),
         "",
     ]
     # Aborted/unknown runs are SURFACED, never silently dropped (survey gap 4):

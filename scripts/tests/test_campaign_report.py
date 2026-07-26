@@ -676,6 +676,62 @@ def test_tied_kpi_grade_is_not_decided_by_a_coin_flip():
     assert c2["grade"] == "poor" and c2["grade_tie"] == []
 
 
+def _stamped(cid, aqs, ms, n=5):
+    from synth import contractify
+    rs = [contractify(r) for r in aqs_records(aqs, n, point="P1", campaign_id=cid)]
+    for r in rs:
+        r["run"]["started_at_epoch_ms"] = ms
+    return rs
+
+
+def test_seconds_epoch_recreates_the_d161_inversion():
+    """An out-of-range epoch is worse than a missing one: it still SORTS. The
+    later, better round carried a seconds-valued timestamp, sorted to 1970,
+    became 'before', and a 30-point improvement was published as Δ -30 — the
+    exact D-161 outcome, through a door D-161 did not close, with the basis
+    still reported as 'time'."""
+    ms, sec = 1783944000000, 1784030400          # post-qos is later AND better
+    recs = _stamped("pre-qos", 50, ms) + _stamped("post-qos", 80, sec)
+    inv = rpt.inventory(recs)
+    assert inv["campaigns_bad_ms"] == {"post-qos"}
+    assert dict(inv["implausible_ms"]) == {"疑似秒(应为毫秒)": 5}
+    # refuse to order rather than order by a number that is not a time
+    assert rpt.compare_basis(inv) == "bad_timestamps"
+    assert rpt.auto_compare_ids(inv) == (None, None)
+    # a plausible corpus is untouched — the guard must not cost the normal path
+    good = rpt.inventory(_stamped("pre-qos", 50, ms) + _stamped("post-qos", 80, ms + 86400000))
+    assert rpt.compare_basis(good) == "time"
+    assert rpt.auto_compare_ids(good) == ("pre-qos", "post-qos")
+
+
+def test_bad_epoch_is_visible_on_every_surface():
+    recs = _stamped("pre-qos", 50, 1783944000000) + _stamped("post-qos", 80, 1784030400)
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "不像毫秒时间戳" in md and "不像毫秒时间戳" in html
+    # the window line prints 1970 arithmetic — it must not read as a fact about
+    # when the data was collected
+    win = [l for l in md.splitlines() if "采集时间窗" in l][0]
+    assert "此窗口不可信" in win
+    # and the summary says why no pair was formed, instead of the section
+    # vanishing (D-150: a silent check is no check)
+    bullet = [l for l in md.splitlines() if l.startswith("- **优化前后**")][0]
+    assert "不自动配对" in bullet
+
+
+def test_epoch_problem_names_the_unit_slip():
+    """'out of range' does not tell the operator what to fix; seconds and
+    microseconds are different producer bugs."""
+    assert cc.epoch_ms_problem(1783944000000) is None      # 2026, plausible
+    assert cc.epoch_ms_problem(1783944000) == "疑似秒(应为毫秒)"
+    assert cc.epoch_ms_problem(1783944000000000) == "疑似微秒/纳秒(应为毫秒)"
+    assert cc.epoch_ms_problem(0) == "非正值"
+    assert cc.epoch_ms_problem(-5) == "非正值"
+    assert cc.epoch_ms_problem(12345) == "超出合理范围"     # uptime clock, not wall clock
+    assert cc.epoch_ms_problem(None) is None               # absent != implausible
+    assert cc.epoch_ms_problem(float("nan")) is None       # already rejected by fnum
+
+
 def test_grade_tie_reaches_html_and_csv():
     """GRADE_TIE was markdown-only. The HTML pivot rendered the tied cell as
     'n/a' — indistinguishable from 'never graded' — and the per-KPI card had no

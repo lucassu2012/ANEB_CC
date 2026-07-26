@@ -247,6 +247,21 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     else:
         rows.append(_row(PASS, "标签来源", "无推断得到的分组标签"))
 
+    # A wrong-magnitude epoch still sorts, so before/after comes out confidently
+    # backwards while the report states its basis as "time" (D-176). WARN, not
+    # FAIL: this layer cannot tell a producer bug from a corpus stitched out of
+    # something else — but it must never pass silently.
+    bad_ms = inv.get("implausible_ms") or {}
+    if bad_ms:
+        rows.append(_row(WARN, "时间戳量级",
+                         f"{sum(bad_ms.values())}/{inv['records']} 条 started_at_epoch_ms "
+                         "不像毫秒时间戳（"
+                         + "；".join(f"{r} × {n}" for r, n in sorted(bad_ms.items()))
+                         + "）——前后配对、采集时间窗、层级同时性都取自该字段；"
+                         "受影响战役已退出自动配对，请先修生产端再出报告"))
+    else:
+        rows.append(_row(PASS, "时间戳量级", "started_at_epoch_ms 取值均在合理毫秒范围"))
+
     # One label typed two ways splits a cell and the split is invisible in the
     # rendered table — the operator is the only one who can say which it is (D-149)
     coll = inv.get("label_collisions") or {}
