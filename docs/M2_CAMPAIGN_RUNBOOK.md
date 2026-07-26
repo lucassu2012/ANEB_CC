@@ -98,13 +98,27 @@ python validate_results.py field_raw.jsonl
 > 「核心骨干增量」其实是**时段差异**。报告会核对三层级测量的时间间隔并把超门的格标
 > `TIER_TIME_SPREAD:Xh`，但**标出来时已经补不了**——只能重测该格。
 
-采集时就按点位分目录存放（`raw/SZ-CBD-01/`、`raw/SZ-UNIV-02/`…），然后**逐点位**补注：
+采集时按**点位 + 层级**分目录存放（`raw/SZ-CBD-01/metro/`、`raw/SZ-CBD-01/regional/`…），
+然后**逐点位逐层级**补注——一条命令对应一轮：
 
 ```
-python annotate_campaign.py raw/SZ-CBD-01/*.jsonl --out-dir labeled \
+python annotate_campaign.py raw/SZ-CBD-01/metro/*.jsonl --out-dir labeled \
     --set campaign_id=sz-2026Q3-baseline --set point_id=SZ-CBD-01 \
     --set carrier=cmcc --set tier=metro --infer-time-band
+python annotate_campaign.py raw/SZ-CBD-01/regional/*.jsonl --out-dir labeled \
+    --set campaign_id=sz-2026Q3-baseline --set point_id=SZ-CBD-01 \
+    --set carrier=cmcc --set tier=regional --infer-time-band
+python annotate_campaign.py raw/SZ-CBD-01/core/*.jsonl --out-dir labeled \
+    --set campaign_id=sz-2026Q3-baseline --set point_id=SZ-CBD-01 \
+    --set carrier=cmcc --set tier=core --infer-time-band
 ```
+
+> ⛔ **必须分层级各跑一条**。上面那条红线要求三层级连续测完，所以一个点位目录里
+> **本来就装着三层的轮次**；若只跑一条 `--set tier=metro` 把整个点位打成同城，
+> 另外两层就被**标没**了——报告会报 `TIER_MISSING:regional,core` 说它们**没测过**
+> （而你明明测了），三级差分归因**根本不会发生**；更糟的是全语料变成单层级后，
+> 热力卡的 `TIER_INCOMPLETE` 也**不会触发**（没有哪一格与语料不同）。
+> 多文件配统一 `tier` 时工具会告警——**看见就停下**，别当噪声划过去（D-189）。
 
 若已混装在一个目录里，用 `--map map.json`（`{run_id: {point_id: …}}`）按台账精确打标。
 

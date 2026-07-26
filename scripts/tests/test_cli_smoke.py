@@ -268,6 +268,36 @@ def test_annotate_is_idempotent():
             open(second, encoding="utf-8").read()
 
 
+def test_annotate_warns_when_one_tier_is_stamped_across_files():
+    """A cell holds THREE tier rounds measured back to back, so a per-point
+    directory normally contains all three. Stamping it `--set tier=metro` labels
+    the other two away: the report then reports TIER_MISSING about rounds that
+    were measured, the three-tier differential never happens, and the heat card's
+    TIER_INCOMPLETE cannot fire either because the corpus is now single-tier.
+
+    Walking the runbook literally produced exactly that — its example ran ONE
+    annotate per point while its own red line demands three tier rounds per cell
+    (D-189). Warn, not refuse: several files from one tier round is legitimate
+    and the tool cannot tell the two cases apart."""
+    with tempfile.TemporaryDirectory() as d:
+        src, out = os.path.join(d, "raw"), os.path.join(d, "out")
+        os.makedirs(src)
+        for name in ("r_metro.jsonl", "r_regional.jsonl", "r_core.jsonl"):
+            _write_jsonl(os.path.join(src, name),
+                         [contractify(r) for r in aqs_records(90, 1)])
+        r = _run("annotate_campaign.py", os.path.join(src, "*.jsonl"),
+                 "--out-dir", out, "--set", "tier=metro")
+        assert r.returncode == 0                     # a warning, not a refusal
+        assert "tier=metro" in r.stderr
+        assert "标没" in r.stderr                    # says what goes wrong…
+        assert "TIER_MISSING" in r.stderr            # …and how it will surface
+        # a single file is the normal per-round case and must stay quiet
+        one = _run("annotate_campaign.py", os.path.join(src, "r_metro.jsonl"),
+                   "-o", os.path.join(d, "one.jsonl"), "--set", "tier=metro")
+        assert one.returncode == 0
+        assert "标没" not in one.stderr
+
+
 def test_annotate_out_dir_refuses_to_overwrite_inputs():
     """--out-dir pointing at the input directory would be --inplace in disguise."""
     with tempfile.TemporaryDirectory() as d:

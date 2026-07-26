@@ -163,6 +163,22 @@ def main(argv):
         print(f"⚠ 正把 point_id={uniform['point_id']} 统一打到 {len(inputs)} 个文件上——"
               "仅当这些文件确实**全部来自该点位**时才正确。一天跨多点位时请按点位分目录，"
               "或用 --map 按 run_id 精确打标。", file=sys.stderr)
+    # tier is the same trap one level down, and worse. A cell is meant to hold
+    # THREE tier rounds measured back to back, so a per-point directory normally
+    # contains all three — stamping it `--set tier=metro` labels the other two
+    # away. The report then reports TIER_MISSING:regional,core about rounds that
+    # WERE measured, and because the corpus is now single-tier the heat card's
+    # TIER_INCOMPLETE marker cannot fire either: no cell differs from the corpus.
+    # A wrong point is a mislabelled location; a wrong tier means the three-tier
+    # decomposition never happens and the report blames the crew for not
+    # collecting it (D-189 — found the way D-132 was, walking the runbook).
+    if len(inputs) > 1 and uniform.get("tier"):
+        print(f"⚠ 正把 tier={uniform['tier']} 统一打到 {len(inputs)} 个文件上——"
+              "一个格的三层级(同城/区域/中心)通常各是一轮、各自成文件，"
+              "统一打标会把另外两层**标没**：报告将报 `TIER_MISSING` 说它们没测过，"
+              "而三级差分归因（本报告的核心）根本不会发生。"
+              "请**按层级分文件/分目录**逐轮补注，或用 --map 按 run_id 精确打标。",
+              file=sys.stderr)
 
     if sum(bool(x) for x in (args.output, args.out_dir, args.inplace)) > 1:
         raise SystemExit("choose ONE of -o/--output, --out-dir, --inplace")
