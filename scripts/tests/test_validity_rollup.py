@@ -55,6 +55,31 @@ def test_unknown_validity_is_its_own_bucket_not_assumed_valid():
     assert c["valid_rate"] == 0.0      # not silently treated as valid
 
 
+def test_unreadable_state_is_distinguished_from_failure():
+    """0% valid from failures and 0% valid from states nobody can read are two
+    different findings with two different next actions — go look at the network,
+    or go look at the producer. Real corpora carry `degraded`, a fourth value the
+    schema enum does not list, and it lands in the denominator, so a cell full of
+    it reported 有效率 0% and tripped LOW_VALID_RATE as though everything failed
+    (D-190). Counting it as not-usable is the conservative direction and stays;
+    the share now travels with the rate."""
+    unread = vr.analyze(validity_records(5, validity="degraded"))["cells"][0]
+    failed = vr.analyze(validity_records(5, validity="invalid"))["cells"][0]
+    assert unread["valid_rate"] == failed["valid_rate"] == 0.0   # same number…
+    assert unread["unknown_share"] == 1.0                        # …different reason
+    assert failed["unknown_share"] == 0.0
+    md = vr.render_markdown(vr.analyze(validity_records(5, validity="degraded")))
+    assert "UNKNOWN_VALIDITY:100.0%" in md
+    assert "未知按「不可用」计入有效率" in md      # the convention is stated, not implied
+    # A purely failed cell must NOT pick up the marker. Match the ROW form: the
+    # caveat above the table names `UNKNOWN_VALIDITY:x%` too, so a bare substring
+    # check is true for every corpus — the over-broad-assertion trap this repo's
+    # own handover §3 warns about, walked into once more.
+    failed_md = vr.render_markdown(vr.analyze(validity_records(5, validity="invalid")))
+    assert not [ln for ln in failed_md.splitlines()
+                if ln.startswith("| ") and "UNKNOWN_VALIDITY" in ln]
+
+
 def test_invalid_reasons_histogram():
     recs = (validity_records(3, validity="invalid", invalid_reasons="timeout")
             + validity_records(2, validity="invalid", invalid_reasons="parse_error;timeout"))

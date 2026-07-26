@@ -76,6 +76,15 @@ def validity_cells(records, min_rate=DEFAULT_MIN_RATE):
             "unknown": counts["unknown"],
             "valid_rate": (usable / attempted) if attempted else None,
             "below_min_rate": (usable / attempted < min_rate) if attempted else None,
+            # An unrecognised validity state is not a failure — it is a state
+            # nobody here knows how to read — and it lands in the denominator, so
+            # a cell full of them reports 有效率 0% and trips LOW_VALID_RATE as
+            # though everything failed. Real corpora do carry a fourth value
+            # (`degraded`) the schema enum does not list. Counting it as
+            # not-usable is the conservative direction and stays, but the share
+            # must travel with the rate or the number claims more than it knows
+            # (D-190).
+            "unknown_share": (counts["unknown"] / attempted) if attempted else None,
             # ranked, not most_common: reasons tied at the same count would otherwise
             # order by input order and the CSV row differs run to run (D-148)
             "reasons": dict(cc.ranked(buckets[key]["reasons"])),
@@ -131,6 +140,11 @@ def render_markdown(res):
         "`LOW_VALID_RATE`。INVALID 场景 KPI 为空、会被热力卡/归因静默丢弃——"
         "**此表即那些被丢弃样本的去向**。",
         "",
+        "> **「未知」的口径**：`validity` 取值不在已知三态内（本层大小写不敏感）即计入"
+        "**未知**列。**未知按「不可用」计入有效率**——这是保守方向，但它**不是失效**，"
+        "而是本层读不懂那个状态。故未知占比高的格会标 `UNKNOWN_VALIDITY:x%`："
+        "该格的有效率**不应读成「这里全失败了」**，应先去查生产者写了什么。",
+        "",
     ]
     if not res["cells"]:
         lines.append("_无场景数据。_")
@@ -140,7 +154,14 @@ def render_markdown(res):
               "|---|---|---|---|---|---|---|---|---|---|---|"]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
-        note = "LOW_VALID_RATE" if c["below_min_rate"] else "—"
+        notes = []
+        if c["below_min_rate"]:
+            notes.append("LOW_VALID_RATE")
+        # a rate dragged down by states this layer cannot read is a different
+        # finding from a rate dragged down by failures (D-190)
+        if c.get("unknown_share"):
+            notes.append(f"**UNKNOWN_VALIDITY:{_pct(c['unknown_share'])}**")
+        note = "; ".join(notes) or "—"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {cl['profile_id']} | "
             f"{c['attempted']} | {c['valid']} | {c['valid_low_confidence']} | {c['invalid']} | "
