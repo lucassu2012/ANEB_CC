@@ -82,9 +82,46 @@ def test_aborted_runs_surface_and_never_score_zero():
 
 
 def test_incomparable_pools_are_flagged():
+    """Covers pathologies mixed_profile_version, mixed_histogram_edges and
+    mixed_mode — named here so the coverage invariant below can find them."""
     md = _md()
     for marker in ("MIXED_PROFILE_VERSION", "MIXED_HIST_EDGES", "MIXED_MODE"):
         assert marker in md, marker
+
+
+def test_single_carrier_point_is_reported_unmeasured_not_filled_in():
+    """Pathology single_carrier. Its expected behaviour was written down in
+    CHAOS_PATHOLOGIES and never checked by anything — the same gap D-182 found in
+    the rehearsal corpus, one level down (D-183)."""
+    from collections import defaultdict
+    import campaign_common as cc
+    import coverage_matrix as cm
+    recs = _chaos()
+    seen = defaultdict(set)
+    for rec in recs:
+        lab = cc.campaign_labels(rec)
+        seen[lab["point_id"]].add(lab["carrier"])
+    points = sorted(p for p in seen if p != "unlabeled")
+    short = [p for p in points if len(seen[p]) == 1]
+    assert short, "chaos corpus must contain a single-carrier point"
+    res = cm.analyze(recs, {"point_id": points, "carrier": ["cmcc", "cucc"],
+                            "time_band": ["busy", "idle"]})
+    gaps = [c for c in res["cells"]
+            if c["cell"]["point_id"] in short and c["status"] == "UNMEASURED"]
+    assert gaps, "the untested carrier must be listed as UNMEASURED"
+    # never quietly credited: zero samples is a gap, not a covered cell
+    assert all(c["samples"] == 0 for c in gaps)
+
+
+def test_every_declared_pathology_is_actually_checked():
+    """CHAOS_PATHOLOGIES documents what each injected fault should produce. A
+    pathology nobody asserts is a promise with no guard behind it — which is
+    exactly what single_carrier was. Whoever adds one must name its key in the
+    test that covers it; no separate mapping table to fall out of date."""
+    with open(__file__, encoding="utf-8") as f:
+        src = f.read()
+    unchecked = [k for k, _ in sc.CHAOS_PATHOLOGIES if k not in src]
+    assert not unchecked, f"pathologies with no test naming them: {unchecked}"
 
 
 def test_clock_jump_becomes_a_trust_hotspot():
