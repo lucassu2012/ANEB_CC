@@ -201,7 +201,11 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     cells = heat_cells(records, min_samples)
     scored = sorted((c for c in cells if c["aqs_median"] is not None),
                     key=lambda c: c["aqs_median"])
-    weak = [f"{_cell_label(c['cell'])}({cc.fmt_num(c['aqs_median'], 1)})"
+    # a cell built on one run used to head the list of the city's worst points
+    # with nothing saying so — the heat card flagged it, the summary did not
+    # (D-168). The summary is the only section decision-makers read closely.
+    weak = [f"{_cell_label(c['cell'])}({cc.fmt_num(c['aqs_median'], 1)}"
+            + (f"，n={c['n']} low_conf" if c["low_confidence"] else "") + ")"
             for c in scored if c["grade"] in ("poor", "fair")]
     if not scored:
         bullets.append("**体验最差格**：无 AQS 数据（覆盖缺口，非全部良好）。")
@@ -367,7 +371,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             if noisy:
                 tail += f"；{len(noisy)} 个格 Δ 在噪声内（不作结论）"
             if unknown:
-                tail += f"；{len(unknown)} 个格噪声无法估计（样本不足，不作结论）"
+                tail += f"；{len(unknown)} 个格噪声无法估计（样本不足或复测零离散，不作结论）"
             bullets.append(f"**优化前后**（{before_id} → {after_id}）：{len(rows)} 个共同格中 "
                            f"{len(real)} 个 Δ 超出噪声——改善 {up}、回退 {down}、"
                            f"持平 {len(real) - up - down}"
@@ -478,6 +482,9 @@ def render_heatcard_markdown(cells):
     if not cells:
         lines.append("_无 AQS 数据可成卡（记录缺 run.aqs.score）。_")
         return "\n".join(lines)
+    lines += ["> `离散(sd)` 是该格 AQS 的样本标准差。**中位相同、离散天差地别的两个格,"
+              "读起来一模一样**——sd=0 的格每次都一样,sd=36 的格在 20 与 95 之间来回,"
+              "两者的中位数不是同一种东西。<2 个样本时留 `—`(离散未知,不是 0)。", ""]
     if any(c.get("missing_tiers") for c in cells):
         lines += ["> ⚠ **各格池化的服务层级不一致**（标 `TIER_INCOMPLETE`）。热力卡按 "
                   "点位×运营商×时段 成格，每格把它**实际测到的层级**一起取中位——"
@@ -494,8 +501,8 @@ def render_heatcard_markdown(cells):
                   "s1_veto_applied`（仅 Token 模式产出），战役层不读该块，故「会话没跑成」"
                   "在本报告中**无法观测**（不是未发生）。", ""]
     lines += [
-        "| 点位 | 运营商 | 时段 | AQS中位 | 分级 | n | 备注 |",
-        "|---|---|---|---|---|---|---|",
+        "| 点位 | 运营商 | 时段 | AQS中位 | 离散(sd) | 分级 | n | 备注 |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for c in cells:
         notes = []
@@ -513,12 +520,29 @@ def render_heatcard_markdown(cells):
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
             f"| {cc.md_cell(c['cell']['time_band'])} | "
-            f"{cc.fmt_num(c['aqs_median'])} | {c['grade']} | {c['n']} | {note} |"
+            f"{cc.fmt_num(c['aqs_median'])} | {cc.fmt_num(c['stdev'], 1)} | "
+            f"{c['grade']} | {c['n']} | {note} |"
         )
     return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- before/after
+
+def _within_noise(delta, noise):
+    """True = inside the noise, False = beyond it, None = cannot say.
+
+    None covers both "spread unknown" (<2 samples) and "spread observed as
+    zero", which bounds nothing: identical repeats mean this sample saw no
+    variation, not that the measurement has none.
+    """
+    if delta is None or noise is None:
+        return None
+    if delta == 0:
+        return True            # no difference is never a difference
+    if noise == 0:
+        return None            # zero observed spread cannot resolve anything
+    return abs(delta) < noise
+
 
 def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Per-cell AQS delta (after - before) keyed by (point,carrier,time_band)."""
@@ -544,8 +568,12 @@ def compare_campaigns(records, before_id, after_id, min_samples=cc.DEFAULT_MIN_S
             "before_n": b["n"] if b else None,
             "after_n": a["n"] if a else None,
             "noise": noise,
-            "within_noise": (abs(delta) < noise) if (delta is not None and noise is not None)
-                            else None,
+            # Zero delta is not a change whatever the noise; and zero OBSERVED
+            # spread cannot bound anything — `abs(delta) < 0` is False, so a
+            # 1-point difference on flat repeats used to publish as a real
+            # improvement, and Δ=0 itself counted as "beyond noise" (D-169).
+            # D-144's own caveat already says ±0 does not mean "no noise".
+            "within_noise": _within_noise(delta, noise),
             "low_confidence": bool((b and b["low_confidence"]) or (a and a["low_confidence"])
                                    or b is None or a is None),
         })
@@ -890,8 +918,10 @@ def _heat_grid_html(cells, value_key="aqs_median"):
             lc = (" *" if c["low_confidence"] else "") \
                 + (" ⚠混战役" if c.get("mixed_campaigns") else "") \
                 + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "")                 + (" ⚠缺" + "/".join(c["missing_tiers"]) if c.get("missing_tiers") else "")
+            sd = (f" · sd={cc.fmt_num(c['stdev'], 1)}"
+                  if c.get("stdev") is not None else " · sd—")
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
-                       f"<span class='sub'>{esc(grade)} · n={c['n']}{lc}</span></td>")
+                       f"<span class='sub'>{esc(grade)} · n={c['n']}{sd}{lc}</span></td>")
         body.append("<tr>" + "".join(tds) + "</tr>")
     return f"<div class='scroll'><table>{head}{''.join(body)}</table></div>"
 
@@ -1171,7 +1201,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # mixed_campaigns must reach the CSV too: an analyst working from the
         # tables sees only columns — without it, a pooled median arrives looking
         # like an ordinary trustworthy number (D-141)
-        w.writerow(["point_id", "carrier", "time_band", "aqs_median", "grade", "n",
+        w.writerow(["point_id", "carrier", "time_band", "aqs_median", "stdev", "grade", "n",
                     "low_confidence", "mixed_campaigns", "veto_n", "scorer_low_conf_n",
                     # which tiers this cell pooled, and which the rest of the
                     # corpus has but it does not — medians over different tier
@@ -1182,7 +1212,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     "incomparability"])
         for c in heat:
             w.writerow([c["cell"]["point_id"], c["cell"]["carrier"], c["cell"]["time_band"],
-                        _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"],
+                        _cell(c["aqs_median"]), _cell(c["stdev"]),
+                        c["grade"], c["n"], c["low_confidence"],
                         "/".join(c.get("mixed_campaigns") or []),
                         c.get("veto_n", 0), c.get("scorer_low_conf_n", 0),
                         "/".join(f"{t}{n}" for t, n in (c.get("tier_mix") or {}).items()),

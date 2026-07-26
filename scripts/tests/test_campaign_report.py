@@ -371,9 +371,14 @@ def test_summary_names_the_dragging_score_dimension():
 
 
 def test_summary_answers_did_it_get_better():
-    """The headline question of any second round (D-143)."""
-    recs = (aqs_records(55, 6, campaign_id="base")
-            + aqs_records(75, 6, campaign_id="opt"))
+    """The headline question of any second round (D-143).
+
+    The fixture carries real spread: identical repeats give an observed spread
+    of zero, which bounds nothing, so such a corpus is now classified as
+    "noise not estimable" rather than as a confirmed improvement (D-169).
+    """
+    recs = (_spread([53, 54, 55, 56, 57, 55], campaign_id="base")
+            + _spread([73, 74, 75, 76, 77, 75], campaign_id="opt"))
     line = [ln for ln in _section(rpt.build_report_markdown(recs), "摘要").splitlines()
             if "优化前后" in ln][0]
     assert "改善 1" in line and "回退 0" in line
@@ -1088,3 +1093,94 @@ def test_homogeneous_heat_cell_carries_no_markers():
     import attribution
     assert attribution.incomparability_flags(
         rpt.heat_cells(aqs_records(90, 6, point="P1"))[0]) == []
+
+
+def test_two_cells_with_the_same_median_are_distinguishable():
+    """A median with no spread hides a bimodal cell: sd=0 (every run 60) and
+    sd=36 (runs from 20 to 95) rendered as 60 and 59 side by side, identical to
+    the reader. stdev was computed for the noise scale and rendered nowhere
+    (D-168)."""
+    import csv as csvmod
+    import os
+    import tempfile
+    from synth import contractify
+    recs = aqs_records(60, 8, point="P2")
+    for v in (20, 95, 25, 90, 30, 88, 22, 92):
+        recs += aqs_records(v, 1, point="P3")
+    recs = [contractify(r) for r in recs]
+    by = {c["cell"]["point_id"]: c for c in rpt.heat_cells(recs)}
+    assert by["P2"]["stdev"] == 0.0 and by["P3"]["stdev"] > 30
+    md = rpt.render_heatcard_markdown(rpt.heat_cells(recs))
+    assert "离散(sd)" in md
+    p2 = [ln for ln in md.splitlines() if ln.startswith("| P2 ")][0]
+    p3 = [ln for ln in md.splitlines() if ln.startswith("| P3 ")][0]
+    assert "| 0 |" in p2 and "| 36 |" in p3
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "sd=36" in html
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = {r["point_id"]: r for r in csvmod.DictReader(f)}
+    assert float(rows["P2"]["stdev"]) == 0.0
+    assert float(rows["P3"]["stdev"]) > 30
+
+
+def test_single_sample_cell_is_marked_where_it_is_named():
+    """An n=1 cell headed the list of the city's worst points with nothing
+    saying so — the heat card flagged it, the summary did not (D-168)."""
+    recs = aqs_records(30, 1, point="P1") + aqs_records(60, 8, point="P2")
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if "体验最差格" in ln][0]
+    assert "P1/cmcc/busy(30，n=1 low_conf)" in line
+    assert "P2/cmcc/busy(60)" in line          # a well-sampled cell stays clean
+
+
+def test_unknown_spread_is_not_rendered_as_zero():
+    """<2 samples means the spread is unknown, not 0 (R-10)."""
+    c = rpt.heat_cells(aqs_records(30, 1, point="P1"))[0]
+    assert c["stdev"] is None
+    row = [ln for ln in rpt.render_heatcard_markdown([c]).splitlines()
+           if ln.startswith("| P1 ")][0]
+    assert "| — |" in row
+
+
+def _two_rounds_vals(before_vals, after_vals):
+    base = 1783944000000
+    recs = [r for v in before_vals
+            for r in aqs_records(v, 1, point="P1", campaign_id="r1", started_ms=base)]
+    recs += [r for v in after_vals
+             for r in aqs_records(v, 1, point="P1", campaign_id="r2",
+                                  started_ms=base + DAY_MS)]
+    return recs
+
+
+def test_zero_delta_is_never_a_change():
+    """`abs(0) < 0` is False, so a zero delta on flat repeats was counted as
+    "beyond noise" — a non-change published as a real one (D-169)."""
+    r = rpt.compare_campaigns(_two_rounds_vals([60] * 5, [60] * 5), "r1", "r2")["rows"][0]
+    assert r["delta"] == 0
+    assert r["within_noise"] is True
+
+
+def test_zero_observed_spread_bounds_nothing():
+    """Identical repeats mean this sample saw no variation, not that the
+    measurement has none — D-144's own caveat says so. A 1-point delta on flat
+    repeats used to publish as a confirmed improvement."""
+    r = rpt.compare_campaigns(_two_rounds_vals([60] * 5, [61] * 5), "r1", "r2")["rows"][0]
+    assert r["noise"] == 0.0
+    assert r["within_noise"] is None          # not False
+    line = [ln for ln in rpt.render_summary_markdown(
+        _two_rounds_vals([60] * 5, [61] * 5)).splitlines() if "优化前后" in ln][0]
+    assert "0 个 Δ 超出噪声" in line
+    assert "复测零离散" in line               # names why it could not be judged
+
+
+def test_real_spread_still_classifies_both_ways():
+    small = rpt.compare_campaigns(
+        _two_rounds_vals([58, 59, 60, 61, 62], [59, 60, 61, 62, 63]), "r1", "r2")["rows"][0]
+    assert small["within_noise"] is True       # 1 point inside the noise
+    big = rpt.compare_campaigns(
+        _two_rounds_vals([58, 59, 60, 61, 62], [108, 109, 110, 111, 112]),
+        "r1", "r2")["rows"][0]
+    assert big["within_noise"] is False        # 50 points beyond it

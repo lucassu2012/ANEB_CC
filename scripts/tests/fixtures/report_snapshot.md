@@ -27,18 +27,20 @@
 - **复测稳定性**：24 个单元全部达门。
 - **接入介质**：无 transport 证据（覆盖缺口）。
 - **分数侧归因**（拖累维度）：N2 4 格；最低 P1/cmcc/busy·N2=82。
-- **优化前后**（base → opt）：4 个共同格中 4 个 Δ 超出噪声——改善 4、回退 0、持平 0；AQS 中位Δ 12。
+- **优化前后**（base → opt）：4 个共同格中 0 个 Δ 超出噪声——改善 0、回退 0、持平 0；4 个格噪声无法估计（样本不足或复测零离散，不作结论）；AQS 中位Δ 12。
 
 > 以上为下方各段的**指路**，证据与完整表格见对应段落；口径与不可计算说明以各段为准。
 
 ## 点位 × 忙闲 × 运营商 热力卡（AQS 中位）
 
-| 点位 | 运营商 | 时段 | AQS中位 | 分级 | n | 备注 |
-|---|---|---|---|---|---|---|
-| P1 | cmcc | busy | 68 | fair | 36 | MIXED_CAMPAIGN:base/opt |
-| P1 | cmcc | idle | 73 | good | 36 | MIXED_CAMPAIGN:base/opt |
-| P2 | cmcc | busy | 68 | fair | 36 | MIXED_CAMPAIGN:base/opt |
-| P2 | cmcc | idle | 73 | good | 36 | MIXED_CAMPAIGN:base/opt |
+> `离散(sd)` 是该格 AQS 的样本标准差。**中位相同、离散天差地别的两个格,读起来一模一样**——sd=0 的格每次都一样,sd=36 的格在 20 与 95 之间来回,两者的中位数不是同一种东西。<2 个样本时留 `—`(离散未知,不是 0)。
+
+| 点位 | 运营商 | 时段 | AQS中位 | 离散(sd) | 分级 | n | 备注 |
+|---|---|---|---|---|---|---|---|
+| P1 | cmcc | busy | 68 | 6.1 | fair | 36 | MIXED_CAMPAIGN:base/opt |
+| P1 | cmcc | idle | 73 | 6.1 | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | busy | 68 | 6.1 | fair | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | idle | 73 | 6.1 | good | 36 | MIXED_CAMPAIGN:base/opt |
 
 ## 分 KPI 热力卡（原始 KPI 中位 + 上报 KpiGrading 分级）
 
