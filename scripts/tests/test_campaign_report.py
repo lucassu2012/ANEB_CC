@@ -728,6 +728,18 @@ def test_bad_epoch_is_visible_on_every_surface():
     assert "不自动配对" in bullet
 
 
+def test_every_declared_range_is_actually_evaluated_somewhere():
+    """A declared range that nothing ever evaluates is a check that never runs —
+    §2.9's silent-check trap wearing a table's clothes. The fields do not all
+    live in one place (kpi map / aqs.score / aqs.sub_scores / buffering), so the
+    sweep sites and the range table have to be reconciled explicitly: asking
+    scenario_kpi for "sub_score" would quietly return None forever."""
+    BLOCK_LEVEL = {"aqs_score", "sub_score", "buffering_score",
+                   "sawtooth_ratio", "near_zero_arrival_ratio"}
+    swept = set(rpt._SCENARIO_KPI_RANGES) | BLOCK_LEVEL
+    assert swept == set(cc.VALUE_RANGES), swept ^ set(cc.VALUE_RANGES)
+
+
 def test_out_of_range_aqs_does_not_become_the_best_grade():
     """AQS is defined on 0..100 and the bands have no upper guard, so 9999 landed
     in `excellent` — the best grade in the report — with nothing marking it, and

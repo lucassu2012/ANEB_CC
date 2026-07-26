@@ -50,6 +50,15 @@ def esc(s):
 
 # ---------------------------------------------------------------- inventory
 
+# The subset of VALUE_RANGES that lives on a scenario's kpi map. The rest sit on
+# other blocks (aqs.score, aqs.sub_scores, scenarios[].buffering) and are swept
+# from where they actually live — asking scenario_kpi for "sub_score" would
+# always return None, i.e. a check that quietly never runs (§2.9).
+_SCENARIO_KPI_RANGES = ("t1_ttft_ms", "t2_itl_p95_ms", "t3_stall_rate",
+                        "t4_severe_stall_rate", "n1_rtt_p50_ms", "n2_jitter_ms",
+                        "u1_goodput_mbps", "u2_tool_loop_p95_ms")
+
+
 def inventory(records):
     inv = {
         "records": len(records),
@@ -114,13 +123,22 @@ def inventory(records):
             bad_v = cc.value_problem("aqs_score", aqs_v)
             if bad_v:
                 inv["implausible_values"][f"aqs_score{bad_v}"] += 1
+        for dim, sv in (cc.run_sub_scores(rec) or {}).items():
+            bad_v = cc.value_problem("sub_score", sv)
+            if bad_v:
+                inv["implausible_values"][f"sub_score.{dim}{bad_v}"] += 1
         for scn in cc.iter_scenarios(rec):
-            for kpi in cc.VALUE_RANGES:
-                if kpi == "aqs_score":
-                    continue
+            for kpi in _SCENARIO_KPI_RANGES:
                 bad_v = cc.value_problem(kpi, cc.scenario_kpi(scn, kpi))
                 if bad_v:
                     inv["implausible_values"][f"{kpi}{bad_v}"] += 1
+            buf = cc.scenario_buffering(scn) or {}
+            for field, range_key in (("score", "buffering_score"),
+                                     ("sawtooth_ratio", "sawtooth_ratio"),
+                                     ("near_zero_arrival_ratio", "near_zero_arrival_ratio")):
+                bad_v = cc.value_problem(range_key, buf.get(field))
+                if bad_v:
+                    inv["implausible_values"][f"buffering.{field}{bad_v}"] += 1
         started = cc.run_started_ms(rec)
         cid = labels["campaign_id"]
         # Kept in campaign_first_ms even when implausible — dropping it would

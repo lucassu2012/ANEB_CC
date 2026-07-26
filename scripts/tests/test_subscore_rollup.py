@@ -18,6 +18,29 @@ def _rec(subs, *, point="P1", carrier="cmcc", time_band="busy", tier="metro",
         aqs=90, sub_scores=subs, scenarios=[])
 
 
+def test_impossible_sub_score_cannot_hijack_the_dragging_dimension():
+    """The LOWEST median IS the dragging dimension, so one out-of-range value
+    takes over the report's answer to "which dimension drags this cell down" —
+    and the summary's 分数最低维 signal reads exactly that. Sub-scores are 0..100
+    per the schema ("KPI id → 0-100 子分"), unchecked until D-179."""
+    recs = [_rec({"T1": 80, "T2": 60, "N1": -9999}) for _ in range(5)]
+    c = ss.analyze(recs)["cells"][0]
+    assert c["dragging_dim"] == "T2"            # the real laggard, not the corrupt one
+    assert c["dragging_median"] == 60
+    assert c["spread"] == 20                    # 80 - 60, not 10079
+    assert "N1" not in c["dims"]                # out of the aggregate…
+    assert c["implausible_values"] == {"N1<0": 5}          # …counted where it shows
+    assert "IMPLAUSIBLE_VALUE:N1<0×5" in ss.render_markdown(ss.analyze(recs))
+
+
+def test_cell_of_only_impossible_sub_scores_still_gets_a_row():
+    recs = [_rec({"N1": 100.5}) for _ in range(3)]         # just past the 0..100 edge
+    cells = ss.analyze(recs)["cells"]
+    assert len(cells) == 1
+    assert cells[0]["dragging_dim"] is None                # not a fabricated verdict
+    assert cells[0]["implausible_values"] == {"N1>100": 3}
+
+
 def test_dragging_dimension_is_the_lowest():
     recs = [_rec({"T1": 99, "N1": 98, "N2": 60}) for _ in range(5)]
     c = ss.analyze(recs)["cells"][0]

@@ -74,6 +74,15 @@ VALUE_RANGES = {
     "u1_goodput_mbps":      (0.0, None),
     "t3_stall_rate":        (0.0, 1.0),     # a fraction (vetoes.yaml gates T4 at 0.01)
     "t4_severe_stall_rate": (0.0, 1.0),
+    # score-side and forensic blocks, both bounded by the schema's own wording:
+    # subScores is "KPI id → 0-100 子分", buffering.score is "连续批化分 [0,1]".
+    "sub_score":            (0.0, 100.0),
+    "buffering_score":      (0.0, 1.0),
+    # the schema documents no upper bound for these, so neither do we — a ratio
+    # simply cannot be negative, and inventing the rest of the range would be
+    # exactly the false positive this table exists to avoid.
+    "sawtooth_ratio":            (0.0, None),
+    "near_zero_arrival_ratio":   (0.0, None),
 }
 
 

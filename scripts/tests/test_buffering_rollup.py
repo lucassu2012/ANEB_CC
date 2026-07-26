@@ -32,6 +32,25 @@ def _b(attribution="none", score=0.01, sawtooth=0.0, near_zero=0.0):
             "batch_count": 0}
 
 
+def test_impossible_forensic_values_leave_the_medians():
+    """Damage is bounded here — R-05 keeps this block annotation-only and the
+    hot-spot verdict is count-based — but a batching score of -50 is still a
+    number a reader would quote out of the evidence column (D-179)."""
+    import campaign_common as cc
+    recs = ([_rec([_b("middlebox_suspect", score=-50.0)]) for _ in range(3)]
+            + [_rec([_b("middlebox_suspect", score=0.30)]) for _ in range(2)])
+    c = br.analyze(recs)["cells"][0]
+    assert c["score_median"] == 0.30            # the two real scores, not -50
+    assert c["implausible_values"] == {"score<0": 3}
+    # the count-based verdict is unaffected: all five were middlebox_suspect
+    assert c["suspect_share"] == 1.0
+    assert c["distortion_hotspot"] is True
+    # the schema documents no upper bound for a ratio, so neither do we — only
+    # the impossible side is judged, never an invented ceiling
+    assert cc.value_problem("sawtooth_ratio", 7.5) is None
+    assert cc.value_problem("sawtooth_ratio", -0.5) == "<0"
+
+
 def test_modal_attribution_and_medians():
     recs = [_rec([_b("none", score=0.01)]) for _ in range(3)] \
         + [_rec([_b("none", score=0.03)]) for _ in range(2)]

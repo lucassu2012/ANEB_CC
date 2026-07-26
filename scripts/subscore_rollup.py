@@ -38,6 +38,7 @@ def subscore_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Per-cell median sub-score per dimension + the dragging (lowest) dimension."""
     buckets = defaultdict(lambda: defaultdict(list))   # cell -> dim -> [values]
     counts = defaultdict(int)                           # cell -> runs with any sub-score
+    implausible = defaultdict(lambda: defaultdict(int))  # cell -> reason -> count
     for rec in records:
         subs = cc.run_sub_scores(rec)
         if not subs:
@@ -46,11 +47,22 @@ def subscore_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         key = tuple(labels[d] for d in CELL_DIMS)
         counts[key] += 1
         for dim, val in subs.items():
+            # A sub-score outside 0..100 does not merely skew one dimension: the
+            # LOWEST median IS the dragging dimension, so one impossible value
+            # takes over the report's answer to "which dimension drags this cell
+            # down" — and the summary's 分数最低维 signal reads exactly that
+            # (D-179). Out of the aggregate, counted where the reader sees it.
+            bad = cc.value_problem("sub_score", val)
+            if bad:
+                implausible[key][f"{dim}{bad}"] += 1
+                continue
             buckets[key][dim].append(val)
 
     cells = []
-    for key in sorted(buckets):
-        per_dim = buckets[key]
+    # a cell whose every sub-score was impossible has no dims left; keep the row
+    # so it says so instead of disappearing (R-10)
+    for key in sorted(set(buckets) | set(implausible)):
+        per_dim = buckets.get(key) or {}
         dims = {}
         for dim in sorted(per_dim, key=_dim_sort_key):
             vals = per_dim[dim]
@@ -66,6 +78,7 @@ def subscore_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "dragging_median": medians.get(dragging) if dragging else None,
             "spread": spread,
             "low_confidence": counts[key] < min_samples,
+            "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
         })
     return cells
 
@@ -104,7 +117,13 @@ def render_markdown(res):
             cellvals.append(cc.fmt_num(c["dims"][d]["median"]) if d in c["dims"] else "—")
         drag = (f"**{c['dragging_dim']}**={cc.fmt_num(c['dragging_median'])}"
                 if c["dragging_dim"] else "—")
-        note = "low_conf" if c["low_confidence"] else "—"
+        notes = []
+        if c.get("implausible_values"):
+            notes.append("**IMPLAUSIBLE_VALUE:" + "/".join(
+                f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
+        if c["low_confidence"]:
+            notes.append("low_conf")
+        note = "; ".join(notes) or "—"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {c['runs']} | "
             + " | ".join(cellvals)

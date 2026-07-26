@@ -56,7 +56,7 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Per-cell batching summary. A scenario counts only if it has a buffering block."""
     buckets = defaultdict(lambda: {"attr": Counter(), "score": [], "sawtooth": [],
                                     "near_zero": [], "samples": [], "n": 0,
-                                    "not_detected": 0})
+                                    "not_detected": 0, "implausible": Counter()})
     for rec in records:
         labels = cc.campaign_labels(rec)
         key = tuple(labels[d] for d in CELL_DIMS)
@@ -78,12 +78,23 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 continue
             g["n"] += 1
             g["attr"][_attribution(b)] += 1
-            for field, dst in (("score", "score"), ("sawtooth_ratio", "sawtooth"),
-                               ("near_zero_arrival_ratio", "near_zero"),
-                               ("sample_count", "samples")):
+            for field, dst, range_key in (
+                    ("score", "score", "buffering_score"),
+                    ("sawtooth_ratio", "sawtooth", "sawtooth_ratio"),
+                    ("near_zero_arrival_ratio", "near_zero", "near_zero_arrival_ratio"),
+                    ("sample_count", "samples", None)):
                 v = cc.fnum(b.get(field))
-                if v is not None:
-                    g[dst].append(v)
+                if v is None:
+                    continue
+                # Bounded damage here — R-05 keeps this block forensic and the
+                # hot-spot verdict is count-based, so an impossible ratio only
+                # corrupts the displayed evidence column. Still a number a reader
+                # would quote (D-179).
+                bad = cc.value_problem(range_key, v) if range_key else None
+                if bad:
+                    g["implausible"][f"{field}{bad}"] += 1
+                    continue
+                g[dst].append(v)
 
     cells = []
     for key in sorted(buckets):
@@ -112,6 +123,7 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "distortion_hotspot": bool(suspect_share is not None
                                        and suspect_share > HOTSPOT_SHARE),
             "low_confidence": n < min_samples,
+            "implausible_values": dict(sorted(g["implausible"].items())),
         })
     return cells
 
