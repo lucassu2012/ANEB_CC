@@ -632,9 +632,7 @@ def render_heatcard_markdown(cells):
         # matrix and the CSV filter column cannot disagree about the same cell.
         # TIER_INCOMPLETE / VETO_CAPPED / SCORER_LOW_CONF used to be appended
         # here instead, which is precisely why the CSV never carried them (D-181).
-        notes = [f"**{f}**" if f.split(":")[0] in attribution.SEVERE_FLAGS else f
-                 for f in attribution.incomparability_flags(c)]
-        note = "; ".join(notes) or "—"
+        note = "; ".join(attribution.md_flags(c)) or "—"
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
             f"| {cc.md_cell(c['cell']['time_band'])} | "
@@ -1051,7 +1049,7 @@ def _attr_table_html(attr):
         # same list markdown and CSV use — this hand-maintained duplicate is how
         # MIXED_TRANSPORT and the tier-time markers went missing here (D-160)
         notes = attribution.incomparability_flags(c)
-        severe = [f for f in notes if f.split(":")[0] in attribution.SEVERE_FLAGS]
+        severe = [f for f in notes if attribution.is_severe(f)]
         rows.append(
             f"<tr><td class='lbl'>{esc(cell_label)}</td><td>{esc(cov)}</td>"
             f"<td>{cc.fmt_num(c['access_component'])}</td>"

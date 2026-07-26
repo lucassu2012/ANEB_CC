@@ -38,6 +38,54 @@ def test_impossible_value_does_not_manufacture_backbone_latency():
     assert "IMPLAUSIBLE_VALUE" in attribution.SEVERE_FLAGS
 
 
+# One cell shape per severe flag: the minimum that PRODUCES it. Asserting
+# is_severe(x) for x in SEVERE_FLAGS would be a tautology — the first version of
+# this test was exactly that, and passed while proving nothing.
+_PRODUCES_SEVERE = {
+    "TIER_TIME_SPREAD": {"tier_time_confound": True, "tier_time_spread_ms": 7200_000},
+    "MIXED_TRANSPORT": {"mixed_transports": ["cellular", "wifi"]},
+    "TIER_ENDPOINT_CONFLICT": {"tier_endpoint_conflicts": {"https://m": ["core", "metro"]}},
+    "IMPLAUSIBLE_VALUE": {"implausible_values": {"n1_rtt_p50_ms<0": 3}},
+    "VETO_CAPPED": {"veto_n": 2, "n": 5},
+    "TIER_INCOMPLETE": {"missing_tiers": ["core"]},
+}
+
+
+def test_every_severe_flag_is_producible_and_emphasised():
+    """SEVERE_FLAGS promises "renderers that can emphasise, should emphasise
+    these", and that promise was kept by three separate copies of one expression
+    with nothing checking the RULE. A seventh entry would have emphasised nothing
+    and no test would have noticed. This also answers the D-183 question of the
+    table: can each declared flag actually be produced at all? (D-184)"""
+    assert set(_PRODUCES_SEVERE) == set(attribution.SEVERE_FLAGS), \
+        "a severe flag with no cell shape producing it is a declaration, not a marker"
+    for flag, cell in _PRODUCES_SEVERE.items():
+        rendered = attribution.md_flags(cell)
+        hit = [f for f in rendered if f.strip("*").startswith(flag)]
+        assert hit, f"{flag} is declared severe but no cell produced it: {rendered}"
+        assert all(f.startswith("**") and f.endswith("**") for f in hit), (flag, hit)
+    # …and an ordinary marker must NOT be emphasised
+    plain = attribution.md_flags({"mixed_profile_versions": ["0.1", "0.2"],
+                                  "low_confidence": True})
+    assert plain and not any(f.startswith("**") for f in plain), plain
+
+
+def test_severe_and_ordinary_markers_render_differently():
+    """The rule end-to-end on one real cell: severe bolded, ordinary plain."""
+    K = "n1_rtt_p50_ms"
+    recs = (tier_records("metro", K, -5, 5)          # IMPLAUSIBLE_VALUE: severe
+            + tier_records("regional", K, 40, 2))     # low_conf: ordinary
+    c = attribution.attribute(recs)["cells"][0]
+    rendered = attribution.md_flags(c)
+    bolded = [f for f in rendered if f.startswith("**")]
+    plain = [f for f in rendered if not f.startswith("**")]
+    assert any("IMPLAUSIBLE_VALUE" in f for f in bolded)
+    assert any("low_conf" in f for f in plain)
+    # every bolded one is severe and every plain one is not — the rule, not a case
+    assert all(attribution.is_severe(f.strip("*")) for f in bolded)
+    assert all(not attribution.is_severe(f) for f in plain)
+
+
 def test_a_cell_of_only_impossible_values_still_gets_a_row():
     """With every sample dropped the cell has no tier data left, so it would
     vanish from the matrix without a word — the one outcome R-10 forbids."""

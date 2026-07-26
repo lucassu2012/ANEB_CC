@@ -221,6 +221,20 @@ SEVERE_FLAGS = ("TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT",
                 "VETO_CAPPED", "TIER_INCOMPLETE")
 
 
+def is_severe(flag):
+    """Whether a marker means "not usable" rather than "read with care".
+
+    Decided in ONE place: the `flag.split(":")[0] in SEVERE_FLAGS` expression
+    lived in three renderers, which is the same duplication that let markers go
+    missing per-surface twice already (D-160 / D-181)."""
+    return flag.split(":")[0] in SEVERE_FLAGS
+
+
+def md_flags(cell):
+    """incomparability_flags with markdown emphasis on the severe ones."""
+    return [f"**{f}**" if is_severe(f) else f for f in incomparability_flags(cell)]
+
+
 def incomparability_flags(cell):
     """Every per-cell marker saying why this row is not comparable or not usable.
 
@@ -443,9 +457,7 @@ def render_markdown(result):
     for c in result["cells"]:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in c["cell"].items())
         cov = ",".join(cc.TIER_LABELS.get(t, t) for t in c["coverage"]) or "—"
-        notes = [f"**{f}**" if f.split(":")[0] in SEVERE_FLAGS else f
-                 for f in incomparability_flags(c)]
-        note = "; ".join(notes) or "—"
+        note = "; ".join(md_flags(c)) or "—"
         lines.append(
             f"| {cell_label} | {cov} | {cc.fmt_num(c['access_component'])} | "
             f"{cc.fmt_num(c['regional_backbone_incr'])} | {cc.fmt_num(c['core_backbone_incr'])} | "
