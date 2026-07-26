@@ -477,29 +477,43 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
     return cells
 
 
+def heatcard_notes(cells):
+    """Everything above the heat table, as plain strings.
+
+    Single source for the two surfaces that render prose: markdown quotes them
+    with '> ', HTML wraps them in <p class='warn'>. This is the D-160 fix applied
+    here — the veto explanation used to live inside the markdown branch only, so
+    the HTML pivot showed a bare '⚠封顶4' with nothing on the page saying what a
+    capped score means."""
+    notes = ["`离散(sd)` 是该格 AQS 的样本标准差。**中位相同、离散天差地别的两个格,"
+             "读起来一模一样**——sd=0 的格每次都一样,sd=36 的格在 20 与 95 之间来回,"
+             "两者的中位数不是同一种东西。<2 个样本时留 `—`(离散未知,不是 0)。"]
+    if any(c.get("missing_tiers") for c in cells):
+        notes.append("⚠ **各格池化的服务层级不一致**（标 `TIER_INCOMPLETE`）。热力卡按 "
+                     "点位×运营商×时段 成格，每格把它**实际测到的层级**一起取中位——"
+                     "所以缺了某一层的格，其中位数**与别的格不可比**：少测最慢的中心层，"
+                     "该点位会凭空显得更好、甚至排到最前。跨点位比较前，先看该格缺了哪一层。")
+    if any(c.get("veto_n") for c in cells):
+        notes.append("⚠ **本卡含被否决封顶的 run**（markdown 标 `VETO_CAPPED`，HTML 卡上标 "
+                     "`⚠封顶n`）。触发的是 **T4 严重卡顿率 > 1%** 一票否决，分数**封顶 54**"
+                     "（语音模式下 M1 口到耳超红线同样置位、同一上限）——**这本身就是体验侧的"
+                     "故障信号**。要点在于：封顶分**不是该格真实体验的度量**（它只说明「至少"
+                     "这么差」），封顶与未封顶的 run 混在一格，其中位数**两种情形都不代表**；"
+                     "下结论前先看该格的 `VETO_CAPPED:n/N`，并回到卡顿证据本身，而不是把它"
+                     "当成一个普通低分。")
+        notes.append("另注：**会话完成率否决（S1）本层看不到**——它写在 `run.aqs_token."
+                     "s1_veto_applied`（仅 Token 模式产出），战役层不读该块，故「会话没跑成」"
+                     "在本报告中**无法观测**（不是未发生）。")
+    return notes
+
+
 def render_heatcard_markdown(cells):
     lines = ["## 点位 × 忙闲 × 运营商 热力卡（AQS 中位）", ""]
     if not cells:
         lines.append("_无 AQS 数据可成卡（记录缺 run.aqs.score）。_")
         return "\n".join(lines)
-    lines += ["> `离散(sd)` 是该格 AQS 的样本标准差。**中位相同、离散天差地别的两个格,"
-              "读起来一模一样**——sd=0 的格每次都一样,sd=36 的格在 20 与 95 之间来回,"
-              "两者的中位数不是同一种东西。<2 个样本时留 `—`(离散未知,不是 0)。", ""]
-    if any(c.get("missing_tiers") for c in cells):
-        lines += ["> ⚠ **各格池化的服务层级不一致**（标 `TIER_INCOMPLETE`）。热力卡按 "
-                  "点位×运营商×时段 成格，每格把它**实际测到的层级**一起取中位——"
-                  "所以缺了某一层的格，其中位数**与别的格不可比**：少测最慢的中心层，"
-                  "该点位会凭空显得更好、甚至排到最前。跨点位比较前，先看该格缺了哪一层。", ""]
-    if any(c.get("veto_n") for c in cells):
-        lines += ["> ⚠ **本卡含被否决封顶的 run**（标 `VETO_CAPPED`）。触发的是 **T4 严重卡顿率"
-                  " > 1%** 一票否决，分数**封顶 54**（语音模式下 M1 口到耳超红线同样置位、同一"
-                  "上限）——**这本身就是体验侧的故障信号**。要点在于：封顶分**不是该格真实体验"
-                  "的度量**（它只说明「至少这么差」），封顶与未封顶的 run 混在一格，其中位数"
-                  "**两种情形都不代表**；下结论前先看该格的 `VETO_CAPPED:n/N`，并回到卡顿证据"
-                  "本身，而不是把它当成一个普通低分。",
-                  "> 另注：**会话完成率否决（S1）本层看不到**——它写在 `run.aqs_token."
-                  "s1_veto_applied`（仅 Token 模式产出），战役层不读该块，故「会话没跑成」"
-                  "在本报告中**无法观测**（不是未发生）。", ""]
+    for n in heatcard_notes(cells):
+        lines += ["> " + n, ""]
     lines += [
         "| 点位 | 运营商 | 时段 | AQS中位 | 离散(sd) | 分级 | n | 备注 |",
         "|---|---|---|---|---|---|---|---|",
@@ -917,7 +931,9 @@ def _heat_grid_html(cells, value_key="aqs_median"):
             bg, fg = cc.GRADE_COLORS.get(grade, cc.GRADE_COLORS["n/a"])
             lc = (" *" if c["low_confidence"] else "") \
                 + (" ⚠混战役" if c.get("mixed_campaigns") else "") \
-                + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "")                 + (" ⚠缺" + "/".join(c["missing_tiers"]) if c.get("missing_tiers") else "")
+                + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "") \
+                + (" ⚠缺" + "/".join(c["missing_tiers"]) if c.get("missing_tiers") else "") \
+                + (" ⚠并列" + "/".join(c["grade_tie"]) if c.get("grade_tie") else "")
             sd = (f" · sd={cc.fmt_num(c['stdev'], 1)}"
                   if c.get("stdev") is not None else " · sd—")
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
@@ -1036,6 +1052,12 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if before_id is None and after_id is None:
         before_id, after_id = auto_compare_ids(inv)
 
+    # The sd/tier/veto notes live above the table in markdown; the HTML path
+    # rebuilds only the grid, so they are emitted here from the same source —
+    # otherwise the pivot shows '⚠封顶4' with no legend anywhere (D-160).
+    heat_notes_html = "".join(f"<p class='warn'>{_md_inline(n)}</p>"
+                              for n in heatcard_notes(cells)) if cells else ""
+
     kpi_grids = ""
     for k in DEFAULT_KPI_HEAT:
         kc = kpi_heat_cells(records, k, min_samples)
@@ -1141,6 +1163,7 @@ footer{{margin-top:36px;font-size:12px;color:#5f6368;border-top:1px solid #ddd;p
 <p class="note">生成时间：{esc(generated_at)} · 记录 {inv['records']} · 含 AQS {inv['aqs_present']} · 含标签 {inv['with_campaign']} · min_samples={min_samples}</p>
 {warn}
 <h2>点位 × 忙闲 × 运营商 热力卡（AQS 中位；* = 样本不足 low_conf）</h2>
+{heat_notes_html}
 {_heat_grid_html(cells)}
 {kpi_grids}
 {attr_sections}
@@ -1219,6 +1242,27 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         "/".join(f"{t}{n}" for t, n in (c.get("tier_mix") or {}).items()),
                         "/".join(c.get("missing_tiers") or []),
                         ";".join(attribution.incomparability_flags(c))])
+    written.append(p)
+
+    # The per-KPI heat card had a markdown table and an HTML pivot but no CSV at
+    # all — and CSV is the surface the analyst computes on (D-141). GRADE_TIE was
+    # the same failure in the other direction: markdown printed it, both other
+    # surfaces dropped it, so a grade decided by a coin flip arrived looking
+    # settled (D-148).
+    p = prefix + "_kpi_heat.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = csv.writer(f)
+        w.writerow(["kpi", "point_id", "carrier", "time_band", "median", "grade",
+                    "grade_tie", "n", "low_confidence", "mixed_campaigns"])
+        for k in DEFAULT_KPI_HEAT:
+            for c in kpi_heat_cells(records, k, min_samples):
+                w.writerow([k, c["cell"]["point_id"], c["cell"]["carrier"],
+                            c["cell"]["time_band"], _cell(c["median"]),
+                            # grade is None on a tie: no winner is the honest
+                            # answer, and grade_tie says which grades tied
+                            _cell(c["grade"]), "/".join(c.get("grade_tie") or []),
+                            c["n"], c["low_confidence"],
+                            "/".join(c.get("mixed_campaigns") or [])])
     written.append(p)
 
     p = prefix + "_attribution.csv"

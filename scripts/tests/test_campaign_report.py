@@ -676,6 +676,28 @@ def test_tied_kpi_grade_is_not_decided_by_a_coin_flip():
     assert c2["grade"] == "poor" and c2["grade_tie"] == []
 
 
+def test_grade_tie_reaches_html_and_csv():
+    """GRADE_TIE was markdown-only. The HTML pivot rendered the tied cell as
+    'n/a' — indistinguishable from 'never graded' — and the per-KPI card had no
+    CSV at all, the one surface an analyst computes on (D-141/148/160)."""
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = (kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "good"})
+            + kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "poor"}))
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "⚠并列good/poor" in html
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        paths = rpt.write_csv_tables(recs, prefix)
+        assert any(p.endswith("_kpi_heat.csv") for p in paths)
+        with open(prefix + "_kpi_heat.csv", encoding="utf-8-sig") as f:
+            rows = [r for r in csvmod.DictReader(f) if r["kpi"] == "n1_rtt_p50_ms"]
+    assert rows, "the per-KPI CSV must carry rows, or this test proves nothing"
+    assert rows[0]["grade_tie"] == "good/poor"
+    assert rows[0]["grade"] == ""          # R-10: no winner, not a fabricated one
+
+
 def test_kpi_heatcard_marks_pooled_campaigns():
     """The AQS heat card was marked in D-135; the per-KPI one never was."""
     recs = (kpi_scenario_records(3, kpi={"n1_rtt_p50_ms": 20, "n1_grade": "good"},
@@ -835,6 +857,16 @@ def test_veto_reaches_summary_html_and_csv():
     html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
     assert "被否决封顶" in md                      # summary bullet
     assert "封顶4" in html                         # pivot cell marker
+    # …and the marker needs a legend on the same page. The explanation lived in
+    # the markdown branch only, so an HTML reader saw '⚠封顶4' with nothing
+    # beside the card saying a capped score means "at least this bad" (D-160).
+    # NB: a bare `"T4 严重卡顿率" in html` is vacuous — the summary bullet already
+    # carries that phrase through the md->html conversion, so it passed before
+    # the legend existed. Count instead: summary + card legend = 2.
+    assert html.count("至少这么差") == 2
+    # unique to the card legend: the summary never mentions the S1 veto, which
+    # this layer cannot observe at all (must not read as "ruled out")
+    assert "无法观测" in html
     with tempfile.TemporaryDirectory() as d:
         prefix = os.path.join(d, "camp")
         rpt.write_csv_tables(recs, prefix)

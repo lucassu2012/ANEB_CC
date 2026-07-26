@@ -54,7 +54,10 @@
 | `server_tier_endpoint` | string(可选) | URL | 仅诊断，不参与分组 |
 
 **R-10 铁律**：任何缺失标签**绝不**折算成默认值当真值参与统计——降级为显式 `unlabeled`/`unknown` 桶并在报告里
-标注 coverage 缺口。热力卡某格样本数 < 阈值（默认 3）标 `low_confidence`，不隐藏、不补零。
+标注 coverage 缺口。热力卡某格样本数 < 门限标 `low_confidence`，不隐藏、不补零。
+门限以 `scripts/campaign_common.py` 的 `DEFAULT_MIN_SAMPLES` 为准（各工具 `--min-samples` 可覆盖，
+每份报告的「生效门限」段归档其实际生效值）。**此处刻意不复写数字**——原文写"默认 3"而代码是 5、
+同文 §3 又写 5，正是 D-171 要消除的那一类：活文档抄一份计数，调门限时就变成谎言。
 
 ## 3. 三级差分归因方法学（铁律 3：客户端时间戳差分消共模）
 
@@ -73,7 +76,7 @@ core_backbone_incr      = median(RTT_core)    − median(RTT_regional) # 核心�
 - **诚实约束**：
   - 某层级缺失 → 对应增量 `null`（不可计算），报告记 coverage，不外推。
   - **负增量**（区域快于同城）不静默 clamp 到 0——记为 `inversion`（路由/anycast/CDN 边缘比标称层级更近，或测量噪声），如实呈现。
-  - 每层级样本 < `MIN_SAMPLES`（默认 5）→ 该格 `low_confidence`。
+  - 每层级样本 < `DEFAULT_MIN_SAMPLES`（见 §2 说明，不在此复写数字）→ 该格 `low_confidence`。
   - `claim_scope` 恒为 `application_end_to_end_to_probe_node`：归因是**应用层路径分段**，**不表述为**无线层评级/运营商全网 SLA/MOS。
 
 ## 4. 生产接线

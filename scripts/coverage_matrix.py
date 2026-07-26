@@ -34,6 +34,7 @@ from collections import defaultdict
 import campaign_common as cc
 
 CELL_DIMS = ("point_id", "carrier", "time_band")
+_DIM_FLAG = {"point_id": "--points", "carrier": "--carriers", "time_band": "--time-bands"}
 
 
 def observed_cells(records):
@@ -124,17 +125,20 @@ def _parse_list(s):
 
 
 def _load_target(args):
+    # analyze() needs EVERY dim populated — a grid is their product, so one empty
+    # dim makes it empty. The guards below therefore test all(), not any(): a
+    # partly-filled target still degrades to descriptive mode, whose banner then
+    # tells someone who DID declare a grid that no grid was declared. One plural
+    # typo on one key is enough to get there. 'cannot check' must never look like
+    # 'checked' — and must never look like 'checking'.
     if args.config:
         with open(args.config, encoding="utf-8") as f:
             cfg = json.load(f)
         target = {d: cfg.get(d) or [] for d in CELL_DIMS}
-        if not any(target.values()):
-            # A config was explicitly given but yielded nothing — almost always
-            # wrong key names. Falling through to descriptive mode here would let
-            # someone believe coverage tracking is running when it is not, so this
-            # is a hard error: 'cannot check' must never look like 'checked'.
+        empty = [d for d in CELL_DIMS if not target[d]]
+        if empty:
             raise SystemExit(
-                f"--config {args.config} declares no target grid.\n"
+                f"--config {args.config} declares no values for: {', '.join(empty)}.\n"
                 f"  expected keys: {', '.join(CELL_DIMS)}\n"
                 f"  found keys:    {', '.join(cfg) or '(none)'}\n"
                 '  example: {"point_id": ["SZ-CBD-01"], "carrier": ["cmcc"], '
@@ -146,7 +150,15 @@ def _load_target(args):
         return target
     t = {"point_id": _parse_list(args.points), "carrier": _parse_list(args.carriers),
          "time_band": _parse_list(args.time_bands)}
-    return t if any(t.values()) else None
+    if not any(t.values()):
+        return None                    # nothing asked for — descriptive mode IS the answer
+    missing = [_DIM_FLAG[d] for d in CELL_DIMS if not t[d]]
+    if missing:
+        raise SystemExit(
+            f"target grid is incomplete — missing {', '.join(missing)}.\n"
+            "  all three dims are required (the grid is their product);\n"
+            "  omit all three to get descriptive mode instead.")
+    return t
 
 
 def main(argv):

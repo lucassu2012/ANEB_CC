@@ -79,7 +79,10 @@ def test_descriptive_mode_without_target():
 
 
 def test_partial_target_falls_back_to_descriptive():
-    """A target missing a dimension is not a grid — degrade, don't crash."""
+    """A target missing a dimension is not a grid — degrade, don't crash.
+
+    Defence in depth for programmatic callers; the CLI now rejects a partial
+    target at _load_target, so nobody reaches this path from the command line."""
     res = cm.analyze(aqs_records(90, 5), target={"point_id": ["P1"], "carrier": [],
                                                  "time_band": []})
     assert res["has_target"] is False
@@ -98,8 +101,9 @@ def test_markdown_descriptive_mode():
     assert "描述模式" in md
 
 
-def _args(config=None):
-    return types.SimpleNamespace(config=config, points=None, carriers=None, time_bands=None)
+def _args(config=None, points=None, carriers=None, time_bands=None):
+    return types.SimpleNamespace(config=config, points=points, carriers=carriers,
+                                 time_bands=time_bands)
 
 
 def _write_cfg(d, obj):
@@ -120,7 +124,7 @@ def test_config_with_wrong_key_names_is_a_hard_error():
             cm._load_target(_args(cfg))
         except SystemExit as e:
             msg = str(e)
-            assert "declares no target grid" in msg
+            assert "declares no values for" in msg
             assert "point_id" in msg           # tells you the expected keys
             assert "points" in msg             # and what you actually wrote
         else:
@@ -135,11 +139,38 @@ def test_config_with_correct_keys_loads():
             "point_id": ["P1", "P2"], "carrier": ["cmcc"], "time_band": ["busy"]}
 
 
-def test_partial_config_keeps_known_dims():
-    """A partly-wrong config still loads its valid dims (and warns) — only a
-    wholly empty target is fatal."""
+def test_partial_config_is_a_hard_error_too():
+    """One plural typo is enough. D-119 made a WHOLLY empty target fatal, but the
+    guard tested any() while analyze() requires all() — so a config with two good
+    keys and one typo passed the guard, fell through to descriptive mode, and
+    printed the banner '未声明目标网格' at someone who had just declared one. The
+    error must name the dims that came up empty, not just the ones it recognised."""
     with tempfile.TemporaryDirectory() as d:
-        cfg = _write_cfg(d, {"point_id": ["P1"], "carriers": ["cmcc"]})
-        t = cm._load_target(_args(cfg))
-        assert t["point_id"] == ["P1"]
-        assert t["carrier"] == []
+        cfg = _write_cfg(d, {"point_id": ["P1"], "carrier": ["cmcc"],
+                             "time_bands": ["busy"]})       # plural on ONE dim
+        try:
+            cm._load_target(_args(cfg))
+        except SystemExit as e:
+            assert "time_band" in str(e)                    # names the empty dim
+        else:
+            raise AssertionError("a partly-empty target must not reach descriptive mode")
+
+
+def test_partial_flags_are_a_hard_error():
+    """Same hole via the flag path: --points/--carriers without --time-bands."""
+    try:
+        cm._load_target(_args(points="P1", carriers="cmcc"))
+    except SystemExit as e:
+        assert "--time-bands" in str(e)
+    else:
+        raise AssertionError("an incomplete flag grid must not reach descriptive mode")
+
+
+def test_no_flags_at_all_is_descriptive_mode():
+    """Asking for nothing is a legitimate request — only a HALF-asked grid lies."""
+    assert cm._load_target(_args()) is None
+
+
+def test_complete_flags_load():
+    assert cm._load_target(_args(points="P1,P2", carriers="cmcc", time_bands="busy,idle")) == {
+        "point_id": ["P1", "P2"], "carrier": ["cmcc"], "time_band": ["busy", "idle"]}
