@@ -295,7 +295,8 @@ object SubjectDisjointSplit {
 
 前置门(缺一不可):
 
-1. **设备**:P40 现 `异常锁定`。Claude **不得手改** `SHARED_TEST_STATUS.md`(D-63:异常锁定态下 Claude 非执行者,无合法转换,手改破坏 fail-closed 状态机)。须 Codex 先清 E-01 防火墙指纹漂移/回滚(exit=97),独立复核把 `待交接→空闲`,之后 Claude 才用 `update_shared_test_status.py` 脚本 `claim`(`空闲→进行中`)。
+1. **设备**:~~P40 现 `异常锁定`。Claude **不得手改** `SHARED_TEST_STATUS.md`(D-63:异常锁定态下 Claude 非执行者,无合法转换,手改破坏 fail-closed 状态机)。须 Codex 先清 E-01 防火墙指纹漂移/回滚(exit=97),独立复核把 `待交接→空闲`,之后 Claude 才用 `update_shared_test_status.py` 脚本 `claim`(`空闲→进行中`)。~~
+   **⛔ 已于 2026-07-19 被 PO 废止**——该状态机不再是设备使用的授权依据,上述"等 Codex 复核降为空闲"**永远不会发生**,照做会把本项无限期挂起。**现行**(仓根 `CLAUDE.md`):开测前直接查设备实况(在线 + 华为桌面前台 + 只读确认无冲突 ANEB/业务 App/VPN/抓包进程与残留隧道),干净即可直接开测;测后全部停掉、撤临时规则与 `stayon`、回桌面并立即复验。**E-01 侧的防火墙指纹漂移仍是真实前置**,走其自身的受保护预检与回滚流程。
 2. **PO**:8 项决策全部拍板(尤其 #3 datasetSecret 托管、#4 subject、#5 范围、#6 workload 媒体/上限)。
 
 采集与交付步骤(每步给命令):
