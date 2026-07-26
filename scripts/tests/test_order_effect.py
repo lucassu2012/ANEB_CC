@@ -110,3 +110,44 @@ def test_markdown_renders():
     md = oe.render_markdown(oe.analyze(recs))
     assert "序位效应诊断" in md
     assert "疑似序位偏倚" in md
+
+
+def _ordered_rec(order):
+    from synth import make_record
+    r = make_record(campaign={"campaign_id": "base", "tier": "metro", "point_id": "P1",
+                              "carrier": "cmcc", "time_band": "busy"},
+                    aqs=80, scenarios=[("s1_chat", {"t1_ttft_ms": 100})])
+    r["run"]["scenario_order"] = order
+    return r
+
+
+def test_rotation_within_a_run_is_not_a_missing_rotation():
+    """`scenario_order` is round-structured — the contract's own example is
+    "s1,s2,s3|s2,s3,s1". Comparing whole strings flagged a forensic corpus whose
+    every run rotates internally as 拉丁方未轮转: a false alarm on exactly the
+    corpus that DID counterbalance (D-164)."""
+    recs = [_ordered_rec("s1,s2,s3|s2,s3,s1|s3,s1,s2") for _ in range(6)]
+    res = oe.analyze(recs, kpi="t1_ttft_ms")
+    assert res["distinct_rounds"] == 3
+    assert res["rotates_within_run"] == 6
+    assert res["rotation_warning"] is False
+    md = oe.render_markdown(res)
+    assert "未轮转" not in md
+    assert "在自身内部**已轮转" in md
+
+
+def test_one_round_everywhere_still_warns():
+    recs = [_ordered_rec("s1,s2,s3") for _ in range(6)]
+    res = oe.analyze(recs, kpi="t1_ttft_ms")
+    assert res["distinct_rounds"] == 1
+    assert res["rotation_warning"] is True
+    assert "未轮转" in oe.render_markdown(res)
+
+
+def test_rotation_across_runs_still_counts():
+    recs = ([_ordered_rec("s1,s2,s3") for _ in range(3)]
+            + [_ordered_rec("s2,s3,s1") for _ in range(3)])
+    res = oe.analyze(recs, kpi="t1_ttft_ms")
+    assert res["distinct_rounds"] == 2
+    assert res["rotation_warning"] is False
+    assert res["rotates_within_run"] == 0      # rotation is across runs, not within

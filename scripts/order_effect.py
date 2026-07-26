@@ -44,16 +44,28 @@ def collect_positions(records, kpi):
     """{profile_id -> {order_index -> [values]}} plus scenario_order counts."""
     cells = defaultdict(lambda: defaultdict(list))
     orders = Counter()
+    rounds = Counter()
+    rotating_runs = 0
     for rec in records:
         order = cc.run_obj(rec).get("scenario_order")
         orders[order if isinstance(order, str) and order else "absent"] += 1
+        # `scenario_order` is ROUND-STRUCTURED: the contract's own example is
+        # "s1,s2,s3|s2,s3,s1" — one comma list per round, pipe-joined. Counting
+        # whole strings meant a forensic corpus whose every run rotates
+        # internally (the shape that DID counterbalance) was reported as
+        # "拉丁方未轮转" — a false alarm on exactly the correct corpus (D-164).
+        if isinstance(order, str) and order:
+            parts = [p.strip() for p in order.split("|") if p.strip()]
+            rounds.update(parts)
+            if len(set(parts)) > 1:
+                rotating_runs += 1
         for scn in cc.iter_scenarios(rec):
             idx = cc.scenario_order_index(scn)
             val = cc.scenario_kpi(scn, kpi)
             if idx is None or val is None:
                 continue
             cells[scn.get("profile_id") or "?"][idx].append(val)
-    return cells, orders
+    return cells, orders, rounds, rotating_runs
 
 
 def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
@@ -94,7 +106,7 @@ def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
 def analyze(records, kpi=DEFAULT_KPI, min_samples=cc.DEFAULT_MIN_SAMPLES,
             threshold_pct=DEFAULT_THRESHOLD_PCT):
-    cells, orders = collect_positions(records, kpi)
+    cells, orders, rounds, rotating_runs = collect_positions(records, kpi)
     profiles = []
     for pid in sorted(cells):
         profiles.append({"profile_id": pid,
@@ -107,8 +119,13 @@ def analyze(records, kpi=DEFAULT_KPI, min_samples=cc.DEFAULT_MIN_SAMPLES,
         "profiles": profiles,
         "scenario_orders": dict(orders),
         "distinct_orders": distinct,
-        # One order across the whole corpus = the Latin square was never rotated.
-        "rotation_warning": distinct == 1,
+        # Distinct ROUNDS across the whole corpus — the unit the Latin square
+        # actually rotates. One round total = never rotated, whether that is one
+        # run repeated or many runs all carrying the same single round (D-164).
+        "distinct_rounds": len(rounds),
+        "rounds": dict(cc.ranked(rounds)),
+        "rotates_within_run": rotating_runs,
+        "rotation_warning": len(rounds) == 1,
         "no_order_evidence": distinct == 0,
     }
 
@@ -125,8 +142,13 @@ def render_markdown(res):
         lines.append("> ⚠ 语料无 `run.scenario_order` 证据，无法判断是否做过反平衡。")
         lines.append("")
     elif res["rotation_warning"]:
-        lines.append("> ⚠ 全部记录使用**同一** `scenario_order`——拉丁方未轮转，"
-                     "反平衡在构造上不成立，位次差无法与场景差分离。")
+        lines.append("> ⚠ 全语料只有**一种轮次**（`scenario_order` 按 `|` 拆分后）"
+                     "——拉丁方未轮转，反平衡在构造上不成立，位次差无法与场景差分离。")
+        lines.append("")
+    elif res.get("rotates_within_run"):
+        lines.append(f"> 轮转口径：共 {res['distinct_rounds']} 种轮次，其中 "
+                     f"{res['rotates_within_run']} 条 run **在自身内部**已轮转"
+                     "（`s1,s2,s3|s2,s3,s1` 形状），反平衡在构造上成立。")
         lines.append("")
 
     if not res["profiles"]:
