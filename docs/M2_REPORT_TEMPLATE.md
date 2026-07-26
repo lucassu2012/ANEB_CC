@@ -11,7 +11,7 @@
 
 ## 1. 摘要
 
-【占位：从 `report.md` 的「摘要（先看这里）」段取六条信号，改写为面向读者的三到五句话。
+【占位：从 `report.md` 的「摘要（先看这里）」段取**全部信号**（条数随语料形态固定，不在此写死——数目对不上说明漏读了一条），改写为面向读者的三到五句话。
 **只陈述数据支持的事实**，例如"X 个点位忙时体验达 fair/poor""某点位蜂窝较 wifi 低 N 分"。
 不要在此处写原因推测——原因归 §5。】
 
@@ -160,7 +160,7 @@ python campaign_report.py labeled.jsonl --md report.md --html report.html --csv 
 
 ### B. 完整表格
 【占位：附 `tables_*.csv`（heat / attribution / stability / validity / subscores /
-buffering / transport / comparison / trend 共 9 张）或 HTML 报告链接。】
+buffering / transport / comparison / trend / segment_profile …）——**张数以 `campaign_report.py --csv` 实际写出的清单为准**，工具运行时会把文件名逐个打印，照单归档即可。】
 
 ### C. 骨架章节 ← 报告段落映射（**机器校验**）
 
@@ -211,7 +211,7 @@ buffering / transport / comparison / trend 共 9 张）或 HTML 报告链接。�
 
 ### E. 归档清单
 - [ ] `report.md` / `report.html`
-- [ ] `tables_*.csv`（9 张）
+- [ ] `tables_*.csv`（**全部**——以 `--csv` 运行时打印的文件清单为准）
 - [ ] `provenance.json`
 - [ ] 原始语料 JSONL（与 provenance 中 sha256 对应）
 - [ ] `publish_check` 输出
