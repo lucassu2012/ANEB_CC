@@ -41,6 +41,12 @@ def _row(sev, item, detail):
     return {"severity": sev, "item": item, "detail": detail}
 
 
+def _cell_key(cell):
+    """Hashable identity of an attribution cell, for de-duplicating across the
+    per-KPI sweeps (D-191). Sorted so two dicts with the same content agree."""
+    return tuple(sorted((cell.get("cell") or {}).items()))
+
+
 def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Return a list of {severity, item, detail} rows, most severe first."""
     if not records:
@@ -157,11 +163,17 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                 if lowconf else
                 _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
-    mixed_tp = []
+    # Every check below sweeps the attribution cells once PER KPI, so a cell that
+    # is compromised shows up once for each attributable KPI. Counting those
+    # appearances says "12 个格" about six cells — a number the reader cannot
+    # find anywhere, and double the apparent severity. Mixed media, tier timing
+    # and endpoint conflicts are properties of the CELL, not of the KPI, so the
+    # union of cell keys is what to count (D-191).
+    mixed_tp = set()
     for k in attribution.ATTRIBUTABLE_KPIS:
         for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
             if c.get("mixed_transports"):
-                mixed_tp.append(c)
+                mixed_tp.add(_cell_key(c))
     if mixed_tp:
         rows.append(_row(WARN, "同一接入",
                          f"{len(mixed_tp)} 个格的三层级混用了不同接入介质"
@@ -173,13 +185,16 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     # what the run actually hit. Written by annotate, read by nobody — so a
     # corpus whose three "tiers" all hit the metro mirror produced a full
     # backbone decomposition with an empty note and a green gate (D-167).
-    conflicts, known_cells, total_cells = [], 0, 0
+    conflicts, known, seen = set(), set(), set()
     for k in attribution.ATTRIBUTABLE_KPIS:
         for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
-            total_cells += 1
-            known_cells += int(bool(c.get("tier_endpoints_known")))
+            key = _cell_key(c)
+            seen.add(key)
+            if c.get("tier_endpoints_known"):
+                known.add(key)
             if c.get("tier_endpoint_conflicts"):
-                conflicts.append(c)
+                conflicts.add(key)
+    known_cells, total_cells = len(known), len(seen)
     if conflicts:
         rows.append(_row(FAIL, "层级对账",
                          f"{len(conflicts)} 个格的同一端点被标成多种层级"
@@ -203,18 +218,20 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
 
     # 铁律 3 cancels the common mode only if the tiers were measured together;
     # time_band is hours wide, so this is checkable and was never checked (D-155)
-    conf, unknown, judged = [], 0, 0
+    conf, unknown_keys, judged_keys, worst_ms = {}, set(), set(), 0
     for k in attribution.ATTRIBUTABLE_KPIS:
         for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
+            key = _cell_key(c)
             if c.get("tier_time_confound") is None:
                 if len(c.get("coverage") or []) > 1:
-                    unknown += 1
+                    unknown_keys.add(key)
                 continue
-            judged += 1
+            judged_keys.add(key)
             if c["tier_time_confound"]:
-                conf.append(c)
+                conf[key] = max(conf.get(key, 0), c["tier_time_spread_ms"] or 0)
+    unknown, judged = len(unknown_keys - judged_keys), len(judged_keys)
     if conf:
-        worst = max(c["tier_time_spread_ms"] for c in conf) / 3600_000.0
+        worst = max(conf.values()) / 3600_000.0
         rows.append(_row(WARN, "层级同时性",
                          f"{len(conf)}/{judged} 个格的三层级测量相隔过久（最大 {worst:.1f}h）"
                          "——共模不再抵消，该格的骨干增量可能是时段差异"))

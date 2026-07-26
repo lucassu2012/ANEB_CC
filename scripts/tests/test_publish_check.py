@@ -268,6 +268,35 @@ def test_uncheckable_premise_is_stated_not_omitted():
         assert _sev(pc.check(corpus), "同一客户端") == pc.WARN
 
 
+def test_cell_counts_are_cells_not_cell_times_kpi():
+    """These checks sweep the attribution cells once per attributable KPI, so a
+    compromised cell used to be counted once for each — "12 个格" about six
+    cells, a number the reader cannot find anywhere and double the apparent
+    severity. Mixed media is a property of the CELL (its tiers used different
+    access), not of the KPI that happened to expose it (D-191)."""
+    import attribution
+    from synth import make_record
+    def at(tier, transport, n=5):
+        c = {"campaign_id": "base", "tier": tier, "point_id": "P1",
+             "carrier": "cmcc", "time_band": "busy"}
+        out = []
+        for _ in range(n):
+            # both attributable KPIs present => the same cell appears in both sweeps
+            r = make_record(campaign=c, aqs=80,
+                            scenarios=[("s1_chat", {"n1_rtt_p50_ms": 20,
+                                                    "t1_ttft_ms": 400})])
+            r["run"]["transport"] = transport
+            out.append(contractify(r))
+        return out
+    recs = at("metro", "wifi") + at("core", "auto(cellular)")
+    distinct = {tuple(sorted(c["cell"].items()))
+                for k in attribution.ATTRIBUTABLE_KPIS
+                for c in attribution.attribute(recs, kpi=k)["cells"]}
+    assert len(attribution.ATTRIBUTABLE_KPIS) > 1, "otherwise this proves nothing"
+    detail = _detail(pc.check(recs), "同一接入")
+    assert detail.startswith(f"{len(distinct)} 个格"), (detail, len(distinct))
+
+
 def test_mixed_access_media_across_tiers_is_warned():
     from synth import make_record
     def at(tier, val, transport, n=5):
