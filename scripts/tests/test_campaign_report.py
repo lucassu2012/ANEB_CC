@@ -975,3 +975,62 @@ def test_summary_signal_survives_the_unordered_case():
     n = lambda recs: sum(1 for ln in rpt.render_summary_markdown(recs).splitlines()
                          if ln.startswith("- **"))
     assert n(shaped) == n(unordered)
+
+
+def _tiered(point, tier_name, aqs, n=5):
+    campaign = {"campaign_id": "base", "tier": tier_name, "point_id": point,
+                "carrier": "cmcc", "time_band": "busy"}
+    return [make_record(campaign=campaign, aqs=aqs, scenarios=[]) for _ in range(n)]
+
+
+def test_missing_tier_does_not_silently_improve_a_point():
+    """The heat card pools whatever tiers a cell measured. A point that never
+    got its `core` round is missing its worst tier, so its median rises and it
+    ranks best while being identical to the others on every tier it did
+    measure — 81.0 vs 74, unmarked (D-165)."""
+    recs = []
+    for p in ("P1", "P2", "P3"):
+        recs += _tiered(p, "metro", 88) + _tiered(p, "regional", 74)
+        if p != "P3":
+            recs += _tiered(p, "core", 52)
+    by = {c["cell"]["point_id"]: c for c in rpt.heat_cells(recs)}
+    assert by["P3"]["aqs_median"] > by["P1"]["aqs_median"]   # the artefact itself
+    assert by["P3"]["missing_tiers"] == ["core"]
+    assert by["P1"]["missing_tiers"] == []
+    md = rpt.render_heatcard_markdown(rpt.heat_cells(recs))
+    assert "**TIER_INCOMPLETE:缺core**" in md
+    assert "与别的格不可比" in md
+
+
+def test_uniform_tier_coverage_is_not_flagged():
+    """Every cell pooling all three tiers is the normal case — flagging it would
+    be crying wolf (D-134)."""
+    recs = (_tiered("P1", "metro", 88) + _tiered("P1", "regional", 74)
+            + _tiered("P1", "core", 52))
+    c = rpt.heat_cells(recs)[0]
+    assert c["missing_tiers"] == []
+    assert sorted(c["tier_mix"]) == ["core", "metro", "regional"]
+    assert "TIER_INCOMPLETE" not in rpt.render_heatcard_markdown(rpt.heat_cells(recs))
+
+
+def test_tier_composition_reaches_html_and_csv():
+    import csv as csvmod
+    import os
+    import tempfile
+    from synth import contractify
+    recs = []
+    for p in ("P1", "P2"):
+        recs += _tiered(p, "metro", 88) + _tiered(p, "regional", 74)
+        if p != "P2":
+            recs += _tiered(p, "core", 52)
+    recs = [contractify(r) for r in recs]
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "⚠缺core" in html
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = {r["point_id"]: r for r in csvmod.DictReader(f)}
+    assert rows["P2"]["missing_tiers"] == "core"
+    assert rows["P1"]["missing_tiers"] == ""
+    assert "metro5" in rows["P1"]["tier_mix"]

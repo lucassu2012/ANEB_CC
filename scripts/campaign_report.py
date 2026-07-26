@@ -409,6 +409,7 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
     buckets = defaultdict(list)
     seen_campaigns = {}
     flags = defaultdict(lambda: [0, 0])   # [veto-capped runs, scorer low-conf runs]
+    tier_counts = defaultdict(Counter)    # which server tiers each cell pooled
     for rec in records:
         labels = cc.campaign_labels(rec)
         if campaign_id is not None and labels["campaign_id"] != campaign_id:
@@ -422,6 +423,17 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
         veto, scorer_lc = cc.run_aqs_flags(rec)
         flags[key][0] += int(veto)
         flags[key][1] += int(scorer_lc)
+        if labels["tier"]:
+            tier_counts[key][labels["tier"]] += 1
+    # A heat cell pools whatever tiers it happened to measure. Cells that pooled
+    # DIFFERENT tier sets are not comparable with each other: a point that never
+    # got its `core` round measured is missing its worst tier, so its median
+    # rises and it ranks as the best point in the corpus while being identical
+    # to the others on every tier it did measure (D-165). Flag the difference,
+    # not the pooling itself — every cell pooling all three is normal.
+    corpus_tiers = set()
+    for counts in tier_counts.values():
+        corpus_tiers |= set(counts)
     cells = []
     for key in sorted(buckets):
         vals = buckets[key]
@@ -442,6 +454,8 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
             # boundary and the cell's median characterises neither population
             "veto_n": flags[key][0],
             "scorer_low_conf_n": flags[key][1],
+            "tier_mix": dict(cc.ranked(tier_counts.get(key) or Counter())),
+            "missing_tiers": sorted(corpus_tiers - set(tier_counts.get(key) or ())),
         })
     return cells
 
@@ -451,6 +465,11 @@ def render_heatcard_markdown(cells):
     if not cells:
         lines.append("_无 AQS 数据可成卡（记录缺 run.aqs.score）。_")
         return "\n".join(lines)
+    if any(c.get("missing_tiers") for c in cells):
+        lines += ["> ⚠ **各格池化的服务层级不一致**（标 `TIER_INCOMPLETE`）。热力卡按 "
+                  "点位×运营商×时段 成格，每格把它**实际测到的层级**一起取中位——"
+                  "所以缺了某一层的格，其中位数**与别的格不可比**：少测最慢的中心层，"
+                  "该点位会凭空显得更好、甚至排到最前。跨点位比较前，先看该格缺了哪一层。", ""]
     if any(c.get("veto_n") for c in cells):
         lines += ["> ⚠ **本卡含被否决封顶的 run**（标 `VETO_CAPPED`）。触发的是 **T4 严重卡顿率"
                   " > 1%** 一票否决，分数**封顶 54**（语音模式下 M1 口到耳超红线同样置位、同一"
@@ -469,6 +488,8 @@ def render_heatcard_markdown(cells):
         notes = []
         if c.get("mixed_campaigns"):
             notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
+        if c.get("missing_tiers"):
+            notes.append("**TIER_INCOMPLETE:缺" + "/".join(c["missing_tiers"]) + "**")
         if c.get("veto_n"):
             notes.append(f"**VETO_CAPPED:{c['veto_n']}/{c['n']}**")
         if c.get("scorer_low_conf_n"):
@@ -855,7 +876,7 @@ def _heat_grid_html(cells, value_key="aqs_median"):
             bg, fg = cc.GRADE_COLORS.get(grade, cc.GRADE_COLORS["n/a"])
             lc = (" *" if c["low_confidence"] else "") \
                 + (" ⚠混战役" if c.get("mixed_campaigns") else "") \
-                + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "")
+                + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "")                 + (" ⚠缺" + "/".join(c["missing_tiers"]) if c.get("missing_tiers") else "")
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
                        f"<span class='sub'>{esc(grade)} · n={c['n']}{lc}</span></td>")
         body.append("<tr>" + "".join(tds) + "</tr>")
@@ -1138,12 +1159,18 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # tables sees only columns — without it, a pooled median arrives looking
         # like an ordinary trustworthy number (D-141)
         w.writerow(["point_id", "carrier", "time_band", "aqs_median", "grade", "n",
-                    "low_confidence", "mixed_campaigns", "veto_n", "scorer_low_conf_n"])
+                    "low_confidence", "mixed_campaigns", "veto_n", "scorer_low_conf_n",
+                    # which tiers this cell pooled, and which the rest of the
+                    # corpus has but it does not — medians over different tier
+                    # sets are not comparable across cells (D-165)
+                    "tier_mix", "missing_tiers"])
         for c in heat:
             w.writerow([c["cell"]["point_id"], c["cell"]["carrier"], c["cell"]["time_band"],
                         _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"],
                         "/".join(c.get("mixed_campaigns") or []),
-                        c.get("veto_n", 0), c.get("scorer_low_conf_n", 0)])
+                        c.get("veto_n", 0), c.get("scorer_low_conf_n", 0),
+                        "/".join(f"{t}{n}" for t, n in (c.get("tier_mix") or {}).items()),
+                        "/".join(c.get("missing_tiers") or [])])
     written.append(p)
 
     p = prefix + "_attribution.csv"
