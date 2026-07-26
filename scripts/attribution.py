@@ -215,7 +215,10 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
 SEVERE_FLAGS = ("TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT",
                 # a producer that emitted an impossible value is not trustworthy
                 # for the values it emitted alongside it, either
-                "IMPLAUSIBLE_VALUE")
+                "IMPLAUSIBLE_VALUE",
+                # a capped score is not a measurement of this cell, and a cell
+                # pooling a different tier set is not comparable with its peers
+                "VETO_CAPPED", "TIER_INCOMPLETE")
 
 
 def incomparability_flags(cell):
@@ -228,6 +231,17 @@ def incomparability_flags(cell):
     Returned as plain strings in a fixed order; each surface styles them.
     """
     out = []
+    # Heat-card-only markers. They were built inline in the markdown renderer, so
+    # the CSV `incomparability` column — whose whole point is one filter across
+    # tables (D-166) — never carried them, and an analyst filtering it missed
+    # every cell whose only problem was a capped score or a short tier set
+    # (D-181). No-ops on attribution cells, which carry none of these keys.
+    if cell.get("missing_tiers"):
+        out.append("TIER_INCOMPLETE:缺" + "/".join(cell["missing_tiers"]))
+    if cell.get("veto_n"):
+        out.append(f"VETO_CAPPED:{cell['veto_n']}/{cell.get('n')}")
+    if cell.get("scorer_low_conf_n"):
+        out.append(f"SCORER_LOW_CONF:{cell['scorer_low_conf_n']}/{cell.get('n')}")
     if cell.get("implausible_values"):
         out.append("IMPLAUSIBLE_VALUE:" + "/".join(
             f"{r}×{n}" for r, n in sorted(cell["implausible_values"].items())))

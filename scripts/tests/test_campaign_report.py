@@ -992,6 +992,35 @@ def test_veto_capped_runs_are_visible_in_the_heat_card():
     assert "VETO_CAPPED" not in rpt.render_heatcard_markdown(clean)
 
 
+def test_heatcard_markers_all_reach_the_shared_filter_column():
+    """`incomparability` exists so ONE filter finds problem cells across tables
+    (D-166). TIER_INCOMPLETE / VETO_CAPPED / SCORER_LOW_CONF were appended inline
+    in the markdown renderer instead of coming from the shared list, so a cell
+    whose only problem was a capped score left that column empty — the datum sat
+    in another column, but the column's stated promise was broken (D-181).
+    SCORER_LOW_CONF was additionally absent from the HTML pivot entirely."""
+    import attribution
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = _veto_corpus()
+    for r in recs[:2]:
+        r["run"]["aqs"]["low_confidence"] = True     # the SCORER's own verdict
+    c = rpt.heat_cells(recs)[0]
+    assert attribution.incomparability_flags(c) == ["VETO_CAPPED:4/6", "SCORER_LOW_CONF:2/6"]
+    # severe markers stay emphasised in markdown; the scorer's note does not
+    note = [ln for ln in rpt.render_heatcard_markdown([c]).splitlines()
+            if ln.startswith("| P1")][0]
+    assert "**VETO_CAPPED:4/6**" in note and "; SCORER_LOW_CONF:2/6" in note
+    assert "自评低置信2" in rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+    assert rows[0]["incomparability"] == "VETO_CAPPED:4/6;SCORER_LOW_CONF:2/6"
+
+
 def test_veto_reaches_summary_html_and_csv():
     import csv as csvmod
     import os

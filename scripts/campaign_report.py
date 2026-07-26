@@ -618,17 +618,12 @@ def render_heatcard_markdown(cells):
         "|---|---|---|---|---|---|---|---|",
     ]
     for c in cells:
-        notes = []
-        if c.get("missing_tiers"):
-            notes.append("**TIER_INCOMPLETE:缺" + "/".join(c["missing_tiers"]) + "**")
-        if c.get("veto_n"):
-            notes.append(f"**VETO_CAPPED:{c['veto_n']}/{c['n']}**")
-        if c.get("scorer_low_conf_n"):
-            notes.append(f"SCORER_LOW_CONF:{c['scorer_low_conf_n']}/{c['n']}")
-        # one shared list for MIXED_* and low_conf, so the heat card and the
-        # attribution matrix cannot disagree about the same cell (D-160/166)
-        notes += [f"**{f}**" if f.split(":")[0] in attribution.SEVERE_FLAGS else f
-                  for f in attribution.incomparability_flags(c)]
+        # ONE shared list for every marker, so the heat card, the attribution
+        # matrix and the CSV filter column cannot disagree about the same cell.
+        # TIER_INCOMPLETE / VETO_CAPPED / SCORER_LOW_CONF used to be appended
+        # here instead, which is precisely why the CSV never carried them (D-181).
+        notes = [f"**{f}**" if f.split(":")[0] in attribution.SEVERE_FLAGS else f
+                 for f in attribution.incomparability_flags(c)]
         note = "; ".join(notes) or "—"
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
@@ -1026,7 +1021,9 @@ def _heat_grid_html(cells, value_key="aqs_median"):
                 + (" ⚠混战役" if c.get("mixed_campaigns") else "") \
                 + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "") \
                 + (" ⚠缺" + "/".join(c["missing_tiers"]) if c.get("missing_tiers") else "") \
-                + (" ⚠并列" + "/".join(c["grade_tie"]) if c.get("grade_tie") else "")
+                + (" ⚠并列" + "/".join(c["grade_tie"]) if c.get("grade_tie") else "") \
+                + (f" ⚠自评低置信{c['scorer_low_conf_n']}"
+                   if c.get("scorer_low_conf_n") else "")
             sd = (f" · sd={cc.fmt_num(c['stdev'], 1)}"
                   if c.get("stdev") is not None else " · sd—")
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
