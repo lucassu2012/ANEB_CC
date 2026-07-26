@@ -359,6 +359,33 @@ def test_summary_weak_cell_count_matches_heatcard():
     assert _summary_count(md, "体验最差格") == graded_bad
 
 
+def test_summary_segment_bullet_does_not_overclaim_uniformity():
+    """§2.10 in the summary — the part decision-makers actually read. The section
+    below it words this carefully; the bullet states it independently, and the
+    mutation audit found that independent wording held ONLY by the report
+    snapshot, which a `--update` after a deliberate edit would absorb (D-187).
+
+    "No cell crossed the screen" must not become "the cells are alike": the first
+    says the biggest item sits inside the segment's own spread, the second is a
+    claim about uniformity the screen never made."""
+    from synth import make_record
+    recs = []
+    for i, core in enumerate((50, 70, 90, 60, 80, 70)):       # wide, no outlier
+        for tier, val in (("metro", 30), ("regional", 42), ("core", core)):
+            recs += [make_record(
+                campaign={"campaign_id": "base", "tier": tier, "point_id": f"P{i:02d}",
+                          "carrier": "cmcc", "time_band": "busy"},
+                aqs=80, scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})])
+                for _ in range(5)]
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if ln.startswith("- **分段归因")][0]
+    assert "未见单点异常" in line          # the weaker, true statement…
+    for overclaim in ("各单元一致", "各单元相同", "完全一致", "没有差异"):
+        assert overclaim not in line, (overclaim, line)
+    # …and it must point the reader at where the remaining question is answered
+    assert "分段异常定位" in rpt.build_report_markdown(recs)
+
+
 def test_summary_unstable_count_matches_stability_section():
     """Of the nine summary signals only four had a parity test; this was one of
     the two with none at all (D-180). It restates the CV gate condition, so a

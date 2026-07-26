@@ -335,6 +335,33 @@ def test_uniform_verdict_does_not_claim_the_cells_are_alike():
     assert "各单元一致" not in md
 
 
+def test_dispersion_column_is_present_and_populated():
+    """§2.10's other half: the caveat tells the reader to judge uniformity from
+    the 离差/典型 column, so that column has to exist and carry a number. The
+    mutation audit found this half held only by the report snapshot and a
+    column-count check, either of which a wording edit could sail past (D-187)."""
+    recs = []
+    for i, core in enumerate((50, 70, 90, 60, 80, 70)):   # wide but no outlier
+        recs += _point(f"P{i:02d}", 30, 42, core)
+    md = attribution.render_segment_profile_markdown(
+        attribution.segment_profile(attribution.attribute(recs)))
+    header = [ln for ln in md.splitlines() if ln.startswith("| 段 ")][0]
+    cols = [c.strip() for c in header.split("|")]
+    assert "离差/典型" in cols, header          # by NAME, not by position or count
+    idx = cols.index("离差/典型")
+    rows = [ln for ln in md.splitlines()
+            if ln.startswith("| ") and "---" not in ln and not ln.startswith("| 段 ")]
+    assert rows, "corpus must produce segment rows"
+    vals = {ln.split("|")[1].strip(): ln.split("|")[idx].strip() for ln in rows}
+    assert any(v not in ("—", "") for v in vals.values()), vals  # computable => a number
+    # …and it must be the number the caveat points at: these cells are visibly
+    # not alike, so the column has to say so even though no cell crossed the screen
+    seg = _segs(recs)["core_backbone_incr"]
+    assert seg["uniform"] is True and seg["rel_mad"] > 10
+    core_cell = [v for k, v in vals.items() if "核心" in k or "core" in k][0]
+    assert float(core_cell.rstrip("%")) == round(seg["rel_mad"], 1)
+
+
 def test_segment_profile_reaches_markdown_and_csv():
     import campaign_report as rpt
     import csv as csvmod
