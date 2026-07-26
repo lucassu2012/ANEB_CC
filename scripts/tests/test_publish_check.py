@@ -118,15 +118,22 @@ def _two_campaigns(before_vals, after_vals):
     return [contractify(r) for r in recs]
 
 
+# AQS is defined on 0..100; these fixtures used to reach 150, i.e. the effect-size
+# gate was being validated on scores the system cannot emit (surfaced by D-178).
+# Same medians apart, same spread, values a producer could actually write.
+_SUB_A, _SUB_B = [58, 68, 78, 88, 98], [60, 70, 80, 90, 100]     # medians 78 / 80
+_REAL_A, _REAL_B = [10, 20, 30, 40, 50], [60, 70, 80, 90, 100]   # medians 30 / 80
+
+
 def test_effect_within_noise_is_warn():
     """A round whose every Δ sits inside the noise must not ship as 'improved'."""
-    rows = pc.check(_two_campaigns([60, 70, 80, 90, 100], [62, 72, 82, 92, 102]))
+    rows = pc.check(_two_campaigns(_SUB_A, _SUB_B))
     assert _sev(rows, "效应量") == pc.WARN
     assert "不得表述为改善或回退" in _detail(rows, "效应量")
 
 
 def test_effect_beyond_noise_passes():
-    rows = pc.check(_two_campaigns([60, 70, 80, 90, 100], [110, 120, 130, 140, 150]))
+    rows = pc.check(_two_campaigns(_REAL_A, _REAL_B))
     assert _sev(rows, "效应量") == pc.PASS
 
 

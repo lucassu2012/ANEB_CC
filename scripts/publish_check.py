@@ -247,6 +247,22 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     else:
         rows.append(_row(PASS, "标签来源", "无推断得到的分组标签"))
 
+    # An impossible value is not a bad measurement — an AQS of 9999 bands as
+    # `excellent`, a negative metro RTT manufactures backbone latency out of
+    # nothing in the differential (D-178). FAIL, not WARN: unlike every other
+    # item here there is no reading of the data under which this is acceptable,
+    # and the number it produces is not merely hard to interpret, it is invented.
+    bad_vals = inv.get("implausible_values") or {}
+    if bad_vals:
+        rows.append(_row(FAIL, "取值范围",
+                         f"{sum(bad_vals.values())} 个取值物理/定义上不可能（"
+                         + "；".join(f"{r} × {n}" for r, n in sorted(bad_vals.items()))
+                         + "）——已排除出中位数并标 IMPLAUSIBLE_VALUE；"
+                         "写出过不可能值的生产者，其同批其他数值同样不可信，"
+                         "请修生产端后重采，勿据此发布"))
+    else:
+        rows.append(_row(PASS, "取值范围", "AQS 与各 KPI 取值均在定义域内"))
+
     # A wrong-magnitude epoch still sorts, so before/after comes out confidently
     # backwards while the report states its basis as "time" (D-176). WARN, not
     # FAIL: this layer cannot tell a producer bug from a corpus stitched out of

@@ -60,6 +60,40 @@ EPOCH_MS_MIN = 1_577_836_800_000    # 2020-01-01T00:00:00Z
 EPOCH_MS_MAX = 4_102_444_800_000    # 2100-01-01T00:00:00Z
 
 
+# Values a measurement CANNOT hold and still be a measurement. Deliberately
+# physical/definitional only — "unusually large" is the 3-sigma screen's job
+# (attribution.segment_profile), and this is the one place the project must not
+# cry wolf: a real 4-second TTFT is the finding, not an error. (None = no bound.)
+VALUE_RANGES = {
+    "aqs_score":            (0.0, 100.0),   # AQS is defined on 0..100
+    "t1_ttft_ms":           (0.0, None),    # elapsed time cannot be negative
+    "t2_itl_p95_ms":        (0.0, None),
+    "n1_rtt_p50_ms":        (0.0, None),
+    "n2_jitter_ms":         (0.0, None),
+    "u2_tool_loop_p95_ms":  (0.0, None),
+    "u1_goodput_mbps":      (0.0, None),
+    "t3_stall_rate":        (0.0, 1.0),     # a fraction (vetoes.yaml gates T4 at 0.01)
+    "t4_severe_stall_rate": (0.0, 1.0),
+}
+
+
+def value_problem(field, v):
+    """Short reason this value is impossible for `field`, or None.
+
+    A corrupt value is not a bad measurement, it is not a measurement: a negative
+    metro RTT does not merely lower one median, it manufactures backbone latency
+    out of nothing in the differential (D-178)."""
+    lo, hi = VALUE_RANGES.get(field, (None, None))
+    v = fnum(v)
+    if v is None:
+        return None
+    if lo is not None and v < lo:
+        return f"<{fmt_num(lo, 0)}"
+    if hi is not None and v > hi:
+        return f">{fmt_num(hi, 0)}"
+    return None
+
+
 def epoch_ms_problem(v):
     """Why this value cannot be a millisecond epoch from this project, or None.
 

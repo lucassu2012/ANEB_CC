@@ -52,6 +52,7 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
     cells, meta = {}, {}
     times = {}                      # {cell_key -> {tier -> [started_ms, ...]}}
     endpoints = {}                  # {cell_key -> {endpoint -> {tiers}}}
+    implausible = {}                # {cell_key -> {reason -> count}}
     excluded_no_tier = 0
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -65,6 +66,19 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
                 continue
             pid = scn.get("profile_id") or "?"
             key = _cell_key(labels, pid, group_by)
+            # An impossible value is not a bad measurement, it is not a
+            # measurement — and here it does not merely shift one median. A metro
+            # median of -500ms becomes "regional backbone +540ms": backbone
+            # latency manufactured out of nothing, which is this report's headline
+            # claim and would send a team to a segment that is fine. So it stays
+            # out of the arithmetic and is counted where the reader will see it —
+            # the same shape as an invalid scenario (out of the KPI aggregate,
+            # still in the denominator, visible in its own section).
+            bad = cc.value_problem(kpi, val)
+            if bad:
+                d = implausible.setdefault(key, {})
+                d[f"{kpi}{bad}"] = d.get(f"{kpi}{bad}", 0) + 1
+                continue
             cells.setdefault(key, {}).setdefault(tier, []).append(val)
             started = cc.run_started_ms(rec)
             if started is not None:
@@ -81,7 +95,7 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
             acc = meta.setdefault(key, cc.homogeneity_acc())
             cc.note_homogeneity(acc, scn)
             cc.note_run_homogeneity(acc, rec)
-    return cells, excluded_no_tier, meta, times, endpoints
+    return cells, excluded_no_tier, meta, times, endpoints, implausible
 
 
 # 铁律 3 cancels the common-mode access component only if the three tiers were
@@ -162,11 +176,16 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
               min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Full attribution over a record set. Returns a dict with per-cell results
     and coverage metadata."""
-    cells, excluded, meta, times, endpoints = collect_tier_samples(records, kpi, group_by)
+    cells, excluded, meta, times, endpoints, implausible = collect_tier_samples(
+        records, kpi, group_by)
     results = []
-    for key in sorted(cells):
+    # A cell whose ONLY samples were impossible has no tier data left, so it would
+    # vanish entirely — silently, which is the one outcome R-10 forbids. Keep the
+    # key so the row exists and carries its reason.
+    for key in sorted(set(cells) | set(implausible)):
         cell = dict(zip(group_by, key))
-        entry = {"cell": cell, **attribute_cell(cells[key], min_samples)}
+        entry = {"cell": cell, **attribute_cell(cells.get(key) or {}, min_samples)}
+        entry["implausible_values"] = dict(sorted((implausible.get(key) or {}).items()))
         entry.update(tier_time_confound(times.get(key)))
         mixed_pv, mixed_edges = cc.mixed_flags(meta.get(key))
         entry["mixed_profile_versions"] = mixed_pv
@@ -193,7 +212,10 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
 
 # Markers whose meaning is "this cell's increments are NOT USABLE", as opposed to
 # "read with care" — renderers that can emphasise, should emphasise these.
-SEVERE_FLAGS = ("TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT")
+SEVERE_FLAGS = ("TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT",
+                # a producer that emitted an impossible value is not trustworthy
+                # for the values it emitted alongside it, either
+                "IMPLAUSIBLE_VALUE")
 
 
 def incomparability_flags(cell):
@@ -206,6 +228,9 @@ def incomparability_flags(cell):
     Returned as plain strings in a fixed order; each surface styles them.
     """
     out = []
+    if cell.get("implausible_values"):
+        out.append("IMPLAUSIBLE_VALUE:" + "/".join(
+            f"{r}×{n}" for r, n in sorted(cell["implausible_values"].items())))
     if cell.get("not_computable_reason"):
         out.append(cell["not_computable_reason"])
     for ep, tiers in sorted((cell.get("tier_endpoint_conflicts") or {}).items()):

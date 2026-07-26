@@ -12,7 +12,53 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
 import attribution
+import campaign_common as cc
 from synth import tier_records, make_record
+
+
+def test_impossible_value_does_not_manufacture_backbone_latency():
+    """A negative metro median does not merely lower one number: the differential
+    turns it into 540ms of "regional backbone" that never existed — this report's
+    headline claim, and it would send a team to a segment that is fine. Nothing
+    checked value ranges and no flag fired (D-178)."""
+    K = "n1_rtt_p50_ms"
+    recs = (tier_records("metro", K, -500, 5) + tier_records("regional", K, 40, 5)
+            + tier_records("core", K, 80, 5))
+    c = attribution.attribute(recs)["cells"][0]
+    # the invented increment is gone, and its absence is stated rather than guessed
+    assert c["access_component"] is None
+    assert c["regional_backbone_incr"] is None
+    assert c["core_backbone_incr"] == 40        # this half was never contaminated
+    assert c["implausible_values"] == {"n1_rtt_p50_ms<0": 5}
+    flags = attribution.incomparability_flags(c)
+    assert "IMPLAUSIBLE_VALUE:n1_rtt_p50_ms<0×5" in flags
+    assert "TIER_MISSING:metro" in flags        # says WHICH tier went missing, too
+    # severe: a producer that wrote an impossible value is not trustworthy for
+    # the values it wrote alongside it
+    assert "IMPLAUSIBLE_VALUE" in attribution.SEVERE_FLAGS
+
+
+def test_a_cell_of_only_impossible_values_still_gets_a_row():
+    """With every sample dropped the cell has no tier data left, so it would
+    vanish from the matrix without a word — the one outcome R-10 forbids."""
+    recs = tier_records("metro", "n1_rtt_p50_ms", -1, 5)
+    cells = attribution.attribute(recs)["cells"]
+    assert len(cells) == 1
+    assert "IMPLAUSIBLE_VALUE:n1_rtt_p50_ms<0×5" in attribution.incomparability_flags(cells[0])
+
+
+def test_range_guard_does_not_cry_wolf_on_bad_networks():
+    """The one place this project must not over-flag: a genuinely awful network
+    is the finding, not an error. Only impossible values are caught."""
+    assert cc.value_problem("n1_rtt_p50_ms", 8000) is None       # 8s RTT: real, terrible
+    assert cc.value_problem("t1_ttft_ms", 120000) is None        # 2min TTFT: real
+    assert cc.value_problem("u1_goodput_mbps", 0) is None        # zero throughput: real
+    assert cc.value_problem("t4_severe_stall_rate", 1.0) is None  # 100% stalls: real
+    assert cc.value_problem("n1_rtt_p50_ms", -0.1) == "<0"       # impossible
+    assert cc.value_problem("t4_severe_stall_rate", 1.5) == ">1"  # not a fraction
+    assert cc.value_problem("aqs_score", 100) is None
+    assert cc.value_problem("aqs_score", 100.5) == ">100"
+    assert cc.value_problem("unknown_field", -999) is None       # no declared range
 
 
 def test_known_budget_recovered():

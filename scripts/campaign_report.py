@@ -80,6 +80,10 @@ def inventory(records):
         # millisecond epoch. A seconds-valued one sorts its campaign to 1970 and
         # inverts every delta while the basis still reads "time" (D-176).
         "implausible_ms": Counter(), "campaigns_bad_ms": set(),
+        # values that are impossible rather than merely bad — an AQS of 9999
+        # bands as `excellent`, a negative metro RTT manufactures backbone
+        # latency in the differential (D-178)
+        "implausible_values": Counter(),
     }
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -104,8 +108,19 @@ def inventory(records):
         if started is not None:
             inv["first_ms"] = started if inv["first_ms"] is None else min(inv["first_ms"], started)
             inv["last_ms"] = started if inv["last_ms"] is None else max(inv["last_ms"], started)
-        if cc.run_aqs(rec) is not None:
+        aqs_v = cc.run_aqs(rec)
+        if aqs_v is not None:
             inv["aqs_present"] += 1
+            bad_v = cc.value_problem("aqs_score", aqs_v)
+            if bad_v:
+                inv["implausible_values"][f"aqs_score{bad_v}"] += 1
+        for scn in cc.iter_scenarios(rec):
+            for kpi in cc.VALUE_RANGES:
+                if kpi == "aqs_score":
+                    continue
+                bad_v = cc.value_problem(kpi, cc.scenario_kpi(scn, kpi))
+                if bad_v:
+                    inv["implausible_values"][f"{kpi}{bad_v}"] += 1
         started = cc.run_started_ms(rec)
         cid = labels["campaign_id"]
         # Kept in campaign_first_ms even when implausible — dropping it would
@@ -150,6 +165,17 @@ def corpus_warnings(inv):
                    "它们被当作**不同的格**统计（各分走一部分样本，可能都因此被标 `low_conf`），"
                    "而渲染出来几乎看不出区别。**这不是自动合并的**——"
                    "确属同一对象请回改语料后重出报告，确属不同对象请改成可区分的名字。")
+    bad_vals = inv.get("implausible_values") or {}
+    if bad_vals:
+        n_bad = sum(bad_vals.values())
+        out.append(f"**{n_bad} 个取值在物理/定义上不可能**"
+                   f"（{'；'.join(f'{r} × {n}' for r, n in sorted(bad_vals.items()))}）。"
+                   "**这不是「测得很差」,是根本不是一次测量**——AQS 定义在 0~100,"
+                   "时延不可能为负,卡顿率是 0~1 的分数。此类值**已排除出中位数**"
+                   "(留在各格计数里,受影响的格标 `IMPLAUSIBLE_VALUE`),"
+                   "因为它不只拉低一个中位:metro 中位为负会让差分**凭空造出一段骨干时延**。"
+                   "**注意波及面**:同一生产者写出过不可能的值,它同时写出的其他值也不可信,"
+                   "该格的结论请整体存疑而不是只扣掉这几条。")
     bad_ms = inv.get("implausible_ms") or {}
     if bad_ms:
         total = inv.get("records") or 1
@@ -441,6 +467,7 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
     flags = defaultdict(lambda: [0, 0])   # [veto-capped runs, scorer low-conf runs]
     tier_counts = defaultdict(Counter)    # which server tiers each cell pooled
     homo = {}                             # per-cell comparability accumulator
+    implausible = defaultdict(Counter)    # {cell -> {reason -> count}}
     for rec in records:
         labels = cc.campaign_labels(rec)
         if campaign_id is not None and labels["campaign_id"] != campaign_id:
@@ -449,6 +476,13 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
         if aqs is None:
             continue
         key = tuple(labels[d] for d in HEAT_DIMS)
+        # AQS is defined on 0..100, and the grade bands have no upper guard: a
+        # score of 9999 lands in `excellent` — the best grade in the report — with
+        # nothing marking it. Out of the median, counted where it shows (D-178).
+        bad = cc.value_problem("aqs_score", aqs)
+        if bad:
+            implausible[key][f"aqs_score{bad}"] += 1
+            continue
         buckets[key].append(aqs)
         seen_campaigns.setdefault(key, set()).add(labels["campaign_id"])
         veto, scorer_lc = cc.run_aqs_flags(rec)
@@ -473,8 +507,10 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
     for counts in tier_counts.values():
         corpus_tiers |= set(counts)
     cells = []
-    for key in sorted(buckets):
-        vals = buckets[key]
+    # A cell whose every score was impossible would otherwise disappear from the
+    # card without a word — the one outcome R-10 forbids.
+    for key in sorted(set(buckets) | set(implausible)):
+        vals = buckets.get(key) or []
         med = cc.median(vals)
         ids = sorted(seen_campaigns.get(key) or [])
         cells.append({
@@ -499,6 +535,9 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
             "mixed_profile_sources": cc.mixed_run_flags(homo.get(key))[1],
             "tier_mix": dict(cc.ranked(tier_counts.get(key) or Counter())),
             "missing_tiers": sorted(corpus_tiers - set(tier_counts.get(key) or ())),
+            # same key the attribution cells use, so one shared flag list marks
+            # both surfaces from one place (D-160)
+            "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
         })
     return cells
 

@@ -78,10 +78,19 @@ def _spread(values, **kw):
     return [r for v in values for r in aqs_records(v, 1, **kw)]
 
 
+# AQS is defined on 0..100 (campaign_common AQS_GRADE_BANDS; every anchor in
+# spec/scoring/anchors.yaml tops out at 100 and clamps beyond). These fixtures
+# used to reach 150 — the noise machinery was being validated on scores the
+# system cannot emit, which the D-178 range guard surfaced. Same medians apart,
+# same spread, values the producer could actually have written.
+_SUB_A, _SUB_B = [58, 68, 78, 88, 98], [60, 70, 80, 90, 100]     # medians 78 / 80
+_REAL_A, _REAL_B = [10, 20, 30, 40, 50], [60, 70, 80, 90, 100]   # medians 30 / 80
+
+
 def test_noise_scale_flags_subnoise_delta():
     # same wide spread on both sides, tiny shift -> the shift is not a finding
-    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
-            + _spread([62, 72, 82, 92, 102], point="P1", campaign_id="opt"))
+    recs = (_spread(_SUB_A, point="P1", campaign_id="base")
+            + _spread(_SUB_B, point="P1", campaign_id="opt"))
     r = rpt.compare_campaigns(recs, "base", "opt")["rows"][0]
     assert r["delta"] == 2
     assert r["noise"] > 2
@@ -89,8 +98,8 @@ def test_noise_scale_flags_subnoise_delta():
 
 
 def test_noise_scale_lets_real_delta_through():
-    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
-            + _spread([110, 120, 130, 140, 150], point="P1", campaign_id="opt"))
+    recs = (_spread(_REAL_A, point="P1", campaign_id="base")
+            + _spread(_REAL_B, point="P1", campaign_id="opt"))
     r = rpt.compare_campaigns(recs, "base", "opt")["rows"][0]
     assert r["delta"] == 50
     assert r["within_noise"] is False
@@ -111,10 +120,10 @@ def test_noise_unknown_is_not_reported_as_real():
 
 
 def test_summary_noise_buckets_add_up():
-    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
-            + _spread([62, 72, 82, 92, 102], point="P1", campaign_id="opt")
-            + _spread([60, 70, 80, 90, 100], point="P2", campaign_id="base")
-            + _spread([110, 120, 130, 140, 150], point="P2", campaign_id="opt"))
+    recs = (_spread(_SUB_A, point="P1", campaign_id="base")
+            + _spread(_SUB_B, point="P1", campaign_id="opt")
+            + _spread(_REAL_A, point="P2", campaign_id="base")
+            + _spread(_REAL_B, point="P2", campaign_id="opt"))
     summary = rpt.render_summary_markdown(recs)
     line = [l for l in summary.splitlines() if "优化前后" in l][0]
     assert "2 个共同格中 1 个 Δ 超出噪声——改善 1、回退 0、持平 0" in line
@@ -127,11 +136,11 @@ def test_noise_reaches_all_three_surfaces():
     import csv as csvmod
     import os
     import tempfile
-    recs = (_spread([60, 70, 80, 90, 100], point="P1", campaign_id="base")
-            + _spread([62, 72, 82, 92, 102], point="P1", campaign_id="opt")     # noisy
-            + _spread([60, 70, 80, 90, 100], point="P2", campaign_id="base")
-            + _spread([110, 120, 130, 140, 150], point="P2", campaign_id="opt")  # real
-            + aqs_records(70, 1, point="P3", campaign_id="base")                 # unknown
+    recs = (_spread(_SUB_A, point="P1", campaign_id="base")
+            + _spread(_SUB_B, point="P1", campaign_id="opt")      # noisy
+            + _spread(_REAL_A, point="P2", campaign_id="base")
+            + _spread(_REAL_B, point="P2", campaign_id="opt")     # real
+            + aqs_records(70, 1, point="P3", campaign_id="base")  # unknown
             + aqs_records(85, 1, point="P3", campaign_id="opt"))
     md = rpt.build_report_markdown(recs)
     html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
@@ -719,6 +728,31 @@ def test_bad_epoch_is_visible_on_every_surface():
     assert "不自动配对" in bullet
 
 
+def test_out_of_range_aqs_does_not_become_the_best_grade():
+    """AQS is defined on 0..100 and the bands have no upper guard, so 9999 landed
+    in `excellent` — the best grade in the report — with nothing marking it, and
+    three such runs took the cell's median with them (D-178)."""
+    import attribution
+    from synth import contractify
+    recs = [contractify(r) for r in aqs_records(60, 5, point="P1")]
+    for r in recs[:3]:
+        r["run"]["aqs"]["score"] = 9999
+    c = rpt.heat_cells(recs)[0]
+    assert c["aqs_median"] == 60.0              # the two real scores, not 9999
+    assert c["grade"] == "fair"
+    assert c["n"] == 2                          # dropped from the aggregate…
+    flags = attribution.incomparability_flags(c)
+    assert "IMPLAUSIBLE_VALUE:aqs_score>100×3" in flags   # …and counted where seen
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "不是一次测量" in md and "不是一次测量" in html
+    import publish_check as pc
+    row = [x for x in pc.check(recs) if x["item"] == "取值范围"][0]
+    # the only FAIL-grade item added since the corpus checks: there is no reading
+    # of the data under which an impossible value is publishable
+    assert row["severity"] == pc.FAIL
+
+
 def test_epoch_problem_names_the_unit_slip():
     """'out of range' does not tell the operator what to fix; seconds and
     microseconds are different producer bugs."""
@@ -1269,6 +1303,6 @@ def test_real_spread_still_classifies_both_ways():
         _two_rounds_vals([58, 59, 60, 61, 62], [59, 60, 61, 62, 63]), "r1", "r2")["rows"][0]
     assert small["within_noise"] is True       # 1 point inside the noise
     big = rpt.compare_campaigns(
-        _two_rounds_vals([58, 59, 60, 61, 62], [108, 109, 110, 111, 112]),
+        _two_rounds_vals([8, 9, 10, 11, 12], [58, 59, 60, 61, 62]),
         "r1", "r2")["rows"][0]
     assert big["within_noise"] is False        # 50 points beyond it
