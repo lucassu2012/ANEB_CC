@@ -127,9 +127,18 @@ def test_rehearsal_can_demonstrate_both_verdicts():
     designed = f"SYNTH-P{sc.OPTIMISED_POINT_INDEX + 1:02d}"
     assert {r["cell"]["point_id"] for r in real} == {designed}
     assert all(r["delta"] > 0 for r in real)        # an improvement, not a regression
-    # the expected answers are written down where a rehearsing operator reads them
-    keys = [k for k, _ in sc.DESIGNED_EFFECTS]
-    assert "real_improvement" in keys and "sub_noise_improvement" in keys
+    # This function covers designed effects real_improvement (the assertions
+    # above) and sub_noise_improvement (the `noisy` bucket) and media_difference
+    # (just below) — each named so the invariant that follows can find it.
+    media = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+             if ln.startswith("- **接入介质") or ln.startswith("- **蜂窝劣")][0]
+    assert "未观察到超出测量噪声的介质差异" in media
+    # Same invariant D-183 put on CHAOS_PATHOLOGIES, applied to the table D-182
+    # created — otherwise this is one more declaration nobody checks.
+    with open(__file__, encoding="utf-8") as f:
+        src = f.read()
+    unchecked = [k for k, _ in sc.DESIGNED_EFFECTS if k not in src]
+    assert not unchecked, f"designed effects with no test naming them: {unchecked}"
     # …and the summary NAMES the improved cells. Every other signal names its
     # examples; this one gave counts only, so the reader learned four cells got
     # better but not which — the question the round exists to answer (D-182).
