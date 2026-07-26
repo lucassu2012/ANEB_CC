@@ -359,6 +359,18 @@ def test_summary_weak_cell_count_matches_heatcard():
     assert _summary_count(md, "体验最差格") == graded_bad
 
 
+def test_summary_unstable_count_matches_stability_section():
+    """Of the nine summary signals only four had a parity test; this was one of
+    the two with none at all (D-180). It restates the CV gate condition, so a
+    threshold edit on either side would silently make the summary disagree with
+    the table it points into."""
+    import synth_campaign as sc
+    md = rpt.build_report_markdown(sc.generate(points=2, repeats=3, seed=11))
+    over = _rows_containing(_section(md, "复测稳定性"), "超门")
+    assert over > 0, "corpus must actually breach the gate, or this proves nothing"
+    assert _summary_count(md, "复测不稳定") == over
+
+
 def test_summary_validity_count_matches_section():
     md = rpt.build_report_markdown(_problem_corpus())
     assert _summary_count(md, "有效率不达门") == \
