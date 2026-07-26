@@ -1320,14 +1320,19 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w.writerow(["point_id", "carrier", "time_band", "n", "modal_attribution",
                     "score_median", "sawtooth_median", "near_zero_median",
                     "suspect_share", "distortion_hotspot", "low_confidence",
-                    "mixed_campaigns"])
+                    "mixed_campaigns",
+                    # scenarios where NOTHING was measured, kept out of n and out
+                    # of the suspect denominator — an empty suspect_share is a
+                    # coverage gap, not a clean 0% (D-163)
+                    "not_detected", "sample_count_median"])
         for c in bcells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                         c["n"], c["modal_attribution"], _cell(c["score_median"]),
                         _cell(c["sawtooth_median"]), _cell(c["near_zero_median"]),
                         _cell(c["suspect_share"]), c["distortion_hotspot"],
-                        c["low_confidence"], _mixed(cell)])
+                        c["low_confidence"], _mixed(cell),
+                        c["not_detected"], _cell(c["sample_count_median"])])
     written.append(p)
     return written
 

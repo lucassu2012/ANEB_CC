@@ -293,3 +293,15 @@ def test_partial_label_gap_is_warn():
 def test_fully_labelled_corpus_passes():
     recs = _staged_rollout(point_id="P1")
     assert _sev(pc.check(recs), "战役标签") == pc.PASS
+
+
+def test_no_batching_evidence_is_warn_not_pass():
+    """Zero measured scenarios used to render as PASS 无失真热点 (D-163)."""
+    recs = _clean()
+    for r in recs:
+        for s in r["scenarios"]:
+            s["buffering"] = {"score": None, "attribution": None, "sample_count": None,
+                              "sawtooth_ratio": None, "near_zero_arrival_ratio": None}
+    rows = pc.check(recs)
+    assert _sev(rows, "批化失真") == pc.WARN
+    assert "无法判断" in _detail(rows, "批化失真")

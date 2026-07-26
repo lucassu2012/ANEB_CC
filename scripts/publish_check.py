@@ -125,11 +125,19 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     else:
         rows.append(_row(PASS, "有效率", f"全部格达门（≥{vres['min_rate'] * 100:.0f}%）"))
 
-    hot = [c for c in buffering_rollup.analyze(records, min_samples)["cells"]
-           if c["distortion_hotspot"]]
-    rows.append(_row(WARN, "批化失真", f"{len(hot)} 个失真热点格"
-                                       "（须先做失真核算，再谈网络结论）")
-                if hot else _row(PASS, "批化失真", "无失真热点"))
+    bres = buffering_rollup.analyze(records, min_samples)
+    hot = [c for c in bres["cells"] if c["distortion_hotspot"]]
+    if bres["no_evidence"]:
+        # zero measured scenarios used to render as PASS 无失真热点 (D-163) —
+        # the same "cannot judge must not read as no problem" rule the
+        # 测量可信度 item below already applies
+        rows.append(_row(WARN, "批化失真", "无任何场景测到批化（块存在但字段全空）"
+                                           "——**无法判断**是否存在失真，非「未见失真」"))
+    elif hot:
+        rows.append(_row(WARN, "批化失真", f"{len(hot)} 个失真热点格"
+                                           "（须先做失真核算，再谈网络结论）"))
+    else:
+        rows.append(_row(PASS, "批化失真", "无失真热点"))
 
     tres = trust_rollup.analyze(records, min_samples)
     clock_hot = [c for c in tres["cells"] if c["clock_hotspot"]]

@@ -35,6 +35,18 @@ _BENIGN = {"none"}
 HOTSPOT_SHARE = 0.5
 
 
+# A block counts as an observation only if SOMETHING was measured. Attribution
+# alone is enough (a verdict with a missing score is still a verdict), and so is
+# a score alone — but all-null is the shape the shipping producer emits when the
+# residual stream was empty, i.e. exactly when nothing could be measured.
+_MEASURED_FIELDS = ("score", "attribution", "sample_count",
+                    "sawtooth_ratio", "near_zero_arrival_ratio")
+
+
+def _measured(b):
+    return any(b.get(f) is not None for f in _MEASURED_FIELDS)
+
+
 def _attribution(b):
     a = b.get("attribution")
     return a if isinstance(a, str) and a else "unknown"
@@ -43,7 +55,8 @@ def _attribution(b):
 def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Per-cell batching summary. A scenario counts only if it has a buffering block."""
     buckets = defaultdict(lambda: {"attr": Counter(), "score": [], "sawtooth": [],
-                                    "near_zero": [], "n": 0})
+                                    "near_zero": [], "samples": [], "n": 0,
+                                    "not_detected": 0})
     for rec in records:
         labels = cc.campaign_labels(rec)
         key = tuple(labels[d] for d in CELL_DIMS)
@@ -52,10 +65,22 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             if not b:
                 continue
             g = buckets[key]
+            # The producer does NOT omit the block when nothing was measured —
+            # TestEngine returns null residuals and ResultReporter still writes
+            # all nine keys, so "not detected" arrives as a FULL dict of nulls.
+            # Counting that as an observation rendered a 0% suspect share on a
+            # corpus with zero batching measurements and, worse, diluted real
+            # hot-spots: 3 middlebox_suspect scenarios plus 4 all-null ones took
+            # a 100% hot-spot down to 43% and flipped the cell to confident
+            # (D-163). Nothing measured is a coverage gap, not a clean verdict.
+            if not _measured(b):
+                g["not_detected"] += 1
+                continue
             g["n"] += 1
             g["attr"][_attribution(b)] += 1
             for field, dst in (("score", "score"), ("sawtooth_ratio", "sawtooth"),
-                               ("near_zero_arrival_ratio", "near_zero")):
+                               ("near_zero_arrival_ratio", "near_zero"),
+                               ("sample_count", "samples")):
                 v = cc.fnum(b.get(field))
                 if v is not None:
                     g[dst].append(v)
@@ -81,6 +106,8 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "sawtooth_median": cc.median(g["sawtooth"]) if g["sawtooth"] else None,
             "near_zero_median": cc.median(g["near_zero"]) if g["near_zero"] else None,
             "suspect_share": suspect_share,
+            "not_detected": g["not_detected"],
+            "sample_count_median": cc.median(g["samples"]),
             # hot-spot: a majority of scenarios attributed to a distortion source
             "distortion_hotspot": bool(suspect_share is not None
                                        and suspect_share > HOTSPOT_SHARE),
@@ -90,7 +117,11 @@ def buffering_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
 
 
 def analyze(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
-    return {"cells": buffering_cells(records, min_samples), "min_samples": min_samples}
+    cells = buffering_cells(records, min_samples)
+    return {"cells": cells, "min_samples": min_samples,
+            # mirrors trust_rollup: no measured scenario anywhere is a coverage
+            # gap the caller must be able to tell apart from "nothing found"
+            "no_evidence": not any(c["n"] for c in cells)}
 
 
 def render_markdown(res):
@@ -104,8 +135,13 @@ def render_markdown(res):
     if not res["cells"]:
         lines.append("_无 buffering 数据（记录未含批化标注块）。_")
         return "\n".join(lines)
-    lines += ["| 点位 | 运营商 | 时段 | n | 众数归因 | 批化分中位 | sawtooth | 近零到达 | 疑似占比 | 备注 |",
-              "|---|---|---|---|---|---|---|---|---|---|"]
+    if res.get("no_evidence"):
+        lines += ["> ⚠ **本轮没有任何一条场景测到批化**（块存在但字段全空——残差流为空时"
+                  "生产端就是这个形状）。下表的 `疑似占比` 一律留 `—`：**这是覆盖缺口，"
+                  "不是「未见失真」**。要拿到批化证据，需要能产出残差样本的场景。", ""]
+    lines += ["| 点位 | 运营商 | 时段 | n | 未测 | 残差样本中位 | 众数归因 | 批化分中位 "
+              "| sawtooth | 近零到达 | 疑似占比 | 备注 |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         notes = []
@@ -113,11 +149,16 @@ def render_markdown(res):
             notes.append("**失真热点**")
         if c["attribution_tie"]:
             notes.append("ATTR_TIE:" + "/".join(c["attribution_tie"]))
-        if c["low_confidence"]:
+        if c["n"] == 0 and c["not_detected"]:
+            notes.append("**未测到批化**（覆盖缺口，非未见失真）")
+        elif c["not_detected"]:
+            notes.append(f"{c['not_detected']} 条未测（不计入分母）")
+        if c["low_confidence"] and c["n"]:
             notes.append("low_conf")
         share = "—" if c["suspect_share"] is None else f"{c['suspect_share'] * 100:.0f}%"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {c['n']} | "
+            f"{c['not_detected']} | {cc.fmt_num(c['sample_count_median'])} | "
             # 3 digits: these are 0..1 ratios — the default 1 digit renders a real
             # 0.02 as "0", which reads as "no batching detected" (R-10 honesty).
             f"{c['modal_attribution'] or '—'} | {cc.fmt_num(c['score_median'], 3)} | "

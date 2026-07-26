@@ -104,13 +104,17 @@ def test_markdown_renders_r05_caveat():
 def test_small_score_not_rendered_as_zero():
     """A real 0.02 batching score must not print as "0" — that reads as 'none detected'."""
     recs = [_rec([_b("none", score=0.02, sawtooth=0.01)]) for _ in range(5)]
-    row = [ln for ln in br.render_markdown(br.analyze(recs)).splitlines()
-           if ln.startswith("| P1 ")][0]
-    col = [x.strip() for x in row.strip("|").split("|")]
-    # point | carrier | band | n | modal | score | sawtooth | near_zero | share | notes
-    assert col[5] == "0.02"     # NOT "0" — a real small score must stay visible
-    assert col[6] == "0.01"
-    assert col[7] == "0"        # a true 0.0 still renders as plain 0
+    lines = br.render_markdown(br.analyze(recs)).splitlines()
+    # look columns up BY NAME: positional indices break every time a column is
+    # added, which is exactly what happened when 未测/残差样本中位 landed (D-163)
+    header = [x.strip() for x in
+              [ln for ln in lines if ln.startswith("| 点位 ")][0].strip("|").split("|")]
+    row = [x.strip() for x in
+           [ln for ln in lines if ln.startswith("| P1 ")][0].strip("|").split("|")]
+    col = dict(zip(header, row))
+    assert col["批化分中位"] == "0.02"   # NOT "0" — a real small score must stay visible
+    assert col["sawtooth"] == "0.01"
+    assert col["近零到达"] == "0"        # a true 0.0 still renders as plain 0
 
 
 def test_markdown_empty_when_no_buffering():
@@ -126,3 +130,48 @@ def test_tied_attribution_is_not_a_modal_attribution():
     assert cells[0]["attribution_tie"] == ["middlebox_suspect", "none"]
     assert "ATTR_TIE:middlebox_suspect/none" in br.render_markdown(
         {"cells": cells, "min_samples": 5})
+
+
+_ALL_NULL = {"score": None, "attribution": None, "sample_count": None,
+             "sawtooth_ratio": None, "near_zero_arrival_ratio": None}
+
+
+def test_all_null_block_is_not_an_observation():
+    """The shipping producer does not omit the block when nothing was measured —
+    TestEngine returns null residuals and ResultReporter still writes all nine
+    keys. Counting that as an observation rendered 疑似占比 0% on a corpus with
+    zero batching measurements (D-163)."""
+    res = br.analyze([_rec([dict(_ALL_NULL)]) for _ in range(6)])
+    c = res["cells"][0]
+    assert c["n"] == 0                       # nothing was measured
+    assert c["not_detected"] == 6
+    assert c["suspect_share"] is None        # NOT 0.0
+    assert c["distortion_hotspot"] is False
+    assert res["no_evidence"] is True
+    md = br.render_markdown(res)
+    assert "未测到批化" in md
+    assert "覆盖缺口" in md
+
+
+def test_unmeasured_scenarios_do_not_dilute_a_hotspot():
+    """4 zero-measurement scenarios used to take a 100% hot-spot down to 43%,
+    flip the cell to confident and flip the modal verdict to `unknown`."""
+    real = [_b("middlebox_suspect", score=0.6, sawtooth=0.4, near_zero=0.3)]
+    recs = ([_rec(list(real)) for _ in range(3)]
+            + [_rec([dict(_ALL_NULL)]) for _ in range(4)])
+    c = br.buffering_cells(recs)[0]
+    assert c["n"] == 3 and c["not_detected"] == 4
+    assert c["suspect_share"] == 1.0
+    assert c["distortion_hotspot"] is True
+    assert c["modal_attribution"] == "middlebox_suspect"
+    assert c["low_confidence"] is True       # 3 measured < min_samples, honestly
+
+
+def test_sample_count_reaches_the_reader():
+    """A `none` verdict backed by 2 residual samples is not the same evidence as
+    one backed by 600, and sample_count had no consumer at all."""
+    big = br.buffering_cells([_rec([_b("none", score=0.01)]) for _ in range(5)])
+    for c in big:
+        assert c["sample_count_median"] == 100      # _b default
+    md = br.render_markdown(br.analyze([_rec([_b("none", score=0.01)]) for _ in range(5)]))
+    assert "残差样本中位" in md
