@@ -1034,3 +1034,57 @@ def test_tier_composition_reaches_html_and_csv():
     assert rows["P2"]["missing_tiers"] == "core"
     assert rows["P1"]["missing_tiers"] == ""
     assert "metro5" in rows["P1"]["tier_mix"]
+
+
+def _mixed_tiers_corpus():
+    """One cell pooling wifi with cellular and quick with forensic."""
+    from synth import contractify
+    out = []
+    for tier_name, val, tp in (("metro", 20, "wifi"), ("regional", 35, "wifi"),
+                               ("core", 90, "auto(cellular)")):
+        c = {"campaign_id": "base", "tier": tier_name, "point_id": "P1",
+             "carrier": "cmcc", "time_band": "busy"}
+        for _ in range(5):
+            r = make_record(campaign=c, aqs=70,
+                            scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})])
+            r["run"]["transport"] = tp
+            r["run"]["mode"] = "forensic" if tp == "wifi" else "quick"
+            out.append(contractify(r))
+    return out
+
+
+def test_heat_card_and_attribution_agree_about_the_same_cell():
+    """The heat card pooled wifi with cellular and quick with forensic while the
+    attribution matrix flagged the very same cell — one report, two answers
+    about one cell (D-166)."""
+    import attribution
+    recs = _mixed_tiers_corpus()
+    attr_flags = attribution.incomparability_flags(
+        attribution.attribute(recs)["cells"][0])
+    heat_flags = attribution.incomparability_flags(rpt.heat_cells(recs)[0])
+    assert "MIXED_TRANSPORT:cellular/wifi" in attr_flags
+    assert heat_flags == attr_flags
+    md = rpt.render_heatcard_markdown(rpt.heat_cells(recs))
+    assert "**MIXED_TRANSPORT:cellular/wifi**" in md
+    assert "MIXED_MODE:forensic/quick" in md
+
+
+def test_heat_incomparability_reaches_csv():
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = _mixed_tiers_corpus()
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+    assert "MIXED_TRANSPORT" in rows[0]["incomparability"]
+    assert "MIXED_MODE" in rows[0]["incomparability"]
+
+
+def test_homogeneous_heat_cell_carries_no_markers():
+    """Crying wolf on the normal case is the failure mode to avoid (D-134)."""
+    import attribution
+    assert attribution.incomparability_flags(
+        rpt.heat_cells(aqs_records(90, 6, point="P1"))[0]) == []

@@ -410,6 +410,7 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
     seen_campaigns = {}
     flags = defaultdict(lambda: [0, 0])   # [veto-capped runs, scorer low-conf runs]
     tier_counts = defaultdict(Counter)    # which server tiers each cell pooled
+    homo = {}                             # per-cell comparability accumulator
     for rec in records:
         labels = cc.campaign_labels(rec)
         if campaign_id is not None and labels["campaign_id"] != campaign_id:
@@ -425,6 +426,13 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
         flags[key][1] += int(scorer_lc)
         if labels["tier"]:
             tier_counts[key][labels["tier"]] += 1
+        # The heat card pooled wifi with cellular and quick with forensic while
+        # the attribution matrix flagged the very same cell — one report, two
+        # answers about one cell (D-166). Same accumulator, same markers.
+        acc = homo.setdefault(key, cc.homogeneity_acc())
+        cc.note_run_homogeneity(acc, rec)
+        for scn in cc.iter_scenarios(rec):
+            cc.note_homogeneity(acc, scn)
     # A heat cell pools whatever tiers it happened to measure. Cells that pooled
     # DIFFERENT tier sets are not comparable with each other: a point that never
     # got its `core` round measured is missing its worst tier, so its median
@@ -454,6 +462,11 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
             # boundary and the cell's median characterises neither population
             "veto_n": flags[key][0],
             "scorer_low_conf_n": flags[key][1],
+            "mixed_transports": cc.mixed_transports(homo.get(key)),
+            "mixed_profile_versions": cc.mixed_flags(homo.get(key))[0],
+            "mixed_histogram_edges": cc.mixed_flags(homo.get(key))[1],
+            "mixed_modes": cc.mixed_run_flags(homo.get(key))[0],
+            "mixed_profile_sources": cc.mixed_run_flags(homo.get(key))[1],
             "tier_mix": dict(cc.ranked(tier_counts.get(key) or Counter())),
             "missing_tiers": sorted(corpus_tiers - set(tier_counts.get(key) or ())),
         })
@@ -486,16 +499,16 @@ def render_heatcard_markdown(cells):
     ]
     for c in cells:
         notes = []
-        if c.get("mixed_campaigns"):
-            notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
         if c.get("missing_tiers"):
             notes.append("**TIER_INCOMPLETE:缺" + "/".join(c["missing_tiers"]) + "**")
         if c.get("veto_n"):
             notes.append(f"**VETO_CAPPED:{c['veto_n']}/{c['n']}**")
         if c.get("scorer_low_conf_n"):
             notes.append(f"SCORER_LOW_CONF:{c['scorer_low_conf_n']}/{c['n']}")
-        if c["low_confidence"]:
-            notes.append("low_conf")
+        # one shared list for MIXED_* and low_conf, so the heat card and the
+        # attribution matrix cannot disagree about the same cell (D-160/166)
+        notes += [f"**{f}**" if f.split(":")[0] in attribution.SEVERE_FLAGS else f
+                  for f in attribution.incomparability_flags(c)]
         note = "; ".join(notes) or "—"
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
@@ -1163,14 +1176,18 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # which tiers this cell pooled, and which the rest of the
                     # corpus has but it does not — medians over different tier
                     # sets are not comparable across cells (D-165)
-                    "tier_mix", "missing_tiers"])
+                    "tier_mix", "missing_tiers",
+                    # same marker string the attribution CSV carries, so one
+                    # filter works across both tables (D-166)
+                    "incomparability"])
         for c in heat:
             w.writerow([c["cell"]["point_id"], c["cell"]["carrier"], c["cell"]["time_band"],
                         _cell(c["aqs_median"]), c["grade"], c["n"], c["low_confidence"],
                         "/".join(c.get("mixed_campaigns") or []),
                         c.get("veto_n", 0), c.get("scorer_low_conf_n", 0),
                         "/".join(f"{t}{n}" for t, n in (c.get("tier_mix") or {}).items()),
-                        "/".join(c.get("missing_tiers") or [])])
+                        "/".join(c.get("missing_tiers") or []),
+                        ";".join(attribution.incomparability_flags(c))])
     written.append(p)
 
     p = prefix + "_attribution.csv"
