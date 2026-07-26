@@ -917,3 +917,61 @@ def test_attribution_premise_checklist_reaches_html():
         assert probe in md.replace("**", "").replace("`", ""), probe
         assert probe in html.replace("<b>", "").replace("</b>", "").replace(
             "<code>", "").replace("</code>", ""), f"{probe} missing from HTML"
+
+
+DAY_MS = 86_400_000
+
+
+def _two_rounds(before_id, after_id, before_vals, after_vals, gap_days=3, stamped=True):
+    base = 1783944000000
+    recs = []
+    for v in before_vals:
+        recs += aqs_records(v, 1, point="P1", campaign_id=before_id, started_ms=base)
+    for v in after_vals:
+        recs += aqs_records(v, 1, point="P1", campaign_id=after_id,
+                            started_ms=base + gap_days * DAY_MS)
+    if not stamped:
+        for r in recs:
+            r["run"].pop("started_at_epoch_ms", None)
+    return recs
+
+
+def test_before_after_pairs_by_time_not_by_name():
+    """`pre-*` sorts after `post-*`, so name ordering inverted the sign of every
+    delta on all three surfaces — a 30-point improvement published as 回退 with
+    AQS 中位Δ -30 (D-161). trend.py has ordered chronologically all along."""
+    recs = _two_rounds("pre-qos", "post-qos", [50, 51, 52, 50, 51], [80, 81, 82, 80, 81])
+    inv = rpt.inventory(recs)
+    assert rpt.compare_basis(inv) == "time"
+    assert rpt.auto_compare_ids(inv) == ("pre-qos", "post-qos")
+    r = rpt.compare_campaigns(recs, *rpt.auto_compare_ids(inv))["rows"][0]
+    assert r["delta"] > 0                       # an improvement reads as one
+    line = [l for l in rpt.build_report_markdown(recs).splitlines()
+            if l.startswith("- **优化前后**")][0]
+    assert "pre-qos → post-qos" in line
+    assert "回退 0" in line
+
+
+def test_unordered_campaigns_refuse_to_guess():
+    """No timestamps means the order is unknowable; falling back to name sort is
+    exactly what produced the inversion. Say so instead (R-10)."""
+    recs = _two_rounds("pre-qos", "post-qos", [50, 51, 52], [80, 81, 82], stamped=False)
+    inv = rpt.inventory(recs)
+    assert rpt.compare_basis(inv) == "no_timestamps"
+    assert rpt.auto_compare_ids(inv) == (None, None)
+    line = [l for l in rpt.build_report_markdown(recs).splitlines()
+            if l.startswith("- **优化前后**")][0]
+    assert "无法确定先后" in line
+    assert "不按名称猜" in line
+
+
+def test_summary_signal_survives_the_unordered_case():
+    """The signal count must not change with corpus shape (D-152)."""
+    import synth_campaign as sc
+    shaped = sc.generate(points=2, repeats=2, campaigns=("base",), carriers=("cmcc",),
+                         time_bands=("busy",), tiers=("metro",))
+    unordered = _two_rounds("pre-qos", "post-qos", [50, 51, 52], [80, 81, 82],
+                            stamped=False)
+    n = lambda recs: sum(1 for ln in rpt.render_summary_markdown(recs).splitlines()
+                         if ln.startswith("- **"))
+    assert n(shaped) == n(unordered)

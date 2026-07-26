@@ -73,6 +73,9 @@ def inventory(records):
         # finding is worth (D-153). Written by annotate_campaign, read by no one
         # until now.
         "label_sources": Counter(),
+        # earliest run per campaign — before/after ordering is a CHRONOLOGY
+        # question, and campaign_id sort need not match time (D-161)
+        "campaign_first_ms": {},
     }
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -99,6 +102,11 @@ def inventory(records):
             inv["last_ms"] = started if inv["last_ms"] is None else max(inv["last_ms"], started)
         if cc.run_aqs(rec) is not None:
             inv["aqs_present"] += 1
+        started = cc.run_started_ms(rec)
+        cid = labels["campaign_id"]
+        if started is not None and (cid not in inv["campaign_first_ms"]
+                                    or started < inv["campaign_first_ms"][cid]):
+            inv["campaign_first_ms"][cid] = started
         src = (cc.run_obj(rec).get("campaign") or {}).get("label_source")
         inv["label_sources"][src if isinstance(src, str) and src else "declared"] += 1
     # labels that are probably one label typed two ways: they split a cell in
@@ -372,6 +380,12 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        "、".join(f"{k} {v} 格" for k, v in cc.ranked(verdict))
                        + f"（{len(labeled)} 个战役）。" if verdict else
                        "**纵向趋势**：各格在场点不足 2，方向不可计算。")
+    elif compare_basis(inv_) == "no_timestamps":
+        # two campaigns but no way to know which came first — guessing by name
+        # is what inverted the sign in the first place (D-161)
+        bullets.append(f"**优化前后**：语料含 2 个战役（{'、'.join(sorted(labeled))}）但"
+                       "**缺 `started_at_epoch_ms`，无法确定先后**——不按名称猜，"
+                       "请显式 `--before/--after` 后重出。")
     else:
         # Every other signal says something even with no data ("无 transport
         # 证据（覆盖缺口）"). This one used to vanish, so the reader could not
@@ -624,10 +638,38 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
 
 # ---------------------------------------------------------------- assembly
 
+def compare_basis(inv):
+    """Why (or why not) a before/after pair could be formed automatically.
+
+    "not_two" | "no_timestamps" | "time". Kept separate from the pair itself so
+    a caller can say WHICH case it is instead of the section silently vanishing.
+    """
+    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    if len(labeled) != 2:
+        return "not_two"
+    firsts = inv.get("campaign_first_ms") or {}
+    if any(c not in firsts for c in labeled):
+        return "no_timestamps"
+    return "time"
+
+
 def auto_compare_ids(inv):
-    """If exactly two labeled campaigns exist, return (before, after) by name sort."""
-    labeled = sorted(c for c in inv["campaigns"] if c != "unlabeled")
-    return (labeled[0], labeled[1]) if len(labeled) == 2 else (None, None)
+    """(before, after) for exactly two labeled campaigns, ordered by the EARLIEST
+    run in each — never by campaign_id.
+
+    Name sort is not chronology: a `pre-*` / `post-*` pair sorts post-before-pre,
+    which inverted the sign of every delta on all three surfaces — a 30-point
+    improvement published as `回退`, `AQS 中位Δ -30` (D-161). trend.py has
+    ordered chronologically since it was written; this path just never did.
+    Without timestamps the order is unknowable, so no pair is returned and the
+    caller says so rather than guessing (「没法查」≠「查过了」).
+    """
+    if compare_basis(inv) != "time":
+        return (None, None)
+    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    firsts = inv["campaign_first_ms"]
+    a, b = sorted(labeled, key=lambda c: (firsts[c], c))
+    return (a, b)
 
 
 def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,

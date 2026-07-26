@@ -261,3 +261,35 @@ def test_mixed_access_media_across_tiers_is_warned():
     assert _sev(pc.check(mixed), "同一接入") == pc.WARN
     same = at("metro", 20, "wifi") + at("core", 90, "wifi")
     assert _sev(pc.check(same), "同一接入") == pc.PASS
+
+
+def _staged_rollout(n=15, **campaign):
+    """The C1 wiring spec ships labels in stages; this is a mid-rollout corpus."""
+    base = {"campaign_id": "sz-q3", "carrier": "cmcc", "time_band": "busy",
+            "tier": "metro"}
+    base.update(campaign)
+    return [contractify(make_record(campaign=dict(base), aqs=80, scenarios=[]))
+            for _ in range(n)]
+
+
+def test_unusable_labels_do_not_pass_as_labelled():
+    """A non-empty run.campaign block is not a usable label set: the staged C1
+    rollout writes everything except point_id, and that corpus used to PASS
+    while the heat card collapsed to a single `unlabeled` row (D-162)."""
+    recs = _staged_rollout()                      # no point_id at all
+    rows = pc.check(recs)
+    assert _sev(rows, "战役标签") == pc.FAIL
+    assert "point_id" in _detail(rows, "战役标签")
+    assert "塌缩为单格" in _detail(rows, "战役标签")
+
+
+def test_partial_label_gap_is_warn():
+    recs = _staged_rollout(n=10, point_id="P1") + _staged_rollout(n=5)
+    rows = pc.check(recs)
+    assert _sev(rows, "战役标签") == pc.WARN
+    assert "5/15" in _detail(rows, "战役标签")
+
+
+def test_fully_labelled_corpus_passes():
+    recs = _staged_rollout(point_id="P1")
+    assert _sev(pc.check(recs), "战役标签") == pc.PASS

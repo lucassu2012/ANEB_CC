@@ -64,15 +64,35 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         rows.append(_row(PASS, "输入契约", f"{len(records)} 条记录全部合规"))
 
     inv = rpt.inventory(records)
+    # A non-empty run.campaign block is not a usable label set. The staged C1
+    # rollout writes campaign_id/carrier/time_band before point_id, and that
+    # corpus used to PASS while the heat card collapsed to one `unlabeled` row
+    # (D-162). Judge per grouping dimension, not by block presence.
+    total = inv["records"]
+    gaps = []
+    for key, dim, bucket in (("campaigns", "campaign_id", "unlabeled"),
+                             ("points", "point_id", "unlabeled"),
+                             ("carriers", "carrier", "unknown"),
+                             ("time_bands", "time_band", "unknown"),
+                             ("tiers", "tier", "unknown")):
+        n = inv[key].get(bucket, 0)
+        if n:
+            gaps.append((dim, n, n == total))
+    collapsed = [d for d, _, whole in gaps if whole and d in ("point_id", "carrier",
+                                                              "time_band", "campaign_id")]
     if inv["with_campaign"] == 0:
         rows.append(_row(FAIL, "战役标签", "全部记录无 run.campaign——热力卡/归因塌缩为"
                                            "单格，报告无分组意义"))
-    elif inv["with_campaign"] < inv["records"]:
-        missing = inv["records"] - inv["with_campaign"]
-        rows.append(_row(WARN, "战役标签", f"{missing}/{inv['records']} 条无标签，"
-                                           "将落入 unlabeled 桶"))
+    elif collapsed:
+        rows.append(_row(FAIL, "战役标签",
+                         "以下分组维度**全部未标注**：" + "、".join(collapsed) +
+                         "——该维度上热力卡塌缩为单格，报告在这个方向上没有分组意义"))
+    elif gaps:
+        detail = "；".join(f"{d} 有 {n}/{total} 条未标注" for d, n, _ in gaps)
+        rows.append(_row(WARN, "战役标签", detail + "（落入 unlabeled/unknown 桶，"
+                                                   "对应格的口径与其余格不同）"))
     else:
-        rows.append(_row(PASS, "战役标签", "全部记录已标注"))
+        rows.append(_row(PASS, "战役标签", "全部分组维度均已标注"))
 
     # --- WARN class: needs a human explanation ------------------------------
     non_completed = {k: v for k, v in inv["statuses"].items() if k != "completed"}
