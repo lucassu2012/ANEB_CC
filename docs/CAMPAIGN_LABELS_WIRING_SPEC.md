@@ -216,7 +216,32 @@ if (run.campaignId != null || run.campaignPointId != null || run.campaignCarrier
 
 ---
 
+## 10. `validity` 枚举与实际输出大小写不一致（交 spec 属主判定）
+
+**现象（实测，非推断）**：`spec/schemas/result-run.schema.json` 的 `scenarios[].validity`
+枚举为**大写** `["VALID", "VALID_LOW_CONFIDENCE", "INVALID"]`，而实际语料写的是**小写**——
+`evidence/.../netem_server_results_20260713.jsonl` 中为 `valid_low_confidence`。
+分析层的 `validate_results.py` 对此报 `~` 级告警（"matches a valid state only by case-fold"）
+**而不阻断**，`campaign_common` 侧比对亦大小写不敏感，故**今天没有任何数字因此出错**。
+
+**为什么仍要报**：契约文件是这条链路上唯一的书面真相。**枚举与实际输出不符时，
+schema 就不能再用来判断"这个取值合不合法"**——今天靠的是消费方宽容，而宽容是约定，
+不是契约。将来若有第二个消费方（或换人实现）照 schema 严格校验，同一份语料会被判违规。
+
+**建议二选一，由 spec 属主定**：
+1. **改 schema 就现状**：枚举改小写，并在描述里写明序列化口径；
+2. **改生产者对齐 schema**：序列化时输出大写常量名。
+
+任一方向落地后，`validate_results.py` 的 case-fold 告警即可升级为**硬违规**——
+本 lane 会同步收紧（现在不收紧，是因为收紧会把今天全部真实语料判为违规）。
+
+**附一条已订正的说法**：初查时我曾报"真实语料还有第四个值 `degraded`"，逐文件核准后
+确认**它只出现在 `demo_results.jsonl`（演示语料）**，并非生产者输出。本项与它无关——
+分析层对任何不认识的取值一律归 `unknown` 桶并标注（D-190），无论枚举怎么定都不会静默吞掉新值。
+
+---
+
 *v1.0 · 2026-07-25 · 分析层 lane 撰写，待 spec 属主 / P1 lane 审定实施。*
-*§9 于 2026-07-26 追加（D-156）。*
+*§9 于 2026-07-26 追加（D-156）；§10 于 2026-07-27 追加（D-190）。*
 *相关：[`CAMPAIGN_LABELS_CONVENTION.md`](CAMPAIGN_LABELS_CONVENTION.md)（口径）、*
 *[`M2_CAMPAIGN_RUNBOOK.md`](M2_CAMPAIGN_RUNBOOK.md)（外场操作）、`scripts/README.md`（分析工具集）。*
