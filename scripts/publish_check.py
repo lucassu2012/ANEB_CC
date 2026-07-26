@@ -168,6 +168,31 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     else:
         rows.append(_row(PASS, "同一接入", "各格三层级接入介质一致"))
 
+    # 层级对账: the tier label is typed by the operator; server_tier_endpoint is
+    # what the run actually hit. Written by annotate, read by nobody — so a
+    # corpus whose three "tiers" all hit the metro mirror produced a full
+    # backbone decomposition with an empty note and a green gate (D-167).
+    conflicts, known_cells, total_cells = [], 0, 0
+    for k in attribution.ATTRIBUTABLE_KPIS:
+        for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
+            total_cells += 1
+            known_cells += int(bool(c.get("tier_endpoints_known")))
+            if c.get("tier_endpoint_conflicts"):
+                conflicts.append(c)
+    if conflicts:
+        rows.append(_row(FAIL, "层级对账",
+                         f"{len(conflicts)} 个格的同一端点被标成多种层级"
+                         "——三层其实打的同一个端,**骨干分解不成立**"))
+    elif not total_cells:
+        rows.append(_row(PASS, "层级对账", "无可归因单元,无需对账"))
+    elif not known_cells:
+        rows.append(_row(WARN, "层级对账",
+                         "语料无 `server_tier_endpoint`——**无法对账** tier 标签是否"
+                         "对应实际打到的镜像端(不等于对上了)"))
+    else:
+        rows.append(_row(PASS, "层级对账",
+                         f"{known_cells}/{total_cells} 个格可对账,未见端点与层级冲突"))
+
     # The other half of 铁律 3's premise. Unlike simultaneity this one is not
     # merely unchecked, it is uncheckable: the contract carries no device
     # identity at all. Saying nothing would let a reader assume it held (D-156).

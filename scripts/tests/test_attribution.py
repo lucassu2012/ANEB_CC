@@ -360,3 +360,54 @@ def test_same_access_across_tiers_is_not_flagged():
     assert c["mixed_transports"] == []
     assert "MIXED_TRANSPORT:" not in attribution.render_markdown(
         attribution.attribute(recs))
+
+
+def _ep_tier(tier_name, val, endpoint, n=5):
+    campaign = {"campaign_id": "base", "tier": tier_name, "point_id": "P1",
+                "carrier": "cmcc", "time_band": "busy",
+                "server_tier_endpoint": endpoint}
+    return [make_record(campaign=campaign,
+                        scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})])
+            for _ in range(n)]
+
+
+METRO_EP = "https://metro.example:8443"
+
+
+def test_three_tiers_hitting_one_endpoint_is_flagged():
+    """The tier label is what the operator typed; server_tier_endpoint is what
+    the run actually hit. The field was written by annotate and read by nobody,
+    so a corpus whose three tiers all hit the metro mirror produced a full
+    backbone decomposition (regional +20, core +40) with an empty note and a
+    green publish gate (D-167)."""
+    recs = (_ep_tier("metro", 30, METRO_EP) + _ep_tier("regional", 50, METRO_EP)
+            + _ep_tier("core", 90, METRO_EP))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["core_backbone_incr"] == 40        # still reported, never suppressed
+    conflicts = c["tier_endpoint_conflicts"]
+    assert list(conflicts) == [METRO_EP]
+    assert conflicts[METRO_EP] == ["core", "metro", "regional"]
+    flags = attribution.incomparability_flags(c)
+    assert any(f.startswith("TIER_ENDPOINT_CONFLICT:") for f in flags)
+    md = attribution.render_markdown(attribution.attribute(recs))
+    assert "TIER_ENDPOINT_CONFLICT" in md
+    assert "层级名副其实" in md                  # the premise checklist item
+
+
+def test_distinct_endpoints_are_not_flagged():
+    recs = (_ep_tier("metro", 30, METRO_EP)
+            + _ep_tier("regional", 50, "https://regional.example:8443")
+            + _ep_tier("core", 90, "https://core.example:8443"))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["tier_endpoint_conflicts"] == {}
+    assert c["tier_endpoints_known"] is True
+    assert attribution.incomparability_flags(c) == []
+
+
+def test_absent_endpoint_is_unknown_not_reconciled():
+    """No field means the reconciliation could not run — not that it passed."""
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 30, 5)
+            + tier_records("core", "n1_rtt_p50_ms", 90, 5))
+    c = attribution.attribute(recs)["cells"][0]
+    assert c["tier_endpoints_known"] is False
+    assert c["tier_endpoint_conflicts"] == {}

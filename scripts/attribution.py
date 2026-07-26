@@ -51,6 +51,7 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
     """
     cells, meta = {}, {}
     times = {}                      # {cell_key -> {tier -> [started_ms, ...]}}
+    endpoints = {}                  # {cell_key -> {endpoint -> {tiers}}}
     excluded_no_tier = 0
     for rec in records:
         labels = cc.campaign_labels(rec)
@@ -68,10 +69,19 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
             started = cc.run_started_ms(rec)
             if started is not None:
                 times.setdefault(key, {}).setdefault(tier, []).append(started)
+            # 层级对账: the tier LABEL is what the operator typed; the endpoint is
+            # what the run actually hit. One endpoint carrying two tier labels
+            # proves the three-tier decomposition cannot hold — and the field was
+            # written by annotate and read by nobody, so a corpus whose three
+            # "tiers" all hit the metro mirror produced a full backbone
+            # decomposition with an empty note and a green publish gate (D-167).
+            ep = (cc.run_obj(rec).get("campaign") or {}).get("server_tier_endpoint")
+            if isinstance(ep, str) and ep.strip():
+                endpoints.setdefault(key, {}).setdefault(ep.strip(), set()).add(tier)
             acc = meta.setdefault(key, cc.homogeneity_acc())
             cc.note_homogeneity(acc, scn)
             cc.note_run_homogeneity(acc, rec)
-    return cells, excluded_no_tier, meta, times
+    return cells, excluded_no_tier, meta, times, endpoints
 
 
 # 铁律 3 cancels the common-mode access component only if the three tiers were
@@ -152,7 +162,7 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
               min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Full attribution over a record set. Returns a dict with per-cell results
     and coverage metadata."""
-    cells, excluded, meta, times = collect_tier_samples(records, kpi, group_by)
+    cells, excluded, meta, times, endpoints = collect_tier_samples(records, kpi, group_by)
     results = []
     for key in sorted(cells):
         cell = dict(zip(group_by, key))
@@ -166,6 +176,10 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
         entry["mixed_profile_sources"] = mixed_sources
         entry["mixed_campaigns"] = cc.mixed_campaigns(meta.get(key))
         entry["mixed_transports"] = cc.mixed_transports(meta.get(key))
+        entry["tier_endpoint_conflicts"] = {
+            ep: sorted(ts) for ep, ts in sorted((endpoints.get(key) or {}).items())
+            if len(ts) > 1}
+        entry["tier_endpoints_known"] = bool(endpoints.get(key))
         results.append(entry)
     return {
         "kpi": kpi,
@@ -179,7 +193,7 @@ def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
 
 # Markers whose meaning is "this cell's increments are NOT USABLE", as opposed to
 # "read with care" — renderers that can emphasise, should emphasise these.
-SEVERE_FLAGS = ("TIER_TIME_SPREAD", "MIXED_TRANSPORT")
+SEVERE_FLAGS = ("TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT")
 
 
 def incomparability_flags(cell):
@@ -194,6 +208,9 @@ def incomparability_flags(cell):
     out = []
     if cell.get("not_computable_reason"):
         out.append(cell["not_computable_reason"])
+    for ep, tiers in sorted((cell.get("tier_endpoint_conflicts") or {}).items()):
+        short = ep.replace("|", "/")
+        out.append(f"TIER_ENDPOINT_CONFLICT:{short}={'/'.join(tiers)}")
     if cell.get("tier_time_confound"):
         hrs = cell["tier_time_spread_ms"] / 3600_000.0
         out.append(f"TIER_TIME_SPREAD:{cc.fmt_num(hrs, 1)}h")
@@ -359,6 +376,9 @@ def premise_notes(result):
         "- **同一接入**：已核对。混用的格标 `MIXED_TRANSPORT`——`metro` 走场地 wifi、"
         "`core` 走 SIM 时，增量其实是 **wifi 与蜂窝的接入差**，**该格增量不可用**，"
         "只能各介质分开重测。",
+        "- **层级名副其实**：靠 `server_tier_endpoint` 对账。同一个端点被标成两种层级 → "
+        "标 `TIER_ENDPOINT_CONFLICT`,**该格的骨干分解不成立**(三层其实打的同一个端);"
+        "语料无该字段则**无法对账**,不等于对上了。",
         "- **同一客户端**：**无法核对**（契约无任何设备标识字段）。中途换机的机型差异会"
         "整个计入骨干增量且**不会有任何标记**——只能由采集方书面确认（runbook §5 清单）。",
     ]

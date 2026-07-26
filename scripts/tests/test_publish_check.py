@@ -305,3 +305,24 @@ def test_no_batching_evidence_is_warn_not_pass():
     rows = pc.check(recs)
     assert _sev(rows, "批化失真") == pc.WARN
     assert "无法判断" in _detail(rows, "批化失真")
+
+
+def test_tier_endpoint_conflict_blocks_publication():
+    from synth import make_record
+    def ep(tier_name, val, endpoint, n=5):
+        c = {"campaign_id": "base", "tier": tier_name, "point_id": "P1",
+             "carrier": "cmcc", "time_band": "busy", "server_tier_endpoint": endpoint}
+        return [contractify(make_record(campaign=c, aqs=80,
+                                        scenarios=[("s1_chat", {"n1_rtt_p50_ms": val})]))
+                for _ in range(n)]
+    M = "https://metro.example:8443"
+    same = ep("metro", 30, M) + ep("regional", 50, M) + ep("core", 90, M)
+    rows = pc.check(same)
+    assert _sev(rows, "层级对账") == pc.FAIL
+    assert "骨干分解不成立" in _detail(rows, "层级对账")
+    distinct = (ep("metro", 30, M) + ep("regional", 50, "https://r.example:8443")
+                + ep("core", 90, "https://c.example:8443"))
+    assert _sev(pc.check(distinct), "层级对账") == pc.PASS
+    # …and a corpus without the field must say it could not reconcile (D-150)
+    assert _sev(pc.check(_clean()), "层级对账") == pc.WARN
+    assert "无法对账" in _detail(pc.check(_clean()), "层级对账")
