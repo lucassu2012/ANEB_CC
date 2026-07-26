@@ -173,10 +173,45 @@ def _scenario(rng, idx, rtt, *, order_index, suspect_clock, batching, transport,
     }
 
 
+# The point whose optimisation round is designed to be BIG ENOUGH TO DETECT.
+# Chosen to carry no other special role: index 1 has the broken clock, 2 the
+# batching, 3 the jitter, and every third point is dual-medium.
+OPTIMISED_POINT_INDEX = 4
+OPTIMISED_POINT_GAIN = 0.55        # extra RTT factor on the later campaign
+
+
+# What a rehearsal is SUPPOSED to conclude. Same idea as CHAOS_PATHOLOGIES: an
+# expected answer turns "look at the output" into "check the output", which is
+# the difference between a rehearsal and a demo.
+#
+# Why this exists: with only the uniform 10% campaign gain, the designed effect
+# worked out to ~3 AQS points against a ~6-point noise scale, so at the runbook's
+# default grid ALL 32 comparable cells landed inside the noise — every rehearsal
+# ended in "no change beyond measurement noise". Honest, but it means a broken
+# improvement-detection path and a working one produce identical rehearsal
+# output: the vacuous-test trap wearing a corpus (D-182).
+DESIGNED_EFFECTS = (
+    ("real_improvement",
+     f"SYNTH-P{OPTIMISED_POINT_INDEX + 1:02d} 在 opt 战役有**真实**改善（设计值远超噪声尺度）"
+     "→ 「优化前后对比」必须把它判为**超出噪声**，摘要必须点名它。"
+     "**若报告说全部格都在噪声内，是改善检测坏了，不是数据没效果。**"),
+    ("sub_noise_improvement",
+     "其余点位的 opt 改善（均匀 10% RTT）**刻意小于**噪声尺度 → 必须判为 `噪声内`。"
+     "这是正确行为而非工具迟钝：真实外场里这种量级的差异同样不能当结论。"),
+    ("media_difference",
+     "双介质点位的 wifi/cellular 差异同样小于噪声 → 「接入介质」信号必须说"
+     "**未观察到超出测量噪声的介质差异**，不得点名「蜂窝劣于 wifi」。"),
+)
+
+
 def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle"),
              tiers=("metro", "regional", "core"), repeats=5,
              campaigns=("base", "opt"), seed=20260725, start_ms=1783944000000):
-    """Full-grid synthetic corpus. Returns a list of contract-complete records."""
+    """Full-grid synthetic corpus. Returns a list of contract-complete records.
+
+    Carries the outcomes listed in DESIGNED_EFFECTS — one detectable improvement,
+    everything else deliberately sub-noise — so a rehearsal can tell a working
+    toolchain from a silent one."""
     rng = random.Random(seed)
     pids = _point_ids(points)
     records = []
@@ -199,6 +234,10 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
             # cellular-only, so the rollup sees both the comparable and the
             # single-medium case
             dual_medium = (pi % 3 == 0)
+            # ONE point gets an optimisation large enough to clear the noise, so
+            # the rehearsal has a positive answer to check against (D-182).
+            opt_gain = (OPTIMISED_POINT_GAIN
+                        if (ci > 0 and pi == OPTIMISED_POINT_INDEX) else 1.0)
             for carrier in carriers:
                 carrier_f = 1.0 if carrier == "cmcc" else 1.12
                 for band in time_bands:
@@ -212,7 +251,7 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
                             # wifi backhaul modelled as modestly better here
                             medium_f = 0.88 if medium == "wifi" else 1.0
                             rtt = base * qf * carrier_f * band_f * campaign_gain \
-                                * medium_f * (1.0 + rng.gauss(0, noise * 0.5))
+                                * opt_gain * medium_f * (1.0 + rng.gauss(0, noise * 0.5))
                             rtt = max(3.0, rtt)
                             scns = [
                                 _scenario(rng, i, rtt,

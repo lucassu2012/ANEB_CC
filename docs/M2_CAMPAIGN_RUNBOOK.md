@@ -24,25 +24,52 @@
 ## 0.5 出发前彩排（强烈建议：外场前一天跑一次）
 
 用合成全网格语料把整条链路预演一遍，确认工具、参数、阅读方式都就位——
-**不要**在外场当天第一次见到规模化报告长什么样：
+**不要**在外场当天第一次见到规模化报告长什么样。
+
+**分两趟，各练一件事**（合成一趟会两头都练不到，原因见下）：
+
+**A. 补注演练**——练整条链路上最容易出错的那一步：
 
 ```
-python synth_campaign.py -o rehearsal_raw.jsonl --unlabelled
-python annotate_campaign.py rehearsal_raw.jsonl -o rehearsal.jsonl --set campaign_id=drill --set point_id=DRILL-01 --set carrier=cmcc --set tier=metro --infer-time-band
-python campaign_report.py rehearsal.jsonl --md r.md --html r.html --csv rt
-python publish_check.py rehearsal.jsonl
+python synth_campaign.py -o rehearsal_raw.jsonl --unlabelled --points 2 --repeats 3
+python annotate_campaign.py rehearsal_raw.jsonl -o rehearsal_labelled.jsonl --set campaign_id=drill --set point_id=DRILL-01 --set carrier=cmcc --set tier=metro --infer-time-band
 ```
 
-`--unlabelled` 让彩排语料与**今天 app 的实际输出一致**（标签接线未落地 = 无 `run.campaign`），
-这样第 2 步补注也被演练到——它是整条链路上最容易出错的一步。
+`--unlabelled` 让语料与**今天 app 的实际输出一致**（标签接线未落地 = 无 `run.campaign`）。
+注意这一趟会把**所有记录压成同一点位、同一层级、同一战役**——那正是 `--set` 的语义，
+**不是**用来看报告的语料。
+
+**B. 读报告演练**——用带标签的满网格语料，看报告真正的样子：
+
+```
+python synth_campaign.py -o rehearsal_full.jsonl
+python campaign_report.py rehearsal_full.jsonl --md r.md --html r.html --csv rt
+python publish_check.py rehearsal_full.jsonl
+```
+
 （`publish_check` 必然报 FAIL：彩排语料本就是合成的，正是它该拦的。）
 
-> ⛔ 彩排产物**数字全是虚构的**。报告顶端会印红色合成数据警告；
-> 见到该警告的报告**一律不得**外发或作为任何结论依据。彩排文件用完即删，
-> **绝不可**与外场语料放同一目录。
+> **为什么必须分两趟**：A 趟的 `--set point_id=…` 把 8 个点位压成 1 个、三层级压成 1 层、
+> 两个战役压成 1 个，于是热力卡只剩 2 格、归因矩阵只有同城一层、
+> **「优化前后对比」整段根本不存在**——而那一段的噪声尺度恰是全报告最难读的部分。
+> 从前的单趟彩排就是这样：手册叫人看热力卡颜色分布与层级增量，而彩排给不出来（D-182）。
 
-预演时重点看：摘要各条信号的读法、热力卡颜色分布、归因矩阵的层级增量、
-稳定性段的省略声明、CSV 能否被你的表格工具正常打开。
+### 彩排的正确答案（B 趟对着核，不是"看看而已"）
+
+合成语料是**按已知答案设计**的（见 `synth_campaign.py` 的 `DESIGNED_EFFECTS`）。
+对不上就是工具链坏了，不是数据没效果：
+
+- [ ] 「优化前后对比」把 **`SYNTH-P05`** 的格判为**超出噪声**且方向为改善，摘要点名它。
+      **若报告说全部格都在噪声内 → 改善检测路径已坏，不要带去外场。**
+- [ ] 其余点位的 opt 改善判为 `噪声内`（设计上就小于噪声）——这是**正确**行为，不是工具迟钝。
+- [ ] 「接入介质」信号说**未观察到超出测量噪声的介质差异**，**不**点名"蜂窝劣于 wifi"。
+- [ ] 热力卡有明显颜色梯度（末位点位最差），归因矩阵三层级增量齐全。
+- [ ] 报告顶端有红色合成数据警告；CSV 能被你的表格工具正常打开（中文点位名不乱码）。
+
+> ⛔ 彩排产物**数字全是虚构的**。见到红色合成数据警告的报告**一律不得**外发或作为任何
+> 结论依据。彩排文件用完即删，**绝不可**与外场语料放同一目录。
+
+另外重点看：摘要各条信号的读法、稳定性段的省略声明。
 
 ## 1. 语料进门：契约校验（每批语料先跑，坏语料早死）
 

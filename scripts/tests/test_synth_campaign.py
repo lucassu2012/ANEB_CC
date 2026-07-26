@@ -109,6 +109,36 @@ def test_invalid_scenarios_null_both_value_and_grade():
     assert seen_invalid, "fixture should contain invalid scenarios to exercise this"
 
 
+def test_rehearsal_can_demonstrate_both_verdicts():
+    """A rehearsal whose every verdict is negative cannot tell a working
+    improvement-detection path from a silent one — the vacuous-test trap wearing
+    a corpus. At the runbook's default grid ALL 32 comparable cells used to land
+    inside the noise (designed effect ~3 AQS against a ~6 noise scale), so the
+    corpus now carries ONE optimisation big enough to clear it (D-182)."""
+    recs = sc.generate()
+    inv = rpt.inventory(recs)
+    before, after = rpt.auto_compare_ids(inv)
+    rows = rpt.compare_campaigns(recs, before, after)["rows"]
+    real = [r for r in rows if r["within_noise"] is False]
+    noisy = [r for r in rows if r["within_noise"] is True]
+    # both paths demonstrable in one rehearsal, which is the whole point
+    assert real, "rehearsal must be able to show a detected improvement"
+    assert noisy, "…and must still show sub-noise deltas as sub-noise"
+    designed = f"SYNTH-P{sc.OPTIMISED_POINT_INDEX + 1:02d}"
+    assert {r["cell"]["point_id"] for r in real} == {designed}
+    assert all(r["delta"] > 0 for r in real)        # an improvement, not a regression
+    # the expected answers are written down where a rehearsing operator reads them
+    keys = [k for k, _ in sc.DESIGNED_EFFECTS]
+    assert "real_improvement" in keys and "sub_noise_improvement" in keys
+    # …and the summary NAMES the improved cells. Every other signal names its
+    # examples; this one gave counts only, so the reader learned four cells got
+    # better but not which — the question the round exists to answer (D-182).
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if ln.startswith("- **优化前后")][0]
+    assert designed in line
+    assert "±" in line              # named with its noise scale, never bare
+
+
 def test_tier_ordering_is_realistic():
     """metro < regional < core on RTT — otherwise the attribution matrix
     rehearsal would be meaningless."""

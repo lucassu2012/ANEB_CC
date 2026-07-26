@@ -453,9 +453,19 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                 tail += f"；{len(noisy)} 个格 Δ 在噪声内（不作结论）"
             if unknown:
                 tail += f"；{len(unknown)} 个格噪声无法估计（样本不足或复测零离散，不作结论）"
+            # Every other signal names its examples; this one gave counts only,
+            # so the reader learned that four cells improved but not WHICH — and
+            # "where did it get better" is the question the round was run to
+            # answer (D-182). Biggest movers first.
+            named = ""
+            if real:
+                top = sorted(real, key=lambda r: -abs(r["delta"]))
+                named = " —— " + _top([f"{_cell_label(r['cell'])}"
+                                       f"(Δ{cc.fmt_num(r['delta'], 1)}"
+                                       f"±{cc.fmt_num(r['noise'], 1)})" for r in top])
             bullets.append(f"**优化前后**（{before_id} → {after_id}）：{len(rows)} 个共同格中 "
                            f"{len(real)} 个 Δ 超出噪声——改善 {up}、回退 {down}、"
-                           f"持平 {len(real) - up - down}"
+                           f"持平 {len(real) - up - down}{named}"
                            f"{tail}；AQS 中位Δ "
                            f"{cc.fmt_num(cc.median([r['delta'] for r in rows]), 1)}。")
     elif len(labeled) >= 3:
