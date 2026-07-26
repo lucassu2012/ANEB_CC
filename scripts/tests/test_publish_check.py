@@ -255,6 +255,8 @@ def test_tier_simultaneity_is_checked_before_publication():
 
 
 def test_uncheckable_premise_is_stated_not_omitted():
+    # ⚠ SOLE targeted guard on handover §2.2 "cannot check" != "checked"
+    #   (D-186's mutation map). Flipping this item to PASS breaks nothing else.
     """"Same client" is not merely unchecked — the contract carries no device
     identity at all, so it is uncheckable. Saying nothing would let a reader
     assume it held (D-156)."""

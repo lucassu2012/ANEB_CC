@@ -140,6 +140,9 @@ def test_config_with_correct_keys_loads():
 
 
 def test_partial_config_is_a_hard_error_too():
+    # ⚠ SOLE targeted guard on handover §2.12's "the guard's predicate must be
+    #   the consumer's predicate" (D-186's mutation map). Reverting this to any()
+    #   is exactly the D-173 defect, and nothing else would notice.
     """One plural typo is enough. D-119 made a WHOLLY empty target fatal, but the
     guard tested any() while analyze() requires all() — so a config with two good
     keys and one typo passed the guard, fell through to descriptive mode, and

@@ -320,6 +320,10 @@ def test_zero_spread_still_reports_the_odd_cell():
 
 
 def test_uniform_verdict_does_not_claim_the_cells_are_alike():
+    # ⚠ SOLE targeted guard on the WORDING half of handover §2.10 (D-186's
+    #   mutation map); the report snapshot also fires, but a snapshot approves
+    #   whatever --update is run against. D-187 guards the summary bullet and
+    #   the dispersion column, which are different halves of the same principle.
     """'No cell crossed the screen' is not 'the cells are the same'. The verdict
     must state the weaker true thing and expose the spread that carries the rest."""
     recs = []

@@ -31,6 +31,9 @@ def _cell(i, *, unstable=False, cv=3.0):
 
 
 def test_stable_row_cap_declares_what_it_omitted():
+    # ⚠ SOLE targeted guard on handover §2.4 "declare what was truncated"
+    #   (D-186's mutation map). Deleting or weakening this leaves that red line
+    #   held by nothing. Replacing it? Put the replacement in first.
     """No silent truncation (D-117): the omission is stated, with a pointer to
     the complete data."""
     cells = [_cell(i) for i in range(40)]
