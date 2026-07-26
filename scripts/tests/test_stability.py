@@ -184,3 +184,22 @@ def test_plan_states_the_good_news_positively():
     md = stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
     assert "当前复测数足够" in md
     assert "分辨不了" not in md
+
+
+def test_plan_separates_cells_that_are_not_repeatable():
+    """A cell whose CV is over the gate gets a repeat-count prescription, but
+    more repeats is the wrong remedy for a measurement that is not repeatable —
+    the runbook answer there is to find the cause and re-measure (D-170)."""
+    stable = _campaign_kpis([100, 101, 99, 100, 100], "base")
+    unstable = [r for v in (100, 130, 70, 115, 85)
+                for r in kpi_scenario_records(1, kpi={"t1_ttft_ms": v},
+                                              point="P-UNSTABLE", campaign_id="base")]
+    rows = stability.plan_cells(
+        stability.stability_cells(stable + unstable, "t1_ttft_ms"), 5.0)
+    by = {r["cell"]["point_id"]: r for r in rows}
+    assert by["P-UNSTABLE"]["unstable"] is True
+    assert by["P-UNSTABLE"]["required_n"] > 50      # the arithmetic still runs
+    md = stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
+    assert "超门?" in md                            # the column exists
+    assert "**✗超门**" in md
+    assert "不解决它们本身不可重复" in md            # and says why n is not the fix

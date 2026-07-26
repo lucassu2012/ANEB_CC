@@ -326,3 +326,33 @@ def test_tier_endpoint_conflict_blocks_publication():
     # …and a corpus without the field must say it could not reconcile (D-150)
     assert _sev(pc.check(_clean()), "层级对账") == pc.WARN
     assert "无法对账" in _detail(pc.check(_clean()), "层级对账")
+
+
+def _order_rec(order=None):
+    from synth import make_record
+    r = make_record(campaign={"campaign_id": "base", "tier": "metro", "point_id": "P1",
+                              "carrier": "cmcc", "time_band": "busy"},
+                    aqs=80, scenarios=[("s1_chat", {"t1_ttft_ms": 100})])
+    if order:
+        r["run"]["scenario_order"] = order
+    return contractify(r)
+
+
+def test_order_effect_gate_distinguishes_three_corpora():
+    """Three different corpora collapsed into one message. A corpus that HAS
+    scenario_order and proves the Latin square never rotated is a stronger and
+    quite different finding from one carrying no order evidence at all, and
+    order_effect computes both verdicts (D-164) — the gate never read them
+    (D-170)."""
+    absent = [_order_rec() for _ in range(6)]
+    assert _sev(pc.check(absent), "序位效应") == pc.WARN
+    assert "无 `scenario_order`" in _detail(pc.check(absent), "序位效应")
+
+    flat = [_order_rec("s1,s2,s3") for _ in range(6)]
+    assert _sev(pc.check(flat), "序位效应") == pc.WARN
+    assert "拉丁方未轮转" in _detail(pc.check(flat), "序位效应")
+
+    rotated = [_order_rec("s1,s2,s3|s2,s3,s1|s3,s1,s2") for _ in range(6)]
+    detail = _detail(pc.check(rotated), "序位效应")
+    assert "未轮转" not in detail
+    assert "无 `scenario_order`" not in detail

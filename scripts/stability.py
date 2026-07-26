@@ -157,16 +157,18 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         "`需 n≥` 是把可辨差异压到目标所需的**每侧**复测数。离散度未知（n<2）的单元一律留 `—`，"
         "**不以 0 或当前 n 顶替**。",
         "",
-        "| 单元 | n | 中位 | CV% | 可辨最小差异 | 占中位 | 达标? | 需 n≥ |",
-        "|---|---|---|---|---|---|---|---|",
+        "| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异 | 占中位 | 达标? | 需 n≥ |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in r["cell"].items())
         ok = "—" if r["resolves_target"] is None else ("达标" if r["resolves_target"] else "✗不足")
+        gate = "**✗超门**" if r["unstable"] else ("—" if r["cv_percent"] is None else "达门")
         lines.append(
             f"| {cell_label} | {r['n']} | {cc.fmt_num(r['median'], 2)} | "
-            f"{cc.fmt_num(r['cv_percent'], 1)} | {cc.fmt_num(r['mde'], 2)} | "
+            f"{cc.fmt_num(r['cv_percent'], 1)} | {gate} | {cc.fmt_num(r['mde'], 2)} | "
             f"{cc.fmt_num(r['mde_pct'], 1)}% | {ok} | {cc.fmt_num(r['required_n'])} |")
+    unstable = [r for r in rows if r["unstable"]]
     judged = [r for r in rows if r["resolves_target"] is not None]
     short = [r for r in judged if not r["resolves_target"]]
     unknown = len(rows) - len(judged)
@@ -186,6 +188,14 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         if unknown:
             verdict += f" 另有 {unknown} 个单元离散度不可估，**未计入**。"
         lines.append(verdict)
+    if unstable:
+        # A prescription of "run more repeats" is the wrong remedy for a cell
+        # whose measurement is not repeatable in the first place — the runbook
+        # answer there is to find the cause and re-measure (D-170).
+        lines.append("")
+        lines.append(f"> ⚠ 其中 **{len(unstable)} 个单元 CV 已超门**（标 `✗超门`）。"
+                     "对这些单元,`需 n≥` 只是把噪声摊薄的算术,**不解决它们本身不可重复**——"
+                     "先查原因(设备/环境/场景本身不稳)再重采,不要照着这个数字硬加复测。")
     return "\n".join(lines)
 
 

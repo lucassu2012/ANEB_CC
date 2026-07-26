@@ -307,15 +307,31 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         rows.append(_row(PASS, "效应量", "单战役语料，无前后对比可核算"))
 
     biased, judged = [], 0
+    no_evidence, never_rotated = True, False
     for k in order_effect.ORDER_SENSITIVE_KPIS:
-        for p in order_effect.analyze(records, kpi=k, min_samples=min_samples)["profiles"]:
+        res = order_effect.analyze(records, kpi=k, min_samples=min_samples)
+        no_evidence = no_evidence and res["no_order_evidence"]
+        never_rotated = never_rotated or res["rotation_warning"]
+        for p in res["profiles"]:
             if p["order_effect_suspected"] is None:
                 continue                      # not computable — not "no effect"
             judged += 1
             if p["order_effect_suspected"]:
                 biased.append(p)
-    if not judged:
-        rows.append(_row(WARN, "序位效应", "无 order_index 证据——无法校验反平衡是否奏效"))
+    # Three different corpora used to collapse into one message. A corpus that
+    # HAS scenario_order and proves the Latin square never rotated is a stronger
+    # and quite different finding from one that carries no order evidence at
+    # all, and order_effect已 computes both verdicts (D-164) — this gate simply
+    # never read them (D-170).
+    if no_evidence:
+        rows.append(_row(WARN, "序位效应", "语料无 `scenario_order`——"
+                                           "**无法校验**反平衡是否奏效"))
+    elif never_rotated:
+        rows.append(_row(WARN, "序位效应", "全语料只有一种轮次——**拉丁方未轮转**，"
+                                           "反平衡在构造上不成立，位次差无法与场景差分离"))
+    elif not judged:
+        rows.append(_row(WARN, "序位效应", "已轮转，但各 profile 在场位次不足 2——"
+                                           "**本轮无法校验**是否残留序位偏倚"))
     elif biased:
         rows.append(_row(WARN, "序位效应", f"{len(biased)}/{judged} 处疑似位置-KPI 相关"
                                            "（反平衡可能失效，须复核）"))
