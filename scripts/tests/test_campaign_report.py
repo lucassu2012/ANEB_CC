@@ -992,6 +992,47 @@ def test_veto_capped_runs_are_visible_in_the_heat_card():
     assert "VETO_CAPPED" not in rpt.render_heatcard_markdown(clean)
 
 
+def test_hostile_label_is_escaped_not_rejected():
+    """Handover §2.5's red line, per surface: escape a human-typed label, never
+    drop it. A literal pipe inside a markdown cell splits the row into an extra
+    column, so the table breaks exactly on the row carrying an unusual label.
+    Escaping is a RENDERING concern only — CSV and grouping keys keep the raw
+    value, and HTML has a different hazard (markup injection) than markdown.
+
+    The property test already guards "hostile labels do not break tables"
+    generally (D-128); this pins the per-surface contract, which is what makes
+    the three surfaces disagree if someone "fixes" one of them (D-185)."""
+    import csv as csvmod
+    import os
+    import tempfile
+    from synth import contractify
+    assert cc.md_cell("SZ|CBD") == "SZ\\|CBD"      # escaped…
+    assert cc.md_cell("SZ\nCBD") == "SZ CBD"       # …newline folded, not dropped
+    recs = [contractify(r) for r in aqs_records(80, 5, point="SZ|CBD")]
+    md = rpt.render_heatcard_markdown(rpt.heat_cells(recs))
+    header = [ln for ln in md.splitlines() if ln.startswith("| 点位")][0]
+    row = [ln for ln in md.splitlines() if "CBD" in ln][0]
+    # count on UNESCAPED pipes only — a naive split("|") counts the escaped one
+    # too and reports a good table as broken (D-128 caught that in my own test)
+    def cols(line):
+        return len(re.split(r"(?<!\\)\|", line))
+    assert cols(row) == cols(header), (row, header)
+    assert "SZ\\|CBD" in row                        # displayed, not dropped
+    # HTML: a pipe is harmless there, but a label must not be able to inject
+    # markup — the escaping question is different per surface, so assert the
+    # one that matters here rather than repeating the markdown check
+    injected = [contractify(r) for r in aqs_records(80, 5, point="<b>SZ</b>")]
+    html = rpt.build_report_html(injected, "2026-01-01 00:00:00")
+    assert "&lt;b&gt;SZ&lt;/b&gt;" in html
+    assert "<b>SZ</b>" not in html
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_heat.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+    assert rows[0]["point_id"] == "SZ|CBD"          # CSV keeps the RAW value
+
+
 def test_heatcard_note_column_is_exactly_the_shared_flag_list():
     """The structural guard behind D-160 / D-166 / D-181, which were all the same
     defect: a marker appended inline in ONE renderer, so the other surfaces never
