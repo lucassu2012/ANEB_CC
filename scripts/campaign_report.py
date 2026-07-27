@@ -1012,8 +1012,10 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             compare_campaigns(records, before_id, after_id, min_samples)))
         parts.append("")
     # 3+ labeled campaigns: before/after can't express a trajectory — add one. (D-98)
+    # The threshold comes from trend so this gate, trend's own renderer and the
+    # CSV writer cannot disagree about when a trend exists (D-196).
     labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
-    if len(labeled) >= 3:
+    if len(labeled) >= trend.MIN_CAMPAIGNS_FOR_TREND:
         parts.append(trend.render_markdown(trend.analyze(records, min_samples=min_samples)))
         parts.append("")
     return "\n".join(parts)
@@ -1559,20 +1561,32 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(r.get("before_n")), _cell(r.get("after_n"))])
     written.append(p)
 
+    # Written only when a trend EXISTS. It used to ship unconditionally, so a
+    # two-campaign corpus — the standard M2 shape — archived a _trend.csv whose
+    # `direction` said improving for 31 of 32 cells while the _comparison.csv
+    # beside it marked 28 of those same cells within_noise, and the report showed
+    # no trend section at all. Three artefacts, two answers (D-196). Same
+    # threshold as the section gate and trend's own renderer.
     tres = trend.analyze(records, min_samples=min_samples)
-    p = prefix + "_trend.csv"
-    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
-        w.writerow(["point_id", "carrier", "time_band", "campaign_id", "order_index",
-                    "median", "n", "direction", "first_last_delta", "low_confidence"])
-        for c in tres["cells"]:
-            cell = c["cell"]
-            for i, cid in enumerate(tres["campaigns"]):
-                w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
-                            cid, i, _cell(c["trajectory"][i]), c["sample_counts"][i],
-                            _cell(c["direction"]), _cell(c["first_last_delta"]),
-                            c["low_confidence"]])
-    written.append(p)
+    if len(tres["campaigns"]) >= trend.MIN_CAMPAIGNS_FOR_TREND:
+        p = prefix + "_trend.csv"
+        with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+            w = csv.writer(f)
+            # the direction is only as good as its noise scale — ship both or the
+            # analyst computing on this file re-derives an unqualified verdict
+            w.writerow(["point_id", "carrier", "time_band", "campaign_id", "order_index",
+                        "median", "n", "direction", "first_last_delta",
+                        "noise", "within_noise", "order_basis", "low_confidence"])
+            for c in tres["cells"]:
+                cell = c["cell"]
+                for i, cid in enumerate(tres["campaigns"]):
+                    w.writerow([cell.get("point_id"), cell.get("carrier"),
+                                cell.get("time_band"), cid, i,
+                                _cell(c["trajectory"][i]), c["sample_counts"][i],
+                                _cell(c["direction"]), _cell(c["first_last_delta"]),
+                                _cell(c.get("noise")), _cell(c.get("within_noise")),
+                                tres.get("order_basis"), c["low_confidence"]])
+        written.append(p)
 
     bcells = buffering_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_buffering.csv"

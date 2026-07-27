@@ -15,9 +15,30 @@ import trend
 from synth import aqs_records, kpi_scenario_records
 
 
+# A real epoch, and real spread. Both became load-bearing at D-196:
+#   * started_ms used to be 1000/2000/3000 — 1970 — which the epoch-magnitude
+#     check now refuses to order by, because a number that is not a time must not
+#     decide which round came first (D-176's rule, extended to the >=3 path).
+#   * every record carried the SAME aqs, so the cell's spread was 0 — and zero
+#     observed spread resolves nothing (D-169), so no direction may be claimed.
+# A fixture that cannot occur in the field cannot exercise the verdicts either.
+_EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
+_DAY = 86400000
+_SPREAD = (-4, -2, 0, 2, 4)     # sd ~ 3.16 around the target median
+
+
 def _camp(aqs, cid, started_ms, *, n=5, point="P1", carrier="cmcc", time_band="busy"):
-    return aqs_records(aqs, n, point=point, carrier=carrier, time_band=time_band,
-                       campaign_id=cid, started_ms=started_ms)
+    """n records for one campaign, centred on `aqs`, with a real repeat spread.
+
+    Callers keep their toy `started_ms` scale; it is mapped onto a plausible
+    epoch here, preserving the ORDER each caller intends."""
+    ms = _EPOCH + int(started_ms) * _DAY // 1000
+    out = []
+    for i in range(n):
+        out += aqs_records(aqs + _SPREAD[i % len(_SPREAD)], 1, point=point,
+                           carrier=carrier, time_band=time_band,
+                           campaign_id=cid, started_ms=ms)
+    return out
 
 
 def test_three_campaign_improving_aqs():
@@ -51,8 +72,15 @@ def test_regressing_aqs():
 
 def test_latency_polarity_lower_is_better():
     """For n1_rtt, a DECREASE is an improvement (equal ts -> id tie-break c1<c2)."""
-    recs = (kpi_scenario_records(5, kpi={"n1_rtt_p50_ms": 80}, campaign_id="c1")
-            + kpi_scenario_records(5, kpi={"n1_rtt_p50_ms": 40}, campaign_id="c2"))
+    # real spread per campaign, or the delta has no noise scale and no direction
+    # may be claimed at all (D-169/D-196)
+    def rtt(base, cid):
+        out = []
+        for off in (-4, -2, 0, 2, 4):
+            out += kpi_scenario_records(1, kpi={"n1_rtt_p50_ms": base + off},
+                                        campaign_id=cid)
+        return out
+    recs = rtt(80, "c1") + rtt(40, "c2")
     res = trend.analyze(recs, metric="n1_rtt_p50_ms")
     assert res["campaigns"] == ["c1", "c2"]
     c = res["cells"][0]
@@ -89,7 +117,11 @@ def test_single_present_point_not_computable():
 def test_single_campaign_renders_guidance():
     res = trend.analyze(_camp(80, "c1", 1000))
     assert len(res["campaigns"]) == 1
-    assert "少于 2 个战役" in trend.render_markdown(res)
+    md = trend.render_markdown(res)
+    assert f"少于 {trend.MIN_CAMPAIGNS_FOR_TREND} 个战役" in md
+    # …and points at the section that DOES answer the two-campaign case, which is
+    # the one with a noise scale on its delta (D-196)
+    assert "优化前后" in md
 
 
 def test_low_confidence_flagged():

@@ -65,8 +65,18 @@ def test_report_cli_html_and_csv():
             assert marker in page, f"HTML report missing section: {marker}"
         for suffix in ("_heat", "_attribution", "_stability",
                        "_validity", "_subscores", "_buffering", "_transport", "_trust",
-                       "_comparison", "_trend"):
+                       "_comparison"):
             assert os.path.exists(csv_prefix + suffix + ".csv"), suffix
+        # _trend.csv is written only when a trend EXISTS. Shipping it for a
+        # two-campaign corpus put `direction=improving` into the archive for the
+        # very cells the _comparison.csv beside it marked within_noise, while the
+        # report showed no trend section at all (D-196).
+        import campaign_common as cc
+        import trend
+        recs, _files = cc.load_records([f])
+        n_campaigns = len({cc.campaign_labels(r)["campaign_id"] for r in recs})
+        assert os.path.exists(csv_prefix + "_trend.csv") == (
+            n_campaigns >= trend.MIN_CAMPAIGNS_FOR_TREND), n_campaigns
 
 
 def test_report_cli_rejects_malformed_corpus():

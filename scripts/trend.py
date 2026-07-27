@@ -53,18 +53,56 @@ def _record_values(rec, metric):
     return out
 
 
-def campaign_order(records, explicit=None):
-    """Ordered list of campaign_ids. Default: chronological by earliest run ms."""
-    earliest = {}
-    present = set()
+# Two campaigns is the before/after case, which campaign_report answers with a
+# noise-qualified delta. A trajectory needs a third point — and until D-196 this
+# module rendered a trend for two while the integrated report suppressed the
+# section: one corpus, two answers. The threshold lives here so the renderer, the
+# report's section gate and the CSV writer cannot disagree about it (D-173).
+MIN_CAMPAIGNS_FOR_TREND = 3
+
+
+def _earliest_by_campaign(records):
+    """({campaign_id: earliest plausible started_at_epoch_ms}, all ids, bad ids).
+
+    A timestamp whose magnitude is not a millisecond epoch is left OUT of the
+    ordering rather than allowed to sort — it still sorts, just to the wrong
+    place."""
+    earliest, present, bad = {}, set(), set()
     for rec in records:
         cid = cc.campaign_labels(rec)["campaign_id"]
         present.add(cid)
         ms = cc.run_started_ms(rec)
         if ms is None:
             continue
+        if cc.epoch_ms_problem(ms):
+            bad.add(cid)
+            continue
         if cid not in earliest or ms < earliest[cid]:
             earliest[cid] = ms
+    return earliest, present, bad
+
+
+def order_basis(records, explicit=None):
+    """Why (or why not) the campaign order can be trusted.
+
+    "explicit" | "time" | "no_timestamps" | "bad_timestamps". A seconds-valued
+    epoch still SORTS, so without this check a campaign lands in 1970 and the
+    whole trajectory — with its 改善/回退 verdict — comes out backwards: exactly
+    the inversion D-176 closed for the two-campaign path and left open here
+    (D-196)."""
+    if explicit:
+        return "explicit"
+    earliest, present, bad = _earliest_by_campaign(records)
+    if bad:
+        return "bad_timestamps"
+    if any(c not in earliest for c in present):
+        return "no_timestamps"
+    return "time"
+
+
+def campaign_order(records, explicit=None):
+    """Ordered list of campaign_ids. Default: chronological by earliest run ms."""
+    earliest, present, _bad = _earliest_by_campaign(records)
     if explicit:
         # keep only requested ids actually present, preserve requested order
         return [c for c in explicit if c in present]
@@ -72,13 +110,29 @@ def campaign_order(records, explicit=None):
     return sorted(present, key=lambda c: (earliest.get(c, float("inf")), c))
 
 
-def _direction(traj, higher_better):
-    """Classify a trajectory (list of medians / None) -> verdict dict."""
+def _direction(traj, higher_better, within_noise=None, order_ok=True):
+    """Classify a trajectory (list of medians / None) -> verdict dict.
+
+    `within_noise` is the three-state verdict on the first-to-last delta. A
+    difference smaller than the repeat spread is not a direction: this was the
+    report's THIRD difference-of-two-medians and the only one D-144/D-180 never
+    reached, so a 1-point drift against a ±12.5 noise scale shipped as 改善
+    (D-196). `order_ok=False` means the chronology itself is untrustworthy, so
+    no direction may be claimed at all."""
     pts = [v for v in traj if v is not None]
     if len(pts) < 2:
         return {"first_last_delta": None, "direction": None, "monotonic": None,
                 "not_computable_reason": "NEED_2_POINTS"}
     delta = pts[-1] - pts[0]
+    if not order_ok:
+        return {"first_last_delta": delta, "direction": None, "monotonic": None,
+                "not_computable_reason": "ORDER_UNTRUSTWORTHY"}
+    if within_noise is True:
+        return {"first_last_delta": delta, "direction": "within_noise",
+                "monotonic": None, "not_computable_reason": None}
+    if within_noise is None and delta != 0:
+        return {"first_last_delta": delta, "direction": "noise_unknown",
+                "monotonic": None, "not_computable_reason": None}
     steps = [b - a for a, b in zip(pts, pts[1:])]
     ups = sum(1 for s in steps if s > 0)
     downs = sum(1 for s in steps if s < 0)
@@ -108,27 +162,41 @@ def analyze(records, metric=DEFAULT_METRIC, order=None,
         cells[key][cid].extend(_record_values(rec, metric))
 
     higher_better = metric_higher_is_better(metric)
+    basis = order_basis(records, order)
+    order_ok = basis != "bad_timestamps"
     results = []
     for key in sorted(cells):
         per = cells[key]
-        traj, ns, low = [], [], False
+        traj, ns, low, present_vals = [], [], False, []
         for cid in ids:
             vals = per.get(cid) or []
             traj.append(cc.median(vals) if vals else None)
             ns.append(len(vals))
+            if vals:
+                present_vals.append(vals)
             if vals and len(vals) < min_samples:
                 low = True
-        verdict = _direction(traj, higher_better)
+        # Same noise machinery the before/after delta uses (D-144) and the media
+        # delta uses (D-180) — first-to-last is the same shape and was the one
+        # place it never reached (D-196). cc owns the maths so the three cannot
+        # drift apart.
+        noise = (cc.noise_scale(present_vals[-1], present_vals[0])
+                 if len(present_vals) >= 2 else None)
+        pts = [v for v in traj if v is not None]
+        delta = (pts[-1] - pts[0]) if len(pts) >= 2 else None
+        wn = cc.within_noise(delta, noise)
+        verdict = _direction(traj, higher_better, within_noise=wn, order_ok=order_ok)
         results.append({
             "cell": dict(zip(CELL_DIMS, key)),
             "trajectory": traj, "sample_counts": ns,
             "present_count": sum(1 for v in traj if v is not None),
-            "low_confidence": low, **verdict,
+            "low_confidence": low, "noise": noise, "within_noise": wn, **verdict,
         })
     return {
         "metric": metric,
         "higher_is_better": higher_better,
         "campaigns": ids,
+        "order_basis": basis,
         "cells": results,
     }
 
@@ -141,30 +209,42 @@ def render_markdown(res):
         f"> 战役时序：{' → '.join(res['campaigns']) or '（无标签战役）'}。"
         "缺席战役的格记 `—` 不插值；方向按指标极性解释为 改善/回退/混合。",
         "",
+        "> **噪声尺度**：" + cc.NOISE_CAVEAT,
+        "",
     ]
-    if len(res["campaigns"]) < 2:
-        lines.append("_少于 2 个战役，无法成趋势（单战役请用热力卡/归因）。_")
+    if res.get("order_basis") == "bad_timestamps":
+        lines += ["> ⚠ **战役时序不可信**：有战役的 `started_at_epoch_ms` 取值不像毫秒时间戳"
+                  "（见语料级告警）。按它排序会把战役排到错误的先后上、把改善印成回退，"
+                  "故**本段不给方向判定**；先修生产端时间戳，或用 `--order` 显式指定顺序。", ""]
+    if len(res["campaigns"]) < MIN_CAMPAIGNS_FOR_TREND:
+        lines.append(
+            f"_少于 {MIN_CAMPAIGNS_FOR_TREND} 个战役，无法成趋势_——"
+            "两个战役是「优化前后」的情形，请看该段（它给的是**带噪声尺度**的 Δ）；"
+            "单战役请用热力卡/归因。")
         return "\n".join(lines)
     if not res["cells"]:
         lines.append("_无可成轨迹的单元。_")
         return "\n".join(lines)
 
-    head = "| 点位 | 运营商 | 时段 | " + " | ".join(res["campaigns"]) + " | 首末Δ | 方向 | 备注 |"
-    sep = "|" + "---|" * (3 + len(res["campaigns"]) + 3)
+    head = ("| 点位 | 运营商 | 时段 | " + " | ".join(res["campaigns"])
+            + " | 首末Δ | 噪声 | 方向 | 备注 |")
+    sep = "|" + "---|" * (3 + len(res["campaigns"]) + 4)
     lines += [head, sep]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
         traj = " | ".join(cc.fmt_num(v) for v in c["trajectory"])
         dir_map = {"improving": "改善", "regressing": "回退", "mixed": "混合",
-                   "flat": "持平", None: "不可计算"}
+                   "flat": "持平", "within_noise": "**噪声内**",
+                   "noise_unknown": "噪声不可估", None: "不可计算"}
         notes = []
         if c["not_computable_reason"]:
             notes.append(c["not_computable_reason"])
         if c["low_confidence"]:
             notes.append("low_conf")
+        noise = f"±{cc.fmt_num(c.get('noise'), 1)}" if c.get("noise") is not None else "—"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {traj} | "
-            f"{cc.fmt_num(c['first_last_delta'])} | {dir_map[c['direction']]} | "
+            f"{cc.fmt_num(c['first_last_delta'])} | {noise} | {dir_map[c['direction']]} | "
             f"{'; '.join(notes) or '—'} |")
     return "\n".join(lines)
 
