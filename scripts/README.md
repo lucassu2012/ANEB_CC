@@ -83,8 +83,12 @@ WARN 也绝不自动升格为 PASS——工具不替人做判断，只保证作�
 自检**不能**替代 runbook §5 里需要人工判断的条目（结论措辞、归档完整性、claim_scope 落款）。
 
 ### `transport_rollup.py` — 接入介质对比（wifi vs cellular）（D-110）
-按 (点位,运营商,时段) 出各介质 run 数 + AQS 中位 + Δ(cellular−wifi)（AQS 越大越好，
-负值=蜂窝更差）。transport 取 run 显式设置；`auto` 由各场景 `network_snapshot` 观测共识
+按 (点位,运营商,时段) 出各介质 run 数 + AQS 中位 + Δ(cellular−wifi) + **噪声尺度**（D-180）。
+**负值本身不等于"蜂窝更差"**：Δ 是两个中位数相减，与「优化前后」同一形状，故段内每格都带
+`±` 噪声量级与备注列——标 `噪声内` 的是复测抖动、**不得写成介质差异**，标 `噪声不可估` 的是
+"不知道"、同样不计入结论（彩排语料实测：7 个负 Δ **无一**超出噪声）。摘要与
+`publish_check` 的「介质效应量」项与本段共用同一判据，不会分歧。
+transport 取 run 显式设置；`auto` 由各场景 `network_snapshot` 观测共识
 推得（生产者实写复合格式 `auto(cellular)`，取括号内实际介质）；不一致=mixed、无观测=
 unknown，**均不并入任何介质**。全 unknown → 覆盖缺口告示，不出表。集成进综合报告 + 独立 CLI。
 
