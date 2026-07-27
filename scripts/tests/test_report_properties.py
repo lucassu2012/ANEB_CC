@@ -223,6 +223,79 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def _heat_rows(md):
+    """(shown_value, grade) per data row of a heat-card markdown table."""
+    out = []
+    for line in md.splitlines():
+        if not line.startswith("| ") or line.startswith("| 点位") or "---" in line:
+            continue
+        cells = [c.strip() for c in _UNESCAPED_PIPE.split(line.strip().strip("|"))]
+        if len(cells) >= 6 and cells[3] != "—":
+            out.append((cells[3], cells[5]))
+    return out
+
+
+def test_a_displayed_score_never_contradicts_the_grade_beside_it():
+    """The number is rounded for the reader; the grade is computed from the raw
+    value. When rounding crosses a band edge the row argues with itself — an AQS
+    of 84.96 printed as `85` next to `good`, while the legend right above says 85
+    and up is `excellent` (D-207).
+
+    Checked as a property over every heat cell, not just the edges I happened to
+    think of: parse the rendered value back and re-grade it.
+    """
+    from synth import contractify, aqs_records
+    for raw in (84.96, 84.999, 69.96, 53.96, 85.0, 70.0, 54.0, 90.0):
+        recs = [contractify(r) for r in aqs_records(raw, 5, point="P")]
+        rows = _heat_rows(rpt.render_heatcard_markdown(rpt.heat_cells(recs)))
+        assert rows, raw
+        for shown, grade in rows:
+            assert cc.aqs_grade(float(shown)) == grade, (raw, shown, grade)
+    for seed in (0, 3, 7, 11, 15):
+        rows = _heat_rows(rpt.render_heatcard_markdown(
+            rpt.heat_cells(_random_corpus(seed))))
+        for shown, grade in rows:
+            assert cc.aqs_grade(float(shown)) == grade, (seed, shown, grade)
+
+
+def test_a_row_of_numbers_subtracts_to_the_delta_printed_on_it():
+    """before, after and delta are three columns of one row. Rounding each
+    independently let 70.02 and 70.06 print as `70` and `70.1` — a difference of
+    0.1 — beside a delta of 0.04 (D-207). A reader subtracting two columns of the
+    same table must not get a third answer."""
+    from synth import contractify, aqs_records
+
+    def camp(vals, cid):
+        return [r for v in vals for r in
+                aqs_records(v, 1, campaign_id=cid, point="P1")]
+
+    for before, after in (([70.00, 70.01, 70.02, 70.03, 70.04],
+                           [70.04, 70.05, 70.06, 70.07, 70.08]),
+                          ([40, 42, 44, 46, 48], [60, 62, 64, 66, 68])):
+        recs = [contractify(r) for r in camp(before, "base") + camp(after, "opt")]
+        md = rpt.render_comparison_markdown(
+            rpt.compare_campaigns(recs, "base", "opt"))
+        rows = [l for l in md.splitlines() if l.startswith("| P1")]
+        assert rows, md
+        for line in rows:
+            c = [x.strip() for x in _UNESCAPED_PIPE.split(line.strip().strip("|"))]
+            b, a, delta = c[3], c[4], c[5].split()[0]
+            if "—" in (b, a, delta):
+                continue
+            assert abs((float(a) - float(b)) - float(delta)) < 1e-9, line
+
+
+def test_fmt_num_agreeing_stays_short_when_there_is_no_conflict():
+    """Precision on demand only. Widening every number would trade one honesty
+    problem for an unreadable table."""
+    assert cc.fmt_num_agreeing(90.0, cc.aqs_grade) == "90"
+    assert cc.fmt_num_agreeing(72.5, cc.aqs_grade) == "72.5"
+    assert cc.fmt_num_agreeing(84.96, cc.aqs_grade) == "84.96"
+    assert cc.fmt_num_agreeing(None, cc.aqs_grade) == "—"
+    # a predicate that raises must not take the report down with it
+    assert cc.fmt_num_agreeing(1.0, lambda x: 1 / 0) == "1"
+
+
 _VOID_HTML = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
               "meta", "param", "source", "track", "wbr"}
 _HTML_NOW = "2026-01-01 00:00:00 +0800"

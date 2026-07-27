@@ -786,3 +786,33 @@ def fmt_num(v, digits=1):
         return "—"
     s = f"{v:.{digits}f}"
     return s.rstrip("0").rstrip(".") if "." in s else s
+
+
+def fmt_num_agreeing(v, agree, digits=1, max_digits=6):
+    """Like fmt_num, but never rounds a number onto the wrong side of a verdict.
+
+    The number is rounded for the reader; the verdict printed beside it is
+    computed from the raw value. When rounding crosses the line the verdict used,
+    the row contradicts itself — an AQS of 84.96 printed as `85` next to the
+    grade `good`, while the legend directly above says 85 and up is `excellent`
+    (D-207). A delta of 0.04 printed as `0` beside 「超出噪声」 is the same
+    failure: the reader is asked to believe a difference of zero is real.
+
+    So: shortest rendering, from `digits` up, that still satisfies the same
+    `agree(...)` as the raw value. `agree` is whatever the neighbouring verdict
+    turns on — the grade function, the sign, a threshold test.
+    """
+    if v is None:
+        return "—"
+    try:
+        want = agree(v)
+    except Exception:                      # a predicate that cannot judge the
+        return fmt_num(v, digits)          # raw value cannot be contradicted
+    for d in range(digits, max_digits + 1):
+        s = f"{v:.{d}f}"
+        try:
+            if agree(float(s)) == want:
+                return s.rstrip("0").rstrip(".") if "." in s else s
+        except Exception:
+            break
+    return fmt_num(v, max_digits)

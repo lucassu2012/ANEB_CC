@@ -250,6 +250,25 @@ def _top(items, n=3):
     return "、".join(items[:n]) + (f" 等 {len(items)} 个" if len(items) > n else "")
 
 
+def _sign(x):
+    """-1 / 0 / +1 — what a delta's verdict turns on (D-207)."""
+    return (x > 0) - (x < 0)
+
+
+def _pair_at(before, after, delta_str):
+    """before/after rendered at the delta's own precision.
+
+    Rounding each independently lets the three numbers on one row disagree: 70.02
+    and 70.06 print as `70` and `70.1`, whose difference is 0.1, next to a delta
+    of 0.04. The reader subtracting two columns of the same table should not get
+    a third answer (D-207)."""
+    dd = len(delta_str.split(".")[1]) if "." in delta_str else 0
+    if dd <= 1:
+        return cc.fmt_num(before), cc.fmt_num(after)
+    return (cc.fmt_num(before, dd) if before is not None else "—",
+            cc.fmt_num(after, dd) if after is not None else "—")
+
+
 _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
               "core_backbone_incr": "核心骨干"}
 
@@ -714,7 +733,10 @@ def render_heatcard_markdown(cells):
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
             f"| {cc.md_cell(c['cell']['time_band'])} | "
-            f"{cc.fmt_num(c['aqs_median'])} | {cc.fmt_num(c['stdev'], 1)} | "
+            # printed with just enough precision that it cannot land on the wrong
+            # side of the grade printed beside it (D-207)
+            f"{cc.fmt_num_agreeing(c['aqs_median'], cc.aqs_grade)} | "
+            f"{cc.fmt_num(c['stdev'], 1)} | "
             f"{c['grade']} | {c['n']} | {note} |"
         )
     return "\n".join(lines)
@@ -799,11 +821,15 @@ def render_comparison_markdown(cmp):
         if r["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"
+        dstr = cc.fmt_num_agreeing(d, _sign)
+        bstr, astr = _pair_at(r["before"], r["after"], dstr)
         lines.append(
             f"| {cc.md_cell(r['cell']['point_id'])} | {cc.md_cell(r['cell']['carrier'])} "
             f"| {cc.md_cell(r['cell']['time_band'])} | "
-            f"{cc.fmt_num(r['before'])} | {cc.fmt_num(r['after'])} | "
-            f"{cc.fmt_num(d)}{arrow} | {note} |"
+            f"{bstr} | {astr} | "
+            # enough precision that the number cannot read as 0 while the note
+            # beside it calls the difference real (D-207)
+            f"{dstr}{arrow} | {note} |"
         )
     return "\n".join(lines)
 
@@ -1118,10 +1144,16 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
 # ---------------------------------------------------------------- HTML
 
-def _heat_grid_html(cells, value_key="aqs_median"):
+def _heat_grid_html(cells, value_key="aqs_median", agree=None):
     """Pivot: rows = point_id × carrier, cols = time_band, colored by grade.
     value_key selects the numeric shown (aqs_median for the AQS card, median for
-    per-KPI cards)."""
+    per-KPI cards).
+
+    `agree` is the verdict the printed number must not contradict (D-207). The
+    AQS card passes cc.aqs_grade, because its grade is derived from this very
+    number; the per-KPI cards pass nothing, because their grade comes from the
+    producer's own `*_grade` field and no rounding of the median can disagree
+    with it."""
     if not cells:
         return "<p class='empty'>无数据可成卡。</p>"
     time_bands = sorted({c["cell"]["time_band"] for c in cells})
@@ -1148,7 +1180,9 @@ def _heat_grid_html(cells, value_key="aqs_median"):
                    if c.get("scorer_low_conf_n") else "")
             sd = (f" · sd={cc.fmt_num(c['stdev'], 1)}"
                   if c.get("stdev") is not None else " · sd—")
-            tds.append(f"<td style='background:{bg};color:{fg}'><b>{cc.fmt_num(c[value_key], 2)}</b>"
+            shown = (cc.fmt_num_agreeing(c[value_key], agree, digits=2)
+                     if agree is not None else cc.fmt_num(c[value_key], 2))
+            tds.append(f"<td style='background:{bg};color:{fg}'><b>{shown}</b>"
                        f"<span class='sub'>{esc(grade)} · n={c['n']}{sd}{lc}</span></td>")
         body.append("<tr>" + "".join(tds) + "</tr>")
     return f"<div class='scroll'><table>{head}{''.join(body)}</table></div>"
@@ -1334,11 +1368,13 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
             if r["low_confidence"]:
                 notes.append("low_conf")
             note = "; ".join(notes)
+            dstr = cc.fmt_num_agreeing(d, _sign)          # same rule as markdown
+            bstr, astr = _pair_at(r["before"], r["after"], dstr)
             crows.append(
                 f"<tr><td class='lbl'>{esc(r['cell']['point_id'])} · {esc(r['cell']['carrier'])} · "
-                f"{esc(r['cell']['time_band'])}</td><td>{cc.fmt_num(r['before'])}</td>"
-                f"<td>{cc.fmt_num(r['after'])}</td>"
-                f"<td style='color:{color};font-weight:600'>{cc.fmt_num(d)}</td>"
+                f"{esc(r['cell']['time_band'])}</td><td>{bstr}</td>"
+                f"<td>{astr}</td>"
+                f"<td style='color:{color};font-weight:600'>{dstr}</td>"
                 f"<td>{('±' + cc.fmt_num(r['noise'], 1)) if r['noise'] is not None else '—'}</td>"
                 f"<td>{note}</td></tr>")
         cmp_html = (
@@ -1397,7 +1433,7 @@ footer{{margin-top:36px;font-size:12px;color:#5f6368;border-top:1px solid #ddd;p
 {warn}
 <h2>点位 × 忙闲 × 运营商 热力卡（AQS 中位；* = 样本不足 low_conf）</h2>
 {heat_notes_html}
-{_heat_grid_html(cells)}
+{_heat_grid_html(cells, agree=cc.aqs_grade)}
 {kpi_grids}
 {attr_sections}
 {cmp_html}
