@@ -184,7 +184,11 @@ D-173 那条正是**因为原测试从未负向验证，才把缺陷写成了期
 **已完成**：工具链、M2 规模彩排、混乱语料彩排、发布前自检门、交付骨架、外场 runbook、
 标签接线规格、网格设计提案。**六透镜对抗审计的 28 条确认发现已全部处置**（含 13 条高危；
 另有 3 条被怀疑者驳回、42 项查清无碍）——其形状与教训见 §2.12，逐条见 `DECISION_LOG.md`
-D-159..176。`verify_all` **全门 PASS**、反射套件全绿。（门数与用例数不写在本文里——**活文档里的计数必然过期**，以 `scripts/verify_all.ps1` 与 `scripts/tests/run_all.py` 的实际输出为准；带日期的历史计数见 `DECISION_LOG.md`。）
+D-159..176。**其后又做了三轮收口**（D-177..193）：**守卫质量**——突变审计验证 §2 全部红线确有守卫，
+并量出薄厚地图（见 §3）；**流程**——照字面重走 runbook，抓到"三层级被统一打标成 metro、
+报告反过来说没测过"（D-189）与"发布自检把同一个格按 KPI 数两遍"（D-191）；**文档**——
+把"活文档抄了会过期的东西"扫完，计数与清单一起治（D-192/193）。
+`verify_all` **全门 PASS**、反射套件全绿。（门数与用例数不写在本文里——**活文档里的计数必然过期**，以 `scripts/verify_all.ps1` 与 `scripts/tests/run_all.py` 的实际输出为准；带日期的历史计数见 `DECISION_LOG.md`。）
 
 **真正被阻的只有一项**：
 
@@ -198,13 +202,17 @@ D-159..176。`verify_all` **全门 PASS**、反射套件全绿。（门数与用
 |---|---|---|
 | C1 标签生产接线 | [`CAMPAIGN_LABELS_WIRING_SPEC.md`](CAMPAIGN_LABELS_WIRING_SPEC.md) | spec 属主 / P1 lane |
 | C3 目标网格定值 | [`M2_GRID_DESIGN_PROPOSAL.md`](M2_GRID_DESIGN_PROPOSAL.md)（D1–D4） | PO 批复 |
+| 设备标识字段（`MIXED_DEVICE` 的前提） | 同规格 §9（D-156） | spec 属主 / P1 lane |
+| `validity` 枚举与实际输出大小写不一致 | 同规格 §10（D-190）——**今天没有数字因此出错**，但契约与现实不符时 schema 就不能再用来判断取值合不合法 | spec 属主 |
 
 ---
 
 ## 5. 接手后从哪开始
 
 1. `python scripts/tests/run_all.py` —— 应**全部通过**；跑不过先修环境，别改码。
-2. 跑一次彩排（runbook §0.5 四步），看报告长什么样、摘要每条信号怎么读。
+2. 跑一次彩排（runbook §0.5 **两趟**：A 补注演练 + B 读报告演练），**对着 §0.5 的
+   「彩排的正确答案」逐条核**——合成语料是按已知答案设计的（`synth_campaign.DESIGNED_EFFECTS`），
+   对不上就是工具链坏了，不是数据没效果。别只"看看"报告长什么样（D-182）。
 3. 读本文 §2 原则清单 —— **改动前确认自己不是在拆守卫**。
 4. 要加分析段：仿 `buffering_rollup.py`（最小完整样板：`analyze` / `render_markdown` / CLI
    + golden + 接进报告 + CSV + README 一节），并遵守 §2。
