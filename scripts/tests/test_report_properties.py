@@ -223,6 +223,48 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def test_the_summary_only_points_at_things_the_report_actually_contains():
+    """The summary keeps saying 「见 X 段的 `Y`」. X and Y have to be there.
+
+    D-209 added 「见稳定性段 `CV 不可计算` 一列」 — and that section's header is
+    单元/n/中位/均值/CV%/稳定?/备注. There is no such column; the string lives
+    inside 备注 as a marker. The reader is sent to look for a column that does
+    not exist (D-212), which is D-202's doc-drift failure happening inside one
+    document.
+
+    Two precise rules, deliberately narrow so this cannot start crying wolf:
+    every ALL-CAPS marker the summary names in backticks must appear in the body,
+    and anything the summary calls 「一列」 must really be a column header.
+    """
+    import synth_campaign as sc
+    from synth import contractify, kpi_scenario_records
+    recs = sc.inject_chaos(sc.generate(points=4, repeats=3,
+                                       campaigns=("base", "opt", "final")))
+    loose = kpi_scenario_records(1, kpi={"t1_ttft_ms": 100}, point="P-ONE")
+    for r in loose:
+        r["run"].pop("campaign", None)
+    recs = list(recs) + [contractify(r) for r in loose]
+    md = rpt.build_report_markdown(recs)
+    chunks = re.split(r"(?m)^#{2,3} ", md)
+    summary = next((c for c in chunks if c.startswith("摘要")), "")
+    body = "".join(c for c in chunks if not c.startswith("摘要"))
+    assert summary and body
+
+    markers = {m for m in re.findall(r"`([A-Z][A-Z0-9_]{3,})`", summary)}
+    assert markers, "no marker pointers in the summary — fixture too thin"
+    missing = sorted(m for m in markers if m not in body)
+    assert not missing, ("summary points at markers the report never prints",
+                         missing)
+
+    headers = set()
+    for i, line in enumerate(md.splitlines()[:-1]):
+        if line.startswith("| ") and re.fullmatch(
+                r"\|[-|: ]+\|", md.splitlines()[i + 1].strip()):
+            headers |= {c.strip().strip("*` ") for c in line.strip().strip("|").split("|")}
+    for named in re.findall(r"`([^`]+)`\s*一列", summary):
+        assert named in headers, (named, sorted(headers))
+
+
 def test_the_summary_never_sends_anyone_to_the_unlabeled_bucket():
     """`unlabeled/unknown/unknown` is not a place, so it must not be ranked as one.
 

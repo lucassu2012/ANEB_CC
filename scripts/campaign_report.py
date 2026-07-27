@@ -546,8 +546,11 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     unstable_unloc = _unlocated_note(
         sum(1 for _cv, _lab, loc in ranked_unstable if not loc), what="单元")
     # the remainder, named where the reader sees the denominator (D-209)
+    # points at the 备注 column's marker, not at a column of that name: the
+    # stability header is 单元/n/中位/均值/CV%/稳定?/备注 and there is no
+    # `CV 不可计算` column to look at (D-212)
     nocv_note = (f"；另有 **{no_cv} 个单元 CV 不可计算**（n<2 或均值≤0，**未计入分母**，"
-                 "见稳定性段 `CV 不可计算` 一列）" if no_cv else "")
+                 "见稳定性段**备注**列的 `CV 不可计算` 标记）" if no_cv else "")
     if not measured:
         bullets.append(f"**复测稳定性**：{no_cv} 个单元**全部无法计算 CV**"
                        "（n<2 或均值≤0）——覆盖缺口，非「全部达门」。")
