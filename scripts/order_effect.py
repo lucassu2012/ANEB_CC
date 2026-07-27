@@ -41,8 +41,11 @@ ORDER_SENSITIVE_KPIS = ("t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps")
 
 
 def collect_positions(records, kpi):
-    """{profile_id -> {order_index -> [values]}} plus scenario_order counts."""
+    """{profile_id -> {order_index -> [values]}} plus scenario_order counts.
+
+    Fifth return: {profile_id -> Counter} of readings refused as impossible."""
     cells = defaultdict(lambda: defaultdict(list))
+    implausible = defaultdict(Counter)
     orders = Counter()
     rounds = Counter()
     rotating_runs = 0
@@ -64,8 +67,15 @@ def collect_positions(records, kpi):
             val = cc.scenario_kpi(scn, kpi)
             if idx is None or val is None:
                 continue
-            cells[scn.get("profile_id") or "?"][idx].append(val)
-    return cells, orders, rounds, rotating_runs
+            pid = scn.get("profile_id") or "?"
+            # This verdict is a RATIO of medians (position spread / overall), so
+            # one impossible reading moves both terms at once: it can invent a
+            # 拉丁方 failure where the counterbalancing worked, or mask a real one
+            # by inflating the denominator. Out of the pool, counted (D-197).
+            if not cc.keep_value(kpi, val, implausible[pid]):
+                continue
+            cells[pid][idx].append(val)
+    return cells, orders, rounds, rotating_runs, implausible
 
 
 def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
@@ -106,11 +116,15 @@ def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
 def analyze(records, kpi=DEFAULT_KPI, min_samples=cc.DEFAULT_MIN_SAMPLES,
             threshold_pct=DEFAULT_THRESHOLD_PCT):
-    cells, orders, rounds, rotating_runs = collect_positions(records, kpi)
+    cells, orders, rounds, rotating_runs, implausible = collect_positions(records, kpi)
     profiles = []
-    for pid in sorted(cells):
+    # a profile whose every reading was refused still gets a row: it has no
+    # verdict, and "no verdict because the numbers were impossible" is the thing
+    # worth telling the operator
+    for pid in sorted(set(cells) | {p for p, c in implausible.items() if c}):
         profiles.append({"profile_id": pid,
-                         **analyze_profile(cells[pid], min_samples, threshold_pct)})
+                         "implausible_values": dict(sorted((implausible.get(pid) or {}).items())),
+                         **analyze_profile(cells.get(pid) or {}, min_samples, threshold_pct)})
     distinct = len([k for k in orders if k != "absent"])
     return {
         "kpi": kpi,
@@ -169,6 +183,9 @@ def render_markdown(res):
         notes = []
         if p["not_computable_reason"]:
             notes.append(p["not_computable_reason"])
+        if p.get("implausible_values"):
+            notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
+                f"{r}×{n}" for r, n in sorted(p["implausible_values"].items())) + "**")
         if p["low_confidence"]:
             notes.append("low_conf")
         lines.append(

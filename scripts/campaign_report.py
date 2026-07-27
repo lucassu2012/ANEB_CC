@@ -745,13 +745,23 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Heat cells for one raw KPI: median value + modal AUTHORITATIVE grade (from the
     record's *_grade field, not the AQS presentation bands) per (point,carrier,time_band)."""
     gfield = kpi_grade_field(kpi_key)
-    buckets = defaultdict(lambda: {"vals": [], "grades": Counter()})
+    buckets = defaultdict(lambda: {"vals": [], "grades": Counter(),
+                                   "implausible": Counter()})
     for rec in records:
         labels = cc.campaign_labels(rec)
         key = tuple(labels[d] for d in HEAT_DIMS)
         for scn in cc.iter_scenarios(rec):
             v = cc.scenario_kpi(scn, kpi_key)
             if v is None:
+                continue
+            # Same rule as the AQS card one screen up (D-178), which this card
+            # never got: a negative TTFT lowered the median AND the cell showed
+            # the authoritative grade of the runs around it, so the row read as a
+            # measured, graded result (D-197). The scenario's own *_grade goes
+            # with it — that grade was computed FROM this value, so keeping it
+            # would let the impossible reading vote on the cell's grade through
+            # the one door the value itself was just refused at.
+            if not cc.keep_value(kpi_key, v, buckets[key]["implausible"]):
                 continue
             buckets[key]["vals"].append(v)
             g = (scn.get("kpi") or scn.get("kpis") or {}).get(gfield)
@@ -770,6 +780,7 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "n": len(b["vals"]),
             "low_confidence": len(b["vals"]) < min_samples,
             "mixed_campaigns": mixed_by_cell.get(key, []),
+            "implausible_values": dict(sorted(b["implausible"].items())),
         })
     return cells
 
@@ -787,6 +798,9 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
             notes.append("GRADE_TIE:" + "/".join(c["grade_tie"]))
         if c["mixed_campaigns"]:
             notes.append("MIXED_CAMPAIGN:" + "/".join(c["mixed_campaigns"]))
+        if c.get("implausible_values"):
+            notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
+                f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"
@@ -1356,6 +1370,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         return "/".join(mixed_by_cell.get(
             tuple(cell.get(d) or "unlabeled" for d in HEAT_DIMS), []))
 
+    def _bad(c):
+        """The impossible-value marker, in the one form every surface uses.
+
+        CSV is the surface with no banner above it: an analyst computing on these
+        files has nothing else to tell them this row's n excludes readings that
+        were refused (D-141/D-197)."""
+        return "; ".join(f"{r}×{n}" for r, n
+                         in sorted((c.get("implausible_values") or {}).items()))
+
     p = prefix + "_heat.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
@@ -1391,7 +1414,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
         w.writerow(["kpi", "point_id", "carrier", "time_band", "median", "grade",
-                    "grade_tie", "n", "low_confidence", "mixed_campaigns"])
+                    "grade_tie", "n", "low_confidence", "mixed_campaigns",
+                    "implausible_values"])
         for k in DEFAULT_KPI_HEAT:
             for c in kpi_heat_cells(records, k, min_samples):
                 w.writerow([k, c["cell"]["point_id"], c["cell"]["carrier"],
@@ -1400,7 +1424,12 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             # answer, and grade_tie says which grades tied
                             _cell(c["grade"]), "/".join(c.get("grade_tie") or []),
                             c["n"], c["low_confidence"],
-                            "/".join(c.get("mixed_campaigns") or [])])
+                            "/".join(c.get("mixed_campaigns") or []),
+                            # the surface with no banner above it: an analyst
+                            # computing on this file has nothing else to tell them
+                            # this cell's n excludes readings that were refused
+                            "; ".join(f"{r}×{n}" for r, n
+                                      in sorted((c.get("implausible_values") or {}).items()))])
     written.append(p)
 
     p = prefix + "_attribution.csv"
@@ -1454,7 +1483,11 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # campaign_id leads the key (D-145): without it two campaigns emit rows
         # identical in every other column and an analyst cannot tell them apart
         w.writerow(["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id",
-                    "kpi", "n", "median", "mean", "cv_percent", "unstable", "low_confidence"])
+                    "kpi", "n", "median", "mean", "cv_percent", "unstable", "low_confidence",
+                    # an empty cv_percent has two causes needing two different
+                    # actions — measure more, or go fix what produced these
+                    # numbers — and the bare blank says neither (D-197)
+                    "cv_not_computable_reason", "implausible_values"])
         for k in stability.DEFAULT_STABILITY_KPIS:
             for c in stability.stability_cells(records, k, min_samples=min_samples):
                 cell = c["cell"]
@@ -1462,7 +1495,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                             cell.get("tier"), cell.get("profile_id"), c["kpi"], c["n"],
                             _cell(c["median"]), _cell(c["mean"]), _cell(c["cv_percent"]),
-                            c["unstable"], c["low_confidence"]])
+                            c["unstable"], c["low_confidence"],
+                            _cell(c.get("cv_not_computable_reason")), _bad(c)])
     written.append(p)
 
     # The sample denominator behind every median above (D-96) — external analysis
@@ -1489,13 +1523,17 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w = csv.writer(f)
         w.writerow(["point_id", "carrier", "time_band", "runs", "dragging_dim",
                     "dragging_median", "spread", "low_confidence", "dim_medians",
-                    "mixed_campaigns"])
+                    # markdown has carried this since D-179 and the CSV did not:
+                    # the surface with the banner warned, the surface without one
+                    # did not (D-197)
+                    "mixed_campaigns", "implausible_values"])
         for c in sscells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
                         c["runs"], _cell(c["dragging_dim"]), _cell(c["dragging_median"]),
                         _cell(c["spread"]), c["low_confidence"],
-                        ";".join(f"{d}:{v['median']}" for d, v in c["dims"].items()), _mixed(cell)])
+                        ";".join(f"{d}:{v['median']}" for d, v in c["dims"].items()),
+                        _mixed(cell), _bad(c)])
     written.append(p)
 
     ucells = trust_rollup.analyze(records, min_samples)["cells"]
@@ -1524,7 +1562,10 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # a bare Δ column is an invitation to rank cells by repeat jitter (D-180)
         w.writerow(["point_id", "carrier", "time_band", "transport", "n", "aqs_median",
                     "low_confidence", "cellular_minus_wifi", "noise", "within_noise",
-                    "mixed_campaigns"])
+                    "mixed_campaigns",
+                    # counted per CELL, like the delta and its noise, so it rides
+                    # the same is_cell row rather than being repeated per medium
+                    "implausible_values"])
         for c in tcells:
             cell = c["cell"]
             for t in sorted(c["transports"]):
@@ -1535,7 +1576,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(c["cellular_minus_wifi"]) if is_cell else "",
                             _cell(c["noise"]) if is_cell else "",
                             _cell(c["within_noise"]) if is_cell else "",
-                            _mixed(cell)])
+                            _mixed(cell), _bad(c) if is_cell else ""])
     written.append(p)
 
     # The headline "did it get better" payloads (survey gap 6): before/after delta
@@ -1576,7 +1617,11 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
             # analyst computing on this file re-derives an unqualified verdict
             w.writerow(["point_id", "carrier", "time_band", "campaign_id", "order_index",
                         "median", "n", "direction", "first_last_delta",
-                        "noise", "within_noise", "order_basis", "low_confidence"])
+                        "noise", "within_noise", "order_basis", "low_confidence",
+                        # per CELL, not per campaign: the trajectory is what the
+                        # refused readings would have bent, and the direction
+                        # column above is derived from the whole chain (D-197)
+                        "implausible_values"])
             for c in tres["cells"]:
                 cell = c["cell"]
                 for i, cid in enumerate(tres["campaigns"]):
@@ -1585,7 +1630,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                                 _cell(c["trajectory"][i]), c["sample_counts"][i],
                                 _cell(c["direction"]), _cell(c["first_last_delta"]),
                                 _cell(c.get("noise")), _cell(c.get("within_noise")),
-                                tres.get("order_basis"), c["low_confidence"]])
+                                tres.get("order_basis"), c["low_confidence"], _bad(c)])
         written.append(p)
 
     bcells = buffering_rollup.analyze(records, min_samples)["cells"]
@@ -1599,7 +1644,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # scenarios where NOTHING was measured, kept out of n and out
                     # of the suspect denominator — an empty suspect_share is a
                     # coverage gap, not a clean 0% (D-163)
-                    "not_detected", "sample_count_median"])
+                    "not_detected", "sample_count_median", "implausible_values"])
         for c in bcells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
@@ -1607,7 +1652,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         _cell(c["sawtooth_median"]), _cell(c["near_zero_median"]),
                         _cell(c["suspect_share"]), c["distortion_hotspot"],
                         c["low_confidence"], _mixed(cell),
-                        c["not_detected"], _cell(c["sample_count_median"])])
+                        c["not_detected"], _cell(c["sample_count_median"]), _bad(c)])
     written.append(p)
     return written
 

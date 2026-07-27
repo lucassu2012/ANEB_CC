@@ -165,6 +165,13 @@ def render_markdown(res):
             notes.append("**未测到批化**（覆盖缺口，非未见失真）")
         elif c["not_detected"]:
             notes.append(f"{c['not_detected']} 条未测（不计入分母）")
+        # Computed since D-179 and read by nobody: the cell rendered exactly like
+        # a clean one while `corpus_warnings` and `publish_check` both told the
+        # reader that affected cells carry a marker. A guard whose output reaches
+        # no surface is not a guard (D-197).
+        if c.get("implausible_values"):
+            notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
+                f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
         if c["low_confidence"] and c["n"]:
             notes.append("low_conf")
         share = "—" if c["suspect_share"] is None else f"{c['suspect_share'] * 100:.0f}%"

@@ -24,7 +24,7 @@ Usage:
 import argparse
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import campaign_common as cc
 
@@ -43,13 +43,19 @@ def resolve_transport(rec):
 
 def transport_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     buckets = defaultdict(lambda: defaultdict(lambda: {"aqs": [], "n": 0}))
+    implausible = defaultdict(Counter)
     for rec in records:
         labels = cc.campaign_labels(rec)
         key = tuple(labels[d] for d in CELL_DIMS)
         g = buckets[key][resolve_transport(rec)]
         g["n"] += 1
         score = cc.run_aqs(rec)
-        if score is not None:
+        # The heat card has excluded impossible scores since D-178 and this
+        # section did not, so one AQS of 9999 left two sections of one report
+        # disagreeing about whether that run counts. The median survives it; the
+        # NOISE SCALE does not — a single 9999 pushed it to ±3110 on a 0..100
+        # metric, and every real medium difference then reads 噪声内 (D-197).
+        if score is not None and cc.keep_value("aqs_score", score, implausible[key]):
             g["aqs"].append(score)
 
     cells = []
@@ -77,6 +83,7 @@ def transport_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "cellular_minus_wifi": delta,
             "noise": noise,
             "within_noise": cc.within_noise(delta, noise),
+            "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
         })
     return cells
 
@@ -116,12 +123,15 @@ def render_markdown(res):
         others = [f"{t}:n={b['n']}" for t, b in sorted(c["transports"].items())
                   if t not in EXPLICIT]
         # three states, never two: "cannot estimate" is not "no difference"
+        notes = []
         if c["within_noise"] is True:
-            note = "**噪声内**"
+            notes.append("**噪声内**")
         elif c["within_noise"] is None and c["cellular_minus_wifi"] is not None:
-            note = "噪声不可估"
-        else:
-            note = "—"
+            notes.append("噪声不可估")
+        if c.get("implausible_values"):
+            notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
+                f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
+        note = "; ".join(notes) or "—"
         noise = f"±{cc.fmt_num(c['noise'], 1)}" if c["noise"] is not None else "—"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "

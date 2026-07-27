@@ -16,6 +16,7 @@ Usage: python stability.py results/*.jsonl [--kpi t1_ttft_ms] [--cv-gate 10]
 import argparse
 import statistics
 import sys
+from collections import Counter
 
 import campaign_common as cc
 
@@ -36,20 +37,39 @@ STAB_GROUP_BY = ("campaign_id", "point_id", "carrier", "time_band", "tier", "pro
 
 
 def cv_percent(values):
-    """Coefficient of variation (%) = sample stdev / mean * 100. None if <2 usable
-    samples or |mean| too small for CV to be meaningful."""
+    """Coefficient of variation (%) = sample stdev / mean * 100, or None.
+
+    None on <2 usable samples, and also on any mean that is not positive. CV is
+    defined on ratio scales with a true zero; a non-positive mean means either
+    the pool is corrupt or the quantity is not one CV applies to (a dBm reading,
+    say). Dividing anyway does not fail loudly — it yields a NEGATIVE CV, and
+    `cv > gate` is then false for every gate, so the least repeatable cell in the
+    corpus renders 稳定 with an empty note (D-197). A verdict that is wrong in
+    the reassuring direction is worse than no verdict.
+    """
     xs = [v for v in values if v is not None]
     if len(xs) < 2:
         return None
     m = statistics.fmean(xs)
-    if abs(m) < 1e-9:
+    if m <= 1e-9:
         return None
     return statistics.stdev(xs) / m * 100.0
+
+
+def cv_reason(vals, cv):
+    """Why CV is not computable here, or None. Named because the two causes call
+    for different actions: measure more, or go fix what produced these numbers."""
+    if cv is not None:
+        return None
+    if len([v for v in vals if v is not None]) < 2:
+        return "n<2"
+    return "mean<=0"
 
 
 def stability_cells(records, kpi_key, group_by=STAB_GROUP_BY,
                     cv_gate=DEFAULT_CV_GATE, min_samples=cc.DEFAULT_MIN_SAMPLES):
     buckets = {}
+    implausible = {}
     for rec in records:
         labels = cc.campaign_labels(rec)
         for scn in cc.iter_scenarios(rec):
@@ -59,17 +79,29 @@ def stability_cells(records, kpi_key, group_by=STAB_GROUP_BY,
             pid = scn.get("profile_id") or "?"
             key = tuple(pid if f == "profile_id" else (labels.get(f) or "unlabeled")
                         for f in group_by)
+            # Out of the pool, counted where it shows — the treatment the heat
+            # card and the attribution matrix have given impossible values since
+            # D-178, and which the corpus banner has been promising on this
+            # section's behalf ever since (D-197).
+            bad = implausible.setdefault(key, Counter())
+            if not cc.keep_value(kpi_key, v, bad):
+                continue
             buckets.setdefault(key, []).append(v)
     cells = []
-    for key in sorted(buckets):
-        vals = buckets[key]
+    # A cell whose every reading was impossible must still appear: it is the one
+    # most in need of the operator's attention, and dropping it without a word is
+    # the single outcome R-10 forbids.
+    for key in sorted(set(buckets) | {k for k, c in implausible.items() if c}):
+        vals = buckets.get(key) or []
         cv = cv_percent(vals)
         cells.append({
             "cell": dict(zip(group_by, key)), "kpi": kpi_key, "n": len(vals),
             "mean": cc.mean(vals), "median": cc.median(vals), "cv_percent": cv,
+            "cv_not_computable_reason": cv_reason(vals, cv),
             "stdev": cc.stdev(vals),   # absolute spread, for the sample-size plan
             "unstable": (cv is not None and cv > cv_gate),
             "low_confidence": len(vals) < min_samples,
+            "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
         })
     return cells
 
@@ -87,14 +119,21 @@ def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE,
     if not cells:
         lines.append(f"_无 `{kpi_key}` 数据。_")
         return "\n".join(lines)
+    # "stable" here means stable AND clean: a cell carrying impossible readings
+    # is never a row to fold away, whatever its CV says about the rest.
     stable_ids = [id(c) for c in cells
-                  if c["cv_percent"] is not None and not c["unstable"]]
+                  if c["cv_percent"] is not None and not c["unstable"]
+                  and not c.get("implausible_values")]
     omitted = 0
     if max_stable_rows is not None and len(stable_ids) > max_stable_rows:
         keep = set(stable_ids[:max_stable_rows])
         omitted = len(stable_ids) - max_stable_rows
-        cells = [c for c in cells
-                 if c["cv_percent"] is None or c["unstable"] or id(c) in keep]
+        cells = [c for c in cells if id(c) not in set(stable_ids) or id(c) in keep]
+    if any(c.get("implausible_values") for c in cells):
+        lines += ["> ⚠ **本表含物理上不可能的读数**（标 `IMPLAUSIBLE_VALUE`）。这些读数"
+                  "**已排除出该格的 n / 中位 / 均值 / CV**，仅计数。它们不是「测得很差」，"
+                  "是**根本不是一次测量**——同一生产者写出过不可能的值，同批其他数值也不可信，"
+                  "该格的稳定性结论请整体存疑，而不是只扣掉这几条。", ""]
     lines += ["| 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |",
               "|---|---|---|---|---|---|---|"]
     for c in cells:
@@ -105,7 +144,14 @@ def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE,
             stable = "稳定" if not c["unstable"] else "✗超门"
         notes = []
         if c["cv_percent"] is None:
-            notes.append("CV 不可计算(n<2/mean≈0)")
+            # the two causes are not the same problem: n<2 says measure more,
+            # mean<=0 says the numbers in this cell are not what they claim to be
+            why = {"n<2": "n<2", "mean<=0": "均值≤0"}.get(
+                c.get("cv_not_computable_reason"), "n<2/均值≤0")
+            notes.append(f"CV 不可计算({why})")
+        if c.get("implausible_values"):
+            notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
+                f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"
@@ -113,8 +159,8 @@ def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE,
             f"| {cell_label} | {c['n']} | {cc.fmt_num(c['median'], 2)} | "
             f"{cc.fmt_num(c['mean'], 2)} | {cc.fmt_num(c['cv_percent'], 1)} | {stable} | {note} |")
     if omitted:
-        lines += ["", f"> 另有 **{omitted}** 个**稳定**单元未列出（表内保留全部 ✗超门 与 "
-                      f"CV 不可计算单元，以及前 {max_stable_rows} 个稳定单元）。"
+        lines += ["", f"> 另有 **{omitted}** 个**稳定**单元未列出（表内保留全部 ✗超门、"
+                      f"CV 不可计算、含不可能读数的单元，以及前 {max_stable_rows} 个稳定单元）。"
                       "完整数据见 `<prefix>_stability.csv`。"]
     return "\n".join(lines)
 

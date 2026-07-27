@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                  
 import buffering_rollup
 import campaign_common as cc
 import campaign_report as rpt
+import order_effect
 import publish_check as pc
 import stability
 import subscore_rollup
@@ -216,3 +217,188 @@ def test_every_markdown_table_has_a_uniform_column_count():
         for chunk in re.split(r"(?m)^#{2,3} ", md)[1:]:
             widths = {_columns(ln) for ln in chunk.splitlines() if ln.startswith("| ")}
             assert len(widths) <= 1, (seed, chunk.splitlines()[0], widths)
+
+
+_EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
+_DAY = 86400000
+
+
+def test_every_csv_row_matches_its_header_width():
+    """The markdown tables have had this guard since D-128; the CSVs never did —
+    and CSV is the surface analysts compute on (D-141).
+
+    A header and its row are written by two statements a dozen lines apart, so
+    adding a column to one and not the other is a one-keystroke mistake nothing
+    else catches: csv.DictReader does not raise, it files the surplus value under
+    the key None (or pads a short row with None), and the file still opens
+    cleanly in a spreadsheet.
+
+    Counts only. Same-count, wrong-ORDER is a different failure and this test is
+    blind to it — see the next one.
+    """
+    import csv as csvmod
+    import tempfile
+    corpora = {"corrupt": _corrupt_corpus(),
+               **{f"seed{s}": _random_corpus(s) for s in (0, 3, 7)}}
+    for name, recs in corpora.items():
+        with tempfile.TemporaryDirectory() as d:
+            for path in rpt.write_csv_tables(recs, os.path.join(d, "c")):
+                with open(path, encoding="utf-8-sig", newline="") as f:
+                    rows = list(csvmod.reader(f))
+                assert rows, (name, path)
+                width = len(rows[0])
+                for i, row in enumerate(rows[1:], start=2):
+                    assert len(row) == width, (name, os.path.basename(path), i,
+                                               len(row), width, rows[0], row)
+
+
+_MARKER_RE = re.compile(r"[<>]-?\d+(\.\d+)?×\d+")
+
+
+def test_the_impossible_value_column_is_the_one_carrying_the_marker():
+    """Same-count but wrong-order is the failure the width guard cannot see, and
+    it is the one that actually happened while writing D-197: a column inserted
+    mid-header while its value was appended at the end of the row. Widths match,
+    every value lands under the wrong name, and the file reads fine.
+
+    So: on a corpus with impossible readings, the marker must appear in the
+    `implausible_values` column and in NO other — which pins the position of
+    that column in every CSV that has one, and proves the whole D-197 wiring
+    reaches the surface with no banner above it.
+    """
+    import csv as csvmod
+    import tempfile
+    seen = 0
+    with tempfile.TemporaryDirectory() as d:
+        for path in rpt.write_csv_tables(_corrupt_corpus(), os.path.join(d, "c")):
+            with open(path, encoding="utf-8-sig", newline="") as f:
+                rows = list(csvmod.DictReader(f))
+            if not rows or "implausible_values" not in rows[0]:
+                continue
+            seen += 1
+            marked = [r for r in rows if _MARKER_RE.search(r["implausible_values"] or "")]
+            assert marked, (os.path.basename(path), "no marker reached this CSV")
+            for r in rows:
+                for col, val in r.items():
+                    if col != "implausible_values" and _MARKER_RE.search(val or ""):
+                        raise AssertionError((os.path.basename(path), col, val))
+    # every CSV whose section pools values should have the column by now
+    assert seen >= 6, seen
+
+
+def _corrupt_corpus():
+    """Three campaigns at one cell, and one run whose every number is impossible.
+
+    Three because the trend section needs three to say anything at all, and a
+    fixture that cannot reach a section cannot testify about it. One cell
+    throughout, on purpose: the banner makes a single promise about that cell,
+    and each section below either keeps it or does not. The bad run sits in the
+    first campaign, so the trajectory's first point is the one at risk.
+    """
+    from synth import contractify, kpi_scenario_records
+    out = []
+    for day, (cid, aqs, ttft) in enumerate((("base", 70, 120), ("opt1", 74, 112),
+                                            ("opt2", 78, 105))):
+        clean = kpi_scenario_records(5, aqs=aqs, campaign_id=cid,
+                                     kpi={"t1_ttft_ms": ttft, "t1_grade": "good"})
+        for r in clean:
+            r["run"]["aqs"]["sub_scores"] = {"N1": 80}
+            r["scenarios"][0]["buffering"] = {"score": 0.4, "attribution": "none"}
+        if cid == "base":
+            bad = kpi_scenario_records(1, aqs=9999, campaign_id=cid,
+                                       kpi={"t1_ttft_ms": -500, "t1_grade": "excellent"})
+            for r in bad:
+                r["run"]["aqs"]["sub_scores"] = {"N1": -5}
+                r["scenarios"][0]["buffering"] = {"score": -1.0, "attribution": "none"}
+            clean += bad
+        for r in clean:
+            r["run"]["transport"] = "cellular"
+            r["run"]["started_at_epoch_ms"] = _EPOCH + day * _DAY
+        out += clean
+    return [contractify(r) for r in out]
+
+
+# Every section that pools numbers into a median, and the render that shows it.
+# A new pooling tool belongs in this list, or the banner ends up speaking for a
+# section that never agreed to it.
+_POOLING_SECTIONS = (
+    ("heat_cells", lambda recs: rpt.render_heatcard_markdown(rpt.heat_cells(recs))),
+    ("kpi_heat", lambda recs: rpt.render_kpi_heatcard_markdown(
+        rpt.kpi_heat_cells(recs, "t1_ttft_ms"), "t1_ttft_ms")),
+    ("stability", lambda recs: stability.render_markdown(
+        stability.stability_cells(recs, "t1_ttft_ms"), "t1_ttft_ms")),
+    ("transport", lambda recs: transport_rollup.render_markdown(
+        transport_rollup.analyze(recs))),
+    ("order_effect", lambda recs: order_effect.render_markdown(
+        order_effect.analyze(recs, kpi="t1_ttft_ms"))),
+    ("trend", lambda recs: trend.render_markdown(trend.analyze(recs))),
+    ("buffering", lambda recs: buffering_rollup.render_markdown(
+        buffering_rollup.analyze(recs))),
+    ("subscore", lambda recs: subscore_rollup.render_markdown(
+        subscore_rollup.analyze(recs))),
+)
+
+
+def test_every_pooling_section_keeps_the_banner_s_promise():
+    """The corpus banner and publish_check both tell the reader that impossible
+    values are 「已排除出中位数」 and that the affected cell carries a marker.
+    That held in two sections out of seven — the other five pooled the value into
+    the median with no marker anywhere, so the banner was not a warning, it was a
+    false statement about the tables underneath it (D-197).
+
+    Checked per section, never against the assembled report: the banner NAMES
+    the marker, so a whole-report substring search passes while no table carries
+    it — the over-wide probe that hid this once already (D-181).
+    """
+    recs = _corrupt_corpus()
+    for name, render in _POOLING_SECTIONS:
+        assert "IMPLAUSIBLE_VALUE" in render(recs), name
+
+
+def test_an_impossible_reading_changes_no_number_it_only_adds_a_marker():
+    """Excluded means excluded: every statistic must come out exactly as it does
+    on the corpus without that run. A value that still moves the median while a
+    marker apologises for it would be the worst of both (D-197)."""
+    corrupt = _corrupt_corpus()
+    clean = [r for r in corrupt if cc.run_aqs(r) != 9999]
+    assert len(clean) == len(corrupt) - 1
+
+    a = stability.stability_cells(corrupt, "t1_ttft_ms")[0]
+    b = stability.stability_cells(clean, "t1_ttft_ms")[0]
+    for k in ("n", "mean", "median", "cv_percent", "stdev", "unstable"):
+        assert a[k] == b[k], (k, a[k], b[k])
+    assert a["implausible_values"] and not b["implausible_values"]
+
+    ha, hb = rpt.heat_cells(corrupt)[0], rpt.heat_cells(clean)[0]
+    assert (ha["aqs_median"], ha["n"], ha["stdev"]) == (hb["aqs_median"], hb["n"],
+                                                        hb["stdev"])
+
+    # The noise scale is the statistic an outlier hurts most: the median shrugs
+    # one bad value off, this does not, and a corrupt one quietly declares every
+    # real difference in the corpus to be noise.
+    ta, tb = transport_rollup.transport_cells(corrupt)[0], \
+        transport_rollup.transport_cells(clean)[0]
+    assert ta["noise"] == tb["noise"]
+    assert ta["transports"]["cellular"]["aqs_median"] == \
+        tb["transports"]["cellular"]["aqs_median"]
+
+
+def test_a_non_positive_mean_yields_no_cv_rather_than_a_reassuring_one():
+    """CV = stdev/mean says nothing about sign: a non-positive mean gives a
+    NEGATIVE CV, and `cv > gate` is then false for every gate, so the least
+    repeatable cell in the corpus renders 稳定 with an empty note (D-197).
+
+    Reachable whenever the pooled quantity has no declared range — a signed
+    reading such as dBm — so this guard belongs in cv_percent, not only in the
+    range table.
+    """
+    assert stability.cv_percent([-100, -400]) is None
+    assert stability.cv_reason([-100, -400], None) == "mean<=0"
+    assert stability.cv_reason([5], None) == "n<2"
+    assert stability.cv_reason([8, 10, 12], 20.0) is None
+    cell = {"cell": {"point_id": "P1"}, "n": 2, "median": -250.0, "mean": -250.0,
+            "cv_percent": None, "cv_not_computable_reason": "mean<=0",
+            "unstable": False, "low_confidence": True, "kpi": "rsrp_dbm"}
+    body = stability.render_markdown([cell], "rsrp_dbm").split("|---")[-1]
+    assert "均值≤0" in body
+    assert "稳定" not in body        # no verdict at all, reassuring or otherwise

@@ -103,6 +103,25 @@ def value_problem(field, v):
     return None
 
 
+def keep_value(field, v, counter, label=None):
+    """True if `v` may be pooled; otherwise count why in `counter` and return False.
+
+    Every consumer that pools numbers into a median needs the same four lines —
+    check, count, mark, skip — and writing them by hand is how five of the seven
+    consumers ended up without any of them while the corpus banner told readers
+    that impossible values 「已排除出中位数」 everywhere (D-197). One shape, so
+    the next consumer is one line and its absence is visible.
+
+    `counter` is any Counter/defaultdict(int); the key is `<label><reason>`, e.g.
+    "n1_rtt_p50_ms<0" — the form the flag lists and CSVs already render.
+    """
+    bad = value_problem(field, v)
+    if not bad:
+        return True
+    counter[f"{label or field}{bad}"] += 1
+    return False
+
+
 def epoch_ms_problem(v):
     """Why this value cannot be a millisecond epoch from this project, or None.
 

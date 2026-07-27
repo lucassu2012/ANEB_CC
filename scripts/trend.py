@@ -24,7 +24,7 @@ Usage:
 """
 import argparse
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import campaign_common as cc
 
@@ -40,15 +40,29 @@ def metric_higher_is_better(metric):
     return metric in _HIGHER_IS_BETTER
 
 
-def _record_values(rec, metric):
-    """Metric values contributed by one record: one AQS, or per-scenario KPIs."""
+def _range_field(metric):
+    """The VALUE_RANGES key for a trend metric ("aqs" is scored as aqs_score)."""
+    return "aqs_score" if metric == METRIC_AQS else metric
+
+
+def _record_values(rec, metric, implausible):
+    """Metric values contributed by one record: one AQS, or per-scenario KPIs.
+
+    Impossible values are counted in `implausible` and left out. A trajectory is
+    a chain of medians and a first-to-last delta across campaigns, so one
+    corrupt reading does not just misstate one round — it decides 改善 vs 回退
+    for the whole cell, and it inflates the noise scale that is supposed to catch
+    exactly that (D-197)."""
+    field = _range_field(metric)
     if metric == METRIC_AQS:
         v = cc.run_aqs(rec)
-        return [v] if v is not None else []
+        if v is None or not cc.keep_value(field, v, implausible):
+            return []
+        return [v]
     out = []
     for scn in cc.iter_scenarios(rec):
         v = cc.scenario_kpi(scn, metric)
-        if v is not None:
+        if v is not None and cc.keep_value(field, v, implausible):
             out.append(v)
     return out
 
@@ -155,11 +169,12 @@ def analyze(records, metric=DEFAULT_METRIC, order=None,
             min_samples=cc.DEFAULT_MIN_SAMPLES):
     ids = campaign_order(records, order)
     cells = defaultdict(lambda: defaultdict(list))   # cell -> campaign_id -> [values]
+    implausible = defaultdict(Counter)
     for rec in records:
         labels = cc.campaign_labels(rec)
         cid = labels["campaign_id"]
         key = tuple(labels[d] for d in CELL_DIMS)
-        cells[key][cid].extend(_record_values(rec, metric))
+        cells[key][cid].extend(_record_values(rec, metric, implausible[key]))
 
     higher_better = metric_higher_is_better(metric)
     basis = order_basis(records, order)
@@ -190,7 +205,9 @@ def analyze(records, metric=DEFAULT_METRIC, order=None,
             "cell": dict(zip(CELL_DIMS, key)),
             "trajectory": traj, "sample_counts": ns,
             "present_count": sum(1 for v in traj if v is not None),
-            "low_confidence": low, "noise": noise, "within_noise": wn, **verdict,
+            "low_confidence": low, "noise": noise, "within_noise": wn,
+            "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
+            **verdict,
         })
     return {
         "metric": metric,
@@ -239,6 +256,9 @@ def render_markdown(res):
         notes = []
         if c["not_computable_reason"]:
             notes.append(c["not_computable_reason"])
+        if c.get("implausible_values"):
+            notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
+                f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
         if c["low_confidence"]:
             notes.append("low_conf")
         noise = f"±{cc.fmt_num(c.get('noise'), 1)}" if c.get("noise") is not None else "—"
