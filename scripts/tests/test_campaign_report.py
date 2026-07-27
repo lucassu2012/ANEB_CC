@@ -359,6 +359,24 @@ def test_summary_weak_cell_count_matches_heatcard():
     assert _summary_count(md, "体验最差格") == graded_bad
 
 
+def test_html_deliverable_is_actually_self_contained():
+    """The docs promise a self-contained HTML report — inline CSS, no external
+    deps — and nothing checked it (D-183's question of a written promise). This
+    one matters twice over: a CDN font or chart library added later would leave
+    the deliverable broken for an offline reader, and would fire a request to a
+    third party when the report is opened at a customer site."""
+    import synth_campaign as sc
+    html = rpt.build_report_html(sc.generate(points=3, repeats=3), "2026-01-01 00:00:00")
+    external = [u for u in re.findall(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", html)
+                if not u.startswith("#")]
+    assert not external, external
+    assert "<script" not in html.lower()      # no executable payload either
+    assert "@import" not in html
+    assert not re.search(r"url\(", html)      # no CSS-fetched asset
+    assert "<style>" in html                  # …because the styling is inline
+    assert "charset" in html.lower()          # opens correctly without a server
+
+
 def test_missing_provenance_is_announced_on_both_prose_surfaces():
     """§2.6: anything added to markdown must be checked in HTML the same day —
     this repo's most repeated defect. The absence notice is new (D-194), so it
