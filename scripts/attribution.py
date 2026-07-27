@@ -294,9 +294,68 @@ SEGMENTS = (("access_component", "接入(metro)"),
             ("regional_backbone_incr", "区域骨干+"),
             ("core_backbone_incr", "核心骨干+"))
 
-# Flag at three robust sigmas. Latency is right-skewed, so this is a descriptive
-# screen for "which cell stands out", not a significance test.
-OUTLIER_K = 3.0
+# The screen's threshold, in robust sigmas. Calibrated, not symbolic.
+#
+# It used to be a flat 3.0, picked because "3 sigma" sounds like a rare event. It
+# is not one here: MAD estimated from the same handful of cells is itself very
+# noisy, so the flat threshold's false-alarm rate on a CLEAN grid — every cell
+# drawn from one distribution, no real outlier present — measured at 40k trials
+# per point (D-200):
+#
+#     cells         4      8     20     32     48
+#     symmetric  22.3%  20.3%  19.2%  20.9%  22.8%
+#     right-skew 27.4%  33.8%  51.4%  65.4%  77.8%
+#
+# The M2 grid is 32 cells of latency data: two clean grids out of three would
+# have named an innocent point. This layer's own rule is that a guard which cries
+# wolf is worse than no guard, so the threshold is calibrated per grid size
+# against a declared target, and the caliber travels with the verdict.
+OUTLIER_TARGET_FALSE_ALARM = 0.05
+
+# Below this, NO multiplier reaches the target: at 3 cells even K=12 still
+# false-alarms 8.9% of the time. Three cells cannot support this screen, so it
+# declines to run rather than returning a verdict it cannot stand behind.
+MIN_CELLS_TO_SCREEN = 4
+
+# K reaching <= the target on the SYMMETRIC reference, per grid size, measured
+# at every n rather than every other one — the first cut of this table sampled
+# n = 4, 6, 8, … and shipped a figure that was wrong for n = 5 by nearly double.
+# The median of an ODD sample is a data point and MAD behaves differently, so the
+# rate zig-zags with parity; each bucket therefore takes its WORST n.
+#     n     4-5     6-9    >=10
+#     K     8.0     6.0     5.0
+#     sym  4.9%    4.7%    3.9%
+_OUTLIER_K_BY_CELLS = ((5, 8.0), (9, 6.0), (10 ** 9, 5.0))
+
+# (symmetric, right-skewed) at the calibrated K. The skewed column is the one
+# that matters for latency and it is NOT at target: it rises with grid size
+# (12.5% at 10 cells, 19.8% at 32, 25.5% at 48) because more cells mean more
+# chances for the long tail to produce one. No threshold fixes that while still
+# detecting anything — the screen already catches a real +5-sigma outlier under
+# half the time.
+_FALSE_ALARM_AT_K = ((5, 0.049, 0.072), (9, 0.047, 0.094),
+                     (16, 0.039, 0.139), (32, 0.018, 0.198),
+                     (10 ** 9, 0.006, 0.255))
+
+# Kept under its old name so the provenance manifest and its coverage scan keep a
+# stable key; segment_profile uses outlier_k(n) instead of this flat fallback.
+OUTLIER_K = 4.0
+
+
+def outlier_k(n_cells):
+    """Robust-sigma multiplier for a grid of `n_cells` comparable cells."""
+    for upto, k in _OUTLIER_K_BY_CELLS:
+        if n_cells <= upto:
+            return k
+    return OUTLIER_K
+
+
+def outlier_false_alarm(n_cells):
+    """(symmetric, right_skewed) measured false-alarm rates at outlier_k(n)."""
+    for upto, sym, skew in _FALSE_ALARM_AT_K:
+        if n_cells <= upto:
+            return sym, skew
+    return None, None
 
 
 def segment_profile(result):
@@ -326,7 +385,10 @@ def segment_profile(result):
                # reader deciding "path property or point problem" needs both
                "rel_mad": (spread / abs(typical) * 100.0)
                           if (spread is not None and typical) else None,
-               "high": None, "low": None, "uniform": None, "basis": None}
+               "high": None, "low": None, "uniform": None, "basis": None,
+               # the caliber travels with the verdict: a flag means nothing
+               # without the false-alarm rate of the screen that raised it
+               "outlier_k": None, "false_alarm": None}
         if spread is None:
             row["basis"] = "insufficient"      # <2 comparable cells
         elif spread == 0:
@@ -343,8 +405,17 @@ def segment_profile(result):
             row["low"] = [{"cell": c["cell"], "value": v}
                           for c, v in pairs if typical - v > tol]
             row["uniform"] = not (row["high"] or row["low"])
+        elif len(pairs) < MIN_CELLS_TO_SCREEN:
+            # MAD exists but means little at this many cells: no multiplier holds
+            # the declared false-alarm rate, so there is no verdict to give. Kept
+            # separate from "insufficient" (MAD undefined) because the operator's
+            # remedy differs — measure more points, not more repeats.
+            row["basis"] = "too_few_to_screen"
         else:
-            thr = OUTLIER_K * cc.MAD_TO_SIGMA * spread
+            k = outlier_k(len(pairs))
+            row["outlier_k"] = k
+            row["false_alarm"] = outlier_false_alarm(len(pairs))
+            thr = k * cc.MAD_TO_SIGMA * spread
             row["basis"] = "mad"
             row["high"] = [{"cell": c["cell"], "value": v}
                            for c, v in pairs if v - typical > thr]
@@ -360,6 +431,22 @@ def _seg_cell_label(cell):
     return "/".join(cc.md_cell(v) for v in cell.values())
 
 
+def _screen_caliber(seg):
+    """"K=5×MAD；干净网格误报 对称4.6%/右偏11.9%" — the caliber, next to the verdict.
+
+    A flag with no false-alarm rate beside it reads as proof. This one is not:
+    on right-skewed data the screen still fires on a clean grid one time in eight
+    to one time in three, depending on grid size (D-200)."""
+    k, fa = seg.get("outlier_k"), seg.get("false_alarm") or (None, None)
+    if k is None:
+        return "判据非 3σ"
+    txt = f"K={cc.fmt_num(k, 1)}×1.4826×MAD"
+    if fa[0] is not None:
+        txt += (f"；干净网格误报 对称{cc.fmt_num(fa[0] * 100, 1)}%"
+                f"/右偏{cc.fmt_num(fa[1] * 100, 1)}%")
+    return txt
+
+
 def render_segment_profile_markdown(prof):
     kpi = prof["kpi"]
     lines = [
@@ -368,9 +455,22 @@ def render_segment_profile_markdown(prof):
         "> **这一段回答的是**：某一段慢，是**这个点位特有**，还是**所有点位都这样**——"
         "前者指向该点位，后者是本次测量路径的**共性**（例如到中心镜像端的物理距离），"
         "**不构成任何点位的问题**。",
-        f"> **口径**：与**本语料内**同段各单元的中位数比较，稳健离差 MAD，阈值 "
-        f"{cc.fmt_num(OUTLIER_K, 0)}×1.4826×MAD。这是**描述性筛查、不是显著性检验**，"
-        "也**不与任何外部基准比较**；不可计算的单元不参与比较且如实计数。",
+        "> **口径**：与**本语料内**同段各单元的中位数比较，稳健离差 MAD，阈值 "
+        "`K×1.4826×MAD`，**K 随可比单元数标定**（单元越少，MAD 本身越抖，K 越大）。"
+        "这是**描述性筛查、不是显著性检验**，也**不与任何外部基准比较**；"
+        "不可计算的单元不参与比较且如实计数。",
+        "",
+        "> **这个筛查有多准**（每格 60000 次模拟实测，D-200）：K 的标定目标是——在"
+        "**同分布的干净网格**（不存在真异常）上，误报至少一个单元的概率 "
+        f"≤{cc.fmt_num(OUTLIER_TARGET_FALSE_ALARM * 100, 0)}%。"
+        "**但时延是右偏的**，右偏数据上实测误报率是 7%（4~5 单元）→ 20%（32 单元）"
+        "→ 26%（48 单元），**随网格变大而升高**（单元越多，长尾越有机会甩出一个）——"
+        "**所以 `存在单点异常` 的意思是「值得去看一眼」，不是「已证明异常」**。"
+        "代价也要说清楚：这个阈值只抓得住**很粗的**异常，"
+        "一个 +5 稳健 σ 的真异常约有一半会被漏掉（+10 σ 才接近必中）。"
+        "**少于 4 个可比单元时本段拒绝给结论**——那个规模下没有任何阈值达得到上述口径。"
+        "（此前阈值是固定 3σ，听着严格，实测在干净网格上误报 20%～65%，"
+        "**32 单元的时延网格三次里有两次会点名一个没问题的点位**。）",
         "",
         "> **注意**：`未见单点异常` 只表示**没有单元越过筛查阈值**，"
         "**不等于各单元相同**——单元间到底有多齐，看 `离差/典型` 一列。"
@@ -382,6 +482,10 @@ def render_segment_profile_markdown(prof):
     for s in prof["segments"]:
         if s["basis"] == "insufficient":
             verdict, high, low = "可比单元不足(<2)，无法比较", "—", "—"
+        elif s["basis"] == "too_few_to_screen":
+            verdict = (f"可比单元 <{MIN_CELLS_TO_SCREEN}，**在申明口径下无法筛查**"
+                       "（该规模下没有任何阈值能把误报压到目标）→ 需要更多点位，不是更多复测")
+            high = low = "—"
         elif s["basis"] == "zero_spread" and s["uniform"]:
             verdict, high, low = "全部单元取值相同", "—", "—"
         elif s["basis"] == "zero_spread":
@@ -392,10 +496,11 @@ def render_segment_profile_markdown(prof):
             low = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
                             for o in s["low"]) or "—"
         elif s["uniform"]:
-            verdict = "**未见单点异常**（3σ 筛查）→ 最大单项落在该段分布内，不宜单独归因于该单元"
+            verdict = (f"**未见单点异常**（{_screen_caliber(s)}）"
+                       "→ 最大单项落在该段分布内，不宜单独归因于该单元")
             high = low = "—"
         else:
-            verdict = "**存在单点异常** → 指向具体单元"
+            verdict = f"**存在单点异常**（{_screen_caliber(s)}）→ 值得去看的具体单元"
             high = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
                              for o in s["high"]) or "—"
             low = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"

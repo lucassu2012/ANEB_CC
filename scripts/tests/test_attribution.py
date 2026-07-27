@@ -536,3 +536,74 @@ def test_absent_endpoint_is_unknown_not_reconciled():
     c = attribution.attribute(recs)["cells"][0]
     assert c["tier_endpoints_known"] is False
     assert c["tier_endpoint_conflicts"] == {}
+
+
+# ---------------------------------------------------- outlier screen calibration
+
+def _clean_grid_false_alarm(n_cells, k, trials=4000, skewed=False, seed=4242):
+    """Fraction of CLEAN grids (one distribution, no real outlier present) that
+    the screen flags. Same construction as the offline calibration, fixed seed."""
+    import math
+    import random
+    rng = random.Random(seed + n_cells)
+    hits = 0
+    for _ in range(trials):
+        if skewed:
+            vals = [math.exp(rng.gauss(math.log(100), 0.45)) for _ in range(n_cells)]
+        else:
+            vals = [rng.gauss(100, 15) for _ in range(n_cells)]
+        med, mad = cc.median(vals), cc.mad(vals)
+        if not mad:
+            continue
+        if any(abs(v - med) > k * cc.MAD_TO_SIGMA * mad for v in vals):
+            hits += 1
+    return hits / float(trials)
+
+
+def test_outlier_screen_meets_the_false_alarm_rate_it_publishes():
+    """The section prints specific false-alarm percentages. Re-measure them.
+
+    A constant retuned without re-measuring turns the printed caliber into a
+    false statement — the exact shape this layer keeps finding (D-197/198/199),
+    so the CLAIM is pinned here, not just the constant.
+    """
+    # every bucket boundary and both parities inside them — the first cut of the
+    # table sampled every OTHER n and shipped a figure that was wrong for n=5 by
+    # nearly double, because an odd sample's median is a data point and MAD
+    # behaves differently
+    for n in (4, 5, 6, 7, 8, 9, 10, 11, 12, 20, 32):
+        k = attribution.outlier_k(n)
+        sym, skew = attribution.outlier_false_alarm(n)
+        got_sym = _clean_grid_false_alarm(n, k)
+        got_skew = _clean_grid_false_alarm(n, k, skewed=True)
+        # the published figure is the WORST n in its bucket, so it must never
+        # understate; 4k trials give ~1pt of sampling error
+        assert got_sym <= sym + 0.015, ("understated sym", n, k, sym, got_sym)
+        assert got_skew <= skew + 0.015, ("understated skew", n, k, skew, got_skew)
+        # …and not be so conservative that it stops describing anything
+        assert sym - got_sym < 0.05, ("wildly overstated sym", n, k, sym, got_sym)
+        # the symmetric case is what K is calibrated against, so it must hold
+        assert got_sym <= attribution.OUTLIER_TARGET_FALSE_ALARM + 0.015, (n, got_sym)
+
+
+def test_the_old_flat_threshold_really_was_crying_wolf():
+    """Pins WHY the calibration exists: a flat 3 sigma fires on a clean 32-cell
+    latency grid most of the time. Reverting to a flat threshold now fails with
+    the price stated, instead of leaving it to memory."""
+    flat = _clean_grid_false_alarm(32, 3.0, skewed=True)
+    assert flat > 0.5, flat
+    tuned = _clean_grid_false_alarm(32, attribution.outlier_k(32), skewed=True)
+    assert tuned < flat / 1.5, (flat, tuned)
+
+
+def test_every_screen_verdict_carries_its_caliber():
+    """A flag with no false-alarm rate beside it reads as proof (D-200)."""
+    recs = []
+    for i, core in enumerate((50, 70, 90, 60, 80, 70, 65, 75)):
+        for tier, val in (("metro", 30), ("regional", 42), ("core", core)):
+            recs += tier_records(tier, "n1_rtt_p50_ms", val, 5, point="P%02d" % i)
+    md = attribution.render_segment_profile_markdown(
+        attribution.segment_profile(attribution.attribute(recs)))
+    assert "干净网格误报" in md
+    assert "1.4826" in md
+    assert "3σ 筛查" not in md          # the retired wording, gone from the section

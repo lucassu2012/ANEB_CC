@@ -1760,6 +1760,13 @@ def effective_thresholds():
         # which cells get named 单点异常 — retune it and the report accuses a
         # different point (D-146)
         "segment_outlier_k": attribution.OUTLIER_K,
+        # the screen is calibrated per grid size against a declared false-alarm
+        # rate (D-200); both the target and the table decide who gets named
+        "segment_outlier_target_false_alarm": attribution.OUTLIER_TARGET_FALSE_ALARM,
+        "segment_outlier_k_by_cells": [[n, k] for n, k
+                                       in attribution._OUTLIER_K_BY_CELLS],
+        # below this the section declines to give a verdict at all
+        "segment_min_cells_to_screen": attribution.MIN_CELLS_TO_SCREEN,
         "order_effect_threshold_percent": order_effect.DEFAULT_THRESHOLD_PCT,
         # decides whether the trend section and _trend.csv exist at all (D-196)
         "min_campaigns_for_trend": trend.MIN_CAMPAIGNS_FOR_TREND,

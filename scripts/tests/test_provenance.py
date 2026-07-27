@@ -147,6 +147,9 @@ _NOT_A_REPORT_GATE = {
 _GATE_KEY = {
     ("attribution", "TIER_TIME_SPREAD_GATE_MS"): "tier_time_spread_gate_ms",
     ("attribution", "OUTLIER_K"): "segment_outlier_k",
+    ("attribution", "OUTLIER_TARGET_FALSE_ALARM"):
+        "segment_outlier_target_false_alarm",
+    ("attribution", "MIN_CELLS_TO_SCREEN"): "segment_min_cells_to_screen",
     ("buffering_rollup", "HOTSPOT_SHARE"): "buffering_hotspot_share",
     ("campaign_common", "EPOCH_MS_MIN"): None,      # archived as a pair, below
     ("campaign_common", "EPOCH_MS_MAX"): None,
