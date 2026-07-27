@@ -359,6 +359,25 @@ def test_summary_weak_cell_count_matches_heatcard():
     assert _summary_count(md, "体验最差格") == graded_bad
 
 
+def test_missing_provenance_is_announced_on_both_prose_surfaces():
+    """§2.6: anything added to markdown must be checked in HTML the same day —
+    this repo's most repeated defect. The absence notice is new (D-194), so it
+    gets its parity guard immediately rather than after someone finds it missing
+    from the deliverable that actually gets sent out."""
+    import provenance as prov
+    recs = aqs_records(90, 5)
+    for surface, render in (("md", lambda p: rpt.build_report_markdown(recs, provenance=p)),
+                            ("html", lambda p: rpt.build_report_html(
+                                recs, "2026-01-01 00:00:00", provenance=p))):
+        absent = render(None)
+        assert "未生成溯源信息" in absent, surface
+        assert "无法复现" in absent, surface
+        supplied = render(prov.compute([], {"lines": 5, "kept": 5},
+                                       {"min_samples": 5}, generated_at="2026-01-01"))
+        assert "溯源 / provenance" in supplied, surface
+        assert "未生成溯源信息" not in supplied, surface   # and the notice steps aside
+
+
 def test_summary_segment_bullet_does_not_overclaim_uniformity():
     """§2.10 in the summary — the part decision-makers actually read. The section
     below it words this carefully; the bullet states it independently, and the
