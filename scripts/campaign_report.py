@@ -353,7 +353,14 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     It only points INTO the detailed sections below; nothing is hidden, and the
     distinction between "no problem" and "no data" is kept explicit (R-10).
     """
-    lines = ["## 摘要（先看这里）", ""]
+    lines = ["## 摘要（先看这里）", "",
+             # One promise, made once, machine-checked for every bullet. Before
+             # D-208 only 优化前后 sorted its examples (D-182); the rest listed
+             # whichever cells came first by label, so「172 单元超 CV 门 —— A、B、C
+             # 等 172 个」named three cells at CV 23% while the worst sat at 39%.
+             # The reader goes and looks at the ones you named.
+             "> 下列每条中的示例均为该项**最严重的前三个**（其余以「等 N 个」计数，"
+             "完整清单见对应段落与 CSV）。", ""]
     bullets = []
 
     cells = heat_cells(records, min_samples)
@@ -434,7 +441,9 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        + _cross_kpi_note(records, attr_kpi, dominant, min_samples) + "。")
 
     bres = buffering_rollup.analyze(records, min_samples)
-    hot = [_cell_label(c["cell"]) for c in bres["cells"] if c["distortion_hotspot"]]
+    hot = [_cell_label(c["cell"]) for c in                       # worst first (D-208)
+           sorted((c for c in bres["cells"] if c["distortion_hotspot"]),
+                  key=lambda c: -(c["suspect_share"] or 0))]
     if not bres["cells"]:
         bullets.append("**批化失真**：无批化标注（覆盖缺口，非未见失真）。")
     else:
@@ -442,7 +451,9 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        else "**批化失真**：无热点格。")
 
     tres = trust_rollup.analyze(records, min_samples)
-    clock_hot = [_cell_label(c["cell"]) for c in tres["cells"] if c["clock_hotspot"]]
+    clock_hot = [_cell_label(c["cell"]) for c in                # worst first (D-208)
+                 sorted((c for c in tres["cells"] if c["clock_hotspot"]),
+                        key=lambda c: -(c["clock_suspect_share"] or 0))]
     if tres["no_evidence"]:
         bullets.append("**测量可信度**：无 clock/seq/parse 证据（覆盖缺口，非全部可信）。")
     else:
@@ -452,10 +463,13 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     vres = validity_rollup.analyze(records)
     # validity cells are keyed on profile_id too — drop it and several cells
     # render as the same label, which the reader cannot act on (D-125)
+    # worst first (D-208): the rate is printed right there, so listing the
+    # mildest three is a contradiction the reader can see
     low_valid = [_cell_label(c["cell"], ("point_id", "carrier", "time_band",
                                          "profile_id"))
                  + f"({c['valid_rate'] * 100:.0f}%)"
-                 for c in vres["cells"] if c["below_min_rate"]]
+                 for c in sorted((c for c in vres["cells"] if c["below_min_rate"]),
+                                 key=lambda c: c["valid_rate"])]
     if not vres["cells"]:
         bullets.append("**有效率**：无场景数据。")
     else:
@@ -463,7 +477,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        if low_valid else
                        f"**有效率**：全部达门（≥{vres['min_rate'] * 100:.0f}%）。")
 
-    unstable, measured = [], 0
+    ranked_unstable, measured = [], 0
     for k in stability.DEFAULT_STABILITY_KPIS:
         for c in stability.stability_cells(records, k, min_samples=min_samples):
             if c["cv_percent"] is None:
@@ -472,9 +486,12 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             if c["unstable"]:
                 # stability cells are keyed on tier+profile too — include them,
                 # or the labels collapse into indistinguishable duplicates
-                unstable.append(_cell_label(
+                ranked_unstable.append((c["cv_percent"], _cell_label(
                     c["cell"], ("point_id", "carrier", "time_band", "tier",
-                                "profile_id")) + f"·{k}")
+                                "profile_id")) + f"·{k}"))
+    # highest CV first (D-208) — this list runs to 172 entries on the rehearsal
+    # grid, and the three shown were the mildest of them
+    unstable = [lab for _cv, lab in sorted(ranked_unstable, key=lambda t: -t[0])]
     if not measured:
         bullets.append("**复测稳定性**：无可计算 CV 的单元。")
     else:
@@ -489,8 +506,11 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # so "cannot estimate" never gets counted as either answer.
     neg = [c for c in tr["cells"]
            if c["cellular_minus_wifi"] is not None and c["cellular_minus_wifi"] < 0]
+    # most negative first (D-208) — the delta is printed beside each name
     worse = [f"{_cell_label(c['cell'])}(Δ{cc.fmt_num(c['cellular_minus_wifi'], 1)}"
-             f"±{cc.fmt_num(c['noise'], 1)})" for c in neg if c["within_noise"] is False]
+             f"±{cc.fmt_num(c['noise'], 1)})"
+             for c in sorted((c for c in neg if c["within_noise"] is False),
+                             key=lambda c: c["cellular_minus_wifi"])]
     noisy = [c for c in neg if c["within_noise"] is True]
     unknown = [c for c in neg if c["within_noise"] is None]
     tail = ""

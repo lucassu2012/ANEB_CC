@@ -223,6 +223,77 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def test_summary_examples_really_are_the_worst_ones():
+    """The summary promises its examples are the worst three. Check it.
+
+    Only 优化前后 sorted its examples (D-182); the rest listed whichever cells
+    came first by label. On the rehearsal grid「172 单元超 CV 门」named three
+    cells at CV 23% while the worst were at 39% — and the reader goes and looks
+    at the ones you named (D-208).
+
+    Two ways in, because the bullets differ: where a number is printed beside
+    each name, assert the printed sequence is monotone; where none is (the
+    172-entry stability list), recompute the true worst and require it first.
+    """
+    import stability
+    import synth_campaign as sc
+    # the chaos corpus is the one that populates ALL FOUR example lists at once;
+    # the plain grid leaves 有效率 and 蜂窝劣于 wifi empty, so a guard built on it
+    # would silently exercise a single bullet — the fixture-cannot-reach-the-branch
+    # trap this layer keeps falling into
+    from synth import aqs_records, contractify
+    recs = sc.inject_chaos(sc.generate(points=6, repeats=5, campaigns=("base",)))
+    md = rpt.render_summary_markdown(recs)
+    assert "最严重的前三个" in md, "the promise itself went missing"
+
+    # the chaos grid yields only ONE cellular-worse cell, and a one-item list is
+    # trivially ordered — so that path gets a corpus of its own
+    # label order is the REVERSE of severity on purpose: with PA mildest, an
+    # unsorted list still comes out looking sorted and the fixture proves nothing
+    # — the first cut of this corpus did exactly that and the mutation slipped
+    # through
+    media = []
+    for pt, cellular in (("PA", (80, 81, 82, 83, 84)), ("PB", (70, 71, 72, 73, 74)),
+                         ("PC", (50, 51, 52, 53, 54))):
+        for medium, vals in (("wifi", (90, 91, 92, 93, 94)), ("cellular", cellular)):
+            for v in vals:
+                for r in aqs_records(v, 1, point=pt):
+                    r["run"]["transport"] = medium
+                    media.append(r)
+    mds = [md, rpt.render_summary_markdown([contractify(r) for r in media])]
+
+    # 1) monotone where the value is on the page
+    checked = 0
+    for doc in mds:
+        for head, pat in (("体验最差格", r"\((\d+(?:\.\d+)?)[，)]"),
+                          ("有效率不达门", r"\((\d+(?:\.\d+)?)%\)"),
+                          ("蜂窝劣于 wifi", r"\(Δ(-?\d+(?:\.\d+)?)±")):
+            line = [ln for ln in doc.splitlines() if ln.startswith(f"- **{head}")]
+            if not line:
+                continue
+            vals = [float(v) for v in re.findall(pat, line[0])]
+            if len(vals) < 2:
+                continue
+            checked += 1
+            assert vals == sorted(vals), (head, vals)   # worst = smallest, first
+    assert checked >= 3, (
+        f"only {checked} value-bearing example list(s) exercised — the corpus "
+        "no longer reaches the others, so this guard has quietly narrowed")
+
+    # 2) the stability list prints no CV, so recompute the true worst
+    worst = None
+    for k in stability.DEFAULT_STABILITY_KPIS:
+        for c in stability.stability_cells(recs, k):
+            if c["cv_percent"] is not None and c["unstable"]:
+                if worst is None or c["cv_percent"] > worst[0]:
+                    worst = (c["cv_percent"], rpt._cell_label(
+                        c["cell"], ("point_id", "carrier", "time_band", "tier",
+                                    "profile_id")) + f"·{k}")
+    assert worst, "fixture has no unstable cell"
+    line = [ln for ln in md.splitlines() if ln.startswith("- **复测不稳定")][0]
+    assert worst[1] in line, (worst, line)
+
+
 def _heat_rows(md):
     """(shown_value, grade) per data row of a heat-card markdown table."""
     out = []
