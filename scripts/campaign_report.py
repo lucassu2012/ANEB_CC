@@ -597,9 +597,17 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     elif len(labeled) >= 3:
         tres = trend.analyze(records, min_samples=min_samples)
         verdict = Counter(c["direction"] for c in tres["cells"] if c["direction"])
-        bullets.append("**纵向趋势**：" +
+        # cells with no direction are counted, not dropped: `if c["direction"]`
+        # quietly lost 3 of 17 on a partially-labelled corpus, and the campaign
+        # count came from `labeled` rather than the columns the trend actually
+        # used, so the bullet said 3 campaigns for a 4-column table (D-210)
+        undecided = sum(1 for c in tres["cells"] if not c["direction"])
+        undecided_note = (f"；另有 **{undecided} 格不可计算**"
+                          "（该格在少于 2 个战役里出现，见趋势段 `NEED_2_POINTS`）"
+                          if undecided else "")
+        bullets.append("**纵向趋势**（" + f"{len(tres['campaigns'])} 个战役）：" +
                        "、".join(f"{k} {v} 格" for k, v in cc.ranked(verdict))
-                       + f"（{len(labeled)} 个战役）。" if verdict else
+                       + undecided_note + "。" if verdict else
                        "**纵向趋势**：各格在场点不足 2，方向不可计算。")
     elif compare_basis(inv_) == "no_timestamps":
         # two campaigns but no way to know which came first — guessing by name

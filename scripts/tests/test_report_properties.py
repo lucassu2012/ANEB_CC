@@ -223,6 +223,59 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def test_unlabeled_records_are_not_a_campaign_in_the_trend():
+    """「无标签」 is a bucket, not a point in time.
+
+    It used to sort into the middle of the chronology and become a column:
+    `base → unlabeled → SYNTH-base → SYNTH-opt`, with nothing saying the second
+    one is not a campaign. A cell measured once without a label and once in a
+    real round then got a two-point trajectory and an 改善/回退 verdict computed
+    against "the records nobody labelled". Unlabeled records may come from any
+    number of rounds, so placing them anywhere on a timeline is a fabrication
+    (D-210) — they are excluded from the ordering and counted in the open.
+
+    The summary's own two bugs are pinned here as well: cells with no direction
+    were dropped by an `if c["direction"]` filter, and the campaign count came
+    from the labelled ids rather than the columns the trend actually used.
+    """
+    import trend
+    import synth_campaign as sc
+    from synth import contractify, kpi_scenario_records
+    # three LABELLED campaigns, because the trend bullet only renders at three —
+    # with two, the summary half of this test skipped itself and two mutations
+    # walked straight through the first version of it
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt", "final"))
+    # records with no run.campaign block at all -> the unlabeled bucket
+    unlabelled = [contractify(r) for r in
+                  kpi_scenario_records(4, kpi={"t1_ttft_ms": 100}, point="P-NL")]
+    for r in unlabelled:
+        r["run"].pop("campaign", None)
+    recs = list(recs) + unlabelled
+
+    res = trend.analyze(recs)
+    assert cc.UNLABELED not in res["campaigns"], res["campaigns"]
+    assert res["unlabeled_records"] == len(unlabelled), res["unlabeled_records"]
+    md = trend.render_markdown(res)
+    assert f"{len(unlabelled)} 条记录无战役标签" in md
+    assert f"{cc.UNLABELED} →" not in md and f"→ {cc.UNLABELED}" not in md
+
+    decided = sum(1 for c in res["cells"] if c["direction"])
+    undecided = sum(1 for c in res["cells"] if not c["direction"])
+    assert decided and undecided, (decided, undecided)   # fixture shows both
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if ln.startswith("- **纵向趋势")]
+    # With unlabeled out of the ordering these two are the same set, which is
+    # why the bullet's old `len(labeled)` now agrees with the columns actually
+    # used: fixing the root cause made that symptom unreachable rather than
+    # merely unlikely. Pinned, so a future divergence has to answer for itself.
+    inv = rpt.inventory(recs)
+    assert set(res["campaigns"]) == {c for c in inv["campaigns"] if c != cc.UNLABELED}
+
+    assert line, "the trend bullet did not render — this test would skip itself"
+    assert f"{undecided} 格不可计算" in line[0], line[0]
+    assert f"（{len(res['campaigns'])} 个战役）" in line[0], line[0]
+
+
 def test_the_stability_bullet_accounts_for_every_cell_not_just_the_judged_ones():
     """A denominator the reader cannot check is a denominator that hides things.
 

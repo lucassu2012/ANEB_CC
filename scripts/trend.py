@@ -115,8 +115,19 @@ def order_basis(records, explicit=None):
 
 
 def campaign_order(records, explicit=None):
-    """Ordered list of campaign_ids. Default: chronological by earliest run ms."""
+    """Ordered list of campaign_ids. Default: chronological by earliest run ms.
+
+    The `unlabeled` bucket is NOT one of them. It used to sort into the middle of
+    the chronology and become a column of its own, so a cell measured once
+    without a label and once in a real campaign got a two-point trajectory and an
+    改善/回退 verdict computed against "the records nobody labelled" — while the
+    section header printed `base → unlabeled → SYNTH-base → SYNTH-opt` with
+    nothing saying the second one is not a campaign (D-210). Unlabeled records
+    may come from any number of rounds; putting them at one point in time is a
+    fabrication, so they are counted and reported, never positioned.
+    """
     earliest, present, _bad = _earliest_by_campaign(records)
+    present = {c for c in present if c != cc.UNLABELED}
     if explicit:
         # keep only requested ids actually present, preserve requested order
         return [c for c in explicit if c in present]
@@ -214,6 +225,10 @@ def analyze(records, metric=DEFAULT_METRIC, order=None,
         "higher_is_better": higher_better,
         "campaigns": ids,
         "order_basis": basis,
+        # excluded from the chronology, never from the accounting (D-210)
+        "unlabeled_records": sum(
+            1 for r in records
+            if cc.campaign_labels(r)["campaign_id"] == cc.UNLABELED),
         "cells": results,
     }
 
@@ -229,6 +244,12 @@ def render_markdown(res):
         "> **噪声尺度**：" + cc.NOISE_CAVEAT,
         "",
     ]
+    if res.get("unlabeled_records"):
+        lines += [f"> ⚠ 另有 **{res['unlabeled_records']} 条记录无战役标签**，"
+                  "**未列入上面的时序**——「无标签」不是一个战役，它可能来自任意多个轮次，"
+                  "把它摆在时间轴的某一点上就是**凭空造出一个战役**（D-210）。"
+                  "这些记录仍计入其他各段；要让它们进入趋势，先用 "
+                  "`annotate_campaign.py` 补注 `campaign_id`。", ""]
     if res.get("order_basis") == "bad_timestamps":
         lines += ["> ⚠ **战役时序不可信**：有战役的 `started_at_epoch_ms` 取值不像毫秒时间戳"
                   "（见语料级告警）。按它排序会把战役排到错误的先后上、把改善印成回退，"

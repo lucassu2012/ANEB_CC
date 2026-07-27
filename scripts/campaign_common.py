@@ -514,9 +514,16 @@ def _canon(value, aliases):
     return aliases.get(value.strip().lower(), value.strip().lower())
 
 
+# The bucket a missing label degrades to. Named because it is about to carry
+# weight: "unlabeled" is NOT a campaign, and code that orders campaigns in time
+# has to be able to say so (D-210). The literal still appears in older call
+# sites; new comparisons should use this.
+UNLABELED = "unlabeled"
+
+
 def _label(v):
     """Hand-typed label -> stripped string, or the explicit unlabeled bucket."""
-    return v.strip() if isinstance(v, str) and v.strip() else "unlabeled"
+    return v.strip() if isinstance(v, str) and v.strip() else UNLABELED
 
 
 def _label_key(v):
