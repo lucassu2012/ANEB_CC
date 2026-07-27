@@ -884,3 +884,65 @@ def test_a_non_positive_mean_yields_no_cv_rather_than_a_reassuring_one():
     body = stability.render_markdown([cell], "rsrp_dbm").split("|---")[-1]
     assert "均值≤0" in body
     assert "稳定" not in body        # no verdict at all, reassuring or otherwise
+
+
+_DELIM_RE = re.compile(r"\|[-|: ]+\|")
+
+
+def _orphan_rows(md):
+    """Rows that belong to no table: (line_number, text).
+
+    A row is only a row if a `|---|` line sits under the header. The two
+    existing table guards collect column counts per section, which a blank line
+    mid-table does not disturb at all — the rows keep their shape, they just
+    stop being rows.
+    """
+    lines = md.splitlines()
+    out = []
+    in_fence = False
+    width = None
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        s = line.strip()
+        if not (s.startswith("|") and s.endswith("|") and len(s) > 1):
+            width = None
+            continue
+        if width is None:
+            nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            if not _DELIM_RE.fullmatch(nxt):
+                out.append((i + 1, s[:60]))
+                continue
+            width = _columns(s)
+    return out
+
+
+def test_no_blank_line_leaves_a_report_row_outside_its_table():
+    """The PO reads the report rendered, so a row has to render as a row.
+
+    GFM ends a table at the first blank line; every row after one renders as a
+    paragraph full of literal pipes. DECISION_LOG.md had 36 such blanks and was
+    losing about 190 of its 212 rows that way (D-214), and nothing in this
+    layer's guards would have noticed the same thing in the report itself —
+    uniform column counts stay uniform across a split.
+    """
+    tables = rows = 0
+    for label, md in ([(f"seed {s}", rpt.build_report_markdown(_random_corpus(s)))
+                       for s in SEEDS]
+                      + [("chaos", rpt.build_report_markdown(_corrupt_corpus()))]):
+        orphans = _orphan_rows(md)
+        assert not orphans, (
+            f"{label}: {len(orphans)} row(s) sit outside any table "
+            f"(no delimiter above them): {orphans[:4]} — these render as "
+            "literal pipes, not as rows")
+        lines = [ln for ln in md.splitlines() if ln.strip().startswith("|")]
+        rows += len(lines)
+        tables += sum(1 for ln in md.splitlines() if _DELIM_RE.fullmatch(ln.strip()))
+
+    # The corpora have to actually contain tables, or this proves nothing.
+    assert tables >= 20 and rows >= 200, (
+        f"only {tables} tables / {rows} rows rendered across {len(SEEDS) + 1} "
+        "corpora — the scan found nothing to check")
