@@ -946,6 +946,53 @@ def test_summary_will_not_call_sub_noise_media_delta_a_difference():
     assert float(rows[0]["noise"]) > 2
 
 
+def test_summary_will_not_call_an_unmeasurable_media_delta_a_negative_finding():
+    """A cell whose noise cannot be estimated was never compared to anything.
+
+    The bullet used to answer 「无一超出噪声尺度 / 未观察到…介质差异」 for it —
+    a clean negative verdict drawn from zero measurements, on exactly the
+    corpus that cannot support one. publish_check.py's twin item grew its
+    unestimable branch at D-198; this summary, which is what the reader opens,
+    kept the two-state wording until D-216.
+    """
+    from synth import contractify
+
+    def spread(transport, values, point):
+        out = []
+        for v in values:
+            for r in aqs_records(v, 1, point=point):
+                r["run"]["transport"] = transport
+                out.append(contractify(r))
+        return out
+
+    def media_line(recs):
+        return [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+                if ln.startswith("- **接入介质") or ln.startswith("- **蜂窝劣")][0]
+
+    # One cell, one sample per side: delta is negative, noise is not estimable.
+    only_unknown = spread("wifi", [80], "P1") + spread("cellular", [70], "P1")
+    rows = rpt.transport_rollup.analyze(only_unknown, 1)["cells"]
+    assert [r["within_noise"] for r in rows
+            if r["cellular_minus_wifi"] is not None] == [None], \
+        "fixture must produce an unestimable delta, or this proves nothing"
+    line = media_line(only_unknown)
+    assert "无法判断" in line and "不作介质结论" in line, line
+    assert "无一超出噪声尺度" not in line, line
+    assert "未观察到超出测量噪声的介质差异" not in line, line
+
+    # Mixed: one judged cell plus one unestimable. The judged one may carry the
+    # 未观察到 verdict; the unestimable one must be shown as not counted in it.
+    mixed = (only_unknown
+             + spread("wifi", [60, 70, 80, 90, 100], "P2")
+             + spread("cellular", [58, 68, 78, 88, 98], "P2"))
+    states = {r["within_noise"] for r in rpt.transport_rollup.analyze(mixed, 1)["cells"]
+              if r["cellular_minus_wifi"] is not None}
+    assert states == {None, True}, f"fixture must mix both states, got {states}"
+    line = media_line(mixed)
+    assert "噪声不可估" in line and "不计入结论" in line, line
+    assert "无一超出噪声尺度" not in line, line
+
+
 def test_every_declared_range_is_actually_evaluated_somewhere():
     """A declared range that nothing ever evaluates is a check that never runs —
     §2.9's silent-check trap wearing a table's clothes. The fields do not all

@@ -268,11 +268,24 @@ def _located(cell):
     return (cell or {}).get("point_id") not in (None, "", cc.UNLABELED)
 
 
+_UNLOCATED_MARK = "无点位标签"
+
+_UNLOCATED_LEGEND = (
+    f"> 下方带「**{_UNLOCATED_MARK}**」计数的条目：那些格落在 `{cc.UNLABELED}` 桶——"
+    "**它不是一个地点，据此派不出人**，所以它们不参与点名；"
+    "先用 `annotate_campaign.py` 补注 `point_id` 再看那几条。")
+
+
 def _unlocated_note(n, what="格"):
-    """Say what was set aside from a ranking, and why it is not a destination."""
-    return (f"；另有 **{n} 个{what}无点位标签**（落在 `{cc.UNLABELED}` 桶——"
-            "**它不是一个地点**，据此派不出人；先用 `annotate_campaign.py` 补注 "
-            "`point_id` 再看本条）" if n else "")
+    """Say what was set aside from a ranking, and why it is not a destination.
+
+    The why is said once, by _UNLOCATED_LEGEND above the bullets. Each bullet
+    keeps its own count — the sets differ per bullet (D-211) — but repeating
+    the full explanation put 60 characters of identical boilerplate into four
+    of the eleven lines of the one section titled 先看这里 (D-217).
+    """
+    return (f"；另有 **{n} 个{what}{_UNLOCATED_MARK}**（不可定位，未参与本条点名）"
+            if n else "")
 
 
 def _pair_at(before, after, delta_str):
@@ -585,6 +598,20 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         bullets.append("**接入介质**：无 transport 证据（覆盖缺口）。")
     elif worse:
         bullets.append(f"**蜂窝劣于 wifi**：{len(worse)} 个格超出噪声 —— {_top(worse)}{tail}。")
+    elif neg and not noisy:
+        # Every negative delta's noise is unestimable, so not one of them was
+        # ever compared to anything: "none exceeded the noise" would be a
+        # finding drawn from zero measurements. publish_check.py's twin item
+        # grew this branch at D-198; the summary the reader actually opens did
+        # not, and on a corpus of one unestimable cell it printed a clean
+        # negative verdict (D-216).
+        bullets.append(f"**接入介质**：{len(neg)} 个格 Δ 为负，但其**噪声尺度全部不可估**"
+                       "（样本不足或复测零离散）——**无法判断**是否存在超出噪声的介质差异，"
+                       "本轮不作介质结论。")
+    elif neg and unknown:
+        bullets.append(f"**接入介质**：{len(neg)} 个格 Δ 为负；{len(noisy)} 个**在噪声内**、"
+                       f"{len(unknown)} 个**噪声不可估**（未被判定，不计入结论）"
+                       "——本轮**未观察到超出测量噪声的介质差异**。")
     elif neg:
         bullets.append(f"**接入介质**：{len(neg)} 个格 Δ 为负但**无一超出噪声尺度**"
                        f"（{len(noisy)} 个噪声内、{len(unknown)} 个不可估）"
@@ -683,6 +710,9 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        if labeled else
                        "**优化前后**：语料无战役标签，无法判断轮次——先补注再看此项。")
 
+    # Said once, and only when something below actually carries the count.
+    if any(_UNLOCATED_MARK in b for b in bullets):
+        lines += [_UNLOCATED_LEGEND, ""]
     lines += [f"- {b}" for b in bullets]
     lines += ["", "> 以上为下方各段的**指路**，证据与完整表格见对应段落；"
                   "口径与不可计算说明以各段为准。"]
