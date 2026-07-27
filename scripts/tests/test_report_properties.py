@@ -223,6 +223,46 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def test_the_summarys_attribution_exclusion_is_reproducible_from_csv():
+    """An analyst holding only the CSVs must be able to re-derive the summary.
+
+    The attribution bullet drops every cell the matrix calls NOT USABLE — 62 of
+    72 on the two-campaign rehearsal grid — and discloses the count. But WHICH
+    markers mean "not usable" lives in attribution.SEVERE_FLAGS, and the
+    `incomparability` column ships them mixed in with the advisory ones. So the
+    one number the bullet discloses could not be checked against the export it
+    came from (D-205). CSV is the surface with no banner above it; a filter
+    column nobody can interpret is not a filter.
+    """
+    import csv as csvmod
+    import tempfile
+    import attribution
+    import synth_campaign as sc
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt"))
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if "分段归因" in ln][0]
+    m = re.search(r"\*\*(\d+) 个格因不可比标记未计入\*\*", line)
+    assert m, line
+    stated = int(m.group(1))
+    assert stated > 0, "the fixture must actually exclude something"
+
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "c")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_attribution.csv", encoding="utf-8-sig", newline="") as f:
+            rows = [r for r in csvmod.DictReader(f)
+                    if r["kpi"] == attribution.DEFAULT_KPI]
+    assert rows
+    assert sum(1 for r in rows if r["severe_incomparability"]) == stated, stated
+
+    # …and the column earns its place: the pre-existing `incomparability` column
+    # gives a different answer, because it also carries advisory markers
+    naive = sum(1 for r in rows if r["incomparability"])
+    assert naive != stated, (
+        "severe_incomparability is indistinguishable from incomparability on "
+        "this corpus — the fixture no longer proves the column is needed")
+
+
 def test_no_module_defines_the_same_top_level_name_twice():
     """Python takes the LAST definition and says nothing about the first.
 

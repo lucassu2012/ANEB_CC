@@ -1451,6 +1451,13 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         return "/".join(mixed_by_cell.get(
             tuple(cell.get(d) or "unlabeled" for d in HEAT_DIMS), []))
 
+    def _severe(c):
+        """Only the flags that mean NOT USABLE, so a CSV filter can reproduce the
+        summary's exclusion. `incomparability` mixes both kinds, and which is
+        which lives in attribution.SEVERE_FLAGS — never exported (D-205)."""
+        return ";".join(f for f in attribution.incomparability_flags(c)
+                        if attribution.is_severe(f))
+
     def _bad(c):
         """The impossible-value marker, in the one form every surface uses.
 
@@ -1474,7 +1481,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     "tier_mix", "missing_tiers",
                     # same marker string the attribution CSV carries, so one
                     # filter works across both tables (D-166)
-                    "incomparability"])
+                    "incomparability",
+                    # …and which of those mean NOT USABLE rather than "read with
+                    # care". The summary drops severe-flagged cells from its
+                    # attribution conclusion — 62 of 72 on the rehearsal grid —
+                    # and a CSV consumer could not reproduce that split, because
+                    # SEVERE_FLAGS lives in attribution.py and appears in no
+                    # export. A filter column nobody can interpret is not a
+                    # filter (D-205).
+                    "severe_incomparability"])
         for c in heat:
             w.writerow([c["cell"]["point_id"], c["cell"]["carrier"], c["cell"]["time_band"],
                         _cell(c["aqs_median"]), _cell(c["stdev"]),
@@ -1483,7 +1498,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         c.get("veto_n", 0), c.get("scorer_low_conf_n", 0),
                         "/".join(f"{t}{n}" for t, n in (c.get("tier_mix") or {}).items()),
                         "/".join(c.get("missing_tiers") or []),
-                        ";".join(attribution.incomparability_flags(c))])
+                        ";".join(attribution.incomparability_flags(c)),
+                        _severe(c)])
     written.append(p)
 
     # The per-KPI heat card had a markdown table and an HTML pivot but no CSV at
@@ -1521,7 +1537,11 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     "low_confidence", "not_computable_reason", "incomparability",
                     # numeric so an analyst can threshold it directly instead of
                     # parsing TIER_TIME_SPREAD out of the flag string (D-160)
-                    "tier_time_spread_ms"])
+                    "tier_time_spread_ms",
+                    # the summary's attribution conclusion is computed over cells
+                    # WITHOUT a severe flag; this is the column that lets an
+                    # analyst reproduce that filter (D-205)
+                    "severe_incomparability"])
         for k in attribution.ATTRIBUTABLE_KPIS:
             attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
             for c in attr["cells"]:
@@ -1534,7 +1554,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(c["regional_backbone_incr"]), _cell(c["core_backbone_incr"]),
                             _cell(c["end_to_end_core"]), "|".join(c["coverage"]),
                             c["low_confidence"], c["not_computable_reason"] or "",
-                            ";".join(flags), _cell(c.get("tier_time_spread_ms"))])
+                            ";".join(flags), _cell(c.get("tier_time_spread_ms")),
+                            _severe(c)])
     written.append(p)
 
     # Which segment is a point's own problem vs the path's (D-146). The verdict
