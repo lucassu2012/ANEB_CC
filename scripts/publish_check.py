@@ -158,10 +158,20 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
 
     cells = rpt.heat_cells(records, min_samples)
     lowconf = [c for c in cells if c["low_confidence"]]
-    rows.append(_row(WARN, "样本充分性", f"{len(lowconf)}/{len(cells)} 个格 "
-                                         f"n<{min_samples}（标 low_conf，结论不应依赖）")
-                if lowconf else
-                _row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
+    if not cells:
+        # "全部 0 个格样本充足" — a PASS asserting sufficiency over nothing. The
+        # empty set satisfies every predicate, which is precisely why an empty
+        # one must not be reported as satisfying this one (§2.2, D-198). Reachable
+        # whenever no run carries a usable AQS: every score null, or every score
+        # refused as impossible.
+        rows.append(_row(WARN, "样本充分性",
+                         "无任何可用 AQS 的格——**样本量无从核算**"
+                         "（记录都在，但没有一条带得出分数的 run；先查打分侧）"))
+    elif lowconf:
+        rows.append(_row(WARN, "样本充分性", f"{len(lowconf)}/{len(cells)} 个格 "
+                                             f"n<{min_samples}（标 low_conf，结论不应依赖）"))
+    else:
+        rows.append(_row(PASS, "样本充分性", f"全部 {len(cells)} 个格样本充足"))
 
     # Every check below sweeps the attribution cells once PER KPI, so a cell that
     # is compromised shows up once for each attributable KPI. Counting those
@@ -362,6 +372,14 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     tneg = [c for c in tres["cells"]
             if c["cellular_minus_wifi"] is not None and c["cellular_minus_wifi"] < 0]
     treal = [c for c in tneg if c["within_noise"] is False]
+    # The third bucket this item claimed to have and did not: a cell whose noise
+    # cannot be estimated was never checked and found real. 效应量 above has had
+    # its `elif unknown` branch since D-144, so on a mixed set this item answered
+    # PASS where its twin answers WARN — while the comment overhead said the two
+    # were judged on the same three buckets, which is what hid the omission
+    # (D-198). The same two-state slip D-144 was written to prevent, in the item
+    # added to prevent it.
+    tunknown = [c for c in tneg if c["within_noise"] is None]
     if tres["only_unknown"]:
         rows.append(_row(PASS, "介质效应量", "无 transport 证据，无介质差异可核算"))
     elif not tneg:
@@ -369,7 +387,12 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     elif not treal:
         rows.append(_row(WARN, "介质效应量",
                          f"{len(tneg)} 个格 Δ(cellular−wifi) 为负但无一超出噪声尺度"
-                         "——**不得表述为蜂窝劣于 wifi**"))
+                         + (f"（其中 {len(tunknown)} 个格噪声不可估）" if tunknown else "")
+                         + "——**不得表述为蜂窝劣于 wifi**"))
+    elif tunknown:
+        rows.append(_row(WARN, "介质效应量",
+                         f"{len(treal)}/{len(tneg)} 个负 Δ 超出噪声尺度，另有 "
+                         f"{len(tunknown)} 个格**噪声不可估**——不可估的格不得计入结论"))
     else:
         rows.append(_row(PASS, "介质效应量",
                          f"{len(treal)}/{len(tneg)} 个负 Δ 超出噪声尺度"))

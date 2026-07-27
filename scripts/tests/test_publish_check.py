@@ -144,6 +144,51 @@ def test_effect_unknown_noise_is_warn_not_pass():
     assert "噪声不可估" in _detail(rows, "效应量")
 
 
+def _media(cells):
+    """cells: {point_id: (wifi_values, cellular_values)} -> a labelled corpus."""
+    out = []
+    for point, (wifi, cell) in cells.items():
+        for medium, vals in (("wifi", wifi), ("cellular", cell)):
+            for v in vals:
+                for r in aqs_records(v, 1, point=point):
+                    r["run"]["transport"] = medium
+                    out.append(r)
+    return [contractify(r) for r in out]
+
+
+def test_media_effect_unknown_noise_is_warn_not_pass():
+    """The twin of 效应量 above, which has had this branch since D-144.
+
+    P1 has a real gap; P2 has one cellular run, so its noise cannot be estimated
+    and its Δ was never judged. Reporting PASS on "1/2 negative Δ beyond noise"
+    counts the unjudged cell in the denominator as if it had been judged and
+    cleared — and the item's own comment claimed it used the same three buckets
+    as 效应量, which is what kept the missing branch invisible (D-198).
+    """
+    rows = pc.check(_media({"P1": ([80, 82, 84, 86, 88], [50, 52, 54, 56, 58]),
+                            "P2": ([80, 82, 84, 86, 88], [60])}))
+    assert _sev(rows, "介质效应量") == pc.WARN
+    assert "噪声不可估" in _detail(rows, "介质效应量")
+
+
+def test_media_effect_beyond_noise_still_passes():
+    """…and the new branch must not become a blanket refusal."""
+    rows = pc.check(_media({"P1": ([80, 82, 84, 86, 88], [50, 52, 54, 56, 58])}))
+    assert _sev(rows, "介质效应量") == pc.PASS
+
+
+def test_no_usable_cell_is_not_sufficient_sampling():
+    """PASS「全部 0 个格样本充足」 — sufficiency asserted over nothing.
+
+    The empty set satisfies every predicate, which is exactly why it must not be
+    reported as satisfying this one (§2.2, D-198). Reachable whenever no run
+    carries a usable AQS.
+    """
+    rows = pc.check([contractify(r) for r in aqs_records(None, 5)])
+    assert _sev(rows, "样本充分性") == pc.WARN
+    assert "无从核算" in _detail(rows, "样本充分性")
+
+
 def test_verdict_wording_states_the_warn_contract():
     md_fail = pc.render_markdown(pc.check([]))
     assert "不可发布" in md_fail

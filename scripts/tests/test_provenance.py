@@ -9,10 +9,17 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
+import attribution
 import buffering_rollup
+import campaign_common
+import order_effect
 import provenance as prov
 import campaign_report as rpt
 import stability
+import transport_rollup
+import trend
+import trust_rollup
+import validity_rollup
 from synth import aqs_records
 
 
@@ -116,16 +123,106 @@ def test_report_includes_provenance_when_supplied():
     assert "2026-01-01" in md
 
 
+# The modules whose module-level numbers decide what the REPORT says. Generators
+# and per-run tools are deliberately absent: synth_campaign fabricates corpora,
+# annotate_campaign runs BEFORE the report and records its own choices in
+# `label_source` (D-153), and dashboard/validate_* do not feed this report.
+_GATE_MODULES = (attribution, buffering_rollup, campaign_common, order_effect,
+                 stability, transport_rollup, trend, trust_rollup, validity_rollup)
+
+# Numeric module constants that do NOT decide report output, each with the reason
+# it is exempt. This table is where the judgement lives — visibly, so that adding
+# a gate and forgetting to archive it is a test failure rather than a silence.
+_NOT_A_REPORT_GATE = {
+    ("campaign_common", "DEFAULT_MIN_SAMPLES"):
+        "a CLI knob; the manifest records it under `params`, not `thresholds`",
+    ("stability", "DEFAULT_TARGET_EFFECT_PCT"):
+        "only the standalone `--plan` sample-size CLI; no report section reads it",
+    ("provenance", "_SHORT"): "display width of the inline hash, not a gate",
+}
+
+# module constant -> the key it is archived under. Not a list someone extends by
+# remembering to: the scan below fails on any scanned constant absent from BOTH
+# this map and the exemption table.
+_GATE_KEY = {
+    ("attribution", "TIER_TIME_SPREAD_GATE_MS"): "tier_time_spread_gate_ms",
+    ("attribution", "OUTLIER_K"): "segment_outlier_k",
+    ("buffering_rollup", "HOTSPOT_SHARE"): "buffering_hotspot_share",
+    ("campaign_common", "EPOCH_MS_MIN"): None,      # archived as a pair, below
+    ("campaign_common", "EPOCH_MS_MAX"): None,
+    ("campaign_common", "MAD_TO_SIGMA"): "mad_to_sigma",
+    ("campaign_common", "MEDIAN_SE_FACTOR"): "median_se_factor",
+    ("order_effect", "DEFAULT_THRESHOLD_PCT"): "order_effect_threshold_percent",
+    ("stability", "DEFAULT_CV_GATE"): "cv_gate_percent",
+    ("stability", "DEFAULT_MAX_STABLE_ROWS"): "stability_max_stable_rows",
+    ("trend", "MIN_CAMPAIGNS_FOR_TREND"): "min_campaigns_for_trend",
+    ("trust_rollup", "CLOCK_HOTSPOT_SHARE"): "clock_hotspot_share",
+    ("validity_rollup", "DEFAULT_MIN_RATE"): "validity_min_rate",
+}
+
+# the two epoch bounds share one manifest entry; checked as a pair so neither can
+# drop out of it unnoticed
+_GATE_PAIRS = {"epoch_ms_bounds": (("campaign_common", "EPOCH_MS_MIN"),
+                                   ("campaign_common", "EPOCH_MS_MAX"))}
+
+
 def test_effective_thresholds_cover_every_output_deciding_gate():
     """A manifest recording only the CLI knobs lets a retuned module-level gate
-    change the numbers under an identical-looking manifest (D-122)."""
+    change the numbers under an identical-looking manifest (D-122).
+
+    This test used to check a HAND-WRITTEN list of nine key names — so it could
+    not, in principle, notice a tenth gate that was never added, which is exactly
+    what happened to four of them (D-198). Worse than a gap: the function it
+    guards is called `effective_thresholds` and this test is called "cover every
+    output-deciding gate", so two names asserted a completeness nobody checked.
+
+    Enumerate instead: every public numeric constant in the report's own modules
+    must be archived, or exempt with a stated reason.
+    """
     t = rpt.effective_thresholds()
-    for key in ("cv_gate_percent", "validity_min_rate", "buffering_hotspot_share",
-                "clock_hotspot_share", "aqs_grade_bands", "heat_kpis",
-                "stability_kpis", "attribution_kpis", "stability_max_stable_rows"):
-        assert key in t, key
+    missing, wrong = [], []
+    scanned = 0
+    for mod in _GATE_MODULES:
+        for name, val in sorted(vars(mod).items()):
+            if name.startswith("_") or name != name.upper():
+                continue
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                continue
+            scanned += 1
+            ref = (mod.__name__, name)
+            if ref in _NOT_A_REPORT_GATE:
+                continue
+            if ref not in _GATE_KEY:
+                missing.append(f"{mod.__name__}.{name} = {val!r} — archive it in "
+                               "effective_thresholds() and name it in _GATE_KEY, "
+                               "or exempt it with a reason in _NOT_A_REPORT_GATE")
+                continue
+            key = _GATE_KEY[ref]
+            if key is None:
+                continue                    # part of a pair, checked below
+            if t.get(key) != val:
+                # matching by VALUE alone would let a gate pass on a coincidence:
+                # MIN_CAMPAIGNS_FOR_TREND is 3 and segment_outlier_k is 3.0, and
+                # 3 == 3.0 — so dropping the former from the manifest would go
+                # unnoticed. Name and value, both.
+                wrong.append(f"{mod.__name__}.{name}={val!r} vs {key}={t.get(key)!r}")
+    for key, refs in _GATE_PAIRS.items():
+        expect = [getattr(sys.modules[m], n) for m, n in refs]
+        assert list(t.get(key) or []) == expect, (key, t.get(key), expect)
+    assert scanned >= 12, scanned          # the scan must actually find constants
+    assert not missing, missing
+    assert not wrong, wrong
     assert t["cv_gate_percent"] == stability.DEFAULT_CV_GATE
     assert t["buffering_hotspot_share"] == buffering_rollup.HOTSPOT_SHARE
+
+
+def test_gate_exemptions_still_refer_to_real_constants():
+    """An exemption for a constant that no longer exists silently widens the
+    exemption list — the same rot that let the hand-written key list go stale."""
+    for (modname, name), reason in _NOT_A_REPORT_GATE.items():
+        mod = sys.modules.get(modname) or __import__(modname)
+        assert hasattr(mod, name), f"{modname}.{name} is gone; drop the exemption"
+        assert reason.strip(), (modname, name)
 
 
 def test_thresholds_are_read_live_not_snapshotted():

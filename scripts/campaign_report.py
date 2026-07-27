@@ -1672,6 +1672,25 @@ def effective_thresholds():
         "heat_kpis": list(DEFAULT_KPI_HEAT),
         "stability_kpis": list(stability.DEFAULT_STABILITY_KPIS),
         "attribution_kpis": list(attribution.ATTRIBUTABLE_KPIS),
+        # Everything below decides what the report SAYS and was missing from a
+        # manifest whose own test is named "cover every output-deciding gate"
+        # (D-198). The first one is worse than an omission: D-155 recorded that
+        # it was made a named constant SO THAT it would be archived, and the
+        # attribution section prints 「相隔超 60 分钟」 to the reader — two places
+        # asserting a record that did not exist.
+        "tier_time_spread_gate_ms": attribution.TIER_TIME_SPREAD_GATE_MS,
+        # which cells get named 单点异常 — retune it and the report accuses a
+        # different point (D-146)
+        "segment_outlier_k": attribution.OUTLIER_K,
+        "order_effect_threshold_percent": order_effect.DEFAULT_THRESHOLD_PCT,
+        # decides whether the trend section and _trend.csv exist at all (D-196)
+        "min_campaigns_for_trend": trend.MIN_CAMPAIGNS_FOR_TREND,
+        # every 噪声内 verdict on every surface comes through these two
+        "median_se_factor": cc.MEDIAN_SE_FACTOR,
+        "mad_to_sigma": cc.MAD_TO_SIGMA,
+        # which readings are refused, hence every n and every median (D-178/197)
+        "epoch_ms_bounds": [cc.EPOCH_MS_MIN, cc.EPOCH_MS_MAX],
+        "value_ranges": {k: list(v) for k, v in sorted(cc.VALUE_RANGES.items())},
     }
 
 
