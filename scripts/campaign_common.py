@@ -749,11 +749,17 @@ def percentile(vals, p):
     return xs[max(1, rank) - 1]
 
 
-def aqs_grade(score, bands=AQS_GRADE_BANDS):
-    """Map an AQS 0-100 score to a four-level presentation grade. None -> 'n/a'."""
+def aqs_grade(score, bands=None):
+    """Map an AQS 0-100 score to a four-level presentation grade. None -> 'n/a'.
+
+    `bands` defaults to the module constant READ AT CALL TIME, not captured in
+    the signature. Every gate this layer archives in the provenance manifest is
+    read live: that manifest's header promises changing one changes the report,
+    and a value captured at import can drift from the value archived (D-204).
+    """
     if score is None:
         return "n/a"
-    for threshold, name in bands:
+    for threshold, name in (AQS_GRADE_BANDS if bands is None else bands):
         if score >= threshold:
             return name
     return "poor"

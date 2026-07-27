@@ -79,8 +79,11 @@ def collect_positions(records, kpi):
 
 
 def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
-                    threshold_pct=DEFAULT_THRESHOLD_PCT):
+                    threshold_pct=None):
     """Order-effect verdict for one profile. `positions`: {order_index -> [values]}."""
+    # read live, not captured in the signature — this gate is archived in the
+    # provenance manifest, which promises changing it changes the report (D-204)
+    threshold_pct = DEFAULT_THRESHOLD_PCT if threshold_pct is None else threshold_pct
     pos = {}
     all_values = []
     for idx in sorted(positions):
@@ -115,7 +118,10 @@ def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
 
 def analyze(records, kpi=DEFAULT_KPI, min_samples=cc.DEFAULT_MIN_SAMPLES,
-            threshold_pct=DEFAULT_THRESHOLD_PCT):
+            threshold_pct=None):
+    # resolved here as well: the result dict publishes `threshold_pct` and the
+    # renderer prints it as the gate in force (D-204)
+    threshold_pct = DEFAULT_THRESHOLD_PCT if threshold_pct is None else threshold_pct
     cells, orders, rounds, rotating_runs, implausible = collect_positions(records, kpi)
     profiles = []
     # a profile whose every reading was refused still gets a row: it has no

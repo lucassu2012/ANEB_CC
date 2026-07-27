@@ -933,8 +933,11 @@ def auto_compare_ids(inv):
 
 def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                           attr_kpi=attribution.DEFAULT_KPI,
-                          before_id=None, after_id=None, kpi_heat=DEFAULT_KPI_HEAT,
+                          before_id=None, after_id=None, kpi_heat=None,
                           provenance=None):
+    # read live, not captured in the signature — archived in the provenance
+    # manifest, which promises that changing it changes the report (D-204)
+    kpi_heat = DEFAULT_KPI_HEAT if kpi_heat is None else kpi_heat
     inv = inventory(records)
     cells = heat_cells(records, min_samples)
 
@@ -1757,11 +1760,10 @@ def effective_thresholds():
         # attribution section prints 「相隔超 60 分钟」 to the reader — two places
         # asserting a record that did not exist.
         "tier_time_spread_gate_ms": attribution.TIER_TIME_SPREAD_GATE_MS,
-        # which cells get named 单点异常 — retune it and the report accuses a
-        # different point (D-146)
-        "segment_outlier_k": attribution.OUTLIER_K,
-        # the screen is calibrated per grid size against a declared false-alarm
-        # rate (D-200); both the target and the table decide who gets named
+        # which cells get named 单点异常 — retune these and the report accuses a
+        # different point (D-146/D-200). The flat `segment_outlier_k` that used
+        # to sit here was archived while being unreachable — an entry in a
+        # manifest whose header promises the opposite (D-204).
         "segment_outlier_target_false_alarm": attribution.OUTLIER_TARGET_FALSE_ALARM,
         "segment_outlier_k_by_cells": [[n, k] for n, k
                                        in attribution._OUTLIER_K_BY_CELLS],

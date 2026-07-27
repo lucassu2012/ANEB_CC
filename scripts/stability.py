@@ -66,8 +66,15 @@ def cv_reason(vals, cv):
     return "mean<=0"
 
 
+# `None` already means "no cap" in render_markdown's API, so the archived
+# default needs a sentinel of its own (D-204).
+_UNSET = object()
+
+
 def stability_cells(records, kpi_key, group_by=STAB_GROUP_BY,
-                    cv_gate=DEFAULT_CV_GATE, min_samples=cc.DEFAULT_MIN_SAMPLES):
+                    cv_gate=None, min_samples=cc.DEFAULT_MIN_SAMPLES):
+    # read live, not captured in the signature — see cc.aqs_grade (D-204)
+    cv_gate = DEFAULT_CV_GATE if cv_gate is None else cv_gate
     buckets = {}
     implausible = {}
     for rec in records:
@@ -113,8 +120,12 @@ def stability_cells(records, kpi_key, group_by=STAB_GROUP_BY,
 DEFAULT_MAX_STABLE_ROWS = 25
 
 
-def render_markdown(cells, kpi_key, cv_gate=DEFAULT_CV_GATE,
-                    max_stable_rows=DEFAULT_MAX_STABLE_ROWS):
+def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
+    # Both read live (D-204). `None` for max_stable_rows keeps its existing
+    # meaning — no cap at all — which is why the default needs `_UNSET`.
+    cv_gate = DEFAULT_CV_GATE if cv_gate is None else cv_gate
+    if max_stable_rows is _UNSET:
+        max_stable_rows = DEFAULT_MAX_STABLE_ROWS
     lines = [f"### 复测稳定性：`{kpi_key}`（CV% = 样本 stdev/mean；门 ≤{cc.fmt_num(cv_gate)}% 为稳定）", ""]
     if not cells:
         lines.append(f"_无 `{kpi_key}` 数据。_")

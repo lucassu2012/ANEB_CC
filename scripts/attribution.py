@@ -337,17 +337,20 @@ _FALSE_ALARM_AT_K = ((5, 0.049, 0.072), (9, 0.047, 0.094),
                      (16, 0.039, 0.139), (32, 0.018, 0.198),
                      (10 ** 9, 0.006, 0.255))
 
-# Kept under its old name so the provenance manifest and its coverage scan keep a
-# stable key; segment_profile uses outlier_k(n) instead of this flat fallback.
-OUTLIER_K = 4.0
-
-
 def outlier_k(n_cells):
-    """Robust-sigma multiplier for a grid of `n_cells` comparable cells."""
+    """Robust-sigma multiplier for a grid of `n_cells` comparable cells.
+
+    There used to be a flat `OUTLIER_K` here as a fallback, kept "so the
+    provenance manifest and its coverage scan keep a stable key". That is not a
+    reason to keep a constant: the last bucket's bound is 10**9, so the fallback
+    was unreachable, and the manifest — whose header tells the reader that
+    changing any archived gate changes the report — was advertising a knob that
+    decides nothing (D-204). Removed, along with its manifest entry.
+    """
     for upto, k in _OUTLIER_K_BY_CELLS:
         if n_cells <= upto:
             return k
-    return OUTLIER_K
+    return _OUTLIER_K_BY_CELLS[-1][1]
 
 
 def outlier_false_alarm(n_cells):

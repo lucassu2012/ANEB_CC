@@ -150,7 +150,6 @@ _NOT_A_REPORT_GATE = {
 # this map and the exemption table.
 _GATE_KEY = {
     ("attribution", "TIER_TIME_SPREAD_GATE_MS"): "tier_time_spread_gate_ms",
-    ("attribution", "OUTLIER_K"): "segment_outlier_k",
     ("attribution", "OUTLIER_TARGET_FALSE_ALARM"):
         "segment_outlier_target_false_alarm",
     ("attribution", "MIN_CELLS_TO_SCREEN"): "segment_min_cells_to_screen",
@@ -221,6 +220,77 @@ def test_effective_thresholds_cover_every_output_deciding_gate():
     assert not wrong, wrong
     assert t["cv_gate_percent"] == stability.DEFAULT_CV_GATE
     assert t["buffering_hotspot_share"] == buffering_rollup.HOTSPOT_SHARE
+
+
+# manifest key -> (module, attribute, a value that CROSSES the observed data).
+# Choosing the perturbation is the whole difficulty. Two ways to get a false
+# "inert" verdict, both of which happened while building this (D-204):
+#   * the constant is captured as a default ARGUMENT, so setattr cannot reach it
+#     (fixed at the source: archived gates are now read live);
+#   * the new value does not cross the values actually present — pushing the
+#     buffering hot-spot share DOWN when the corpus only ever has shares of 0.0
+#     and 1.0 changes nothing, and says nothing.
+_PERTURB = {
+    "cv_gate_percent": (stability, "DEFAULT_CV_GATE", 1.0),
+    "stability_max_stable_rows": (stability, "DEFAULT_MAX_STABLE_ROWS", 3),
+    "stability_kpis": (stability, "DEFAULT_STABILITY_KPIS", ("t1_ttft_ms",)),
+    "validity_min_rate": (validity_rollup, "DEFAULT_MIN_RATE", 0.999),
+    "buffering_hotspot_share": (buffering_rollup, "HOTSPOT_SHARE", 1.0),
+    "clock_hotspot_share": (trust_rollup, "CLOCK_HOTSPOT_SHARE", 0.99),
+    "aqs_grade_bands": (campaign_common, "AQS_GRADE_BANDS",
+                        [(95.0, "excellent"), (90.0, "good"),
+                         (85.0, "fair"), (0.0, "poor")]),
+    "heat_kpis": (rpt, "DEFAULT_KPI_HEAT", ("t1_ttft_ms",)),
+    "attribution_kpis": (attribution, "ATTRIBUTABLE_KPIS", ("n1_rtt_p50_ms",)),
+    "tier_time_spread_gate_ms": (attribution, "TIER_TIME_SPREAD_GATE_MS", 1),
+    "segment_outlier_target_false_alarm":
+        (attribution, "OUTLIER_TARGET_FALSE_ALARM", 0.99),
+    "segment_outlier_k_by_cells": (attribution, "_OUTLIER_K_BY_CELLS",
+                                   ((10 ** 9, 0.5),)),
+    "segment_min_cells_to_screen": (attribution, "MIN_CELLS_TO_SCREEN", 999),
+    "order_effect_threshold_percent": (order_effect, "DEFAULT_THRESHOLD_PCT", 0.0001),
+    "min_campaigns_for_trend": (trend, "MIN_CAMPAIGNS_FOR_TREND", 2),
+    "median_se_factor": (campaign_common, "MEDIAN_SE_FACTOR", 12.53),
+    "mad_to_sigma": (campaign_common, "MAD_TO_SIGMA", 0.014826),
+    "epoch_ms_bounds": (campaign_common, "EPOCH_MS_MIN", 4_000_000_000_000),
+    "value_ranges": (campaign_common, "VALUE_RANGES",
+                     dict(campaign_common.VALUE_RANGES, aqs_score=(0.0, 50.0))),
+}
+
+
+def test_every_archived_threshold_actually_decides_the_report():
+    """The manifest header says 「改动其一即改变报告结论」. Make that true.
+
+    D-198's scan is the other half — every output-deciding gate must be
+    archived. This is the converse: every archived gate must decide something.
+    Together, archived <=> load-bearing, and the sentence the report prints above
+    the manifest is a checked claim rather than a hope.
+
+    It found one: `segment_outlier_k` was archived while unreachable, kept only
+    "so the manifest keeps a stable key" (D-200). A manifest padded with inert
+    entries teaches the reader that the list is decorative.
+    """
+    import synth_campaign as sc
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt"))
+    base = rpt.build_report_markdown(recs)
+    th = rpt.effective_thresholds()
+    assert set(th) == set(_PERTURB), (
+        f"only archived={sorted(set(th) - set(_PERTURB))}, "
+        f"only perturbed={sorted(set(_PERTURB) - set(th))}")
+    inert = []
+    for key, (mod, attr, newval) in sorted(_PERTURB.items()):
+        old = getattr(mod, attr)
+        try:
+            setattr(mod, attr, newval)
+            if rpt.build_report_markdown(recs) == base:
+                inert.append(key)
+        finally:
+            setattr(mod, attr, old)
+    assert not inert, (
+        "archived as output-deciding but the report is byte-identical with them "
+        f"changed: {inert}")
+    # every perturbation restored — otherwise this test poisons the ones after it
+    assert rpt.build_report_markdown(recs) == base
 
 
 def test_gate_exemptions_still_refer_to_real_constants():

@@ -44,7 +44,10 @@ def split_reasons(scn):
     return [t.strip() for t in _REASON_SPLIT.split(raw) if t.strip()]
 
 
-def validity_cells(records, min_rate=DEFAULT_MIN_RATE):
+def validity_cells(records, min_rate=None):
+    # read live, not captured in the signature — the provenance manifest archives
+    # this gate and promises that changing it changes the report (D-204)
+    min_rate = DEFAULT_MIN_RATE if min_rate is None else min_rate
     """Per-cell validity breakdown + reason histogram. Returns (cells, reasons)."""
     buckets = defaultdict(lambda: {"counts": Counter(), "reasons": Counter()})
     corpus_reasons = Counter()
@@ -112,7 +115,10 @@ def validity_trend(records):
     return out
 
 
-def analyze(records, min_rate=DEFAULT_MIN_RATE):
+def analyze(records, min_rate=None):      # None -> the live gate (D-204)
+    # resolved HERE too: the result dict publishes `min_rate`, and consumers
+    # render it as the gate in force
+    min_rate = DEFAULT_MIN_RATE if min_rate is None else min_rate
     cells, reasons = validity_cells(records, min_rate)
     attempted = sum(c["attempted"] for c in cells)
     usable = sum(c["valid"] + c["valid_low_confidence"] for c in cells)
