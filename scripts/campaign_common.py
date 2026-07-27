@@ -520,6 +520,10 @@ def _canon(value, aliases):
 # sites; new comparisons should use this.
 UNLABELED = "unlabeled"
 
+# The same idea for the dimensions that degrade to "unknown" rather than
+# "unlabeled" (carrier, time_band). Both are buckets; neither is a value.
+UNKNOWN = "unknown"
+
 
 def _label(v):
     """Hand-typed label -> stripped string, or the explicit unlabeled bucket."""

@@ -223,6 +223,44 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def test_the_summary_never_sends_anyone_to_the_unlabeled_bucket():
+    """`unlabeled/unknown/unknown` is not a place, so it must not be ranked as one.
+
+    A corpus whose only bad scores were unlabelled produced the headline
+    「体验最差格 —— unlabeled/unknown/unknown(41)」: the city's worst location,
+    with no name and nobody to send (D-211). The count stays — those records are
+    real — but it is reported as an unaddressed bucket, not as somewhere to go.
+
+    Also pins the trap this fix walks into: when EVERY bad cell is unlabelled the
+    named list is empty, and a bullet keyed on that list reports「no problem at
+    all」 because the problems had no address.
+    """
+    from synth import aqs_records, contractify
+    good = [r for pt, v in (("SZ-CBD-01", 88), ("SZ-CBD-02", 84))
+            for r in aqs_records(v, 5, point=pt)]
+    bad = aqs_records(41, 5, point="X")
+    for r in bad:
+        r["run"].pop("campaign", None)          # -> the unlabeled bucket
+    recs = [contractify(r) for r in good + bad]
+
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if ln.startswith("- **体验最差格")][0]
+    assert f"{cc.UNLABELED}/" not in line, line   # never named as a destination
+    assert "1 个格 AQS 达 fair/poor" in line, line  # …but still counted
+    assert "无点位标签" in line, line               # …and said out loud
+    assert "无 fair/poor 格" not in line, line      # …and NOT reported as clean
+
+    # a real bad point alongside it: named, with the bucket disclosed beside it
+    mixed = [contractify(r) for r in
+             [x for pt, v in (("SZ-CBD-01", 88), ("SZ-BAD-02", 52))
+              for x in aqs_records(v, 5, point=pt)] + bad]
+    line2 = [ln for ln in rpt.render_summary_markdown(mixed).splitlines()
+             if ln.startswith("- **体验最差格")][0]
+    assert "SZ-BAD-02" in line2 and f"{cc.UNLABELED}/" not in line2, line2
+    assert "2 个格 AQS 达 fair/poor" in line2, line2
+    assert "1 个格无点位标签" in line2, line2
+
+
 def test_unlabeled_records_are_not_a_campaign_in_the_trend():
     """「无标签」 is a bucket, not a point in time.
 

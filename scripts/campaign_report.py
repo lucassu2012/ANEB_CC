@@ -255,6 +255,26 @@ def _sign(x):
     return (x > 0) - (x < 0)
 
 
+def _located(cell):
+    """Whether this cell is somewhere an operator could actually be sent.
+
+    Records with no `point_id` collapse into the `unlabeled` bucket, and the
+    summary ranked that bucket alongside real points — so a corpus whose only bad
+    scores were unlabelled produced the headline「体验最差格 ——
+    unlabeled/unknown/unknown(41)」: the city's worst place, with no name, and
+    nobody to send (D-211). Carrier and time_band may be unknown and the cell is
+    still a place; the point id is what makes it one.
+    """
+    return (cell or {}).get("point_id") not in (None, "", cc.UNLABELED)
+
+
+def _unlocated_note(n, what="格"):
+    """Say what was set aside from a ranking, and why it is not a destination."""
+    return (f"；另有 **{n} 个{what}无点位标签**（落在 `{cc.UNLABELED}` 桶——"
+            "**它不是一个地点**，据此派不出人；先用 `annotate_campaign.py` 补注 "
+            "`point_id` 再看本条）" if n else "")
+
+
 def _pair_at(before, after, delta_str):
     """before/after rendered at the delta's own precision.
 
@@ -369,22 +389,31 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # a cell built on one run used to head the list of the city's worst points
     # with nothing saying so — the heat card flagged it, the summary did not
     # (D-168). The summary is the only section decision-makers read closely.
+    bad_cells = [c for c in scored if c["grade"] in ("poor", "fair")]
     weak = [f"{_cell_label(c['cell'])}({cc.fmt_num(c['aqs_median'], 1)}"
             + (f"，n={c['n']} low_conf" if c["low_confidence"] else "") + ")"
-            for c in scored if c["grade"] in ("poor", "fair")]
+            for c in bad_cells if _located(c["cell"])]     # rankable places only
+    weak_unloc = _unlocated_note(sum(1 for c in bad_cells if not _located(c["cell"])))
     if not scored:
         bullets.append("**体验最差格**：无 AQS 数据（覆盖缺口，非全部良好）。")
-    elif weak:
+    elif bad_cells:
         # a veto caps the score at exactly the band edges, so "fair/poor" can
         # mean the sessions failed rather than the network being slow (D-154)
-        capped = [c for c in scored
-                  if c["grade"] in ("poor", "fair") and c.get("veto_n")]
+        capped = [c for c in bad_cells if c.get("veto_n")]
         veto_note = (f"；其中 {len(capped)} 个格含**被否决封顶**的 run"
                      "（T4 严重卡顿率 >1% 封顶 54，分数只说明「至少这么差」，"
                      "见热力卡 `VETO_CAPPED`）"
                      if capped else "")
-        bullets.append(f"**体验最差格**：{len(weak)} 个格 AQS 达 fair/poor —— {_top(weak)}"
-                       f"{veto_note}。")
+        # keyed on bad_cells, not on `weak`: when EVERY bad cell is unlabelled,
+        # `weak` is empty and the old branch fell through to 「无 fair/poor 格」 —
+        # reporting no problem at all because the problems had no address
+        if weak:
+            tail = f" —— {_top(weak)}{veto_note}{weak_unloc}"
+        else:
+            tail = ("，**全部无点位标签**（落在 `" + cc.UNLABELED + "` 桶——"
+                    "**它不是一个地点**，据此派不出人；先用 `annotate_campaign.py` "
+                    "补注 `point_id` 再看本条）" + veto_note)
+        bullets.append(f"**体验最差格**：{len(bad_cells)} 个格 AQS 达 fair/poor{tail}。")
     else:
         bullets.append(f"**体验最差格**：无 fair/poor 格（最低 "
                        f"{_cell_label(scored[0]['cell'])}="
@@ -441,41 +470,56 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        + _cross_kpi_note(records, attr_kpi, dominant, min_samples) + "。")
 
     bres = buffering_rollup.analyze(records, min_samples)
-    hot = [_cell_label(c["cell"]) for c in                       # worst first (D-208)
-           sorted((c for c in bres["cells"] if c["distortion_hotspot"]),
-                  key=lambda c: -(c["suspect_share"] or 0))]
+    hot_cells = sorted((c for c in bres["cells"] if c["distortion_hotspot"]),
+                       key=lambda c: -(c["suspect_share"] or 0))   # worst first (D-208)
+    hot = [_cell_label(c["cell"]) for c in hot_cells if _located(c["cell"])]
+    hot_unloc = _unlocated_note(sum(1 for c in hot_cells if not _located(c["cell"])))
     if not bres["cells"]:
         bullets.append("**批化失真**：无批化标注（覆盖缺口，非未见失真）。")
+    elif hot_cells:
+        # keyed on hot_cells, not on the NAMED subset: with every hot-spot
+        # unlabelled, `hot` is empty and this used to print 「无热点格」 (D-211)
+        bullets.append(f"**批化失真热点**：{len(hot_cells)} 个"
+                       + (f" —— {_top(hot)}" if hot else "，**全部无点位标签**")
+                       + f"{hot_unloc}。")
     else:
-        bullets.append(f"**批化失真热点**：{len(hot)} 个 —— {_top(hot)}。" if hot
-                       else "**批化失真**：无热点格。")
+        bullets.append("**批化失真**：无热点格。")
 
     tres = trust_rollup.analyze(records, min_samples)
-    clock_hot = [_cell_label(c["cell"]) for c in                # worst first (D-208)
-                 sorted((c for c in tres["cells"] if c["clock_hotspot"]),
-                        key=lambda c: -(c["clock_suspect_share"] or 0))]
+    clock_cells = sorted((c for c in tres["cells"] if c["clock_hotspot"]),
+                         key=lambda c: -(c["clock_suspect_share"] or 0))
+    clock_hot = [_cell_label(c["cell"]) for c in clock_cells if _located(c["cell"])]
+    clock_unloc = _unlocated_note(
+        sum(1 for c in clock_cells if not _located(c["cell"])))
     if tres["no_evidence"]:
         bullets.append("**测量可信度**：无 clock/seq/parse 证据（覆盖缺口，非全部可信）。")
+    elif clock_cells:
+        bullets.append(f"**时钟可疑热点**：{len(clock_cells)} 个"
+                       + (f" —— {_top(clock_hot)}" if clock_hot else "，**全部无点位标签**")
+                       + f"{clock_unloc}（该格时延中位数存疑）。")
     else:
-        bullets.append(f"**时钟可疑热点**：{len(clock_hot)} 个 —— {_top(clock_hot)}"
-                       "（该格时延中位数存疑）。" if clock_hot else "**时钟可疑热点**：无。")
+        bullets.append("**时钟可疑热点**：无。")
 
     vres = validity_rollup.analyze(records)
     # validity cells are keyed on profile_id too — drop it and several cells
     # render as the same label, which the reader cannot act on (D-125)
     # worst first (D-208): the rate is printed right there, so listing the
     # mildest three is a contradiction the reader can see
+    low_cells = sorted((c for c in vres["cells"] if c["below_min_rate"]),
+                       key=lambda c: c["valid_rate"])
     low_valid = [_cell_label(c["cell"], ("point_id", "carrier", "time_band",
                                          "profile_id"))
                  + f"({c['valid_rate'] * 100:.0f}%)"
-                 for c in sorted((c for c in vres["cells"] if c["below_min_rate"]),
-                                 key=lambda c: c["valid_rate"])]
+                 for c in low_cells if _located(c["cell"])]
+    low_unloc = _unlocated_note(sum(1 for c in low_cells if not _located(c["cell"])))
     if not vres["cells"]:
         bullets.append("**有效率**：无场景数据。")
+    elif low_cells:
+        bullets.append(f"**有效率不达门**：{len(low_cells)} 个格"
+                       + (f" —— {_top(low_valid)}" if low_valid else "，**全部无点位标签**")
+                       + f"{low_unloc}。")
     else:
-        bullets.append(f"**有效率不达门**：{len(low_valid)} 个格 —— {_top(low_valid)}。"
-                       if low_valid else
-                       f"**有效率**：全部达门（≥{vres['min_rate'] * 100:.0f}%）。")
+        bullets.append(f"**有效率**：全部达门（≥{vres['min_rate'] * 100:.0f}%）。")
 
     ranked_unstable, measured, no_cv = [], 0, 0
     for k in stability.DEFAULT_STABILITY_KPIS:
@@ -493,10 +537,14 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                 # or the labels collapse into indistinguishable duplicates
                 ranked_unstable.append((c["cv_percent"], _cell_label(
                     c["cell"], ("point_id", "carrier", "time_band", "tier",
-                                "profile_id")) + f"·{k}"))
+                                "profile_id")) + f"·{k}", _located(c["cell"])))
     # highest CV first (D-208) — this list runs to 172 entries on the rehearsal
     # grid, and the three shown were the mildest of them
-    unstable = [lab for _cv, lab in sorted(ranked_unstable, key=lambda t: -t[0])]
+    ranked_unstable.sort(key=lambda t: -t[0])
+    unstable = [lab for _cv, lab, _loc in ranked_unstable]
+    named_unstable = [lab for _cv, lab, loc in ranked_unstable if loc]
+    unstable_unloc = _unlocated_note(
+        sum(1 for _cv, _lab, loc in ranked_unstable if not loc), what="单元")
     # the remainder, named where the reader sees the denominator (D-209)
     nocv_note = (f"；另有 **{no_cv} 个单元 CV 不可计算**（n<2 或均值≤0，**未计入分母**，"
                  "见稳定性段 `CV 不可计算` 一列）" if no_cv else "")
@@ -504,9 +552,12 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         bullets.append(f"**复测稳定性**：{no_cv} 个单元**全部无法计算 CV**"
                        "（n<2 或均值≤0）——覆盖缺口，非「全部达门」。")
     else:
-        bullets.append(f"**复测不稳定**：{len(unstable)}/{measured} 单元超 CV 门 —— "
-                       f"{_top(unstable)}{nocv_note}。" if unstable else
-                       f"**复测稳定性**：{measured} 个单元全部达门{nocv_note}。")
+        bullets.append(
+            f"**复测不稳定**：{len(unstable)}/{measured} 单元超 CV 门"
+            + (f" —— {_top(named_unstable)}" if named_unstable
+               else "，**全部无点位标签**")
+            + f"{unstable_unloc}{nocv_note}。" if unstable else
+            f"**复测稳定性**：{measured} 个单元全部达门{nocv_note}。")
 
     tr = transport_rollup.analyze(records, min_samples)
     # Δ<0 alone is not "cellular is worse" — it is a difference that may be
