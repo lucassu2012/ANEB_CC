@@ -223,6 +223,91 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+_VOID_HTML = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+              "meta", "param", "source", "track", "wbr"}
+_HTML_NOW = "2026-01-01 00:00:00 +0800"
+
+
+def _html_imbalance(doc):
+    """Unclosed / mis-nested tags in an HTML document, as readable strings."""
+    from html.parser import HTMLParser
+
+    class _Balance(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.stack, self.errors = [], []
+
+        def handle_starttag(self, tag, attrs):
+            if tag not in _VOID_HTML:
+                self.stack.append((tag, self.getpos()))
+
+        def handle_endtag(self, tag):
+            if tag in _VOID_HTML:
+                return
+            if not self.stack:
+                self.errors.append(f"</{tag}> with nothing open at {self.getpos()}")
+                return
+            if self.stack[-1][0] != tag:
+                self.errors.append(
+                    f"</{tag}> while <{self.stack[-1][0]}> is open "
+                    f"(opened {self.stack[-1][1]}) at {self.getpos()}")
+                for i in range(len(self.stack) - 1, -1, -1):
+                    if self.stack[i][0] == tag:
+                        del self.stack[i:]
+                        break
+                return
+            self.stack.pop()
+
+    p = _Balance()
+    p.feed(doc)
+    p.close()
+    return p.errors + [f"<{t}> never closed (opened {pos})" for t, pos in p.stack]
+
+
+def test_html_deliverable_is_structurally_well_formed():
+    """The HTML is the form that gets emailed out (D-140), and nothing was
+    checking that its tags close.
+
+    Markdown tests cannot see this: a label that breaks the DOM leaves the
+    markdown table perfectly intact. Currently clean on every corpus below —
+    recorded as a negative result, kept as a guard because the surface had none
+    (D-206).
+    """
+    from synth import contractify, kpi_scenario_records
+    cases = {f"random seed {s}": _random_corpus(s) for s in (0, 5, 11)}
+    cases["corrupt"] = _corrupt_corpus()
+    for pid in ("SZ|CBD-01", "</table><h1>hi</h1>", "A&B<td>x</td>", "P" * 200,
+                '行"引"号'):
+        cases[f"hostile {pid[:16]}"] = [
+            contractify(r) for r in
+            kpi_scenario_records(6, aqs=90, kpi={"n1_rtt_p50_ms": 20}, point=pid)]
+    for name, recs in cases.items():
+        errs = _html_imbalance(rpt.build_report_html(recs, _HTML_NOW))
+        assert not errs, (name, errs[:3])
+
+
+def test_hostile_labels_never_become_live_markup():
+    """Tag balance is blind to a well-formed injection: `<b>X</b>` in a point
+    name keeps the document balanced while rendering as markup (D-206).
+
+    Each case also asserts the payload is still THERE, escaped — a renderer that
+    silently dropped the label would otherwise pass this test while losing the
+    operator's data.
+    """
+    from synth import contractify, kpi_scenario_records
+    for pid, live in (("P<b>X</b>", "<b>X</b>"),
+                      ("P<td>X</td>", "<td>X</td>"),
+                      ("P<img src=x onerror=alert(1)>", "<img src=x"),
+                      ('P" onmouseover="alert(1)', 'onmouseover="alert(1)"'),
+                      ("P<script>alert(1)</script>", "<script>alert(1)")):
+        recs = [contractify(r) for r in
+                kpi_scenario_records(6, aqs=90, kpi={"n1_rtt_p50_ms": 20}, point=pid)]
+        doc = rpt.build_report_html(recs, _HTML_NOW)
+        assert live not in doc, pid
+        # …and it was escaped rather than dropped
+        assert "&lt;" in doc or "&quot;" in doc, pid
+
+
 def test_the_summarys_attribution_exclusion_is_reproducible_from_csv():
     """An analyst holding only the CSVs must be able to re-derive the summary.
 
