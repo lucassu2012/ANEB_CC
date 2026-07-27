@@ -359,6 +359,45 @@ def test_summary_weak_cell_count_matches_heatcard():
     assert _summary_count(md, "体验最差格") == graded_bad
 
 
+def test_pipe_in_a_label_does_not_shift_html_columns():
+    """D-128 escaped literal pipes so a markdown table survives a label like
+    SZ|CBD-01, and fixed a naive split("|") — in the TEST. The md->html converter
+    kept the same naive split, so every value after the label landed one column
+    right: an HTML 有效性 row read 有效率=0 for a 100%-valid cell, and a 稳定性
+    row read CV%=20 for a cell whose CV is 0. Markdown and CSV were right; the
+    sendable deliverable was the wrong one (D-195)."""
+    from synth import contractify, tier_records
+    # The corpus MUST carry scenarios: the heat card is rendered natively in HTML,
+    # so a scenario-less corpus never reaches the md->html converter and this test
+    # passes with the bug still in — the first vacuous shape, hit while writing
+    # the guard for it. tier_records gives validity/stability/attribution rows,
+    # which are converted.
+    K = "n1_rtt_p50_ms"
+    recs = [contractify(r) for r in
+            (tier_records("metro", K, 20, 3, point="SZ|CBD-01")
+             + tier_records("regional", K, 40, 3, point="SZ|CBD-01")
+             + tier_records("core", K, 70, 3, point="SZ|CBD-01"))]
+    assert sum(1 for ln in rpt.build_report_markdown(recs).splitlines()
+               if ln.startswith("| ") and "CBD" in ln) >= 4, "fixture must reach converted tables"
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    ragged = []
+    for tbl in re.findall(r"<table>(.*?)</table>", html, re.S):
+        rows = re.findall(r"<tr>(.*?)</tr>", tbl, re.S)
+        if not rows:
+            continue
+        width = len(re.findall(r"<t[hd][^>]*>", rows[0]))
+        for r in rows[1:]:
+            if "colspan=" in r:          # the empty-table placeholder spans on purpose
+                continue
+            if len(re.findall(r"<t[hd][^>]*>", r)) != width:
+                ragged.append(r[:120])
+    assert not ragged, ragged
+    # the escape is a markdown concern: HTML shows the label's real name…
+    assert "SZ|CBD-01" in html
+    # …while markdown still escapes it, or the markdown table would break
+    assert "SZ\\|CBD-01" in rpt.build_report_markdown(recs)
+
+
 def test_html_deliverable_is_actually_self_contained():
     """The docs promise a self-contained HTML report — inline CSS, no external
     deps — and nothing checked it (D-183's question of a written promise). This

@@ -1096,6 +1096,27 @@ def _md_inline(text):
     return s
 
 
+_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+
+
+def _split_md_row(line):
+    """Cells of one markdown table row, splitting on UNESCAPED pipes only.
+
+    `cc.md_cell` escapes a literal pipe in a human-typed label as `\\|` so the
+    markdown table survives it (D-128). A naive split("|") treats that escape as
+    a separator, producing one extra cell and shifting every later value one
+    column right — for the row carrying the unusual label, i.e. exactly the row
+    worth reading. Markdown and CSV were always right; only the HTML deliverable
+    (the sendable one) was wrong (D-195).
+
+    The escape is a markdown-table concern, so it is undone here: HTML shows the
+    label's real name, and esc() handles the HTML-special characters."""
+    inner = line[1:] if line.startswith("|") else line
+    if inner.endswith("|") and not inner.endswith("\\|"):
+        inner = inner[:-1]
+    return [c.strip().replace("\\|", "|") for c in _UNESCAPED_PIPE.split(inner)]
+
+
 def _md_section_html(md):
     """Render one tool's markdown section as HTML. Supports only the restricted
     markdown our renderers emit: ## headings, > blockquotes, pipe tables,
@@ -1118,7 +1139,7 @@ def _md_section_html(md):
     for line in md.splitlines():
         s = line.strip()
         if s.startswith("|"):
-            cells_ = [c.strip() for c in s.strip("|").split("|")]
+            cells_ = _split_md_row(s)
             if all(c and set(c) <= {"-", ":", " "} for c in cells_):  # |---| separator
                 continue
             table.append(cells_)
