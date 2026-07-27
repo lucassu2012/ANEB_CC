@@ -300,3 +300,82 @@ def test_quoted_tool_output_is_still_produced():
             f"{key}: the doc quotes {phrase!r}, but the tool prints "
             f"{longer} — quoting the shorter form points the operator at "
             "whichever column they happen to read first")
+
+
+_TABLE_DOCS = [os.path.join(SCRIPTS, "README.md")] + [
+    os.path.join(REPO, "docs", name) for name in (
+        "DECISION_LOG.md", "ANALYSIS_LAYER_HANDOVER.md",
+        "M2_CAMPAIGN_RUNBOOK.md", "M2_REPORT_TEMPLATE.md",
+        "M2_GRID_DESIGN_PROPOSAL.md")]
+
+_DELIM = re.compile(r"\|[-|: ]+\|")
+
+
+def _looks_like_row(line):
+    s = line.strip()
+    return s.startswith("|") and s.endswith("|") and len(s) > 1
+
+
+def _cells(line):
+    """A row's cells. Splits on unescaped pipes only -- an escaped one is text."""
+    return re.split(r"(?<!\\)\|", line.strip())[1:-1]
+
+
+def test_every_doc_table_row_survives_rendering():
+    """Docs are read rendered, so a row has to render as a row.
+
+    Two ways a row silently stops being one, both found in DECISION_LOG.md
+    (D-214). A bare pipe in the prose splits the row, and a renderer drops the
+    cells that overflow the header -- the tail of the sentence disappears
+    without a trace; 18 rows were losing text that way. And a blank line ends
+    a GFM table outright, so every row after it renders as a paragraph full of
+    literal pipes: 36 such blanks had split the decision table into fragments,
+    leaving about 190 of its 212 rows as raw text. Neither shows up in the
+    source, which is the only place a writer looks. The same sweep caught the
+    D-213 row shipping with three cells where the header declares four.
+    """
+    tables = rows = 0
+    orphans, mismatched = [], []
+    for doc in _TABLE_DOCS:
+        assert os.path.exists(doc), f"{doc} is gone -- this guard would go quiet"
+        with open(doc, encoding="utf-8-sig") as f:
+            lines = f.read().splitlines()
+        in_fence = False
+        width = None
+        for i, line in enumerate(lines):
+            if line.lstrip().startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            if not _looks_like_row(line):
+                width = None
+                continue
+            if width is None:
+                nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+                if not _DELIM.fullmatch(nxt):
+                    orphans.append(f"{os.path.basename(doc)}:{i + 1}")
+                    continue
+                width = len(_cells(line))
+                tables += 1
+            rows += 1
+            if len(_cells(line)) != width:
+                mismatched.append(
+                    f"{os.path.basename(doc)}:{i + 1} has {len(_cells(line))} "
+                    f"cells, its header has {width}")
+
+    # Named defects first. A split table also starves the counts below, and
+    # that assertion would blame the scan ("stopped finding tables") for what
+    # is a defect in the doc -- a true alarm carrying a false diagnosis.
+    assert not orphans, (
+        f"{len(orphans)} table row(s) belong to no table (no delimiter line "
+        f"above them, usually a blank line splitting the table): {orphans[:6]} "
+        "-- these render as literal pipes, not as rows")
+    assert not mismatched, (
+        f"{len(mismatched)} row(s) disagree with their header's column count "
+        f"-- the overflow is dropped when rendered: {mismatched[:6]}")
+    # Backstop only: the corpus has to reach the branch, or a scan that quietly
+    # stopped recognising tables would report a clean sweep of nothing.
+    assert tables >= 12 and rows >= 300, (
+        f"only {tables} tables / {rows} rows seen across {len(_TABLE_DOCS)} "
+        "docs -- the scan stopped finding tables, so its verdict means nothing")
