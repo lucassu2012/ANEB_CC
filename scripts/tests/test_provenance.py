@@ -87,11 +87,25 @@ def test_write_sidecar_roundtrip():
 # ---- integration: report body stays deterministic without provenance ----
 
 def test_report_body_deterministic_without_provenance():
+    """No manifest unless asked — but SAY it is missing (D-194).
+
+    The old assertion was `"provenance" not in a`: a bare word match standing in
+    for "no fabricated manifest". It also forbade stating that the section is
+    absent, which is the opposite of this layer's rule that a silently missing
+    section cannot be told apart from one that did not apply. Asserted against
+    the manifest's actual content now, not against the word."""
     recs = aqs_records(90, 5)
     a = rpt.build_report_markdown(recs)
     b = rpt.build_report_markdown(recs)
     assert a == b                                   # snapshot-safe
-    assert "provenance" not in a                    # no manifest unless asked
+    assert "未生成溯源信息" in a                      # absence is stated…
+    assert "无法复现" in a                           # …with what it costs
+    # …and nothing is invented. Match the manifest's ROW/BLOCK form, not the
+    # words: the absence notice names sha256 and 生效门限 itself, so a bare word
+    # check is true for every report — the over-broad-assertion trap, walked into
+    # a third time this window while writing the fix for the second.
+    assert "| 输入文件 | sha256 |" not in a          # no manifest table
+    assert '"cv_gate_percent"' not in a             # no fabricated thresholds
 
 
 def test_report_includes_provenance_when_supplied():

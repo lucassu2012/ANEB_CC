@@ -906,6 +906,23 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if provenance is not None:
         parts.append(prov_mod.render_markdown(provenance))
         parts.append("")
+    else:
+        # A silently absent section cannot be told apart from one that did not
+        # apply — the same rule the summary follows for 优化前后 / 纵向趋势
+        # (D-150/152). Without this, a report that forgot --provenance looks
+        # complete while carrying a claim it cannot support: the appendix
+        # promises "same input + same thresholds = same numbers", and the
+        # thresholds are exactly what this block archives (D-122, D-194).
+        parts += [
+            "## 溯源 / provenance（可复现性）",
+            "",
+            "> ⚠ **本报告未生成溯源信息**（出报告时未给 `--provenance PATH`）。"
+            "**输入文件 sha256、读取/去重/坏行计数、本次的生效门限**因此都没有归档——"
+            "没有它们，本报告**无法复现，也不应进入归档**"
+            "（附录那句「同样的输入 + 同样的生效门限 = 同样的数字」正是靠这一段成立的）。"
+            "补法：加 `--provenance provenance.json` 重出一次。",
+            "",
+        ]
     if inv["with_campaign"] == 0:
         parts.append("> ⚠ 全部记录无 `run.campaign` 标签——热力卡/归因/前后对比塌缩为单格 "
                      "`unlabeled`。接线见 docs/CAMPAIGN_LABELS_CONVENTION.md §4。")
