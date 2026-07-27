@@ -349,6 +349,12 @@ def test_every_pooling_section_keeps_the_banner_s_promise():
     Checked per section, never against the assembled report: the banner NAMES
     the marker, so a whole-report substring search passes while no table carries
     it — the over-wide probe that hid this once already (D-181).
+
+    ⚠ SOLE targeted guard on two of the eight entries below: order_effect's value
+      guard and buffering's marker render. The mutation audit for D-197 broke all
+      ten guards one at a time; those two were caught by this test and nothing
+      else. Weakening or narrowing it leaves them held by nothing — if you are
+      replacing it, put the replacement in first.
     """
     recs = _corrupt_corpus()
     for name, render in _POOLING_SECTIONS:
