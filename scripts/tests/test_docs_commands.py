@@ -174,21 +174,28 @@ def test_documented_flags_exist_in_argparse():
 _QUOTES_BLOCK = re.compile(r"OUTPUT-QUOTES:(.*?)OUTPUT-QUOTES", re.S)
 
 
-def _output_quotes(doc):
-    """{key: phrase} from the doc's OUTPUT-QUOTES contract block."""
-    with open(doc, encoding="utf-8") as f:
-        body = f.read()
-    m = _QUOTES_BLOCK.search(body)
-    if not m:
-        return {}
+QUOTED_DOCS = [os.path.join(REPO, "docs", "M2_CAMPAIGN_RUNBOOK.md"),
+               os.path.join(REPO, "docs", "M2_REPORT_TEMPLATE.md")]
+
+
+def _output_quotes(docs=None):
+    """{'<doc-stem>.<key>': phrase} from every OUTPUT-QUOTES contract block."""
     out = {}
-    for line in m.group(1).splitlines():
-        if "|" not in line:
+    for doc in (docs or QUOTED_DOCS):
+        if not os.path.exists(doc):
             continue
-        key, _, phrase = line.partition("|")
-        key, phrase = key.strip(), phrase.strip()
-        if key and phrase and " " not in key:
-            out[key] = phrase
+        with open(doc, encoding="utf-8") as f:
+            m = _QUOTES_BLOCK.search(f.read())
+        if not m:
+            continue
+        stem = os.path.splitext(os.path.basename(doc))[0]
+        for line in m.group(1).splitlines():
+            if "|" not in line:
+                continue
+            key, _, phrase = line.partition("|")
+            key, phrase = key.strip(), phrase.strip()
+            if key and phrase and " " not in key:
+                out[f"{stem}.{key}"] = phrase
     return out
 
 
@@ -210,13 +217,33 @@ def _within_noise_md():
     return rpt.build_report_markdown(recs, before_id="base", after_id="opt")
 
 
-# key -> what to render to prove the doc's quote is still emitted. Adding a quote
-# to the doc without adding a renderer here fails, and vice versa.
+def _segment_profile_md():
+    """One corpus carrying BOTH segment verdicts: access varies without an
+    outlier (-> 未见单点异常), core has a gross one (-> 存在单点异常)."""
+    import attribution
+    from synth import tier_records
+    recs = []
+    access = (28, 30, 32, 29, 31, 30, 29, 31)
+    core = (50, 70, 90, 60, 80, 70, 65, 400)
+    for i in range(len(core)):
+        for tier, val in (("metro", access[i]), ("regional", access[i] + 12),
+                          ("core", core[i])):
+            recs += tier_records(tier, "n1_rtt_p50_ms", val, 5, point="P%02d" % i)
+    return attribution.render_segment_profile_markdown(
+        attribution.segment_profile(attribution.attribute(recs)))
+
+
+# '<doc-stem>.<key>' -> what to render to prove the doc's quote is still emitted.
+# Adding a quote to a doc without adding a renderer here fails, and vice versa.
 _QUOTE_RENDERERS = {
-    "plan_verdict_short": _noisy_plan_md,
-    "plan_col_power": _noisy_plan_md,
-    "plan_col_breakeven": _noisy_plan_md,
-    "noise_marker": _within_noise_md,
+    "M2_CAMPAIGN_RUNBOOK.plan_verdict_short": _noisy_plan_md,
+    "M2_CAMPAIGN_RUNBOOK.plan_col_power": _noisy_plan_md,
+    "M2_CAMPAIGN_RUNBOOK.plan_col_breakeven": _noisy_plan_md,
+    "M2_CAMPAIGN_RUNBOOK.noise_marker": _within_noise_md,
+    "M2_REPORT_TEMPLATE.seg_anomaly_yes": _segment_profile_md,
+    "M2_REPORT_TEMPLATE.seg_anomaly_no": _segment_profile_md,
+    "M2_REPORT_TEMPLATE.seg_verdict_col": _segment_profile_md,
+    "M2_REPORT_TEMPLATE.seg_spread_col": _segment_profile_md,
 }
 
 
@@ -231,10 +258,16 @@ def test_quoted_tool_output_is_still_produced():
     An explicit contract block, not a regex over prose: a wide regex here would
     scrape ordinary sentences and produce exactly the noisy guard this layer
     rejects (D-134).
+
+    Covers the deliverable skeleton too. The first cut covered only the runbook,
+    and on the same day this guard shipped I wrote a reference in the SKELETON to
+    a `判据` column that does not exist — the caliber is printed inside the
+    `判读` column. The guard could not see it, because it was not looking there.
+    Whatever a guard does not cover is where the next one lands (D-203).
     """
-    runbook = os.path.join(REPO, "docs", "M2_CAMPAIGN_RUNBOOK.md")
-    quotes = _output_quotes(runbook)
+    quotes = _output_quotes()
     assert quotes, "OUTPUT-QUOTES block missing or unparsable"
+    assert len({k.split(".")[0] for k in quotes}) == len(QUOTED_DOCS), sorted(quotes)
     assert set(quotes) == set(_QUOTE_RENDERERS), (
         "doc quotes and renderers disagree: "
         f"only in doc={sorted(set(quotes) - set(_QUOTE_RENDERERS))}, "
@@ -250,11 +283,19 @@ def test_quoted_tool_output_is_still_produced():
         # runbook used to quote the column as `需 n≥`, and D-201 split it into
         # `需 n≥(平)` and `需 n≥(80%)`. The stale, now-ambiguous label is still a
         # SUBSTRING of both, so a containment check calls it fine while an
-        # operator follows the wrong column. A quote that is a proper prefix of a
-        # real cell is exactly that truncation.
-        cells = {c.strip() for line in md.splitlines() if line.startswith("| ")
-                 for c in line.strip().strip("|").split("|")}
-        longer = sorted(c for c in cells if c != phrase and c.startswith(phrase))
+        # operator follows the wrong column.
+        #
+        # HEADER cells only. Checking every cell flagged `**未见单点异常**` for
+        # being a prefix of the verdict cell it legitimately begins — a guard
+        # crying wolf, which this layer holds to be worse than no guard. Column
+        # labels are the only thing a truncated quote can mis-aim, and they live
+        # in the header row.
+        lines = md.splitlines()
+        headers = set()
+        for i, line in enumerate(lines[:-1]):
+            if line.startswith("| ") and re.fullmatch(r"\|[-|: ]+\|", lines[i + 1].strip()):
+                headers |= {c.strip() for c in line.strip().strip("|").split("|")}
+        longer = sorted(c for c in headers if c != phrase and c.startswith(phrase))
         assert not longer, (
             f"{key}: the doc quotes {phrase!r}, but the tool prints "
             f"{longer} — quoting the shorter form points the operator at "
