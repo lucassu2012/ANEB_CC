@@ -167,3 +167,95 @@ def test_documented_flags_exist_in_argparse():
             if f'"{flag}"' not in sources[path] and f"'{flag}'" not in sources[path]:
                 bad.append(f"{doc}: {script} has no {flag}")
     assert not bad, "documented flags missing from argparse: " + "; ".join(bad)
+
+
+# --------------------------------------------------- quoted tool output (D-202)
+
+_QUOTES_BLOCK = re.compile(r"OUTPUT-QUOTES:(.*?)OUTPUT-QUOTES", re.S)
+
+
+def _output_quotes(doc):
+    """{key: phrase} from the doc's OUTPUT-QUOTES contract block."""
+    with open(doc, encoding="utf-8") as f:
+        body = f.read()
+    m = _QUOTES_BLOCK.search(body)
+    if not m:
+        return {}
+    out = {}
+    for line in m.group(1).splitlines():
+        if "|" not in line:
+            continue
+        key, _, phrase = line.partition("|")
+        key, phrase = key.strip(), phrase.strip()
+        if key and phrase and " " not in key:
+            out[key] = phrase
+    return out
+
+
+def _noisy_plan_md():
+    import stability
+    from synth import kpi_scenario_records
+    recs = [r for v in (100, 130, 70, 115, 85)
+            for r in kpi_scenario_records(1, kpi={"t1_ttft_ms": v})]
+    rows = stability.plan_cells(stability.stability_cells(recs, "t1_ttft_ms"), 5.0)
+    return stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
+
+
+def _within_noise_md():
+    import campaign_report as rpt
+    from synth import aqs_records, contractify
+    recs = [contractify(r) for v, c in ((58, "base"), (68, "base"), (78, "base"),
+                                        (60, "opt"), (70, "opt"), (80, "opt"))
+            for r in aqs_records(v, 1, campaign_id=c)]
+    return rpt.build_report_markdown(recs, before_id="base", after_id="opt")
+
+
+# key -> what to render to prove the doc's quote is still emitted. Adding a quote
+# to the doc without adding a renderer here fails, and vice versa.
+_QUOTE_RENDERERS = {
+    "plan_verdict_short": _noisy_plan_md,
+    "plan_col_power": _noisy_plan_md,
+    "plan_col_breakeven": _noisy_plan_md,
+    "noise_marker": _within_noise_md,
+}
+
+
+def test_quoted_tool_output_is_still_produced():
+    """The runbook tells the operator "if you see X, do Y". X must still exist.
+
+    D-121 made the documented COMMANDS machine-checked; the words the docs quote
+    BACK from those commands were not. D-201 renamed a verdict line and the
+    runbook kept quoting the old one — an operator would have stood in the field
+    watching for a sentence the tool no longer prints, and nothing failed (D-202).
+
+    An explicit contract block, not a regex over prose: a wide regex here would
+    scrape ordinary sentences and produce exactly the noisy guard this layer
+    rejects (D-134).
+    """
+    runbook = os.path.join(REPO, "docs", "M2_CAMPAIGN_RUNBOOK.md")
+    quotes = _output_quotes(runbook)
+    assert quotes, "OUTPUT-QUOTES block missing or unparsable"
+    assert set(quotes) == set(_QUOTE_RENDERERS), (
+        "doc quotes and renderers disagree: "
+        f"only in doc={sorted(set(quotes) - set(_QUOTE_RENDERERS))}, "
+        f"only in test={sorted(set(_QUOTE_RENDERERS) - set(quotes))}")
+    rendered = {}
+    for key, phrase in sorted(quotes.items()):
+        fn = _QUOTE_RENDERERS[key]
+        if fn not in rendered:
+            rendered[fn] = fn()
+        md = rendered[fn]
+        assert phrase in md, (key, phrase)
+        # Containment alone is too weak, and the escape is not hypothetical: the
+        # runbook used to quote the column as `需 n≥`, and D-201 split it into
+        # `需 n≥(平)` and `需 n≥(80%)`. The stale, now-ambiguous label is still a
+        # SUBSTRING of both, so a containment check calls it fine while an
+        # operator follows the wrong column. A quote that is a proper prefix of a
+        # real cell is exactly that truncation.
+        cells = {c.strip() for line in md.splitlines() if line.startswith("| ")
+                 for c in line.strip().strip("|").split("|")}
+        longer = sorted(c for c in cells if c != phrase and c.startswith(phrase))
+        assert not longer, (
+            f"{key}: the doc quotes {phrase!r}, but the tool prints "
+            f"{longer} — quoting the shorter form points the operator at "
+            "whichever column they happen to read first")
