@@ -223,6 +223,43 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def test_the_stability_bullet_accounts_for_every_cell_not_just_the_judged_ones():
+    """A denominator the reader cannot check is a denominator that hides things.
+
+    「2/3 单元超 CV 门」 on a corpus of seven cells, four of which have no
+    computable CV at all — those four appeared nowhere in the summary. Every
+    other bullet discloses its remainder (归因「另有 N 个格不可计算」, 介质「另有
+    N 个格噪声不可估」); this one did not, so cells that could not be judged read
+    as cells that passed (§2.2 / §2.3, D-209).
+    """
+    import stability
+    from synth import contractify, kpi_scenario_records
+    recs = []
+    for i, vals in enumerate(([100, 130, 70, 115, 85], [100, 101, 99, 100, 100],
+                              [50, 80, 40, 70, 60])):
+        for v in vals:
+            recs += kpi_scenario_records(1, kpi={"t1_ttft_ms": v}, point=f"P{i:02d}")
+    for i in range(3, 7):                       # n=1 each -> CV not computable
+        recs += kpi_scenario_records(1, kpi={"t1_ttft_ms": 100}, point=f"P{i:02d}")
+    recs = [contractify(r) for r in recs]
+
+    total = no_cv = measured = 0
+    for k in stability.DEFAULT_STABILITY_KPIS:
+        for c in stability.stability_cells(recs, k):
+            total += 1
+            if c["cv_percent"] is None:
+                no_cv += 1
+            else:
+                measured += 1
+    assert no_cv and measured, (no_cv, measured)      # the fixture must show both
+    assert measured + no_cv == total
+
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if ln.startswith("- **复测")][0]
+    assert f"/{measured} 单元超 CV 门" in line, line
+    assert f"{no_cv} 个单元 CV 不可计算" in line, line
+
+
 def test_summary_examples_really_are_the_worst_ones():
     """The summary promises its examples are the worst three. Check it.
 

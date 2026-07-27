@@ -477,10 +477,15 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        if low_valid else
                        f"**有效率**：全部达门（≥{vres['min_rate'] * 100:.0f}%）。")
 
-    ranked_unstable, measured = [], 0
+    ranked_unstable, measured, no_cv = [], 0, 0
     for k in stability.DEFAULT_STABILITY_KPIS:
         for c in stability.stability_cells(records, k, min_samples=min_samples):
             if c["cv_percent"] is None:
+                # counted, not dropped: the denominator below is measured cells
+                # only, and every other bullet in this summary discloses its
+                # not-computable remainder. This one did not, so 4 unjudgeable
+                # cells out of 7 vanished behind「2/3 单元超 CV 门」(D-209).
+                no_cv += 1
                 continue
             measured += 1
             if c["unstable"]:
@@ -492,12 +497,16 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # highest CV first (D-208) — this list runs to 172 entries on the rehearsal
     # grid, and the three shown were the mildest of them
     unstable = [lab for _cv, lab in sorted(ranked_unstable, key=lambda t: -t[0])]
+    # the remainder, named where the reader sees the denominator (D-209)
+    nocv_note = (f"；另有 **{no_cv} 个单元 CV 不可计算**（n<2 或均值≤0，**未计入分母**，"
+                 "见稳定性段 `CV 不可计算` 一列）" if no_cv else "")
     if not measured:
-        bullets.append("**复测稳定性**：无可计算 CV 的单元。")
+        bullets.append(f"**复测稳定性**：{no_cv} 个单元**全部无法计算 CV**"
+                       "（n<2 或均值≤0）——覆盖缺口，非「全部达门」。")
     else:
         bullets.append(f"**复测不稳定**：{len(unstable)}/{measured} 单元超 CV 门 —— "
-                       f"{_top(unstable)}。" if unstable else
-                       f"**复测稳定性**：{measured} 个单元全部达门。")
+                       f"{_top(unstable)}{nocv_note}。" if unstable else
+                       f"**复测稳定性**：{measured} 个单元全部达门{nocv_note}。")
 
     tr = transport_rollup.analyze(records, min_samples)
     # Δ<0 alone is not "cellular is worse" — it is a difference that may be
