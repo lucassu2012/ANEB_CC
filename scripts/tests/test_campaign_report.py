@@ -523,6 +523,79 @@ def test_summary_names_the_dominant_path_segment():
     assert "27" in line                      # the largest single increment
 
 
+def _attr_cell(point, values, *, kpi="n1_rtt_p50_ms", transport=None, n=5):
+    """One attributable cell: metro/regional/core at the given KPI values."""
+    from synth import tier_records
+    out = []
+    for tier, val in zip(("metro", "regional", "core"), values):
+        recs = tier_records(tier, kpi, val, n, point=point)
+        if transport:
+            for r in recs:
+                r["run"]["transport"] = transport[tier]
+        out += recs
+    return out
+
+
+def test_summary_leaves_out_the_cells_the_matrix_calls_unusable():
+    """The biggest increment in the corpus belongs to a cell whose own matrix row
+    says the increments are NOT USABLE — its three tiers ran on different access
+    media, so its "core backbone increment" is a wifi/cellular gap wearing the
+    backbone's name (D-157). The summary quoted the corpus maximum without ever
+    checking that row (D-199).
+
+    On the standard rehearsal grid this is not a corner case: 24 of 72 cells carry
+    a NOT-USABLE marker, and one of the two segments the bullet named came only
+    from them.
+    """
+    clean = _attr_cell("P-CLEAN", (20, 38, 65))                 # core increment 27
+    dirty = _attr_cell("P-DIRTY", (20, 38, 200),                # core increment 162
+                    transport={"metro": "wifi", "regional": "wifi",
+                               "core": "cellular"})
+    line = [ln for ln in rpt.render_summary_markdown(clean + dirty).splitlines()
+            if "分段归因" in ln][0]
+    assert "27" in line                     # the usable cell's increment…
+    assert "162" not in line                # …and not the disowned one's
+    assert "1 个格因不可比标记未计入" in line
+    # the matrix row it was taken from does say so, in so many words
+    assert "MIXED_TRANSPORT" in rpt.build_report_markdown(clean + dirty)
+
+
+def test_summary_names_its_kpi_and_says_when_the_other_disagrees():
+    """The bullet reads as the report's answer to "which part of the path", but
+    it is one KPI's answer. Here n1_rtt says core backbone and t1_ttft says
+    access — the matrix section below renders both, so without this the summary
+    silently contradicts one of its own tables (D-199)."""
+    recs = (_attr_cell("P1", (20, 38, 65))                       # rtt: core dominates
+            + _attr_cell("P1", (900, 905, 910), kpi="t1_ttft_ms"))  # ttft: access
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if "分段归因" in ln][0]
+    assert "`n1_rtt_p50_ms`" in line                 # names the KPI it used
+    assert "换一个 KPI 结论就变" in line
+    assert "`t1_ttft_ms` 指向 **接入**" in line
+
+
+def test_summary_does_not_credit_a_screen_that_was_not_run():
+    """Over half the cells sharing one value leaves no usable sigma, so
+    segment_profile falls back to "differs from the common value" and says so in
+    its own section — while the summary credited 「3σ 筛查」 by name (D-199).
+
+    The frozen report snapshot carried exactly this sentence, on a corpus whose
+    every segment was zero-spread: the screen it named had never run.
+    """
+    recs = _attr_cell("P1", (20, 38, 65)) + _attr_cell("P2", (20, 38, 65))
+    line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
+            if "分段归因" in ln][0]
+    assert "未见单点异常" in line
+    assert "非 3σ" in line
+    assert "（判据：3σ 筛查）" not in line
+    # and a corpus with real spread must still get the real screen named
+    spread = (_attr_cell("P1", (20, 38, 50)) + _attr_cell("P2", (20, 38, 65))
+              + _attr_cell("P3", (20, 38, 90)) + _attr_cell("P4", (20, 38, 72)))
+    line2 = [ln for ln in rpt.render_summary_markdown(spread).splitlines()
+             if "分段归因" in ln][0]
+    assert "3σ 筛查" in line2
+
+
 def test_summary_attribution_reports_not_computable_honestly():
     """A cell missing a tier is not computable — never folded into a segment."""
     from synth import tier_records

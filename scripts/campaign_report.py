@@ -250,6 +250,80 @@ def _top(items, n=3):
     return "、".join(items[:n]) + (f" 等 {len(items)} 个" if len(items) > n else "")
 
 
+_SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
+              "core_backbone_incr": "核心骨干"}
+
+# What each segment-profile basis actually screened on. The summary named "3σ"
+# unconditionally, but a segment where over half the cells share one value has no
+# usable sigma at all — segment_profile falls back to "differs from the common
+# value" and says so in its own section, while the summary was still crediting a
+# screen that had not been run (D-199).
+_BASIS_TEXT = {"mad": "3σ 筛查",
+               "zero_spread": "与共同取值不等（**非 3σ**：过半单元取值相同）",
+               "insufficient": "可比单元不足"}
+
+
+def _basis_text(segments):
+    seen = [b for b in ("mad", "zero_spread", "insufficient")
+            if b in {s.get("basis") for s in segments}]
+    return "；".join(_BASIS_TEXT[b] for b in seen) or "—"
+
+
+def _segment_tally(attr):
+    """(dominant Counter, worst (label, value), not_computable, unusable).
+
+    Cells the matrix marks NOT USABLE are counted, not read. Those rows print
+    「该格增量不可用」 next to the very numbers this bullet quotes — a mixed-media
+    cell's "core backbone increment" is a wifi/cellular gap wearing the backbone's
+    name (D-157) — and the summary used to pick the corpus maximum without ever
+    asking whether its own row disowned it (D-199).
+    """
+    dominant, not_computable, unusable = Counter(), 0, 0
+    worst = None
+    for c in attr["cells"]:
+        if any(attribution.is_severe(f) for f in attribution.incomparability_flags(c)):
+            unusable += 1
+            continue
+        parts = {k: c[k] for k in _SEG_NAMES if c[k] is not None}
+        if not parts:
+            not_computable += 1
+            continue
+        top = max(parts, key=lambda k: parts[k])
+        dominant[_SEG_NAMES[top]] += 1
+        if worst is None or parts[top] > worst[1]:
+            worst = (f"{_cell_label(c['cell'], attr['group_by'])}·{_SEG_NAMES[top]}",
+                     parts[top])
+    return dominant, worst, not_computable, unusable
+
+
+def _cross_kpi_note(records, attr_kpi, dominant, min_samples):
+    """Whether the OTHER attributable KPIs point at the same segment.
+
+    The bullet reads as the report's answer to "which part of the path is the
+    problem", but it is computed from one KPI — and the matrix section right
+    below it renders every attributable KPI. When they disagree, one of the two
+    tables contradicts the summary and the reader has no way to know which
+    (D-199). Naming the KPI is half the fix; saying that the other one differs is
+    the other half.
+    """
+    if not dominant:
+        return ""
+    mine = cc.ranked(dominant)[0][0]
+    differs = []
+    for k in attribution.ATTRIBUTABLE_KPIS:
+        if k == attr_kpi:
+            continue
+        other, _, _, _ = _segment_tally(
+            attribution.attribute(records, kpi=k, min_samples=min_samples))
+        if other and cc.ranked(other)[0][0] != mine:
+            differs.append(f"`{k}` 指向 **{cc.ranked(other)[0][0]}**")
+    if not differs:
+        return ""
+    return ("；⚠ **换一个 KPI 结论就变**：" + "、".join(differs)
+            + "——本条只据 `" + attr_kpi + "` 得出，"
+            "主导段随 KPI 改变时**不可当作单一结论**（见各 KPI 的归因矩阵）")
+
+
 def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             attr_kpi=attribution.DEFAULT_KPI):
     """Signal before evidence (D-117).
@@ -294,47 +368,51 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # reader which cells are bad but never which path segment caused it — the
     # whole point of the attribution matrix (D-142).
     attr = attribution.attribute(records, kpi=attr_kpi, min_samples=min_samples)
-    seg_names = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
-                 "core_backbone_incr": "核心骨干"}
-    dominant, not_computable = Counter(), 0
-    worst = None
-    for c in attr["cells"]:
-        parts_ = {k: c[k] for k in seg_names if c[k] is not None}
-        if not parts_:
-            not_computable += 1
-            continue
-        top = max(parts_, key=lambda k: parts_[k])
-        dominant[seg_names[top]] += 1
-        if worst is None or parts_[top] > worst[1]:
-            worst = (f"{_cell_label(c['cell'], attr['group_by'])}·{seg_names[top]}",
-                     parts_[top])
+    dominant, worst, not_computable, unusable = _segment_tally(attr)
     if not attr["cells"]:
         bullets.append(f"**分段归因**：无可归因单元（`{attr_kpi}` 缺数据或缺层级）。")
     elif not dominant:
-        bullets.append(f"**分段归因**：{not_computable} 个格不可计算"
-                       "（层级缺失，记 TIER_MISSING，不外推）。")
+        why = []
+        if unusable:
+            why.append(f"{unusable} 个格带**不可用标记**（见归因矩阵）")
+        if not_computable:
+            why.append(f"{not_computable} 个格不可计算（层级缺失，记 TIER_MISSING，不外推）")
+        bullets.append(f"**分段归因**（`{attr_kpi}`）：无可读的格——" + "；".join(why) + "。")
     else:
         tail = f"；另有 {not_computable} 个格不可计算" if not_computable else ""
+        if unusable:
+            # The matrix prints 「该格增量不可用」 on exactly these rows, and this
+            # bullet used to quote the largest number in the corpus without ever
+            # asking whether its row said that — so the headline attribution
+            # figure could be one the tool had already disowned (D-199).
+            tail += (f"；**{unusable} 个格因不可比标记未计入**"
+                     "（混介质/层级不同时/层级端点冲突/封顶/不可能取值——见归因矩阵）")
         # "core dominates in 4 cells, biggest is P1's 27ms" reads as "P1's core is
         # the problem" — but if every cell's core segment is the same size, the
         # segment is a property of the measured path and no cell is at fault.
         # That distinction decides whether anyone goes and looks at P1 (D-146).
         prof = attribution.segment_profile(attr)
         judged = [s for s in prof["segments"] if s["uniform"] is not None]
-        pointy = [s["label"] for s in judged if not s["uniform"]]
+        pointy = [s for s in judged if not s["uniform"]]
         if not judged:
             spread_note = "；各段跨单元离差不可比较（可比单元不足）"
         elif not pointy:
             # "no cell crossed the screen" is not "the cells are alike" — say the
-            # weaker true thing and point at the column that carries the rest
-            spread_note = ("；各段**均未见单点异常**（3σ 筛查）——最大单项落在该段分布内，"
-                           "不宜单独归因于该单元（单元间齐不齐见「分段异常定位」段）")
+            # weaker true thing and point at the column that carries the rest.
+            # The basis travels with it: on a zero-spread segment no 3σ screen was
+            # run at all, and this line used to credit one by name (D-199).
+            spread_note = (f"；各段**均未见单点异常**（判据：{_basis_text(judged)}）"
+                           "——最大单项落在该段分布内，不宜单独归因于该单元"
+                           "（单元间齐不齐见「分段异常定位」段）")
         else:
-            spread_note = "；**存在单点异常的段**：" + "、".join(pointy)
-        bullets.append("**分段归因**（主要贡献段）：" +
+            spread_note = ("；**存在单点异常的段**："
+                           + "、".join(s["label"] for s in pointy)
+                           + f"（判据：{_basis_text(pointy)}）")
+        bullets.append(f"**分段归因**（`{attr_kpi}`；主要贡献段）：" +
                        "、".join(f"{k} {v} 格" for k, v in cc.ranked(dominant)) +
                        (f"；最大单项 {worst[0]}={cc.fmt_num(worst[1], 1)}ms" if worst else "")
-                       + spread_note + tail + "。")
+                       + spread_note + tail
+                       + _cross_kpi_note(records, attr_kpi, dominant, min_samples) + "。")
 
     bres = buffering_rollup.analyze(records, min_samples)
     hot = [_cell_label(c["cell"]) for c in bres["cells"] if c["distortion_hotspot"]]

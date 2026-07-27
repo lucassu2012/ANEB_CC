@@ -223,6 +223,43 @@ _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
 _DAY = 86400000
 
 
+def test_no_module_defines_the_same_top_level_name_twice():
+    """Python takes the LAST definition and says nothing about the first.
+
+    Caught while writing D-199: a new helper in this layer's largest test file
+    shared a name with one defined 900 lines later, so every call silently
+    reached the wrong function — with a different signature, which is the only
+    reason it surfaced at all. Same names with COMPATIBLE signatures would have
+    run the wrong code quietly, in a test file, where a wrong pass looks exactly
+    like a right one.
+    """
+    import ast
+    import glob
+    scripts = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    files = sorted(glob.glob(os.path.join(scripts, "*.py"))
+                   + glob.glob(os.path.join(scripts, "tests", "*.py")))
+    assert len(files) >= 20, len(files)
+    dupes = []
+    for path in files:
+        # campaign_report.py carries a UTF-8 BOM; Python's importer strips it and
+        # a plain utf-8 read does not
+        with open(path, encoding="utf-8-sig") as f:
+            tree = ast.parse(f.read(), path)
+        lines = {}
+        for node in tree.body:
+            names = []
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names = [node.name]
+            elif isinstance(node, ast.Assign):
+                names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            for n in names:
+                lines.setdefault(n, []).append(node.lineno)
+        for n, at in sorted(lines.items()):
+            if len(at) > 1:
+                dupes.append(f"{os.path.basename(path)}:{n} at lines {at}")
+    assert not dupes, dupes
+
+
 def test_every_csv_row_matches_its_header_width():
     """The markdown tables have had this guard since D-128; the CSVs never did —
     and CSV is the surface analysts compute on (D-141).
