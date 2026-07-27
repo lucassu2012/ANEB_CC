@@ -188,6 +188,15 @@ def plan_cells(cells, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         row["target_abs"] = target_abs
         row["required_n"] = req
         row["resolves_target"] = (req <= n) if req is not None else None
+        # `required_n` is the break-even point: at exactly that n the target
+        # difference clears the noise about half the time (52-58% measured). The
+        # verdict line called that 足够 — a coin flip described as a guarantee —
+        # so the number an operator should actually plan with travels beside it
+        # now (D-201).
+        req_p = cc.required_n_at_power(sd, target_abs)
+        row["required_n_power"] = req_p
+        row["mde_power"] = cc.detectable_effect_at_power(sd, n)
+        row["resolves_at_power"] = (req_p <= n) if req_p is not None else None
         out.append(row)
     return out
 
@@ -200,37 +209,64 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
     lines += [
         "> **口径**：`可辨最小差异` = 以本单元实测离散度，两个同样大小的单元之间需要多大差异"
         "才会超出噪声尺度（√2·1.253·sd/√n）。它是**量级指示、不是显著性检验**（时延右偏）。"
-        "`需 n≥` 是把可辨差异压到目标所需的**每侧**复测数。离散度未知（n<2）的单元一律留 `—`，"
-        "**不以 0 或当前 n 顶替**。",
+        "离散度未知（n<2）的单元一律留 `—`，**不以 0 或当前 n 顶替**。",
         "",
-        "| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异 | 占中位 | 达标? | 需 n≥ |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "> ⚠ **两个「需 n≥」不是一回事，规划采样量要看后一个**："
+        f"`需 n≥(平)` 是让目标差异**正好等于**噪声尺度的复测数——在那个 n 上，"
+        "一个**真实存在**的目标差异只有**约五成**会被判为「超出噪声」"
+        "（实测 52%~58%，n=5~40，D-201）；此前本段把这个数称作「足够」，"
+        "**那是把抛硬币说成了保证**。"
+        f"`需 n≥({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%)` 才是"
+        f"「有 {cc.fmt_num(cc.PLAN_POWER * 100, 0)}% 把握看见它」所需的数，"
+        f"约为前者的 {cc.fmt_num(cc.power_factor() ** 2, 2)} 倍"
+        f"（判据是 |Δ|>噪声，故系数为 1+z={cc.fmt_num(cc.power_factor(), 3)}；"
+        "**不是**双侧显著性检验的 z₁₋α/₂+z₁₋β，那会多要 7.85 倍的外场工时，"
+        "去买一个本报告从不作出的承诺）。",
+        "",
+        f"| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异 | 占中位 | "
+        f"达标?({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%) | 需 n≥(平) | "
+        f"需 n≥({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%) |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in r["cell"].items())
-        ok = "—" if r["resolves_target"] is None else ("达标" if r["resolves_target"] else "✗不足")
+        # judged at the SAME criterion as the verdict below. Judging the column
+        # at break-even and the verdict at power would put "达标" on a row the
+        # conclusion calls short — one section, two answers (D-201).
+        ok = ("—" if r["resolves_at_power"] is None
+              else ("达标" if r["resolves_at_power"] else "✗不足"))
         gate = "**✗超门**" if r["unstable"] else ("—" if r["cv_percent"] is None else "达门")
         lines.append(
             f"| {cell_label} | {r['n']} | {cc.fmt_num(r['median'], 2)} | "
             f"{cc.fmt_num(r['cv_percent'], 1)} | {gate} | {cc.fmt_num(r['mde'], 2)} | "
-            f"{cc.fmt_num(r['mde_pct'], 1)}% | {ok} | {cc.fmt_num(r['required_n'])} |")
+            f"{cc.fmt_num(r['mde_pct'], 1)}% | {ok} | {cc.fmt_num(r['required_n'])} | "
+            f"{cc.fmt_num(r.get('required_n_power'))} |")
     unstable = [r for r in rows if r["unstable"]]
-    judged = [r for r in rows if r["resolves_target"] is not None]
-    short = [r for r in judged if not r["resolves_target"]]
+    judged = [r for r in rows if r["resolves_at_power"] is not None]
+    # The verdict is judged at the POWER criterion, not at break-even. Judging it
+    # at break-even is what let the section say 足够 about a coin flip (D-201).
+    short = [r for r in judged if not r["resolves_at_power"]]
+    coin = [r for r in judged if r["resolves_at_power"] is False
+            and r["resolves_target"] is True]
     unknown = len(rows) - len(judged)
+    pw = cc.fmt_num(cc.PLAN_POWER * 100, 0)
     lines.append("")
     if not judged:
         lines.append(f"> **结论**：{len(rows)} 个单元离散度均不可估（n<2），"
                      "**无法核算采样量**——先补足复测再核算。")
     else:
-        need = cc.median([r["required_n"] for r in short]) if short else None
+        need = cc.median([r["required_n_power"] for r in short]) if short else None
         if not short:
-            verdict = (f"> **结论**：{len(judged)} 个可核算单元**全部**能分辨 "
-                       f"{cc.fmt_num(target_pct, 1)}% 的差异，当前复测数足够。")
+            verdict = (f"> **结论**：{len(judged)} 个可核算单元在当前 n 下，"
+                       f"都有 **≥{pw}% 的把握**看见 {cc.fmt_num(target_pct, 1)}% 的差异。")
         else:
-            verdict = (f"> **结论**：{len(short)}/{len(judged)} 个单元在当前 n 下分辨不了 "
-                       f"{cc.fmt_num(target_pct, 1)}% 的差异"
+            verdict = (f"> **结论**：{len(short)}/{len(judged)} 个单元在当前 n 下"
+                       f"**没有 {pw}% 的把握**看见 {cc.fmt_num(target_pct, 1)}% 的差异"
                        f"；这些单元的建议复测数中位为 **n≥{cc.fmt_num(need)}**（每侧）。")
+            if coin:
+                verdict += (f" 其中 **{len(coin)} 个**单元的当前 n 恰好落在"
+                            "「差异等于噪声尺度」附近——**那只有约五成把握**，"
+                            "不要据此认为采样量已经够了。")
         if unknown:
             verdict += f" 另有 {unknown} 个单元离散度不可估，**未计入**。"
         lines.append(verdict)

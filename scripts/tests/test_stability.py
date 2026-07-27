@@ -167,8 +167,34 @@ def test_plan_flags_cells_that_cannot_resolve_the_target():
     assert rows[0]["resolves_target"] is False
     assert rows[0]["required_n"] > 5
     md = stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
-    assert "1/1 个单元在当前 n 下分辨不了" in md
+    assert "1/1 个单元在当前 n 下**没有 80% 的把握**" in md
     assert "不是显著性检验" in md                            # the caveat travels with it
+
+
+def test_plan_separates_break_even_from_actually_seeing_it():
+    """`required_n` is where the target difference EQUALS the noise scale, i.e.
+    where it is seen about half the time (52-58% measured). The section used to
+    call that 足够 — a coin flip described as a guarantee (D-201).
+
+    The number to plan a campaign with is 3.39x larger, and both must be on the
+    page or the operator cannot tell which one they are reading.
+    """
+    import campaign_common as cc
+    sd, target = 5.0, 5.0
+    assert cc.required_n(sd, target) == 4
+    assert cc.required_n_at_power(sd, target) == 11
+    # the factor comes from THIS report's criterion (|delta| > noise, one noise
+    # unit), not from a two-sided significance test — that would demand 7.85x
+    assert abs(cc.power_factor() - 1.8416) < 0.001
+    assert abs(cc.power_factor() ** 2 - 3.39) < 0.01
+    rows = stability.plan_cells(
+        stability.stability_cells(_campaign_kpis([100, 130, 70, 115, 85], "base"),
+                                  "t1_ttft_ms"), 5.0)
+    assert rows[0]["required_n_power"] > rows[0]["required_n"]
+    md = stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
+    assert "需 n≥(平)" in md and "需 n≥(80%)" in md
+    assert "把抛硬币说成了保证" in md
+    assert "当前复测数足够" not in md          # the retired claim, gone
 
 
 def test_report_includes_stability_section():
@@ -185,8 +211,11 @@ def test_plan_states_the_good_news_positively():
     rows = stability.plan_cells(stability.stability_cells(recs, "t1_ttft_ms"), 5.0)
     assert all(r["resolves_target"] for r in rows)
     md = stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
-    assert "当前复测数足够" in md
-    assert "分辨不了" not in md
+    # the good news, stated positively AND at the caliber it actually holds at —
+    # "足够" used to say this about a 50-50 chance (D-150 intent, D-201 caliber)
+    assert "都有 **≥80% 的把握**看见" in md
+    assert "没有 80% 的把握" not in md
+    assert "当前复测数足够" not in md
 
 
 def test_plan_separates_cells_that_are_not_repeatable():

@@ -682,11 +682,52 @@ def min_detectable_effect(sd, n):
 
 
 def required_n(sd, effect):
-    """Repeats per side needed before a difference of `effect` clears the noise
-    scale. None when spread is unknown or the target effect is not positive."""
+    """Repeats per side at which `effect` EQUALS the noise scale. None when
+    spread is unknown or the target effect is not positive.
+
+    Read the caliber carefully: at exactly this n, a true difference of `effect`
+    is observed beyond the noise about HALF the time — measured 52-58% across
+    n=5..40 (D-201). It is the break-even point, not a sample size that gets you
+    the answer. Plan a campaign with `required_n_at_power`.
+    """
     if sd is None or effect is None or effect <= 0:
         return None
     return int(math.ceil(2.0 * (MEDIAN_SE_FACTOR * sd / effect) ** 2))
+
+
+# How often a campaign should expect to actually see the difference it went out
+# to measure. 0.8 is the usual convention; named so the report can state it.
+PLAN_POWER = 0.80
+
+
+def power_factor(power=PLAN_POWER):
+    """Multiplier on the noise scale for a `power` chance of clearing it.
+
+    This report's criterion is |Δ| > noise, i.e. ONE noise unit — not a
+    significance test — so the factor is (1 + z_power), not the (z_{1-α/2} +
+    z_{1-β}) of a two-sided test. At 80% that is 1.842, hence 3.39x the repeats;
+    simulating the actual criterion gives 81% (D-201). Deriving it from the
+    wrong criterion would have demanded 7.85x — real field days spent buying a
+    guarantee this report never makes.
+    """
+    if not 0.5 < power < 1.0:
+        return None
+    return 1.0 + statistics.NormalDist().inv_cdf(power)
+
+
+def detectable_effect_at_power(sd, n, power=PLAN_POWER):
+    """Difference this cell would clear the noise scale `power` of the time."""
+    mde = min_detectable_effect(sd, n)
+    f = power_factor(power)
+    return None if (mde is None or f is None) else mde * f
+
+
+def required_n_at_power(sd, effect, power=PLAN_POWER):
+    """Repeats per side to see a difference of `effect` `power` of the time."""
+    f = power_factor(power)
+    if sd is None or effect is None or effect <= 0 or f is None:
+        return None
+    return int(math.ceil(2.0 * (f * MEDIAN_SE_FACTOR * sd / effect) ** 2))
 
 
 def mean(vals):

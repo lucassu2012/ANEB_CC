@@ -138,6 +138,10 @@ _NOT_A_REPORT_GATE = {
         "a CLI knob; the manifest records it under `params`, not `thresholds`",
     ("stability", "DEFAULT_TARGET_EFFECT_PCT"):
         "only the standalone `--plan` sample-size CLI; no report section reads it",
+    ("campaign_common", "PLAN_POWER"):
+        "same: the `--plan` sample-size CLI only. It shapes advice about a FUTURE "
+        "campaign, not any number in this report — nothing here is reproduced "
+        "differently by changing it",
     ("provenance", "_SHORT"): "display width of the inline hash, not a gate",
 }
 
