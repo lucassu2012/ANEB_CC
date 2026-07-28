@@ -16,6 +16,8 @@ assert what must be true regardless of the numbers (D-127):
   * determinism — the same corpus always yields the same bytes
 """
 import ast
+import copy
+import importlib
 import io
 import os
 import random
@@ -241,18 +243,110 @@ def test_low_confidence_marked_whenever_below_the_floor():
     _at_least(seen, 80, "heat cells checked for the low-confidence mark")
 
 
+def _numbers_in(cell):
+    """Keys currently holding a real number. bool is an int in Python and is
+    never a measurement, so it stays out."""
+    return [k for k, v in cell.items()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)]
+
+
+_NUMERAL = re.compile(r"\d+(?:\.\d+)?")
+
+
+def _cells_of(row):
+    return [c.strip() for c in row.strip().strip("|").split("|")]
+
+
+def _numerals_in(cell):
+    return len(_NUMERAL.findall(cell))
+
+
+def _table_body(md):
+    """Data rows of the first markdown table: everything after the |---| rule."""
+    lines = md.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("|") and set(line) <= set("|- "):
+            return [l for l in lines[i + 1:] if l.startswith("| ")]
+    return []
+
+
+def _cell_modules():
+    """Modules in the sweep whose analyze() returns per-cell rows. Taken from
+    _SWEEP so there is one list of renderers, not two."""
+    found = []
+    for name in _SWEEP:
+        mod = importlib.import_module(name)
+        if not hasattr(mod, "analyze"):
+            continue
+        try:
+            res = mod.analyze([])
+        except Exception:                        # noqa: BLE001 - not a cell module
+            continue
+        if isinstance(res, dict) and "cells" in res:
+            found.append(mod)
+    return found
+
+
 def test_null_medians_never_render_as_zero():
-    """A cell with no usable samples must show the placeholder, not 0 (R-10)."""
-    seen = 0
-    for seed in SEEDS:
-        for c in buffering_rollup.analyze(_random_corpus(seed))["cells"]:
-            for key in ("score_median", "sawtooth_median", "near_zero_median"):
-                if c[key] is None:
-                    seen += 1
-                    assert cc.fmt_num(c[key], 3) == "—", (seed, key)
-    # the assertion lives under an `if`, so an all-populated corpus would skip
-    # every one of them and still pass
-    _at_least(seen, 150, "null medians actually rendered")
+    """A cell with no usable samples must show the placeholder, not 0 (R-10).
+
+    The body this replaces asserted `cc.fmt_num(c[key], 3) == "—"` from inside an
+    `if c[key] is None` branch — a property of fmt_num, reached without rendering
+    anything, over one module and three keys, while the README promises R-10 of
+    every tool. Putting the classic `or 0` into buffering_rollup's median column
+    left the whole suite green, and the raw 0.5681499999999999 that came with it
+    (fmt_num bypassed, so no rounding either) went unnoticed too (D-232).
+
+    Asked differentially, because the obvious way round does not survive its own
+    mutation: read the printed keys off the renderer's source and `or 0` deletes
+    the fmt_num call the scan was looking for, so the key silently leaves the
+    list. Instead each number is knocked out at the source — set one cell's value
+    to None, render again, and the row has to answer with one more placeholder.
+    A key the section does not print leaves the row untouched and is skipped.
+
+    What counts as the breach is exactly what R-10 forbids — the value coming
+    back as a number. A column that answers 「—」, or a word, or even a bare None,
+    has not substituted anything; only a numeral has.
+    """
+    mods = _cell_modules()
+    assert len(mods) >= 4, f"only {[m.__name__ for m in mods]} — did the scan break?"
+
+    knocked = printed_keys = 0
+    for seed in SEEDS:                           # ~0.8s for the whole knock-out sweep
+        recs = _random_corpus(seed)
+        for mod in mods:
+            base = mod.analyze(recs)
+            rows = _table_body(mod.render_markdown(base))
+            if len(rows) != len(base["cells"]):
+                continue                         # section is not one row per cell
+            for i, cell in enumerate(base["cells"]):
+                for key in _numbers_in(cell):
+                    doctored = copy.deepcopy(base)
+                    doctored["cells"][i][key] = None
+                    row = _table_body(mod.render_markdown(doctored))[i]
+                    knocked += 1
+                    if row == rows[i]:
+                        continue                 # this key reaches no column here
+                    printed_keys += 1
+                    changed = [(a, b) for a, b in
+                               zip(_cells_of(rows[i]), _cells_of(row)) if a != b]
+                    # Somewhere a numeral has to have left the row. Not "a cell
+                    # turned non-numeric" — one knocked-out value can also shift
+                    # the shared precision of its neighbours (D-220), and those
+                    # neighbours were answering for it.
+                    assert any(_numerals_in(b) < _numerals_in(a) for a, b in changed), (
+                        f"{mod.__name__} seed {seed} cell {i}: {key} was set to "
+                        "None and every column it moved still prints as many "
+                        f"numbers as before ({changed!r}) — a not-computable "
+                        "value reached the page as a number\n"
+                        f"  before: {rows[i][:120]}\n  after:  {row[:120]}")
+
+    # Floors, not counts: measured 3238 knock-outs, 2661 of them reaching a
+    # column, over these corpora. The floor this replaces counted how often one
+    # constant assertion ran — and the first pair here was guessed rather than
+    # measured, which is the same mistake one level up.
+    _at_least(knocked, 2500, "numbers knocked out and re-rendered")
+    _at_least(printed_keys, 2000, "knocked-out numbers that actually reach a column")
 
 
 def test_suspect_shares_stay_in_range():

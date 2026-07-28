@@ -3,6 +3,9 @@
 > 纯 Python 标准库（无第三方依赖）。消费**服务端结果 JSONL**（合同 schema 1.0，
 > 见 `spec/schemas/result-run.schema.json`），产出 markdown / 自包含 HTML 报告。
 > 全部工具遵守 R-10：不可计算的量输出 `None`/`—`，**绝不**以 0 或哨兵顶替。
+> 这句话由 `test_null_medians_never_render_as_zero` 端到端核对（**击落式**：把某格某个数置为 `None`
+> 重新渲染，该行必须少掉一个数字）——覆盖 7 个出格模块。此前它只在 1 个模块上断言
+> `fmt_num(None)=="—"`，**连渲染器都没碰过**，往渲染器塞一个 `or 0` 全套测试照样全绿（D-232）。
 >
 > **接手这一层？先读** [`../docs/ANALYSIS_LAYER_HANDOVER.md`](../docs/ANALYSIS_LAYER_HANDOVER.md)
 > ——六条不可违反的原则、八个测试维度、当前状态与上手步骤。本文件是逐工具口径，那份是"为什么"。

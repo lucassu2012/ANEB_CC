@@ -121,8 +121,12 @@ def render_markdown(res):
             [c["dims"][d]["median"] for d in present], c["spread"])
         shown = dict(zip(present, shown_vals))
         cellvals = [shown.get(d, "—") for d in dims]
-        drag = (f"**{c['dragging_dim']}**="
-                + shown.get(c["dragging_dim"], cc.fmt_num(c["dragging_median"]))
+        # No fallback: the dragging dim is the argmin over this cell's own dims,
+        # and `all_dims` is their union, so it is always in `shown`. The fmt_num
+        # default that used to sit here never ran once in 103 cells — and it read
+        # like the R-10 path for this figure, which since D-220 is the shared
+        # precision above (D-232, and the dead-entry lesson of D-204).
+        drag = (f"**{c['dragging_dim']}**=" + shown[c["dragging_dim"]]
                 if c["dragging_dim"] else "—")
         notes = []
         if reconciled is False:
