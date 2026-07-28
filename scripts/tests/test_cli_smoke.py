@@ -358,3 +358,45 @@ def test_annotate_cli_runs():
                  "--set", "point_id=P1", "--infer-time-band")
         assert r.returncode == 0, r.stderr
         assert os.path.exists(out)
+
+
+# Every place annotate can send its output. 「不覆盖输入（除非 --inplace）」 names
+# all four, and only --out-dir had the input checked; --inplace was never run at
+# all, so the other direction — that the flag does rewrite the file — had nothing
+# behind it either, and a no-op --inplace looks exactly like success (D-236).
+_OUTPUT_MODES = {
+    "stdout": lambda d, src: [src],
+    "-o": lambda d, src: [src, "-o", os.path.join(d, "out.jsonl")],
+    "--out-dir": lambda d, src: [src, "--out-dir", os.path.join(d, "labeled")],
+    "--inplace": lambda d, src: [src, "--inplace"],
+}
+
+
+def test_only_inplace_ever_writes_back_to_the_input():
+    """The input corpus is a field day nobody can re-run. Whether it survives is
+    decided by which output flag was passed, so each of the four is checked, and
+    the check is a biconditional: the bytes move exactly when --inplace is."""
+    import hashlib
+
+    for mode, argv in _OUTPUT_MODES.items():
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "a.jsonl")
+            _write_jsonl(src, [contractify(make_record(aqs=90, scenarios=[]))
+                               for _ in range(2)])
+            with open(src, "rb") as fh:
+                before = hashlib.sha256(fh.read()).hexdigest()
+            r = _run("annotate_campaign.py", *argv(d, src), "--set", "point_id=P1")
+            assert r.returncode == 0, f"{mode}: {r.stderr}"
+            with open(src, "rb") as fh:
+                after = hashlib.sha256(fh.read()).hexdigest()
+
+            assert (before != after) == (mode == "--inplace"), (
+                f"{mode}: the input file was "
+                + ("rewritten" if before != after else "left alone")
+                + " — only --inplace may touch it, and it must")
+
+            if mode == "--inplace":      # the label has to land, not just bytes move
+                with open(src, encoding="utf-8") as fh:
+                    rec = json.loads(fh.readline())
+                assert rec["run"]["campaign"]["point_id"] == "P1", (
+                    "--inplace rewrote the file without applying the label")

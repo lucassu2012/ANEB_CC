@@ -144,6 +144,10 @@ quick-forensic / 时钟跳变 / 极端离群 / 全无效格 / 未标注记录）
 加性注入 `run.campaign`：`--set KEY=VALUE`（统一）/ `--map map.json`（per run_id）/
 `--infer-time-band`（由 `started_at_epoch_ms`+`--tz-offset` 推 busy/idle，标 inferred）。
 **非破坏**：只填 gap、原有标签优先永不覆盖、不覆盖输入（除非 `--inplace`）、`label_source` 记溯源。
+「不覆盖输入」按**四种输出去向逐一核对**（stdout / `-o` / `--out-dir` / `--inplace`），判据是**等价关系**：
+输入字节变，当且仅当给了 `--inplace`——反向那半同样要紧，**`--inplace` 若悄悄变成空操作，
+屏幕上照样打印「annotated 2/2 records」，而语料根本没标**（此前只有 `--out-dir` 查过输入，
+`--inplace` 在整个测试套件里一次都没被执行过，D-236）。
 **批量**：`--out-dir DIR` 一次补注多个文件（输出同名），外场一天几十个文件不必逐个 `-o`；
 两条护栏——输出会覆盖输入时拒绝（那是 `--inplace` 的意思）、不同目录同名文件会碰撞时拒绝。
 生产接线落地后本工具仍保留（补历史语料/漏标 run），见
