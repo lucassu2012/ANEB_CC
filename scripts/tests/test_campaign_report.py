@@ -993,6 +993,50 @@ def test_summary_will_not_call_an_unmeasurable_media_delta_a_negative_finding():
     assert "无一超出噪声尺度" not in line, line
 
 
+def test_an_unjudgeable_delta_says_which_kind_of_unjudgeable_it_is():
+    """A delta the layer cannot judge has to say so — and say which reason.
+
+    within_noise returns None for two different situations, and the before/after
+    row only spoke up for one of them: it keyed its note on `noise is None`, so
+    a cell whose repeats came out identical printed `12 ↑ ±0` with an empty note
+    and read as a plain improvement. Four rows of the golden snapshot were doing
+    exactly that. The other sections printed 「噪声不可估」 for both causes, which
+    beside a rendered ±0 denies the estimate standing next to it (D-224).
+    """
+    from synth import contractify
+
+    def spread(campaign_id, value, n, point):
+        out = []
+        for r in aqs_records(value, n, point=point):
+            r["run"].setdefault("campaign", {})["campaign_id"] = campaign_id
+            out.append(contractify(r))
+        return out
+
+    # P1: five identical repeats per campaign -> spread observed as zero.
+    # P2: one sample per campaign -> spread not estimable at all.
+    recs = (spread("base", 62.0, 5, "P1") + spread("opt", 74.0, 5, "P1")
+            + spread("base", 40.0, 1, "P2") + spread("opt", 55.0, 1, "P2"))
+    rows = {r["cell"]["point_id"]: r
+            for r in rpt.compare_campaigns(recs, "base", "opt")["rows"]}
+
+    # The fixture has to produce both causes, or the assertions below are free.
+    assert rows["P1"]["noise"] == 0 and rows["P1"]["within_noise"] is None, rows["P1"]
+    assert rows["P2"]["noise"] is None and rows["P2"]["within_noise"] is None, rows["P2"]
+
+    md = rpt.build_report_markdown(recs)
+    section = md.split("## 优化前后对比")[1].split("\n## ")[0]
+    notes = {}
+    for line in section.splitlines():
+        if line.startswith("| P"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            notes[cells[0]] = cells[-1]
+    assert "零离散，判不了" in notes["P1"], notes
+    assert "噪声不可估" not in notes["P1"], (
+        "a spread of zero IS an estimate — saying it cannot be estimated "
+        f"contradicts the ±0 printed on the same row: {notes['P1']}")
+    assert "噪声不可估" in notes["P2"], notes
+
+
 def test_every_declared_range_is_actually_evaluated_somewhere():
     """A declared range that nothing ever evaluates is a check that never runs —
     §2.9's silent-check trap wearing a table's clothes. The fields do not all

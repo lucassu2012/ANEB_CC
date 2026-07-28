@@ -283,6 +283,12 @@ def render_markdown(res):
         if c["low_confidence"]:
             notes.append("low_conf")
         noise = f"±{cc.fmt_num(c.get('noise'), 1)}" if c.get("noise") is not None else "—"
+        # 「噪声不可估」 beside a printed ±0 denies the estimate standing next to
+        # it. The data-side key stays `noise_unknown`; only the word the reader
+        # sees separates the two causes (D-224).
+        if c["direction"] == "noise_unknown":
+            dir_map = dict(dir_map,
+                           noise_unknown=cc.noise_unjudgeable_note(c.get("noise")))
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {traj} | "
             f"{cc.fmt_num(c['first_last_delta'])} | {noise} | {dir_map[c['direction']]} | "

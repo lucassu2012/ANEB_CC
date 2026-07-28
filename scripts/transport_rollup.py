@@ -135,7 +135,8 @@ def render_markdown(res):
         if c["within_noise"] is True:
             notes.append("**噪声内**")
         elif c["within_noise"] is None and c["cellular_minus_wifi"] is not None:
-            notes.append("噪声不可估")
+            # two causes, two words: a spread of zero is not a missing spread
+            notes.append(cc.noise_unjudgeable_note(c["noise"]))
         if c.get("implausible_values"):
             notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
                 f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")

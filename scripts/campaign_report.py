@@ -919,8 +919,11 @@ def render_comparison_markdown(cmp):
         notes = []
         if r["within_noise"] is True:
             notes.append("**噪声内**")
-        elif r["noise"] is None and d is not None:
-            notes.append("噪声不可估")   # unknown, not "beyond noise" (R-10)
+        # Keyed on the verdict, not on the scale: a spread observed as zero also
+        # judges nothing, and used to leave the row with no caveat at all. Two
+        # causes, two words (D-224).
+        elif r["within_noise"] is None and d is not None:
+            notes.append(cc.noise_unjudgeable_note(r["noise"]))
         if r["before"] is None:
             notes.append("仅 after")
         if r["after"] is None:
@@ -1475,8 +1478,8 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
             notes = []
             if r["within_noise"] is True:
                 notes.append("噪声内")
-            elif r["noise"] is None and d is not None:
-                notes.append("噪声不可估")
+            elif r["within_noise"] is None and d is not None:
+                notes.append(cc.noise_unjudgeable_note(r["noise"]))   # same as md
             if r["before"] is None:
                 notes.append("仅 after")
             if r["after"] is None:

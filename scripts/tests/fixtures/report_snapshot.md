@@ -188,7 +188,7 @@ _无 transport 证据（run 均为 auto 且无 network_snapshot 观测）——�
 
 | 点位 | 运营商 | 时段 | before | after | Δ | 备注 |
 |---|---|---|---|---|---|---|
-| P1 | cmcc | busy | 62 | 74 | 12 ↑ ±0 | — |
-| P1 | cmcc | idle | 67 | 79 | 12 ↑ ±0 | — |
-| P2 | cmcc | busy | 62 | 74 | 12 ↑ ±0 | — |
-| P2 | cmcc | idle | 67 | 79 | 12 ↑ ±0 | — |
+| P1 | cmcc | busy | 62 | 74 | 12 ↑ ±0 | 零离散，判不了 |
+| P1 | cmcc | idle | 67 | 79 | 12 ↑ ±0 | 零离散，判不了 |
+| P2 | cmcc | busy | 62 | 74 | 12 ↑ ±0 | 零离散，判不了 |
+| P2 | cmcc | idle | 67 | 79 | 12 ↑ ±0 | 零离散，判不了 |

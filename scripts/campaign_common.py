@@ -683,6 +683,25 @@ def within_noise(delta, noise):
     return abs(delta) < noise
 
 
+# within_noise returns None for two different reasons, and every section that
+# renders it printed the same words for both. Beside a printed ±0 — which IS an
+# estimate — 「噪声不可估」 contradicts the column next to it (D-224). Same split
+# D-197 made for CV: the two causes are not the same problem, and the operator
+# does something different about each.
+NOISE_UNJUDGEABLE = {"zero_spread": "零离散，判不了",
+                     "unknown_spread": "噪声不可估"}
+
+
+def noise_unjudgeable_note(noise):
+    """Why this cell's delta cannot be judged: spread of zero, or none at all.
+
+    `zero_spread` means the repeats came out identical, which bounds nothing —
+    vary the conditions or repeat more. `unknown_spread` means there were not
+    enough repeats to estimate a spread at all.
+    """
+    return NOISE_UNJUDGEABLE["zero_spread" if noise == 0 else "unknown_spread"]
+
+
 def min_detectable_effect(sd, n):
     """Smallest difference between two same-sized cells that would clear the
     noise scale at this spread — i.e. what the sample actually resolves.
