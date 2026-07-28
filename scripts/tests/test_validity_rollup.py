@@ -130,3 +130,36 @@ def test_markdown_renders_denominator_note():
     assert "有效样本分母" in md
     assert "LOW_VALID_RATE" in md
     assert "timeout" in md
+
+
+def test_a_zero_strict_valid_cell_still_reads_a_full_rate():
+    """0 in the valid column beside 100% in the rate column is correct — and
+    it has to LOOK correct.
+
+    The rate's numerator is 有效 + 低置信, but the table also carried a column
+    named 有效 holding only the first term. A reader dividing that column by
+    尝试 gets a different number, and on a cell whose scenarios are all
+    low-confidence they get 0 against a printed 100%: the D-207 shape, one
+    quantity produced by two rules (D-218). The column now names itself
+    strict, and the section states the formula.
+    """
+    res = vr.analyze(validity_records(3, validity="valid_low_confidence"))
+    c = res["cells"][0]
+    assert (c["valid"], c["valid_low_confidence"], c["valid_rate"]) == (0, 3, 1.0), c
+
+    md = vr.render_markdown(res)
+    header = [ln for ln in md.splitlines() if ln.startswith("| 点位 |")][0]
+    cells = [x.strip() for x in header.strip().strip("|").split("|")]
+    assert "有效(严格)" in cells, cells
+    assert "有效" not in cells, (
+        "a column named plainly 有效 sits next to 有效率 and invites the "
+        f"division that does not hold: {cells}")
+
+    # The formula travels with the table, naming both terms of the numerator.
+    assert "有效率 =（有效(严格) + 低置信）/ 尝试" in md, md[:400]
+
+    rows = [ln for ln in md.splitlines() if ln.startswith("| ") and "100.0%" in ln]
+    assert rows, md
+    body = [x.strip() for x in rows[0].strip().strip("|").split("|")]
+    assert body[cells.index("有效(严格)")] == "0", body
+    assert body[cells.index("低置信")] == "3", body
