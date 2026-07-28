@@ -94,11 +94,19 @@ def analyze(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     return {"cells": cells, "min_samples": min_samples, "only_unknown": only_unknown}
 
 
-def _fmt_bucket(b):
+def _bucket_with(b, median_str):
+    """A bucket cell rendered at a caller-chosen precision, n suffix intact.
+
+    The row prints wifi, cellular and their difference, so the precision is not
+    this function's to pick: the three have to agree (D-221)."""
     if not b:
         return "—"
     lc = "*" if b["low_confidence"] else ""
-    return f"{cc.fmt_num(b['aqs_median'])} (n={b['n']}{lc})"
+    return f"{median_str} (n={b['n']}{lc})"
+
+
+def _fmt_bucket(b):
+    return _bucket_with(b, cc.fmt_num(b["aqs_median"])) if b else "—"
 
 
 def render_markdown(res):
@@ -131,13 +139,22 @@ def render_markdown(res):
         if c.get("implausible_values"):
             notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
                 f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
+        # wifi + Δ = cellular is an addition the reader can do on the row, so
+        # the three share one precision (D-221).
+        wb = c["transports"].get("wifi")
+        cb = c["transports"].get("cellular")
+        wstr, cstr, dstr, adds_up = cc.fmt_delta_row(
+            wb["aqs_median"] if wb else None,
+            cb["aqs_median"] if cb else None,
+            c["cellular_minus_wifi"])
+        if adds_up is False:
+            notes.append("ROUNDING_UNRECONCILED")
         note = "; ".join(notes) or "—"
         noise = f"±{cc.fmt_num(c['noise'], 1)}" if c["noise"] is not None else "—"
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "
-            f"{_fmt_bucket(c['transports'].get('wifi'))} | "
-            f"{_fmt_bucket(c['transports'].get('cellular'))} | "
-            f"{cc.fmt_num(c['cellular_minus_wifi'])} | {noise} | {note} | "
+            f"{_bucket_with(wb, wstr)} | {_bucket_with(cb, cstr)} | "
+            f"{dstr} | {noise} | {note} | "
             f"{'; '.join(others) or '—'} |")
     return "\n".join(lines)
 

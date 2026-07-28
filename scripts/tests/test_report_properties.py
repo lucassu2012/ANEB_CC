@@ -886,6 +886,98 @@ def test_a_non_positive_mean_yields_no_cv_rather_than_a_reassuring_one():
     assert "稳定" not in body        # no verdict at all, reassuring or otherwise
 
 
+def _table_rows(md, title):
+    """Rows of the table under `title`, as {column: cell} dicts."""
+    if title not in md:
+        return []
+    body = md.split(title)[1].split("\n## ")[0]
+    rows, header = [], None
+    for ln in body.splitlines():
+        s = ln.strip()
+        if not (s.startswith("|") and s.endswith("|")):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if set("".join(cells)) <= set("-: "):
+            continue
+        if header is None:
+            header = cells
+            continue
+        rows.append(dict(zip(header, cells)))
+    return rows
+
+
+def _lead_num(s):
+    """Leading number of a cell like '43.1 (n=1*)', '17.4 ↑', '6.9%'."""
+    if s is None:
+        return None
+    t = s.replace("*", "").replace("%", "").strip()
+    for stop in (" ", "("):
+        if stop in t:
+            t = t.split(stop)[0]
+    try:
+        return float(t.replace("−", "-").strip())
+    except ValueError:
+        return None
+
+
+# (name, section title, columns, relation -> deviation, minimum rows to see).
+# The relation is exactly what a reader can check with the numbers on the page.
+_ARITH_CASES = (
+    ("接入介质 Δ = cellular − wifi", "## 接入介质对比",
+     ("wifi", "cellular", "Δ(cell−wifi)"),
+     lambda w, c, d: abs((c - w) - d), 8),
+    ("分段 离差/典型 = MAD ÷ |典型|", "## 分段异常定位",
+     ("典型值(中位)", "离差(MAD)", "离差/典型"),
+     lambda t, m, p: abs(m / abs(t) * 100.0 - p) if t else None, 6),
+    ("优化前后 Δ = after − before", "## 优化前后对比",
+     ("before", "after", "Δ"),
+     lambda b, a, d: abs((a - b) - d), 8),
+    ("有效性 尝试 = 有效+低置信+失效+未知", "## 有效性与失效原因",
+     ("尝试", "有效(严格)", "低置信", "失效", "未知"),
+     lambda att, v, lc, inv, unk: abs((v + lc + inv + unk) - att), 100),
+    ("有效率 = (有效+低置信) ÷ 尝试", "## 有效性与失效原因",
+     ("尝试", "有效(严格)", "低置信", "有效率"),
+     lambda att, v, lc, rate: abs((v + lc) / att * 100.0 - rate) if att else None, 100),
+)
+
+
+def test_every_printed_arithmetic_relation_holds():
+    """Whatever the reader can compute from the page has to come out right.
+
+    Four sections print numbers standing in an arithmetic relation, and each
+    invites the reader to check it: subtract two columns, add a decomposition,
+    divide one column by another. Rounded independently they disagreed — 36% of
+    attribution rows (D-219), 23% of sub-score rows (D-220), 8 of 30 transport
+    rows and 10 of 41 before/after rows (D-221). This checks all of them at once
+    so the next one is not found by reading either.
+    """
+    mds = [rpt.build_report_markdown(_random_corpus(s)) for s in SEEDS]
+    mds.append(rpt.build_report_markdown(_corrupt_corpus()))
+
+    for name, title, cols, relation, floor in _ARITH_CASES:
+        seen, bad = 0, []
+        for md in mds:
+            for row in _table_rows(md, title):
+                vals = [_lead_num(row.get(c)) for c in cols]
+                if any(v is None for v in vals):
+                    continue
+                seen += 1
+                try:
+                    off = relation(*vals)
+                except (TypeError, ZeroDivisionError):
+                    continue
+                # half of the last digit the report prints
+                if off is not None and off > 0.05:
+                    bad.append((dict(zip(cols, vals)), round(off, 4)))
+        # The corpora have to reach the relation, or a clean verdict is empty.
+        assert seen >= floor, (
+            f"{name}: only {seen} rows carried all of {cols} — below the {floor} "
+            "this corpus used to produce, so the check proves nothing")
+        assert not bad, (
+            f"{name}: {len(bad)} row(s) where the numbers on the page do not "
+            f"satisfy it: {bad[:3]}")
+
+
 _DELIM_RE = re.compile(r"\|[-|: ]+\|")
 
 

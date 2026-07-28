@@ -510,9 +510,21 @@ def render_segment_profile_markdown(prof):
                             for o in s["low"]) or "—"
         n = f"{s['n_cells']}" + (f"（另 {s['not_computable']} 不可计算）"
                                  if s["not_computable"] else "")
-        rel = f"{cc.fmt_num(s['rel_mad'], 1)}%" if s["rel_mad"] is not None else "—"
-        lines.append(f"| {s['label']} | {n} | {cc.fmt_num(s['typical'], 1)} | "
-                     f"{cc.fmt_num(s['mad'], 1)} | {rel} | {high} | {low} | {verdict} |")
+        # 离差/典型 is one printed column divided by another, so the reader will
+        # divide them. All three share a precision at which that division still
+        # lands on the printed ratio (D-221).
+        typ, mad, relv = s["typical"], s["mad"], s["rel_mad"]
+        if relv is None or typ in (None, 0) or mad is None:
+            typ_s, mad_s = cc.fmt_num(typ, 1), cc.fmt_num(mad, 1)
+            rel = f"{cc.fmt_num(relv, 1)}%" if relv is not None else "—"
+        else:
+            (typ_s, mad_s, rel_s), _ok = cc.fmt_values_consistent(
+                [typ, mad, relv],
+                lambda r, d: bool(r[0]) and abs(r[1] / abs(r[0]) * 100.0 - r[2])
+                < 0.5 * 10 ** -d)
+            rel = rel_s + "%"
+        lines.append(f"| {s['label']} | {n} | {typ_s} | "
+                     f"{mad_s} | {rel} | {high} | {low} | {verdict} |")
     return "\n".join(lines)
 
 

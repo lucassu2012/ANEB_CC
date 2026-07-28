@@ -880,6 +880,33 @@ def fmt_parts_spanning(parts, spread, digits=1, max_digits=6):
     return strings[:-1], strings[-1], ok
 
 
+def _sign_of(x):
+    return (x > 0) - (x < 0)
+
+
+def fmt_delta_row(before, after, delta, digits=1, max_digits=6):
+    """before / after / delta rendered so the row's own subtraction holds.
+
+    D-207 aligned the three to the delta's precision, which is not the same
+    promise: `70.02 → 2.0` beside `Δ -68.0` is aligned and still wrong by a
+    tenth, and 10 of 41 before/after rows failed the subtraction (D-221). The
+    delta must also keep the sign it was computed with — the older guarantee,
+    kept here so one fix does not undo the other.
+
+    Returns (before_s, after_s, delta_s, reconciled).
+    """
+    if before is None or after is None or delta is None:
+        return (fmt_num(before, digits), fmt_num(after, digits),
+                fmt_num_agreeing(delta, _sign_of, digits, max_digits), None)
+    want = _sign_of(delta)
+    strings, ok = fmt_values_consistent(
+        [before, delta, after],
+        lambda r, d: (abs((r[0] + r[1]) - r[2]) < 0.5 * 10 ** -(d + 3)
+                      and _sign_of(r[1]) == want),
+        digits, max_digits)
+    return strings[0], strings[2], strings[1], ok
+
+
 def fmt_values_consistent(values, holds, digits=1, max_digits=6):
     """Render numbers at one shared precision that keeps a relation among them.
 

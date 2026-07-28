@@ -288,20 +288,6 @@ def _unlocated_note(n, what="格"):
             if n else "")
 
 
-def _pair_at(before, after, delta_str):
-    """before/after rendered at the delta's own precision.
-
-    Rounding each independently lets the three numbers on one row disagree: 70.02
-    and 70.06 print as `70` and `70.1`, whose difference is 0.1, next to a delta
-    of 0.04. The reader subtracting two columns of the same table should not get
-    a third answer (D-207)."""
-    dd = len(delta_str.split(".")[1]) if "." in delta_str else 0
-    if dd <= 1:
-        return cc.fmt_num(before), cc.fmt_num(after)
-    return (cc.fmt_num(before, dd) if before is not None else "—",
-            cc.fmt_num(after, dd) if after is not None else "—")
-
-
 _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
               "core_backbone_incr": "核心骨干"}
 
@@ -941,9 +927,10 @@ def render_comparison_markdown(cmp):
             notes.append("仅 before")
         if r["low_confidence"]:
             notes.append("low_conf")
+        bstr, astr, dstr, adds_up = cc.fmt_delta_row(r["before"], r["after"], d)
+        if adds_up is False:
+            notes.append("ROUNDING_UNRECONCILED")
         note = "; ".join(notes) or "—"
-        dstr = cc.fmt_num_agreeing(d, _sign)
-        bstr, astr = _pair_at(r["before"], r["after"], dstr)
         lines.append(
             f"| {cc.md_cell(r['cell']['point_id'])} | {cc.md_cell(r['cell']['carrier'])} "
             f"| {cc.md_cell(r['cell']['time_band'])} | "
@@ -1488,9 +1475,11 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
                 notes.append("仅 before")
             if r["low_confidence"]:
                 notes.append("low_conf")
+            # same rule as markdown: the row's subtraction has to hold
+            bstr, astr, dstr, adds_up = cc.fmt_delta_row(r["before"], r["after"], d)
+            if adds_up is False:
+                notes.append("ROUNDING_UNRECONCILED")
             note = "; ".join(notes)
-            dstr = cc.fmt_num_agreeing(d, _sign)          # same rule as markdown
-            bstr, astr = _pair_at(r["before"], r["after"], dstr)
             crows.append(
                 f"<tr><td class='lbl'>{esc(r['cell']['point_id'])} · {esc(r['cell']['carrier'])} · "
                 f"{esc(r['cell']['time_band'])}</td><td>{bstr}</td>"
