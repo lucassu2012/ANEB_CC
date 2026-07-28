@@ -256,27 +256,29 @@ def test_a_low_confidence_cell_still_reaches_the_page_and_says_so():
     """
     checked, contributing = 0, set()
     for mod in _cell_modules():
-        for seed in SEEDS:
-            res = mod.analyze(_random_corpus(seed))
+        for tag, recs in _render_guard_corpora():
+            res = mod.analyze(recs)
             cells = res["cells"]
             if not cells or "low_confidence" not in cells[0]:
                 continue                     # this rollup marks thin data elsewhere
             rows = _table_body(mod.render_markdown(res))
             if len(rows) != len(cells):
-                continue                     # section is not one row per cell (trend)
+                continue                     # section did not render one row per cell
             for cell, row in zip(cells, rows):
                 if not cell.get("low_confidence"):
                     continue
                 checked += 1
                 contributing.add(mod.__name__)
                 assert "low_conf" in row, (
-                    f"{mod.__name__} seed {seed}: this cell is below the sample "
+                    f"{mod.__name__} {tag}: this cell is below the sample "
                     "floor and its row does not say so — the reader has no way "
                     f"to know\n  {row[:150]}")
 
-    # Floors, measured: 104 + 102 + 111 rows over buffering / subscore / trust.
-    _at_least(checked, 250, "low-confidence cells whose rendered row was read")
-    assert len(contributing) >= 3, (
+    # Floors, measured: 384 rows over buffering / subscore / trust / trend. trend
+    # only joined once the corpora carried three campaigns (D-242) — before that
+    # it rendered no table and was walked past without a word.
+    _at_least(checked, 300, "low-confidence cells whose rendered row was read")
+    assert len(contributing) >= 4, (
         f"only {sorted(contributing)} contributed — the sweep stopped reaching "
         "the rollups that carry the flag")
 
@@ -286,6 +288,26 @@ def _numbers_in(cell):
     never a measurement, so it stays out."""
     return [k for k, v in cell.items()
             if isinstance(v, (int, float)) and not isinstance(v, bool)]
+
+
+def _number_slots(cell):
+    """Every place in this cell holding a real number: a key, or a position
+    inside a list-valued one, as (key, index-or-None).
+
+    Lists matter because a whole column can live in one — trend's `trajectory`
+    is the row's campaign columns — and a knock-out that only touches scalars
+    walks straight past it. Wiring trend into the corpora was not enough on its
+    own; the audit for D-242 said MISSED until the slots included list positions.
+    """
+    slots = []
+    for key, value in cell.items():
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            slots.append((key, None))
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, (int, float)) and not isinstance(item, bool):
+                    slots.append((key, i))
+    return slots
 
 
 _NUMERAL = re.compile(r"\d+(?:\.\d+)?")
@@ -306,6 +328,30 @@ def _table_body(md):
         if line.startswith("|") and set(line) <= set("|- "):
             return [l for l in lines[i + 1:] if l.startswith("| ")]
     return []
+
+
+def _three_campaign_corpus(seed):
+    """A random corpus relabelled into three campaigns in time order.
+
+    The trend section needs MIN_CAMPAIGNS_FOR_TREND (3) before it renders a table
+    at all, and _random_corpus tops out at two — so every render-level guard was
+    walking past trend without a row to look at, in silence (D-242)."""
+    recs = copy.deepcopy(_random_corpus(seed))
+    for i, rec in enumerate(recs):
+        which = i % 3
+        camp = rec["run"].setdefault("campaign", {})
+        camp["campaign_id"] = f"c{which + 1}"
+        rec["run"]["started_at_epoch_ms"] = 1_700_000_000_000 + which * 86_400_000
+    return recs
+
+
+def _render_guard_corpora():
+    """(tag, records) the render-level guards walk. Random corpora plus a few
+    three-campaign ones, because a section nobody can render is a section nobody
+    is guarding."""
+    out = [(f"seed{s}", _random_corpus(s)) for s in SEEDS]
+    out += [(f"3camp{s}", _three_campaign_corpus(s)) for s in list(SEEDS)[:5]]
+    return out
 
 
 def _cell_modules():
@@ -350,17 +396,19 @@ def test_null_medians_never_render_as_zero():
     assert len(mods) >= 4, f"only {[m.__name__ for m in mods]} — did the scan break?"
 
     knocked = printed_keys = 0
-    for seed in SEEDS:                           # ~0.8s for the whole knock-out sweep
-        recs = _random_corpus(seed)
+    for tag, recs in _render_guard_corpora():     # ~1s for the whole knock-out sweep
         for mod in mods:
             base = mod.analyze(recs)
             rows = _table_body(mod.render_markdown(base))
             if len(rows) != len(base["cells"]):
                 continue                         # section is not one row per cell
             for i, cell in enumerate(base["cells"]):
-                for key in _numbers_in(cell):
+                for key, idx in _number_slots(cell):
                     doctored = copy.deepcopy(base)
-                    doctored["cells"][i][key] = None
+                    if idx is None:
+                        doctored["cells"][i][key] = None
+                    else:
+                        doctored["cells"][i][key][idx] = None
                     row = _table_body(mod.render_markdown(doctored))[i]
                     knocked += 1
                     if row == rows[i]:
@@ -373,18 +421,19 @@ def test_null_medians_never_render_as_zero():
                     # the shared precision of its neighbours (D-220), and those
                     # neighbours were answering for it.
                     assert any(_numerals_in(b) < _numerals_in(a) for a, b in changed), (
-                        f"{mod.__name__} seed {seed} cell {i}: {key} was set to "
+                        f"{mod.__name__} {tag} cell {i}: {key} was set to "
                         "None and every column it moved still prints as many "
                         f"numbers as before ({changed!r}) — a not-computable "
                         "value reached the page as a number\n"
                         f"  before: {rows[i][:120]}\n  after:  {row[:120]}")
 
-    # Floors, not counts: measured 3238 knock-outs, 2661 of them reaching a
-    # column, over these corpora. The floor this replaces counted how often one
-    # constant assertion ran — and the first pair here was guessed rather than
-    # measured, which is the same mistake one level up.
-    _at_least(knocked, 2500, "numbers knocked out and re-rendered")
-    _at_least(printed_keys, 2000, "knocked-out numbers that actually reach a column")
+    # Floors, not counts: measured 3649 knock-outs, 2925 reaching a column, 84 of
+    # the slots being positions inside a list. The three-campaign corpora brought
+    # trend's table into range (3238 -> 3565) and the list slots brought its
+    # trajectory columns with it (-> 3649) — wiring the corpus in was not enough
+    # on its own, and the audit said MISSED until both were done (D-242).
+    _at_least(knocked, 2800, "numbers knocked out and re-rendered")
+    _at_least(printed_keys, 2300, "knocked-out numbers that actually reach a column")
 
 
 def test_suspect_shares_stay_in_range():
