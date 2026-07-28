@@ -565,11 +565,20 @@ def render_markdown(result):
     for c in result["cells"]:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in c["cell"].items())
         cov = ",".join(cc.TIER_LABELS.get(t, t) for t in c["coverage"]) or "—"
-        note = "; ".join(md_flags(c)) or "—"
+        # The three components telescope into the end-to-end figure by
+        # construction, so the row is an addition the reader can check — and
+        # will. Rounded independently they stopped adding up in 36% of
+        # three-tier rows (D-219).
+        (access, regional, core), e2e, adds_up = cc.fmt_parts_summing(
+            (c["access_component"], c["regional_backbone_incr"],
+             c["core_backbone_incr"]), c["end_to_end_core"])
+        flags = md_flags(c)
+        if adds_up is False:
+            flags.append("ROUNDING_UNRECONCILED")
+        note = "; ".join(flags) or "—"
         lines.append(
-            f"| {cell_label} | {cov} | {cc.fmt_num(c['access_component'])} | "
-            f"{cc.fmt_num(c['regional_backbone_incr'])} | {cc.fmt_num(c['core_backbone_incr'])} | "
-            f"{cc.fmt_num(c['end_to_end_core'])} | {note} |"
+            f"| {cell_label} | {cov} | {access} | {regional} | {core} | "
+            f"{e2e} | {note} |"
         )
     return "\n".join(lines)
 

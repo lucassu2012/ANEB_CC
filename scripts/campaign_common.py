@@ -827,3 +827,39 @@ def fmt_num_agreeing(v, agree, digits=1, max_digits=6):
         except Exception:
             break
     return fmt_num(v, max_digits)
+
+
+def fmt_parts_summing(parts, total, digits=1, max_digits=6):
+    """Render parts and their total so that the printed parts still add to it.
+
+    A row that decomposes one quantity into components invites exactly one
+    action: add the components and check the total. Rounding each number on its
+    own defeats that — 100.04 + 50.02 + 50.02 = 200.08 prints as
+    100 + 50 + 50 beside a total of 200.1, and the reader's arithmetic comes out
+    a tenth wrong through no fault of their own (D-219). Same doctrine as
+    fmt_num_agreeing: the shortest rendering that does not contradict what sits
+    beside it.
+
+    Returns (part_strings, total_string, reconciled). A missing value renders
+    as `—` and leaves the identity alone — a decomposition with a hole is not
+    claiming to add up, and must not be forced to; `reconciled` is None there,
+    meaning the question does not apply.
+
+    Independent rounding is not always sum-preserving, so no precision may
+    work: three parts can each round down while the total rounds up, leaving
+    the row one unit short at every digit count. Real KPI medians carry two
+    decimals and settle at d=2; the pathology needs inputs with many more
+    significant digits than a measurement has. When it does happen the caller
+    gets `reconciled=False` and must SAY so rather than print an addition that
+    does not work — nothing here silently adjusts a displayed measurement to
+    make the arithmetic come out.
+    """
+    parts = list(parts)
+    if total is None or not parts or any(p is None for p in parts):
+        return [fmt_num(p, digits) for p in parts], fmt_num(total, digits), None
+    for d in range(digits, max_digits + 1):
+        rounded = [round(p, d) for p in parts]
+        if abs(sum(rounded) - round(total, d)) < 0.5 * 10 ** -(d + 3):
+            return [fmt_num(p, d) for p in parts], fmt_num(total, d), True
+    return ([fmt_num(p, max_digits) for p in parts],
+            fmt_num(total, max_digits), False)

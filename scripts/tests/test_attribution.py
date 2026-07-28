@@ -607,3 +607,48 @@ def test_every_screen_verdict_carries_its_caliber():
     assert "干净网格误报" in md
     assert "1.4826" in md
     assert "3σ 筛查" not in md          # the retired wording, gone from the section
+
+
+def test_the_three_components_still_add_to_the_end_to_end_as_printed():
+    """The row is a decomposition, so the reader will add it up.
+
+    access + regional + core telescopes into the end-to-end median exactly,
+    but each number used to be rounded on its own: 100.04 + 50.02 + 50.02
+    printed as 100 + 50 + 50 beside a total of 200.1, and 36% of three-tier
+    rows failed the addition the row invites (D-219).
+    """
+    import campaign_common as cc
+
+    recs = []
+    for tier, v in (("metro", 100.04), ("regional", 150.06), ("core", 200.08)):
+        recs += tier_records(tier, "n1_rtt_p50_ms", v, 5, point="P1")
+    res = attribution.attribute(recs)
+    complete = [c for c in res["cells"] if c["end_to_end_core"] is not None]
+    assert complete, "fixture produced no complete three-tier cell"
+    c = complete[0]
+
+    # The fixture must carry the hazard, or the assertion below costs nothing:
+    # rounded independently at the default precision these do NOT add up.
+    naive = [float(cc.fmt_num(v)) for v in (c["access_component"],
+                                            c["regional_backbone_incr"],
+                                            c["core_backbone_incr"])]
+    assert abs(sum(naive) - float(cc.fmt_num(c["end_to_end_core"]))) > 1e-9, (
+        "fixture no longer reproduces the independent-rounding drift — "
+        "this test would pass on the broken renderer too")
+
+    row = [ln for ln in attribution.render_markdown(res).splitlines()
+           if ln.startswith("| point_id")][0]
+    printed = [x.strip() for x in row.strip().strip("|").split("|")]
+    access, regional, core, e2e = (float(printed[i]) for i in (2, 3, 4, 5))
+    assert abs((access + regional + core) - e2e) < 1e-9, row
+    assert "ROUNDING_UNRECONCILED" not in printed[6], row
+
+    # And when no precision reconciles them, the helper says so rather than
+    # printing an addition that does not work. These three parts sum to the
+    # total exactly in float, yet every digit count leaves the row one unit
+    # short.
+    parts, total, ok = cc.fmt_parts_summing(
+        (34.704659243637408, 144.42088596261448, 36.141875305059415),
+        215.26742051131131)
+    assert ok is False, (parts, total)
+    assert cc.fmt_parts_summing((1.0, 2.0), None)[2] is None   # nothing to check
