@@ -1271,6 +1271,13 @@ _POOLING_SECTIONS = (
         buffering_rollup.analyze(recs))),
     ("subscore", lambda recs: subscore_rollup.render_markdown(
         subscore_rollup.analyze(recs))),
+    # The three-tier matrix pools tier medians and its cells carry the marker
+    # through incomparability_flags — and it was the one pooling section this
+    # list never named, while being the largest analytical section in the report
+    # (D-251). Measured: it already renders the marker; the list simply never
+    # asked.
+    ("attribution", lambda recs: attribution.render_markdown(
+        attribution.attribute(recs, kpi="t1_ttft_ms"))),
 )
 
 
@@ -1285,7 +1292,7 @@ def test_every_pooling_section_keeps_the_banner_s_promise():
     the marker, so a whole-report substring search passes while no table carries
     it — the over-wide probe that hid this once already (D-181).
 
-    ⚠ SOLE targeted guard on two of the eight entries below: order_effect's value
+    ⚠ SOLE targeted guard on two of the nine entries below: order_effect's value
       guard and buffering's marker render. The mutation audit for D-197 broke all
       ten guards one at a time; those two were caught by this test and nothing
       else. Weakening or narrowing it leaves them held by nothing — if you are
