@@ -239,6 +239,10 @@ _QUOTE_RENDERERS = {
     "M2_CAMPAIGN_RUNBOOK.plan_verdict_short": _noisy_plan_md,
     "M2_CAMPAIGN_RUNBOOK.plan_col_power": _noisy_plan_md,
     "M2_CAMPAIGN_RUNBOOK.plan_col_breakeven": _noisy_plan_md,
+    # the second pair, added when the power figure finally reached the page
+    # (D-240) — the runbook had warned about 需 n≥ alone until then
+    "M2_CAMPAIGN_RUNBOOK.plan_col_mde_power": _noisy_plan_md,
+    "M2_CAMPAIGN_RUNBOOK.plan_col_mde_flat": _noisy_plan_md,
     "M2_CAMPAIGN_RUNBOOK.noise_marker": _within_noise_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_yes": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_no": _segment_profile_md,
