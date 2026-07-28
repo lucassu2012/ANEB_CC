@@ -27,6 +27,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
+import attribution
 import buffering_rollup
 import campaign_common as cc
 import campaign_report as rpt
@@ -1104,6 +1105,57 @@ def test_every_section_of_the_report_reaches_the_csv_bundle():
         f"only {total} data rows across the nine mapped CSVs (measured 129 when "
         "this floor was set) — the corpus went degenerate and this guard is "
         "asserting almost nothing")
+
+
+# Which constant decides the KPI set of every CSV whose rows are per-KPI. The
+# subject list is not this dict: the test finds every CSV that HAS a `kpi` column
+# and fails on any that is missing from here.
+_KPI_SET_FOR_CSV = {
+    "kpi_heat": lambda: rpt.DEFAULT_KPI_HEAT,
+    "attribution": lambda: attribution.ATTRIBUTABLE_KPIS,
+    "segment_profile": lambda: attribution.ATTRIBUTABLE_KPIS,
+    "stability": lambda: stability.DEFAULT_STABILITY_KPIS,
+    "order_effect": lambda: order_effect.ORDER_SENSITIVE_KPIS,
+}
+
+
+def test_a_per_kpi_csv_carries_every_kpi_its_section_covers():
+    """D-246 asked whether each report section reaches the CSV bundle at all, and
+    the export it added answered 「yes」 with one KPI out of three: the report
+    renders one 序位效应 section per ORDER_SENSITIVE_KPIS entry, while
+    write_csv_tables called analyze() with its default kpi. The file existed, had
+    rows, and satisfied the new guard — a guard coarser than the promise it was
+    written for, which is how it passed while two thirds of the section were
+    missing (D-247).
+
+    So the criterion has to be the section's own: a CSV with a `kpi` column
+    carries exactly the KPI set that section is computed over.
+    """
+    import csv as csvmod
+    import tempfile
+    import synth_campaign as sc
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt", "later"))
+    seen = 0
+    with tempfile.TemporaryDirectory() as d:
+        for path in rpt.write_csv_tables(recs, os.path.join(d, "c")):
+            suffix = os.path.basename(path)[len("c_"):-len(".csv")]
+            with open(path, encoding="utf-8-sig", newline="") as f:
+                rows = list(csvmod.DictReader(f))
+            if not rows or "kpi" not in rows[0]:
+                continue
+            seen += 1
+            assert suffix in _KPI_SET_FOR_CSV, (
+                f"_{suffix}.csv has a kpi column and no entry here — name the "
+                "constant that decides which KPIs belong in it")
+            want = set(_KPI_SET_FOR_CSV[suffix]())
+            got = {r["kpi"] for r in rows}
+            assert got == want, (
+                f"_{suffix}.csv covers {sorted(got)} but its section is computed "
+                f"over {sorted(want)} — missing {sorted(want - got)}, "
+                f"unexpected {sorted(got - want)}")
+    assert seen == len(_KPI_SET_FOR_CSV), (
+        f"only {seen} per-KPI CSVs reached this check, expected "
+        f"{len(_KPI_SET_FOR_CSV)} — a corpus this rich should exercise all of them")
 
 
 def test_every_csv_row_matches_its_header_width():

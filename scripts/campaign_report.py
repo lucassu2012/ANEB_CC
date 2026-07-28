@@ -1763,7 +1763,6 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # modules build_report_markdown calls ship a CSV, and this one did not
     # (D-246). Long format like _trend.csv — one row per profile per position,
     # with the profile-level verdict repeated — so a pivot reproduces the table.
-    ores = order_effect.analyze(records, min_samples=min_samples)
     p = prefix + "_order_effect.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = csv.writer(f)
@@ -1778,21 +1777,27 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # counterbalancing never happened (D-164/D-197).
                     "distinct_rounds", "rotation_warning", "no_order_evidence",
                     "rotates_within_run"])
-        for pr in ores["profiles"]:
-            head = [pr["profile_id"], ores["kpi"]]
-            tail = [_cell(pr["spread"]), _cell(pr["spread_pct"]),
-                    _cell(pr["overall_median"]), ores["threshold_pct"],
-                    _cell(pr["order_effect_suspected"]),
-                    pr["not_computable_reason"] or "", pr["low_confidence"], _bad(pr),
-                    ores["distinct_rounds"], ores["rotation_warning"],
-                    ores["no_order_evidence"], ores["rotates_within_run"]]
-            # a profile whose every reading was refused has no positions at all;
-            # it still gets its row, for the same reason analyze() keeps it
-            positions = sorted(pr["positions"].items()) or [(None, None)]
-            for idx, v in positions:
-                w.writerow(head + [_cell(idx), _cell(v["median"]) if v else "",
-                                   v["n"] if v else "",
-                                   v["low_confidence"] if v else ""] + tail)
+        # every KPI the section covers, not just analyze()'s default one: the
+        # report renders one 序位效应 section per ORDER_SENSITIVE_KPIS entry, and
+        # a CSV carrying one of the three loses two thirds of the section while
+        # looking complete — the very failure D-246 exists to stop (D-247)
+        for kpi in order_effect.ORDER_SENSITIVE_KPIS:
+            ores = order_effect.analyze(records, kpi=kpi, min_samples=min_samples)
+            for pr in ores["profiles"]:
+                head = [pr["profile_id"], ores["kpi"]]
+                tail = [_cell(pr["spread"]), _cell(pr["spread_pct"]),
+                        _cell(pr["overall_median"]), ores["threshold_pct"],
+                        _cell(pr["order_effect_suspected"]),
+                        pr["not_computable_reason"] or "", pr["low_confidence"], _bad(pr),
+                        ores["distinct_rounds"], ores["rotation_warning"],
+                        ores["no_order_evidence"], ores["rotates_within_run"]]
+                # a profile whose every reading was refused has no positions at
+                # all; it still gets its row, for the same reason analyze() does
+                positions = sorted(pr["positions"].items()) or [(None, None)]
+                for idx, v in positions:
+                    w.writerow(head + [_cell(idx), _cell(v["median"]) if v else "",
+                                       v["n"] if v else "",
+                                       v["low_confidence"] if v else ""] + tail)
     written.append(p)
 
     # The sample denominator behind every median above (D-96) — external analysis
