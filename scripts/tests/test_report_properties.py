@@ -243,6 +243,44 @@ def test_low_confidence_marked_whenever_below_the_floor():
     _at_least(seen, 80, "heat cells checked for the low-confidence mark")
 
 
+def test_a_low_confidence_cell_still_reaches_the_page_and_says_so():
+    """campaign_report's docstring: 「低于样本门的格标 low_confidence —— never
+    hidden, never zero-filled」. The test above says 「Never silently present a
+    cell built from too few samples」. Both are claims about what the reader
+    sees, and both are checked on the analysis dict: a renderer that dropped the
+    marker — or the whole row — passes every one of them (D-239, the shape
+    D-232 found in the R-10 guard).
+
+    Modules come from _SWEEP, not from a list written here, so a rollup that
+    grows a low_confidence flag later joins on its own.
+    """
+    checked, contributing = 0, set()
+    for mod in _cell_modules():
+        for seed in SEEDS:
+            res = mod.analyze(_random_corpus(seed))
+            cells = res["cells"]
+            if not cells or "low_confidence" not in cells[0]:
+                continue                     # this rollup marks thin data elsewhere
+            rows = _table_body(mod.render_markdown(res))
+            if len(rows) != len(cells):
+                continue                     # section is not one row per cell (trend)
+            for cell, row in zip(cells, rows):
+                if not cell.get("low_confidence"):
+                    continue
+                checked += 1
+                contributing.add(mod.__name__)
+                assert "low_conf" in row, (
+                    f"{mod.__name__} seed {seed}: this cell is below the sample "
+                    "floor and its row does not say so — the reader has no way "
+                    f"to know\n  {row[:150]}")
+
+    # Floors, measured: 104 + 102 + 111 rows over buffering / subscore / trust.
+    _at_least(checked, 250, "low-confidence cells whose rendered row was read")
+    assert len(contributing) >= 3, (
+        f"only {sorted(contributing)} contributed — the sweep stopped reaching "
+        "the rollups that carry the flag")
+
+
 def _numbers_in(cell):
     """Keys currently holding a real number. bool is an int in Python and is
     never a measurement, so it stays out."""
