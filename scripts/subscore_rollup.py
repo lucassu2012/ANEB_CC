@@ -112,12 +112,21 @@ def render_markdown(res):
     lines += [header, sep]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
-        cellvals = []
-        for d in dims:
-            cellvals.append(cc.fmt_num(c["dims"][d]["median"]) if d in c["dims"] else "—")
-        drag = (f"**{c['dragging_dim']}**={cc.fmt_num(c['dragging_median'])}"
+        # 极差 is max − min of the very numbers in this row, so the reader will
+        # subtract the two extremes and check it. Rounded on their own they
+        # disagreed on 23% of rows (D-220). The dragging figure shares the
+        # precision too, or it would contradict its own column (D-207).
+        present = [d for d in dims if d in c["dims"]]
+        shown_vals, spread_str, reconciled = cc.fmt_parts_spanning(
+            [c["dims"][d]["median"] for d in present], c["spread"])
+        shown = dict(zip(present, shown_vals))
+        cellvals = [shown.get(d, "—") for d in dims]
+        drag = (f"**{c['dragging_dim']}**="
+                + shown.get(c["dragging_dim"], cc.fmt_num(c["dragging_median"]))
                 if c["dragging_dim"] else "—")
         notes = []
+        if reconciled is False:
+            notes.append("ROUNDING_UNRECONCILED")
         if c.get("implausible_values"):
             notes.append("**IMPLAUSIBLE_VALUE:" + "/".join(
                 f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
@@ -127,7 +136,7 @@ def render_markdown(res):
         lines.append(
             f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | {c['runs']} | "
             + " | ".join(cellvals)
-            + f" | {drag} | {cc.fmt_num(c['spread'])} | {note} |")
+            + f" | {drag} | {spread_str} | {note} |")
     return "\n".join(lines)
 
 

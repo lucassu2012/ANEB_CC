@@ -109,3 +109,42 @@ def test_markdown_renders():
 def test_markdown_empty_when_no_subscores():
     md = ss.render_markdown(ss.analyze([_rec({}) for _ in range(3)]))
     assert "无 run.aqs.sub_scores" in md
+
+
+def test_the_spread_column_matches_the_subscores_printed_beside_it():
+    """极差 is max − min of the numbers in the same row, so subtract and check.
+
+    Rounded on their own, 32.45 / 25.26 / 35.25 printed as 32.5 / 25.3 / 35.2
+    beside a spread of 10, and the two printed extremes differ by 9.9 — 23% of
+    rows disagreed with themselves (D-220). The dragging figure is held to the
+    same precision as its own column, which is D-207's rule.
+    """
+    import campaign_common as cc
+
+    subs = {"T1": 32.45, "N1": 25.26, "N2": 35.25}
+    res = ss.analyze([_rec(dict(subs)) for _ in range(5)])
+    c = res["cells"][0]
+
+    # The fixture must still carry the hazard, or this passes on the old code.
+    naive = {d: float(cc.fmt_num(c["dims"][d]["median"])) for d in subs}
+    assert abs((max(naive.values()) - min(naive.values()))
+               - float(cc.fmt_num(c["spread"]))) > 1e-9, (
+        "fixture no longer reproduces the independent-rounding drift")
+
+    md = ss.render_markdown(res)
+    header = [x.strip() for x in
+              [ln for ln in md.splitlines() if ln.startswith("| 点位")][0]
+              .strip().strip("|").split("|")]
+    row = [ln for ln in md.splitlines() if ln.startswith("| P1 |")][0]
+    cells = [x.strip() for x in row.strip().strip("|").split("|")]
+
+    dim_vals = [float(cells[header.index(d)]) for d in ("T1", "N1", "N2")]
+    spread = float(cells[header.index("极差")])
+    assert abs((max(dim_vals) - min(dim_vals)) - spread) < 1e-9, row
+    assert "ROUNDING_UNRECONCILED" not in cells[-1], row
+
+    # The dragging figure repeats one of the columns; it may not repeat it at a
+    # different precision.
+    drag = cells[header.index("拖累")]
+    assert drag.startswith("**N1**="), drag
+    assert drag.split("=", 1)[1] == cells[header.index("N1")], (drag, cells)

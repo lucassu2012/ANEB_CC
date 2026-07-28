@@ -855,11 +855,51 @@ def fmt_parts_summing(parts, total, digits=1, max_digits=6):
     make the arithmetic come out.
     """
     parts = list(parts)
-    if total is None or not parts or any(p is None for p in parts):
-        return [fmt_num(p, digits) for p in parts], fmt_num(total, digits), None
+    strings, ok = fmt_values_consistent(
+        parts + [total],
+        lambda r, d: abs(sum(r[:-1]) - r[-1]) < 0.5 * 10 ** -(d + 3),
+        digits, max_digits)
+    return strings[:-1], strings[-1], ok
+
+
+def fmt_parts_spanning(parts, spread, digits=1, max_digits=6):
+    """Like fmt_parts_summing, for a row printing values and their max − min.
+
+    Same reader, same action: they find the widest and the narrowest number and
+    check the spread column. Rounded on their own, 32.54 / 25.28 / 35.24 print
+    as 32.5 / 25.3 / 35.2 beside a spread of 10, and subtracting the two
+    printed extremes gives 9.9 (D-220).
+
+    Returns (part_strings, spread_string, reconciled).
+    """
+    parts = list(parts)
+    strings, ok = fmt_values_consistent(
+        parts + [spread],
+        lambda r, d: abs((max(r[:-1]) - min(r[:-1])) - r[-1]) < 0.5 * 10 ** -(d + 3),
+        digits, max_digits)
+    return strings[:-1], strings[-1], ok
+
+
+def fmt_values_consistent(values, holds, digits=1, max_digits=6):
+    """Render numbers at one shared precision that keeps a relation among them.
+
+    `holds(rounded_values, digits)` says whether the relation still reads true
+    once rounded. The search runs from `digits` up; real KPI medians carry two
+    decimals and settle at d=2.
+
+    Rounding is not always relation-preserving, so the search can come up empty
+    — parts that each round down beside a total that rounds up stay one unit
+    apart at every digit count. Then the values render at `max_digits` and
+    `reconciled` comes back False, for the caller to SAY rather than hide.
+    Nothing here nudges a displayed measurement to make the relation come out.
+
+    Returns (strings, reconciled). A None among the values makes the relation
+    inapplicable — reconciled is None, and nothing is forced.
+    """
+    vals = list(values)
+    if not vals or any(v is None for v in vals):
+        return [fmt_num(v, digits) for v in vals], None
     for d in range(digits, max_digits + 1):
-        rounded = [round(p, d) for p in parts]
-        if abs(sum(rounded) - round(total, d)) < 0.5 * 10 ** -(d + 3):
-            return [fmt_num(p, d) for p in parts], fmt_num(total, d), True
-    return ([fmt_num(p, max_digits) for p in parts],
-            fmt_num(total, max_digits), False)
+        if holds([round(v, d) for v in vals], d):
+            return [fmt_num(v, d) for v in vals], True
+    return [fmt_num(v, max_digits) for v in vals], False
