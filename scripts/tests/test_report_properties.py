@@ -15,6 +15,8 @@ assert what must be true regardless of the numbers (D-127):
   * low-confidence discipline — a cell under the sample floor is always marked
   * determinism — the same corpus always yields the same bytes
 """
+import ast
+import io
 import os
 import random
 import re
@@ -26,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                  
 import buffering_rollup
 import campaign_common as cc
 import campaign_report as rpt
+import coverage_matrix
 import order_effect
 import publish_check as pc
 import stability
@@ -113,6 +116,45 @@ def _random_corpus(seed):
     return out
 
 
+def _render_stability(recs):
+    return [stability.render_markdown(stability.stability_cells(recs, k), k)
+            for k in stability.DEFAULT_STABILITY_KPIS]
+
+
+# The one source for "which renderers does the sweep actually call". The set of
+# names below is what the coverage test compares against the modules on disk, so
+# the loop and the claim cannot drift apart (D-231).
+_SWEEP = {
+    "buffering_rollup": lambda r: buffering_rollup.render_markdown(buffering_rollup.analyze(r)),
+    "trust_rollup": lambda r: trust_rollup.render_markdown(trust_rollup.analyze(r)),
+    "transport_rollup": lambda r: transport_rollup.render_markdown(transport_rollup.analyze(r)),
+    "subscore_rollup": lambda r: subscore_rollup.render_markdown(subscore_rollup.analyze(r)),
+    "validity_rollup": lambda r: validity_rollup.render_markdown(validity_rollup.analyze(r)),
+    "trend": lambda r: trend.render_markdown(trend.analyze(r)),
+    "stability": _render_stability,
+    # both were outside the sweep while the test's name promised every renderer;
+    # publish_check's renderer maps severity -> icon, so a severity added without
+    # its icon raises KeyError on every corpus and nothing here would have noticed
+    "publish_check": lambda r: pc.render_markdown(pc.check(r)),
+    "coverage_matrix": lambda r: coverage_matrix.render_markdown(coverage_matrix.analyze(r)),
+}
+
+# Reached through build_report_markdown rather than called here (D-231).
+_SWEPT_VIA_REPORT = {
+    "attribution": "campaign_report.build_report_markdown calls it",
+    "order_effect": "campaign_report.build_report_markdown calls it",
+}
+
+# Deliberately outside this sweep, with the reason written down rather than the
+# module quietly missing from a hand-kept tuple.
+_NOT_SWEPT = {
+    "provenance": "renders a manifest computed over real files on disk; "
+                  "covered by tests/test_provenance.py",
+    "corpus_health": "analyze() takes load_records' stats alongside the records, "
+                     "not a bare record list",
+}
+
+
 def test_no_renderer_crashes_on_any_shape():
     for seed in SEEDS:
         recs = _random_corpus(seed)
@@ -120,15 +162,53 @@ def test_no_renderer_crashes_on_any_shape():
             rpt.build_report_markdown(recs)
             rpt.build_report_html(recs, "2026-01-01 00:00:00 +0800")
             pc.check(recs)
-            for mod in (buffering_rollup, trust_rollup, transport_rollup,
-                        subscore_rollup):
-                mod.render_markdown(mod.analyze(recs))
-            validity_rollup.render_markdown(validity_rollup.analyze(recs))
-            trend.render_markdown(trend.analyze(recs))
-            for k in stability.DEFAULT_STABILITY_KPIS:
-                stability.render_markdown(stability.stability_cells(recs, k), k)
+            for name, render in _SWEEP.items():
+                render(recs)
         except Exception as e:                   # noqa: BLE001 - report the seed
             raise AssertionError(f"seed {seed} crashed: {type(e).__name__}: {e}")
+
+
+def _modules_exposing_render_markdown():
+    """Module names under scripts/ that define a top-level render_markdown.
+
+    Parsed, not imported, and above all not hand-listed: a renderer added later
+    turns up here on its own, and the test below fails until someone either
+    sweeps it or writes down why not (D-231)."""
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    found = set()
+    for name in sorted(os.listdir(scripts_dir)):
+        if not name.endswith(".py"):
+            continue
+        with io.open(os.path.join(scripts_dir, name), encoding="utf-8-sig") as fh:
+            try:
+                tree = ast.parse(fh.read(), name)
+            except SyntaxError:                  # not ours to police here
+                continue
+        if any(isinstance(n, ast.FunctionDef) and n.name == "render_markdown"
+               for n in tree.body):
+            found.add(name[:-3])
+    return found
+
+
+def test_the_renderer_sweep_covers_every_renderer_there_is():
+    """「nothing crashes — every renderer survives every shape」 is what this file
+    claims in its own docstring, and the sweep was a hand-kept tuple holding 7 of
+    the 13 renderers on disk. publish_check and coverage_matrix were simply
+    missing; attribution and order_effect ride along inside the report; the last
+    two need something a record list cannot give them (D-231).
+
+    A statement covering everything has to derive its list, or it only covers
+    what someone remembered.
+    """
+    found = _modules_exposing_render_markdown()
+    accounted = set(_SWEEP) | set(_SWEPT_VIA_REPORT) | set(_NOT_SWEPT)
+    assert found - accounted == set(), (
+        f"renderer(s) {sorted(found - accounted)} are in scripts/ but outside the "
+        "sweep — add them to _SWEEP or say in _NOT_SWEPT why not")
+    assert accounted - found == set(), (
+        f"{sorted(accounted - found)} no longer define render_markdown — the list "
+        "is describing modules that are gone")
+    assert len(found) >= 13, f"only {len(found)} renderers found — did the scan break?"
 
 
 def test_report_is_deterministic_for_a_given_corpus():
