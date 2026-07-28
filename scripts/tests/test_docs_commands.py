@@ -379,3 +379,48 @@ def test_every_doc_table_row_survives_rendering():
     assert tables >= 12 and rows >= 300, (
         f"only {tables} tables / {rows} rows seen across {len(_TABLE_DOCS)} "
         "docs -- the scan stopped finding tables, so its verdict means nothing")
+
+
+def test_every_severity_the_gate_can_emit_is_described_where_the_operator_reads():
+    """D-229 gave publish_check a fourth severity and the runbook kept saying
+    there were three -- 「"无法判断"一律记 WARN」 on the page an operator reads in
+    the field, for a gate that had started answering N/A. My change, someone
+    else's sentence (D-244).
+
+    The set comes from what check() actually emits, not from the module's
+    constants: a severity that exists but can never be produced is not something
+    the docs owe the reader, and one produced under a name nobody documented is
+    exactly the drift this catches.
+    """
+    import publish_check as pc
+    import synth_campaign as sc
+    from synth import aqs_records, contractify, make_record
+
+    def labelled(n, aqs=90, campaign="base"):
+        out = []
+        for r in aqs_records(aqs, n):
+            r["run"]["campaign"] = {"campaign_id": campaign, "tier": "metro",
+                                    "point_id": "P1", "carrier": "cmcc",
+                                    "time_band": "busy"}
+            out.append(contractify(r))
+        return out
+
+    corpora = [
+        labelled(6),
+        labelled(6) + labelled(6, aqs=70, campaign="opt"),
+        [contractify(make_record(aqs=90, scenarios=[])) for _ in range(3)],
+        sc.generate(points=1, repeats=2, campaigns=("base",), carriers=("cmcc",),
+                    time_bands=("busy",), tiers=("metro",)),
+    ]
+    emitted = {r["severity"] for recs in corpora for r in pc.check(recs)}
+    assert len(emitted) >= 4, (
+        f"only {sorted(emitted)} were produced — the corpora stopped reaching "
+        "the branches, so this proves nothing about the docs")
+
+    for path in DOCS:
+        with open(path, encoding="utf-8-sig") as fh:
+            text = fh.read()
+        missing = sorted(s for s in emitted if s not in text)
+        assert not missing, (
+            f"{os.path.basename(path)} never mentions {missing}, and the gate "
+            "answers with it — the page the operator reads is a severity behind")
