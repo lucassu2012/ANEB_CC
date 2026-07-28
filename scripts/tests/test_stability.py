@@ -235,3 +235,29 @@ def test_plan_separates_cells_that_are_not_repeatable():
     assert "超门?" in md                            # the column exists
     assert "**✗超门**" in md
     assert "不解决它们本身不可重复" in md            # and says why n is not the fix
+
+
+def test_every_declared_kpi_is_ratio_scale_so_a_percentage_target_means_something():
+    """The plan states its target as a percentage of the median, and `--kpi`
+    takes any name. That only means anything on a ratio scale — a quantity
+    where zero is zero and the ratio of two values carries information.
+
+    Every KPI the contract declares is one (times, rates, fractions, scores;
+    all bounded below by 0), so the premise holds — but it held by luck until
+    something checked it. An interval-scale KPI such as rsrp_dbm would pass
+    through unnoticed and make 「占中位 x%」 a number with no physical meaning:
+    5% of −105 dBm is 5.25 dB, an enormous signal difference dressed up as a
+    small target (D-225).
+    """
+    import campaign_common as cc
+
+    ranges = cc.VALUE_RANGES
+    assert len(ranges) >= 10, f"only {len(ranges)} declared ranges — did the map move?"
+    for kpi in stability.DEFAULT_STABILITY_KPIS:
+        assert kpi in ranges, f"{kpi} is planned against but has no declared range"
+
+    interval_scale = {k: v for k, v in ranges.items() if v[0] is None or v[0] < 0}
+    assert not interval_scale, (
+        "these KPIs admit values at or below zero, so the plan section's "
+        f"percentage-of-median target is not meaningful for them: {interval_scale} "
+        "— give the plan an absolute-effect target before declaring such a KPI")
