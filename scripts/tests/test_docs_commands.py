@@ -465,3 +465,21 @@ def test_every_severity_the_gate_can_emit_is_described_where_the_operator_reads(
         assert not missing, (
             f"{os.path.basename(path)} never mentions {missing}, and the gate "
             "answers with it — the page the operator reads is a severity behind")
+
+        # ...and mentioned TOGETHER. `PASS in text` is a four-character
+        # substring test that any unrelated verify_all example satisfies, while
+        # the promise is that the operator finds them described. Both docs put
+        # all four inside three lines today, so a window of ten has room without
+        # being vacuous; scatter one out of the passage and this fails (D-258).
+        lines, best = text.split("\n"), None
+        for i in range(len(lines)):
+            seen = set()
+            for j in range(i, len(lines)):
+                seen |= {s for s in emitted if s in lines[j]}
+                if seen == emitted:
+                    best = j - i if best is None else min(best, j - i)
+                    break
+        assert best is not None and best <= 9, (
+            f"{os.path.basename(path)} never lists {sorted(emitted)} within one "
+            f"passage (closest span: {'none' if best is None else best + 1} lines)"
+            " — they are mentioned, but nowhere described side by side")
