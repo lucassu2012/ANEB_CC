@@ -125,3 +125,39 @@ def test_all_unknown_renders_coverage_gap_not_table():
     md = tr.render_markdown(tr.analyze(_recs("auto", 90, 3)))
     assert "无 transport 证据" in md
     assert "|" not in md.split("覆盖缺口")[1]      # no data table after the note
+
+
+# The two ways a run ends up outside both media. 「不一致=mixed、无观测=unknown，
+# **均不并入任何介质**」 names both, and only unknown had the pooling half
+# checked — mixed was pinned one step earlier, at resolve_transport, where a run
+# can be labelled right and still be pooled wrong (D-235).
+_NOT_A_MEDIUM = {
+    "unknown": lambda: _recs("auto", 40, 5),                      # auto, nothing observed
+    "mixed": lambda: [_observed(r, "wifi", "cellular")            # auto, observers disagree
+                      for r in _recs("auto", 40, 5)],
+}
+
+
+def test_no_bucket_outside_the_two_media_is_pooled_into_one():
+    """A run whose medium is mixed or unknown must land in its own bucket and
+    leave the wifi/cellular medians exactly where they were — 40s pooled into a
+    90 wifi cell is a medium comparison drawn from runs nobody could place."""
+    assert set(tr.EXPLICIT) == {"wifi", "cellular"}, (
+        f"EXPLICIT is now {tr.EXPLICIT} — a third medium needs its own row here")
+
+    for name, build in _NOT_A_MEDIUM.items():
+        cells = tr.analyze(_recs("wifi", 90, 5) + build())["cells"]
+        assert len(cells) == 1, (name, len(cells))
+        buckets = cells[0]["transports"]
+        # membership first: indexing a bucket that pooling made disappear raises
+        # KeyError, and a guard that crashes reports nothing (D-220)
+        assert name in buckets, (
+            f"{name}: no such bucket — the 5 unplaceable runs went somewhere "
+            f"else entirely (buckets: {sorted(buckets)})")
+        assert buckets[name]["n"] == 5, (
+            f"{name}: the 5 unplaceable runs did not land in their own bucket")
+        assert buckets["wifi"]["aqs_median"] == 90, (
+            f"{name}: pooled into wifi — its median moved to "
+            f"{buckets['wifi']['aqs_median']}")
+        assert "cellular" not in buckets, (
+            f"{name}: pooled into cellular, a medium this corpus never measured")

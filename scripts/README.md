@@ -106,7 +106,9 @@ WARN 也绝不自动升格为 PASS——工具不替人做判断，只保证作�
 数出来的行数逐语料相等（`test_the_gate_figure_can_be_counted_in_the_transport_table`，D-230）。
 transport 取 run 显式设置；`auto` 由各场景 `network_snapshot` 观测共识
 推得（生产者实写复合格式 `auto(cellular)`，取括号内实际介质）；不一致=mixed、无观测=
-unknown，**均不并入任何介质**。全 unknown → 覆盖缺口告示，不出表。集成进综合报告 + 独立 CLI。
+unknown，**均不并入任何介质**（**两个桶各查一遍**：`test_no_bucket_outside_the_two_media_is_pooled_into_one`；
+此前只有 unknown 查过并桶，mixed 只钉在 `resolve_transport` 那一步——**标签判对了，仍可能并错桶**，D-235）。
+全 unknown → 覆盖缺口告示，不出表。集成进综合报告 + 独立 CLI。
 
 ### `trust_rollup.py` — 测量可信度（时钟/流完整性/解析开销）（D-111）
 热力卡时延中位数背后的**仪器**可信度：时钟可疑占比（`clock.offset_suspect`，R-22：
