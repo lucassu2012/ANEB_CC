@@ -281,6 +281,30 @@ def test_quoted_tool_output_is_still_produced():
         "doc quotes and renderers disagree: "
         f"only in doc={sorted(set(quotes) - set(_QUOTE_RENDERERS))}, "
         f"only in test={sorted(set(_QUOTE_RENDERERS) - set(quotes))}")
+
+    # The contract had only ever guarded the TOOL side — the renderer must still
+    # emit the phrase. Nothing checked the DOC side: rewrite the paragraph, drop
+    # the quotation, and the registration goes on protecting a quotation the
+    # document no longer makes. Compared with emphasis stripped, because the
+    # bold/backtick wrapper is the author's choice and not the tool's wording —
+    # seg_anomaly_no is quoted in backticks while the tool emits it in bold, and
+    # a literal comparison would have failed a document that does quote it
+    # (D-257).
+    def _bare(s):
+        return s.replace("*", "").replace("`", "")
+
+    seen = 0
+    for key, phrase in sorted(quotes.items()):
+        doc = next(d for d in QUOTED_DOCS
+                   if os.path.splitext(os.path.basename(d))[0] == key.split(".")[0])
+        with open(doc, encoding="utf-8") as f:
+            text = f.read()
+        m = _QUOTES_BLOCK.search(text)
+        body = (text[:m.start()] + text[m.end():]) if m else text
+        assert _bare(phrase) in _bare(body), (
+            f"{key} is registered but its prose no longer quotes it: {phrase}")
+        seen += 1
+    assert seen >= 10, f"only {seen} quotes checked against prose"
     rendered = {}
     for key, phrase in sorted(quotes.items()):
         fn = _QUOTE_RENDERERS[key]
