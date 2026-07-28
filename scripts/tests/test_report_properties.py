@@ -1446,6 +1446,55 @@ _ARITH_CASES = (
 )
 
 
+def test_the_subscore_spread_equals_its_widest_gap():
+    """极差 = the widest gap between the dimension medians printed beside it.
+
+    D-220 — sub-score spreads disagreeing with their own columns in 23% of rows —
+    is one of the two failures the arithmetic sweep's docstring cites as its
+    reason for existing, and it is the one _ARITH_CASES could not carry: every
+    case there names fixed columns, while this table's dimension columns are
+    built from the data. Measured across these corpora, three different column
+    sets appear: (N1), (T1 N1 N2), and (T1 T2 T3 N1 N2 U1 U2). So the relation
+    gets its own test, read by POSITION — four fixed columns ahead of the
+    dimensions, three behind (D-259).
+    """
+    import synth_campaign as sc
+    HEAD, TAIL = 4, 3                    # point/carrier/band/runs … drag/spread/note
+    corpora = [_random_corpus(s) for s in SEEDS]
+    corpora.append(_corrupt_corpus())
+    corpora.append(sc.generate(points=3, repeats=3,
+                               campaigns=("base", "opt", "later")))
+    seen, bad = 0, []
+    for recs in corpora:
+        md = subscore_rollup.render_markdown(subscore_rollup.analyze(recs))
+        header = None
+        for line in md.split("\n"):
+            if not line.startswith("| "):
+                continue
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if header is None:
+                header = cells
+                continue
+            if set(cells[0]) <= set("-: "):
+                continue
+            dims = [_lead_num(c) for c in cells[HEAD:len(cells) - TAIL]]
+            spread = _lead_num(cells[len(cells) - 2])
+            if spread is None or len(dims) < 2 or any(d is None for d in dims):
+                continue
+            seen += 1
+            off = abs((max(dims) - min(dims)) - spread)
+            if off > 0.05:               # half of the last digit printed
+                bad.append((dims, spread, round(off, 4)))
+    assert not bad, (
+        f"{len(bad)} row(s) whose 极差 is not the widest gap between the "
+        f"dimension medians printed beside it: {bad[:3]}")
+    # 114 of 115 rows were checkable when this floor was set; the odd one out
+    # has a single dimension, where a spread is not a comparison at all.
+    assert seen >= 85, (
+        f"only {seen} sub-score rows carried numeric dimensions — the corpora "
+        "stopped reaching the table, so a clean verdict means nothing")
+
+
 def test_every_printed_arithmetic_relation_holds():
     """Whatever the reader can compute from the page has to come out right.
 
@@ -1455,6 +1504,13 @@ def test_every_printed_arithmetic_relation_holds():
     attribution rows (D-219), 23% of sub-score rows (D-220), 8 of 30 transport
     rows and 10 of 41 before/after rows (D-221). This checks all of them at once
     so the next one is not found by reading either.
+
+    One of those four is NOT in the list below and must not be assumed covered
+    by it: the sub-score spread (D-220). Its dimension columns are built from the
+    data — three different sets appear across these corpora — so a case naming
+    fixed columns cannot express it. It lives in
+    test_the_subscore_spread_equals_its_widest_gap, which reads the row by
+    position instead (D-259).
     """
     import synth_campaign as sc
     mds = [rpt.build_report_markdown(_random_corpus(s)) for s in SEEDS]
