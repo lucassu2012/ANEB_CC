@@ -1043,6 +1043,67 @@ def test_the_html_deliverable_satisfies_the_same_arithmetic():
         f"{bad[:3]}")
 
 
+_GRADE_WORDS = ("excellent", "good", "fair", "poor")
+
+
+def test_the_html_heat_card_score_never_contradicts_its_grade():
+    """The AQS card's grade comes from the number printed in the same box.
+
+    _heat_grid_html takes the verdict as an argument and the AQS call site
+    passes cc.aqs_grade, so rounding cannot land on the wrong band — that is
+    correct today and measured here (117 coloured cells, no contradictions).
+    It is guarded because the markdown copy of this rule had a test and the
+    HTML copy did not, which is exactly the asymmetry D-222 was.
+
+    Only the AQS card qualifies. The per-KPI cards colour a raw KPI median by
+    the producer's own grade field, so grading 221.74 ms with aqs_grade is
+    meaningless — a first pass at this check did that and reported 295 false
+    contradictions.
+    """
+    from synth import aqs_records, contractify
+
+    # Random corpora never land a score on a band edge, so this check passed on
+    # the broken renderer too — the mutation audit said MISSED. These scores sit
+    # just under an edge: printed at one decimal they cross it.
+    # Bands are 85 / 70 / 54, and this card prints two decimals — so the values
+    # that can cross an edge are three nines out, not two. A first attempt used
+    # 84.96 and the mutation audit came back MISSED: at two decimals that value
+    # prints as itself and the renderer cannot get it wrong.
+    edges = (84.996, 69.996, 53.996)
+    recs = []
+    for i, score in enumerate(edges):
+        recs += [contractify(r) for r in aqs_records(score, 3, point=f"P{i + 1}")]
+    for score in edges:
+        assert cc.aqs_grade(score) != cc.aqs_grade(float(cc.fmt_num(score, 2))), (
+            f"{score} no longer changes grade at the two decimals this card "
+            "prints — the fixture cannot tell the fixed renderer from the "
+            "broken one")
+
+    seen, bad = 0, []
+    html = rpt.build_report_html(recs, _HTML_NOW)
+    for part in html.split("<h2>")[1:]:
+        head = part.split("</h2>")[0]
+        if "AQS" not in head or "分 KPI" in head:
+            continue
+        section = part.split("<h2>")[0]
+        for td in re.findall(r"<td[^>]*background[^>]*>(.*?)</td>", section, re.S):
+            text = re.sub(r"<[^>]+>", " ", td)
+            num = re.search(r"(-?\d+(?:\.\d+)?)", text)
+            grade = re.search("|".join(_GRADE_WORDS), text)
+            if not num or not grade:
+                continue
+            seen += 1
+            want = cc.aqs_grade(float(num.group(1)))
+            if want != grade.group(0):
+                bad.append((num.group(1), grade.group(0), want))
+    assert seen >= len(edges), (
+        f"only {seen} graded AQS cells for {len(edges)} band-edge scores — the "
+        "check never reached the relation")
+    assert not bad, (
+        f"{len(bad)} HTML cell(s) whose printed score grades differently from "
+        f"the label beside it: {bad[:3]}")
+
+
 _DELIM_RE = re.compile(r"\|[-|: ]+\|")
 
 
