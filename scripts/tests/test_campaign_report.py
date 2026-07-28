@@ -1413,6 +1413,82 @@ def _every_marker_corpus():
     return out
 
 
+def _marker_tags_from_source():
+    """Every marker incomparability_flags can put on a cell.
+
+    Parsed from that function's own AST -- the literal prefix of each string it
+    appends -- so a marker added later shows up here without anyone remembering.
+    Not a regex over the file: an earlier attempt at this filtered on
+    `[A-Z][A-Z0-9_]+` and silently dropped `low_conf`, which is exactly the kind
+    of omission this list exists to prevent (D-250)."""
+    import ast
+    import io
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "attribution.py")
+    with io.open(path, encoding="utf-8-sig") as fh:
+        tree = ast.parse(fh.read(), "attribution.py")
+    fns = [n for n in tree.body
+           if isinstance(n, ast.FunctionDef) and n.name == "incomparability_flags"]
+    assert len(fns) == 1, f"expected one incomparability_flags, found {len(fns)}"
+    out = set()
+    for node in ast.walk(fns[0]):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "append"):
+            continue
+        for arg in node.args:
+            lit = arg
+            while isinstance(lit, ast.BinOp):        # "TAG:" + something
+                lit = lit.left
+            if isinstance(lit, ast.JoinedStr):       # f"TAG:{...}"
+                lit = lit.values[0] if lit.values else None
+            if isinstance(lit, ast.Constant) and isinstance(lit.value, str):
+                head = lit.value.split(":")[0].strip()
+                if head:
+                    out.add(head)
+    # The homogeneity markers are appended from a (field, tag) table, so the
+    # append site holds a NAME, not a literal, and the rule above cannot see
+    # them. Found by this guard's own reverse direction on its first run: three
+    # markers were listed as unexercised while the scan claimed they no longer
+    # exist. A derivation has its own blind spots (D-250).
+    for node in ast.walk(fns[0]):
+        if not isinstance(node, ast.Tuple) or len(node.elts) != 2:
+            continue
+        a, b = node.elts
+        if (isinstance(a, ast.Constant) and isinstance(a.value, str)
+                and isinstance(b, ast.Constant) and isinstance(b.value, str)):
+            out.add(b.value.split(":")[0].strip())
+    return out
+
+
+# Markers this guard does NOT exercise, each with where it is covered instead.
+# Their reach onto all three surfaces is therefore UNVERIFIED end to end; the
+# reasons below say what IS checked, which is not the same claim (§2.2).
+_MARKERS_NOT_EXERCISED_HERE = {
+    "IMPLAUSIBLE_VALUE": "produced and emphasised in test_attribution's severe-flag "
+                         "sweep; its CSV column position is pinned by "
+                         "test_the_impossible_value_column_is_the_one_carrying_the_marker",
+    "TIER_INCOMPLETE": "severe-flag sweep; TIER_MISSING degradation is exercised by "
+                       "the chaos rehearsal",
+    "TIER_ENDPOINT_CONFLICT": "severe-flag sweep",
+    "VETO_CAPPED": "severe-flag sweep",
+    "SCORER_LOW_CONF": "counted per cell and exported as scorer_low_conf_n",
+    "TIER_TIME_UNKNOWN": "the no-timestamp branch of the same spread calculation "
+                         "TIER_TIME_SPREAD exercises above",
+    "MIXED_PROFILE_VERSION": "homogeneity markers share one loop with MIXED_CAMPAIGN "
+                             "and MIXED_TRANSPORT, both exercised above",
+    "MIXED_MODE": "same loop",
+    "MIXED_PROFILE_SOURCE": "same loop",
+    "MIXED_HIST_EDGES": "same helper, separate append",
+    "low_conf": "the sample-floor marker every section carries; pinned by the "
+                "low-confidence property tests",
+    # Found by this guard on its first run, after two hand-written attempts at
+    # the list had missed it -- which is the argument for deriving the list.
+    "inversion": "the negative-increment marker (`负增量记 inversion 不清零`); "
+                 "test_attribution.test_inversion_reported_not_clamped pins the "
+                 "rule that it is recorded rather than clamped to zero",
+}
+
+
 def test_every_attribution_marker_reaches_all_three_surfaces():
     """The renderers used to build three separate marker lists, which is how
     MIXED_TRANSPORT (D-157) and the tier-time markers (D-155) shipped in
@@ -1442,6 +1518,21 @@ def test_every_attribution_marker_reaches_all_three_surfaces():
         assert tag in csv_flags, f"{tag} missing from CSV incomparability column"
     # the numeric spread is filterable, not just embedded in a string
     assert any(r["tier_time_spread_ms"] for r in rows)
+
+    # ...and the inventory. The markers above are the ones THIS corpus happens to
+    # produce. incomparability_flags can emit far more, and the rest are NOT
+    # verified here — saying that out loud is the point: an unexamined marker has
+    # to be a named entry with its reason, never an absence (D-250).
+    emitted = _marker_tags_from_source()
+    accounted = set(tags) | set(_MARKERS_NOT_EXERCISED_HERE)
+    assert emitted - accounted == set(), (
+        f"incomparability_flags can emit {sorted(emitted - accounted)}, which this "
+        "guard neither exercises nor lists -- add a corpus that produces it, or "
+        "name it in _MARKERS_NOT_EXERCISED_HERE with where it IS covered")
+    assert set(_MARKERS_NOT_EXERCISED_HERE) - emitted == set(), (
+        f"{sorted(set(_MARKERS_NOT_EXERCISED_HERE) - emitted)} is listed as an "
+        "unexercised marker but the function no longer emits it")
+    assert len(emitted) >= 14, f"only {len(emitted)} markers parsed -- scan broke?"
 
 
 def test_attribution_premise_checklist_reaches_html():
