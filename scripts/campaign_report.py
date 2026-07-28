@@ -1998,6 +1998,28 @@ def effective_thresholds():
         # which readings are refused, hence every n and every median (D-178/197)
         "epoch_ms_bounds": [cc.EPOCH_MS_MIN, cc.EPOCH_MS_MAX],
         "value_ranges": {k: list(v) for k, v in sorted(cc.VALUE_RANGES.items())},
+        # ---- Gates that are not numbers. The scan enforcing "every
+        # ---- output-deciding gate is archived" enumerated int/float only — it
+        # ---- said so in its own comment — so this entire class was invisible to
+        # ---- it, and the non-numeric entries above are here because somebody
+        # ---- remembered rather than because anything checked (D-248).
+        # the three tiers the whole differential matrix is built on
+        "tiers": list(cc.TIERS),
+        # which segments the point-vs-path verdict is computed over
+        "attribution_segments": [s for s, _ in attribution.SEGMENTS],
+        # which markers mean NOT USABLE: the summary's attribution conclusion is
+        # computed over cells WITHOUT one, and on the rehearsal grid that dropped
+        # 62 of 72 cells (D-205). Retuning it changes the headline.
+        "severe_incomparability_flags": list(attribution.SEVERE_FLAGS),
+        # which KPIs the order-effect section screens. A DIFFERENT constant from
+        # stability_kpis, holding the same value today — archiving one and not
+        # the other left the manifest looking complete until the two diverge
+        "order_effect_kpis": list(order_effect.ORDER_SENSITIVE_KPIS),
+        # the two media the transport section differences; anything else pools
+        # into a third bucket that is never compared
+        "transport_media": list(transport_rollup.EXPLICIT),
+        # the metric key the trend section scores on
+        "trend_metric_key": trend.METRIC_AQS,
     }
 
 

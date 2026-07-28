@@ -130,12 +130,66 @@ def test_report_includes_provenance_when_supplied():
 _GATE_MODULES = (attribution, buffering_rollup, campaign_common, order_effect,
                  stability, transport_rollup, trend, trust_rollup, validity_rollup)
 
-# Numeric module constants that do NOT decide report output, each with the reason
-# it is exempt. This table is where the judgement lives — visibly, so that adding
-# a gate and forgetting to archive it is a test failure rather than a silence.
+# Module constants that do NOT decide report output, each with the reason it is
+# exempt. This table is where the judgement lives — visibly, so that adding a
+# gate and forgetting to archive it is a test failure rather than a silence.
+#
+# It used to say "Numeric" here, and the scan below matched: int/float only. A
+# gate that happens to be a tuple of KPI names or a list of tiers was therefore
+# outside a check whose own name promises every output-deciding gate — and five
+# such gates were unarchived when the scan was widened (D-248).
 _NOT_A_REPORT_GATE = {
     ("campaign_common", "DEFAULT_MIN_SAMPLES"):
         "a CLI knob; the manifest records it under `params`, not `thresholds`",
+    # ---- vocabulary and display: changing them changes wording, not a number
+    ("campaign_common", "TIER_LABELS"):
+        "the Chinese display name of each tier; the tiers themselves are archived "
+        "as `tiers`. Perturbing it changes words on the page and leaves every "
+        "numeral identical",
+    ("campaign_common", "GRADE_COLORS"): "HTML swatch colours",
+    ("campaign_common", "GRADE_ORDER"):
+        "the best→worst ordering the grade bands already encode; "
+        "`aqs_grade_bands` is the archived gate",
+    ("campaign_common", "NOISE_CAVEAT"):
+        "the sentence printed under every 噪声内 verdict; the factors it "
+        "describes are archived as median_se_factor / mad_to_sigma",
+    ("campaign_common", "NOISE_UNJUDGEABLE"):
+        "the two reasons a noise scale cannot be computed, as display strings",
+    ("campaign_common", "UNKNOWN"): "the placeholder printed for a missing label",
+    ("campaign_common", "UNLABELED"):
+        "the placeholder printed for an absent campaign label",
+    ("campaign_common", "CLAIM_SCOPE"):
+        "the contract's claim-scope string, enforced by validate_results on the "
+        "way IN; no report section computes from it",
+    ("campaign_common", "SYNTHETIC_CAMPAIGN_PREFIX"):
+        "half of the synthetic-corpus detector (D-116/117). It decides whether "
+        "the red banner appears, not what any number is, and a real corpus is "
+        "unaffected by its value",
+    # ---- structural: what a cell IS, not a level anyone retunes
+    ("campaign_common", "TRANSPORT_EXPLICIT"):
+        "the same two media as `transport_media`, in the normaliser that maps a "
+        "raw string onto them; the archived key is the one the section reads",
+    ("attribution", "DEFAULT_GROUP_BY"): "the default group_by ARGUMENT",
+    ("stability", "STAB_GROUP_BY"): "the stability cell key: structural, not a level",
+    ("buffering_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
+    ("transport_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
+    ("trend", "CELL_DIMS"): "the cell key: structural, not a level",
+    ("trust_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
+    ("validity_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
+    ("validity_rollup", "VALIDITY_STATES"):
+        "the four states the result contract defines; changing it does not "
+        "retune this report, it describes a different input format",
+    # ---- default ARGUMENTS of the standalone CLIs. The report never takes them:
+    # ---- it loops the archived KPI lists instead
+    ("attribution", "DEFAULT_KPI"):
+        "the `--kpi` default of attribution's own CLI; the report passes "
+        "`attr_kpi` and the manifest records that choice under `params`",
+    ("order_effect", "DEFAULT_KPI"):
+        "the `--kpi` default of order_effect's own CLI; the report loops "
+        "`order_effect_kpis`",
+    ("trend", "DEFAULT_METRIC"):
+        "the `--metric` default of trend's own CLI, and its value IS "
+        "`METRIC_AQS`, archived as `trend_metric_key`",
     ("stability", "DEFAULT_TARGET_EFFECT_PCT"):
         "only the standalone `--plan` sample-size CLI; no report section reads it",
     ("campaign_common", "PLAN_POWER"):
@@ -164,7 +218,39 @@ _GATE_KEY = {
     ("trend", "MIN_CAMPAIGNS_FOR_TREND"): "min_campaigns_for_trend",
     ("trust_rollup", "CLOCK_HOTSPOT_SHARE"): "clock_hotspot_share",
     ("validity_rollup", "DEFAULT_MIN_RATE"): "validity_min_rate",
+    # The first four were already in the manifest and in NEITHER table here,
+    # because the scan could not see a constant that is not a number. The rest
+    # are the gates that widening it turned up unarchived (D-248).
+    ("attribution", "ATTRIBUTABLE_KPIS"): "attribution_kpis",
+    ("campaign_common", "AQS_GRADE_BANDS"): "aqs_grade_bands",
+    ("campaign_common", "VALUE_RANGES"): "value_ranges",
+    ("stability", "DEFAULT_STABILITY_KPIS"): "stability_kpis",
+    ("attribution", "SEGMENTS"): "attribution_segments",
+    ("attribution", "SEVERE_FLAGS"): "severe_incomparability_flags",
+    ("campaign_common", "TIERS"): "tiers",
+    ("order_effect", "ORDER_SENSITIVE_KPIS"): "order_effect_kpis",
+    ("transport_rollup", "EXPLICIT"): "transport_media",
+    ("trend", "METRIC_AQS"): "trend_metric_key",
 }
+
+# A gate archived in reduced form: the manifest keeps the part a reader can
+# compare, not the display half. Anything absent here is archived as itself.
+_GATE_PROJECTION = {
+    ("attribution", "SEGMENTS"): lambda v: [s for s, _ in v],
+}
+
+
+def _same(archived, live):
+    """JSON round-trips tuples to lists and dicts to objects; compare shapes."""
+    def norm(x):
+        if isinstance(x, dict):
+            return sorted((norm(k), norm(v)) for k, v in x.items())
+        if isinstance(x, (list, tuple)):
+            return [norm(i) for i in x]
+        if isinstance(x, (set, frozenset)):
+            return sorted(norm(i) for i in x)
+        return x
+    return norm(archived) == norm(live)
 
 # the two epoch bounds share one manifest entry; checked as a pair so neither can
 # drop out of it unnoticed
@@ -192,7 +278,12 @@ def test_effective_thresholds_cover_every_output_deciding_gate():
         for name, val in sorted(vars(mod).items()):
             if name.startswith("_") or name != name.upper():
                 continue
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
+            # every kind a gate can BE. Restricting this to int/float is what
+            # hid five of them (D-248); bools are flags, not levels.
+            if not isinstance(val, (int, float, str, bytes,
+                                    tuple, list, dict, set, frozenset)):
+                continue
+            if isinstance(val, bool):
                 continue
             scanned += 1
             ref = (mod.__name__, name)
@@ -206,7 +297,7 @@ def test_effective_thresholds_cover_every_output_deciding_gate():
             key = _GATE_KEY[ref]
             if key is None:
                 continue                    # part of a pair, checked below
-            if t.get(key) != val:
+            if not _same(t.get(key), _GATE_PROJECTION.get(ref, lambda v: v)(val)):
                 # matching by VALUE alone would let a gate pass on a coincidence:
                 # MIN_CAMPAIGNS_FOR_TREND is 3 and segment_outlier_k is 3.0, and
                 # 3 == 3.0 — so dropping the former from the manifest would go
@@ -215,7 +306,10 @@ def test_effective_thresholds_cover_every_output_deciding_gate():
     for key, refs in _GATE_PAIRS.items():
         expect = [getattr(sys.modules[m], n) for m, n in refs]
         assert list(t.get(key) or []) == expect, (key, t.get(key), expect)
-    assert scanned >= 12, scanned          # the scan must actually find constants
+    # the floor was 12 while the scan saw numbers only; widening it to every kind
+    # a gate can be roughly tripled what it looks at, and a floor left at the old
+    # number would pass with the widening quietly reverted (D-248)
+    assert scanned >= 40, scanned          # the scan must actually find constants
     assert not missing, missing
     assert not wrong, wrong
     assert t["cv_gate_percent"] == stability.DEFAULT_CV_GATE
@@ -249,12 +343,23 @@ _PERTURB = {
                                    ((10 ** 9, 0.5),)),
     "segment_min_cells_to_screen": (attribution, "MIN_CELLS_TO_SCREEN", 999),
     "order_effect_threshold_percent": (order_effect, "DEFAULT_THRESHOLD_PCT", 0.0001),
-    "min_campaigns_for_trend": (trend, "MIN_CAMPAIGNS_FOR_TREND", 2),
+    # raised ABOVE the corpus's campaign count, not lowered below it: the corpus
+    # now has three, so lowering the gate to 2 changes nothing
+    "min_campaigns_for_trend": (trend, "MIN_CAMPAIGNS_FOR_TREND", 4),
     "median_se_factor": (campaign_common, "MEDIAN_SE_FACTOR", 12.53),
     "mad_to_sigma": (campaign_common, "MAD_TO_SIGMA", 0.014826),
     "epoch_ms_bounds": (campaign_common, "EPOCH_MS_MIN", 4_000_000_000_000),
     "value_ranges": (campaign_common, "VALUE_RANGES",
                      dict(campaign_common.VALUE_RANGES, aqs_score=(0.0, 50.0))),
+    "tiers": (campaign_common, "TIERS", ["metro", "regional"]),
+    "attribution_segments": (attribution, "SEGMENTS", attribution.SEGMENTS[:2]),
+    # emptied, not shortened: shortening drops IMPLAUSIBLE_VALUE, which a clean
+    # corpus never produces, and the verdict would be a silent "inert" that says
+    # nothing — the exact trap this table's header warns about
+    "severe_incomparability_flags": (attribution, "SEVERE_FLAGS", ()),
+    "order_effect_kpis": (order_effect, "ORDER_SENSITIVE_KPIS", ("t1_ttft_ms",)),
+    "transport_media": (transport_rollup, "EXPLICIT", ("wifi",)),
+    "trend_metric_key": (trend, "METRIC_AQS", "aqs_X"),
 }
 
 
@@ -271,7 +376,10 @@ def test_every_archived_threshold_actually_decides_the_report():
     entries teaches the reader that the list is decorative.
     """
     import synth_campaign as sc
-    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt"))
+    # three campaigns, so the trend section actually renders: with two, the gate
+    # keeps it off the page and every trend-side perturbation reads as inert
+    # while proving nothing (D-248)
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt", "later"))
     base = rpt.build_report_markdown(recs)
     th = rpt.effective_thresholds()
     assert set(th) == set(_PERTURB), (
