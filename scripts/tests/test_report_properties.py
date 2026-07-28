@@ -1416,21 +1416,35 @@ _ARITH_CASES = (
     ("序位 极差% = 极差 ÷ |总体中位|", "## 序位效应诊断",
      ("极差", "总体中位", "极差%"),
      lambda sp, ov, pct: abs(sp / abs(ov) * 100.0 - pct) if ov else None, 80),
+    # The decomposition this whole guard was written for. D-219 is cited in the
+    # docstring as the reason it exists — 36% of attribution rows disagreed —
+    # and the three-tier matrix was the one section it never read (D-252).
+    # Floor from the synth grid's 72 checkable rows.
+    ("三级差分 端到端 = 接入 + 区域骨干+ + 核心骨干+", "## 三级差分归因矩阵",
+     ("接入(metro)", "区域骨干+", "核心骨干+", "端到端(core)"),
+     lambda a, r, c, e: abs((a + r + c) - e), 54),
 )
 
 
 def test_every_printed_arithmetic_relation_holds():
     """Whatever the reader can compute from the page has to come out right.
 
-    Four sections print numbers standing in an arithmetic relation, and each
+    Six sections print numbers standing in an arithmetic relation, and each
     invites the reader to check it: subtract two columns, add a decomposition,
     divide one column by another. Rounded independently they disagreed — 36% of
     attribution rows (D-219), 23% of sub-score rows (D-220), 8 of 30 transport
     rows and 10 of 41 before/after rows (D-221). This checks all of them at once
     so the next one is not found by reading either.
     """
+    import synth_campaign as sc
     mds = [rpt.build_report_markdown(_random_corpus(s)) for s in SEEDS]
     mds.append(rpt.build_report_markdown(_corrupt_corpus()))
+    # A full three-tier grid. On the random corpora the attribution matrix prints
+    # 204 rows of which exactly ONE has all four increment columns filled — the
+    # rest are 「—」 because a tier is missing — so the decomposition below would
+    # have been checked on a single row and called covered (D-252).
+    mds.append(rpt.build_report_markdown(sc.generate(
+        points=3, repeats=3, campaigns=("base", "opt", "later"))))
 
     for name, title, cols, relation, floor in _ARITH_CASES:
         seen, bad = 0, []
