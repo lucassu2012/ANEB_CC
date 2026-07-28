@@ -5,6 +5,7 @@ Encodes the R-05 red line: buffering is annotation-only evidence. These tests
 pin the honesty rules (empty block = not detected, missing attribution =
 'unknown' not 'none', null score never becomes 0) and the hot-spot threshold.
 """
+import copy
 import os
 import sys
 
@@ -12,6 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
 import buffering_rollup as br
+import campaign_report as rpt
+import subscore_rollup
+import validity_rollup
 from synth import make_record
 
 
@@ -194,3 +198,53 @@ def test_sample_count_reaches_the_reader():
         assert c["sample_count_median"] == 100      # _b default
     md = br.render_markdown(br.analyze([_rec([_b("none", score=0.01)]) for _ in range(5)]))
     assert "残差样本中位" in md
+
+
+def _all_batched(records):
+    """Every scenario's forensic block replaced with a maximal batching verdict."""
+    out = copy.deepcopy(records)
+    for rec in out:
+        for scn in rec.get("scenarios") or []:
+            scn["buffering"] = {f: 0.99 for f in br._MEASURED_FIELDS}
+            scn["buffering"]["attribution"] = "sawtooth"
+    return out
+
+
+def test_buffering_annotation_never_moves_validity_or_score():
+    """R-05 itself, rather than the sentence that states it.
+
+    The section prints 「**R-05**：批化标注为**取证证据**，**不改判** validity/score」
+    and what stood behind that promise was an assertion that the banner contains
+    the words 「R-05」 and 「不改判」 — the text, not the rule. So: rewrite every
+    scenario's forensic block as a maximal batching verdict and require validity,
+    the AQS heat cells and the sub-score rollup to come back byte-identical
+    (D-233).
+
+    The floor is the other half: the doctored corpus must actually change the
+    buffering rollup, or the three comparisons above are agreeing about a
+    perturbation that never landed.
+    """
+    from test_report_properties import _corrupt_corpus, _random_corpus
+
+    corpora = [("chaos", _corrupt_corpus())]
+    corpora += [(f"seed{s}", _random_corpus(s)) for s in range(20)]
+
+    landed = 0
+    for tag, recs in corpora:
+        batched = _all_batched(recs)
+        if br.analyze(recs) != br.analyze(batched):
+            landed += 1
+        assert validity_rollup.analyze(recs) == validity_rollup.analyze(batched), (
+            f"{tag}: rewriting the forensic block moved the validity rollup — "
+            "R-05 says batching evidence never re-judges validity")
+        assert rpt.heat_cells(recs) == rpt.heat_cells(batched), (
+            f"{tag}: rewriting the forensic block moved the AQS heat cells — "
+            "R-05 says batching evidence never re-judges the score")
+        assert subscore_rollup.analyze(recs) == subscore_rollup.analyze(batched), (
+            f"{tag}: rewriting the forensic block moved the sub-score rollup — "
+            "R-05 says batching evidence never re-judges the score")
+
+    assert landed == len(corpora), (
+        f"the doctored block changed the buffering rollup in only {landed} of "
+        f"{len(corpora)} corpora — elsewhere the three assertions above compared "
+        "a corpus with itself")
