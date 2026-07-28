@@ -200,3 +200,72 @@ def test_non_finite_numbers_are_contract_errors():
         [contractify(r) for r in kpi_scenario_records(2, kpi={"n1_rtt_p50_ms": 20})],
         SCH)
     assert not [e for e in clean if "NaN/Infinity" in e]
+
+
+# ------------------------------------------------- the schema is the contract
+
+def _dig(node, *path):
+    for step in path:
+        node = node[step]
+    return node
+
+
+# Where each rule load_schema() extracts lives in the JSON, and how to break it
+# there. Keyed by the names load_schema returns, so a rule added to the extractor
+# without an entry here fails the test instead of sliding in unchecked (D-234).
+_SCHEMA_SITE = {
+    "top_required":
+        lambda s: _dig(s, "required").append("zzz_not_a_field"),
+    "claim_scope_const":
+        lambda s: _dig(s, "properties", "claim_scope").__setitem__("const", "zzz"),
+    "run_required":
+        lambda s: _dig(s, "properties", "run", "required").append("zzz_not_a_field"),
+    "aqs_required":
+        lambda s: _dig(s, "properties", "run", "properties", "aqs",
+                       "required").append("zzz_not_a_field"),
+    "scenario_required":
+        lambda s: _dig(s, "definitions", "scenario", "required").append("zzz_not_a_field"),
+    "validity_enum":
+        lambda s: _dig(s, "definitions", "scenario", "properties",
+                       "validity").__setitem__("enum", ["ZZZ_ONLY"]),
+    "kpi_required":
+        lambda s: _dig(s, "definitions", "scenario", "properties", "kpi",
+                       "required").append("zzz_not_a_field"),
+    "hist_required":
+        lambda s: _dig(s, "definitions", "scenario", "properties", "itl_histogram",
+                       "required").append("zzz_not_a_field"),
+}
+
+
+def test_every_rule_this_validator_enforces_is_read_from_the_schema():
+    """`load_schema` promises the validator 「tracks the contract instead of
+    hard-coding a second copy」, and nothing checked it: every test in this file
+    loads the real schema, so a validator that opened the file and then enforced
+    its own hard-coded copy would pass all of them (D-234).
+
+    Two halves per rule, because either can drift on its own: doctoring the JSON
+    must change what load_schema extracts, and the doctored rule must change the
+    verdict on a record that was clean a moment ago.
+    """
+    with open(vd.DEFAULT_SCHEMA, encoding="utf-8") as fh:
+        raw = json.load(fh)
+    assert set(SCH) == set(_SCHEMA_SITE), (
+        f"rules with no doctor: {sorted(set(SCH) - set(_SCHEMA_SITE))}; "
+        f"doctors for rules that are gone: {sorted(set(_SCHEMA_SITE) - set(SCH))}")
+    assert _errors(_valid_record()) == [], "the fixture has to start clean"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "doctored.schema.json")
+        for rule, break_it in _SCHEMA_SITE.items():
+            doctored = copy.deepcopy(raw)
+            break_it(doctored)
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(doctored, fh)
+            reloaded = vd.load_schema(path)
+            assert reloaded[rule] != SCH[rule], (
+                f"{rule}: the schema file changed and load_schema returned the "
+                "same thing — this rule is not being read from the contract")
+            errors, _ = vd.validate_records([_valid_record()], reloaded)
+            assert errors, (
+                f"{rule}: the rule changed and a record that now violates it "
+                "still passed — the verdict is not using what was read")

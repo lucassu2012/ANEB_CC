@@ -193,7 +193,10 @@ R-10 红线）、缺 run 体。**WARN（exit 0，值得知道但不致错）**�
 
 ### `validate_results.py` — 结果 JSONL 输入契约门（D-97，`results-contract-unit`）
 分析层前门：①结构层——必填清单/`claim_scope` const/`validity` 枚举**从 schema 文件实时
-读取**（永不与 schema 漂移）；②跨字段 R-10 层——`kpi.<x>` 值 null ⇔ `<x>_grade` null、
+读取**（永不与 schema 漂移；**这句话由 `test_every_rule_this_validator_enforces_is_read_from_the_schema`
+按 `load_schema` 抽出的 8 条规则**逐条改造 schema 副本**核对：改了 schema 抽取结果必须跟着变，
+且判定必须跟着抽取结果变——此前 17 个用例全用真 schema，**一个「读了文件却按自己那份硬编码判」的
+验证器能全部通过**，D-234）；②跨字段 R-10 层——`kpi.<x>` 值 null ⇔ `<x>_grade` null、
 `aqs.score` null ⇔ `not_computable_reason` 在场、直方图 `len(counts)==len(edges_ms)+1`
 （R-27 开区间桶）。validity 大小写不敏感比对（真数据小写为权威，大小写漂移记非致命
 advisory 交 schema 属主）。exit 0/1/2（2=无语料或 schema 不可读→NOT_EXECUTED）。
