@@ -261,3 +261,57 @@ def test_every_declared_kpi_is_ratio_scale_so_a_percentage_target_means_somethin
         "these KPIs admit values at or below zero, so the plan section's "
         f"percentage-of-median target is not meaningful for them: {interval_scale} "
         "— give the plan an absolute-effect target before declaring such a KPI")
+
+
+def test_the_two_detectable_differences_are_one_multiplication_apart():
+    """D-201 put both 需 n≥ figures on the page because one of them is a coin
+    flip. 可辨最小差异 was left at break-even while the 达标? beside it is judged
+    at 80% power — one row reporting at half the time and judging at four in
+    five. The power figure was already there: plan_cells wrote `mde_power` and
+    nothing ever read it, which is how a switch-off audit found it (D-240).
+
+    Printing it is half the fix. The other half is this: (80%) = (平) × (1+z) is
+    an arithmetic the reader can do on the row, so the two columns cannot drift.
+    """
+    import campaign_common as cc
+
+    rows = stability.plan_cells(
+        stability.stability_cells(_campaign_kpis([100, 130, 70, 115, 85], "base"),
+                                  "t1_ttft_ms"), 5.0)
+    md = stability.render_plan_markdown(rows, "t1_ttft_ms", 5.0)
+    table = [l for l in md.splitlines() if l.startswith("| ")]
+    header = [c.strip() for c in table[0].strip().strip("|").split("|")]
+
+    pw = cc.fmt_num(cc.PLAN_POWER * 100, 0)
+    flat_col, power_col = "可辨最小差异(平)", f"可辨最小差异({pw}%)"
+    # membership before indexing: .index() would raise ValueError, and a guard
+    # that crashes says nothing about what went wrong (D-235)
+    for name in (flat_col, power_col):
+        assert name in header, (
+            f"no 「{name}」 column — the row no longer shows both figures\n"
+            f"  header: {header}")
+    i_flat, i_power = header.index(flat_col), header.index(power_col)
+
+    checked = 0
+    # past the header only: the |---| rule starts "|-", not "| ", so it never
+    # entered `table` — slicing [2:] here quietly skipped the single data row and
+    # the floor below is what caught it
+    for line in table[1:]:
+        if set(line) <= set("|- "):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        flat, powered = cells[i_flat], cells[i_power]
+        if flat == "—" or powered == "—":
+            continue                             # spread unknown, both stay blank
+        checked += 1
+        want = float(flat) * cc.power_factor()
+        # each column rounds to 2 digits, so allow both roundings plus the factor
+        assert abs(float(powered) - want) <= 0.02, (
+            f"the row prints {flat} and {powered}: {powered} is not {flat} × "
+            f"{cc.fmt_num(cc.power_factor(), 3)} — the reader multiplying one "
+            "column by the stated factor does not arrive at the other\n"
+            f"  {line[:150]}")
+
+    assert checked >= 1, (
+        "no row printed both figures — this fixture resolves nothing, so the "
+        "relation above was never actually evaluated")

@@ -234,10 +234,20 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         "**不是**双侧显著性检验的 z₁₋α/₂+z₁₋β，那会多要 7.85 倍的外场工时，"
         "去买一个本报告从不作出的承诺）。",
         "",
-        f"| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异 | 占中位 | "
+        "> ⚠ **两个「可辨最小差异」同理**：`(平)` 是**恰好等于**噪声尺度的差异——"
+        "真有这么大的差异，也只有约五成会被判为「超出噪声」；"
+        f"`({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%)` 才是"
+        f"「这一格有 {cc.fmt_num(cc.PLAN_POWER * 100, 0)}% 把握分辨出来」的差异，"
+        f"约为前者的 {cc.fmt_num(cc.power_factor(), 3)} 倍。"
+        f"右侧「达标?」按 {cc.fmt_num(cc.PLAN_POWER * 100, 0)}% 判——"
+        "**此前本表只印 `(平)` 那一个数，判词却按八成给**，"
+        "一列按五成报、一列按八成判，并排放在同一行（D-240）。",
+        "",
+        f"| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异(平) | 占中位(平) | "
+        f"可辨最小差异({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%) | "
         f"达标?({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%) | 需 n≥(平) | "
         f"需 n≥({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%) |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in r["cell"].items())
@@ -250,7 +260,8 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         lines.append(
             f"| {cell_label} | {r['n']} | {cc.fmt_num(r['median'], 2)} | "
             f"{cc.fmt_num(r['cv_percent'], 1)} | {gate} | {cc.fmt_num(r['mde'], 2)} | "
-            f"{cc.fmt_num(r['mde_pct'], 1)}% | {ok} | {cc.fmt_num(r['required_n'])} | "
+            f"{cc.fmt_num(r['mde_pct'], 1)}% | {cc.fmt_num(r.get('mde_power'), 2)} | "
+            f"{ok} | {cc.fmt_num(r['required_n'])} | "
             f"{cc.fmt_num(r.get('required_n_power'))} |")
     unstable = [r for r in rows if r["unstable"]]
     judged = [r for r in rows if r["resolves_at_power"] is not None]
