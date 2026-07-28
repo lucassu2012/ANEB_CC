@@ -1758,6 +1758,43 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(c.get("cv_not_computable_reason")), _bad(c)])
     written.append(p)
 
+    # The order-effect diagnosis was the one section the report renders as a
+    # table of numbers with no machine-readable export at all: nine of the ten
+    # modules build_report_markdown calls ship a CSV, and this one did not
+    # (D-246). Long format like _trend.csv — one row per profile per position,
+    # with the profile-level verdict repeated — so a pivot reproduces the table.
+    ores = order_effect.analyze(records, min_samples=min_samples)
+    p = prefix + "_order_effect.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = csv.writer(f)
+        w.writerow(["profile_id", "kpi", "order_index", "position_median", "position_n",
+                    "position_low_confidence", "spread", "spread_pct", "overall_median",
+                    "threshold_pct", "order_effect_suspected", "not_computable_reason",
+                    "low_confidence", "implausible_values",
+                    # CSV is the surface with no banner above it. Whether the
+                    # Latin square ever rotated is what decides if a per-position
+                    # spread means anything at all — without these columns an
+                    # analyst computes 「无明显序位效应」 over a corpus where
+                    # counterbalancing never happened (D-164/D-197).
+                    "distinct_rounds", "rotation_warning", "no_order_evidence",
+                    "rotates_within_run"])
+        for pr in ores["profiles"]:
+            head = [pr["profile_id"], ores["kpi"]]
+            tail = [_cell(pr["spread"]), _cell(pr["spread_pct"]),
+                    _cell(pr["overall_median"]), ores["threshold_pct"],
+                    _cell(pr["order_effect_suspected"]),
+                    pr["not_computable_reason"] or "", pr["low_confidence"], _bad(pr),
+                    ores["distinct_rounds"], ores["rotation_warning"],
+                    ores["no_order_evidence"], ores["rotates_within_run"]]
+            # a profile whose every reading was refused has no positions at all;
+            # it still gets its row, for the same reason analyze() keeps it
+            positions = sorted(pr["positions"].items()) or [(None, None)]
+            for idx, v in positions:
+                w.writerow(head + [_cell(idx), _cell(v["median"]) if v else "",
+                                   v["n"] if v else "",
+                                   v["low_confidence"] if v else ""] + tail)
+    written.append(p)
+
     # The sample denominator behind every median above (D-96) — external analysis
     # without it re-creates the survivor bias the rollup exists to expose.
     vcells = validity_rollup.analyze(records)["cells"]

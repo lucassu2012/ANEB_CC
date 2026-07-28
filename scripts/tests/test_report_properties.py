@@ -1002,6 +1002,110 @@ def test_no_module_defines_the_same_top_level_name_twice():
     assert not dupes, dupes
 
 
+def _modules_the_report_renders():
+    """Module names whose render_markdown build_report_markdown actually calls.
+
+    Read from that function's own AST, with import aliases resolved from the
+    module header (`import provenance as prov_mod`), so a section added to the
+    report turns up here on its own. Same discipline as
+    _modules_exposing_render_markdown, pointed at the report rather than the
+    directory (D-246)."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "campaign_report.py")
+    with io.open(path, encoding="utf-8-sig") as fh:
+        tree = ast.parse(fh.read(), "campaign_report.py")
+    alias = {}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                alias[a.asname or a.name] = a.name
+    fns = [n for n in tree.body
+           if isinstance(n, ast.FunctionDef) and n.name == "build_report_markdown"]
+    assert len(fns) == 1, f"expected one build_report_markdown, found {len(fns)}"
+    found = set()
+    for n in ast.walk(fns[0]):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "render_markdown"
+                and isinstance(n.func.value, ast.Name)):
+            found.add(alias.get(n.func.value.id, n.func.value.id))
+    return found
+
+
+# Where each report section lands in the CSV bundle. The module list is derived
+# above; this only says which file carries it, and the test below checks that
+# file is really written and really has rows — a header-only stub answers nobody.
+_CSV_FOR_SECTION = {
+    "attribution": "attribution",
+    "buffering_rollup": "buffering",
+    "order_effect": "order_effect",
+    "stability": "stability",
+    "subscore_rollup": "subscores",
+    "transport_rollup": "transport",
+    "trend": "trend",
+    "trust_rollup": "trust",
+    "validity_rollup": "validity",
+}
+
+# Exported in another machine-readable form, with the form named — not simply
+# missing from the mapping above.
+_NO_CSV = {
+    "provenance": "campaign_report.py --provenance writes the whole manifest, "
+                  "sha256 included, as JSON; the analyst loses nothing by "
+                  "pulling only machine-readable artefacts",
+}
+
+
+def test_every_section_of_the_report_reaches_the_csv_bundle():
+    """write_csv_tables' own docstring promises 「an analyst pulling only the CSVs
+    must not silently lose sections visible in the report」 (D-109), and nothing
+    checked it. Nine of the ten modules the report renders shipped a CSV. The
+    tenth was order_effect, which puts per-position medians, a spread, a
+    percentage and a 疑似序位偏倚 verdict on the page and exported none of it —
+    the one methodological verdict an analyst would most want to re-derive at a
+    different threshold (D-246).
+
+    The subject list is read from build_report_markdown's AST, so the next
+    section added is either exported or has its reason written into _NO_CSV.
+    """
+    import csv as csvmod
+    import tempfile
+    rendered = _modules_the_report_renders()
+    accounted = set(_CSV_FOR_SECTION) | set(_NO_CSV)
+    assert rendered - accounted == set(), (
+        f"{sorted(rendered - accounted)} render a section into the report and are "
+        "in neither _CSV_FOR_SECTION nor _NO_CSV — export it, or write down here "
+        "which machine-readable form carries it instead")
+    assert accounted - rendered == set(), (
+        f"{sorted(accounted - rendered)} no longer reach the report — this mapping "
+        "is describing sections that are gone")
+    assert len(rendered) >= 10, (
+        f"only {len(rendered)} modules found in build_report_markdown — did the "
+        "AST scan break?")
+
+    # ...and the mapping names files that exist and carry data. Three campaigns,
+    # because _trend.csv is written only when a trend exists (D-196).
+    recs = _three_campaign_corpus(11)
+    total = 0
+    with tempfile.TemporaryDirectory() as d:
+        paths = rpt.write_csv_tables(recs, os.path.join(d, "c"))
+        by_suffix = {os.path.basename(p)[len("c_"):-len(".csv")]: p for p in paths}
+        for mod, suffix in sorted(_CSV_FOR_SECTION.items()):
+            assert suffix in by_suffix, (
+                f"{mod} is mapped to _{suffix}.csv, which write_csv_tables does not "
+                f"write; it writes {sorted(by_suffix)}")
+            with open(by_suffix[suffix], encoding="utf-8-sig", newline="") as f:
+                rows = list(csvmod.reader(f))
+            assert len(rows) >= 2, (
+                f"_{suffix}.csv carries a header and no rows on a corpus whose "
+                f"report renders {mod} — an empty file loses the section just as "
+                "completely as no file at all")
+            total += len(rows) - 1
+    assert total >= 100, (
+        f"only {total} data rows across the nine mapped CSVs (measured 129 when "
+        "this floor was set) — the corpus went degenerate and this guard is "
+        "asserting almost nothing")
+
+
 def test_every_csv_row_matches_its_header_width():
     """The markdown tables have had this guard since D-128; the CSVs never did —
     and CSV is the surface analysts compute on (D-141).
