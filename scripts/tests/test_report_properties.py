@@ -242,11 +242,17 @@ def test_hostile_labels_do_not_break_tables_or_html():
 
 def test_every_markdown_table_has_a_uniform_column_count():
     """A ragged table renders as garbage in any markdown viewer."""
+    tabled = 0
     for seed in SEEDS:
         md = rpt.build_report_markdown(_random_corpus(seed))
         for chunk in re.split(r"(?m)^#{2,3} ", md)[1:]:
             widths = {_columns(ln) for ln in chunk.splitlines() if ln.startswith("| ")}
+            if widths:
+                tabled += 1
             assert len(widths) <= 1, (seed, chunk.splitlines()[0], widths)
+    # An empty width set satisfies `<= 1`, so sections without a table cost
+    # nothing to pass — only the ones that have one are evidence (D-227).
+    _at_least(tabled, 300, "sections that actually contained a table")
 
 
 _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
@@ -540,6 +546,7 @@ def test_a_row_of_numbers_subtracts_to_the_delta_printed_on_it():
         return [r for v in vals for r in
                 aqs_records(v, 1, campaign_id=cid, point="P1")]
 
+    checked = 0
     for before, after in (([70.00, 70.01, 70.02, 70.03, 70.04],
                            [70.04, 70.05, 70.06, 70.07, 70.08]),
                           ([40, 42, 44, 46, 48], [60, 62, 64, 66, 68])):
@@ -553,7 +560,12 @@ def test_a_row_of_numbers_subtracts_to_the_delta_printed_on_it():
             b, a, delta = c[3], c[4], c[5].split()[0]
             if "—" in (b, a, delta):
                 continue
+            checked += 1
             assert abs((float(a) - float(b)) - float(delta)) < 1e-9, line
+    # `assert rows` only proves the table is there; the subtraction is skipped
+    # for any row carrying a placeholder, so a fixture that stopped producing
+    # comparable cells would pass having checked nothing (D-227).
+    _at_least(checked, 2, "rows whose three numbers were actually subtracted")
 
 
 def test_fmt_num_agreeing_stays_short_when_there_is_no_conflict():
