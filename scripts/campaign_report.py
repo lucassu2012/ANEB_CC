@@ -1306,12 +1306,20 @@ def _attr_table_html(attr):
         # MIXED_TRANSPORT and the tier-time markers went missing here (D-160)
         notes = attribution.incomparability_flags(c)
         severe = [f for f in notes if attribution.is_severe(f)]
+        # The markdown renderer got this at D-219 and this hand-maintained copy
+        # did not, so 39% of three-tier rows still failed the addition here
+        # while the markdown deliverable was clean (D-222).
+        (access, regional, core), e2e, adds_up = cc.fmt_parts_summing(
+            (c["access_component"], c["regional_backbone_incr"],
+             c["core_backbone_incr"]), c["end_to_end_core"])
+        if adds_up is False:
+            notes = notes + ["ROUNDING_UNRECONCILED"]
         rows.append(
             f"<tr><td class='lbl'>{esc(cell_label)}</td><td>{esc(cov)}</td>"
-            f"<td>{cc.fmt_num(c['access_component'])}</td>"
-            f"<td>{cc.fmt_num(c['regional_backbone_incr'])}</td>"
-            f"<td>{cc.fmt_num(c['core_backbone_incr'])}</td>"
-            f"<td>{cc.fmt_num(c['end_to_end_core'])}</td>"
+            f"<td>{access}</td>"
+            f"<td>{regional}</td>"
+            f"<td>{core}</td>"
+            f"<td>{e2e}</td>"
             + (f"<td class='warn'><b>{esc('; '.join(notes))}</b></td></tr>" if severe
                else f"<td>{esc('; '.join(notes) or '—')}</td></tr>"))
     return (

@@ -978,6 +978,71 @@ def test_every_printed_arithmetic_relation_holds():
             f"satisfy it: {bad[:3]}")
 
 
+def _html_table_rows(html, *header_cells):
+    """Cell texts of every row of the HTML table whose header carries these."""
+    out = []
+    for table in html.split("<table>")[1:]:
+        table = table.split("</table>")[0]
+        head = table.split("</tr>")[0]
+        if not all(f"<th>{h}</th>" in head for h in header_cells):
+            continue
+        for row in table.split("</tr>")[1:]:
+            cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)
+            if cells:
+                out.append([re.sub(r"<[^>]+>", "", c).strip() for c in cells])
+    return out
+
+
+def test_the_html_deliverable_satisfies_the_same_arithmetic():
+    """A fix that reached one surface has to be shown to reach the other.
+
+    The attribution table is rendered twice — render_markdown, and a
+    hand-maintained _attr_table_html whose own comment records that this is how
+    markers went missing before (D-160). D-219 fixed the markdown copy; the HTML
+    one kept rounding independently and 39% of its three-tier rows still failed
+    the addition while the markdown deliverable was clean (D-222).
+    """
+    from synth import contractify, kpi_scenario_records
+
+    # The random corpora yield one complete three-tier cell across 20 seeds, so
+    # they cannot carry this check — the floor below caught that. Build cells
+    # that are complete AND drift under independent rounding.
+    recs = []
+    for k in range(6):
+        metro = 100.04 + k
+        for tier, v in (("metro", metro), ("regional", metro + 50.02),
+                        ("core", metro + 100.04)):
+            for r in kpi_scenario_records(5, aqs=80,
+                                          kpi={"n1_rtt_p50_ms": v},
+                                          point=f"P{k + 1}"):
+                r["run"].setdefault("campaign", {})["tier"] = tier
+                recs.append(contractify(r))
+
+    # The fixture must carry the hazard, or the assertion below is free.
+    naive = [float(cc.fmt_num(x)) for x in (100.04, 50.02, 50.02)]
+    assert abs(sum(naive) - float(cc.fmt_num(200.08))) > 1e-9, \
+        "fixture values no longer drift under independent rounding"
+
+    html = rpt.build_report_html(recs, _HTML_NOW)
+    seen, bad = 0, []
+    for cells in _html_table_rows(html, "接入", "区域骨干+", "核心骨干+", "端到端"):
+        if len(cells) < 6:
+            continue
+        vals = [_lead_num(c) for c in cells[2:6]]
+        if any(v is None for v in vals):
+            continue
+        seen += 1
+        access, regional, core, e2e = vals
+        if abs((access + regional + core) - e2e) > 1e-9:
+            bad.append(cells[:6])
+    assert seen >= 5, (
+        f"only {seen} complete three-tier rows in the HTML — the check never "
+        "reached the relation")
+    assert not bad, (
+        f"{len(bad)} HTML row(s) where 接入+区域+核心 does not equal 端到端: "
+        f"{bad[:3]}")
+
+
 _DELIM_RE = re.compile(r"\|[-|: ]+\|")
 
 
