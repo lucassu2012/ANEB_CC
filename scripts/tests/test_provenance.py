@@ -182,14 +182,20 @@ _NOT_A_REPORT_GATE = {
     # ---- default ARGUMENTS of the standalone CLIs. The report never takes them:
     # ---- it loops the archived KPI lists instead
     ("attribution", "DEFAULT_KPI"):
-        "the `--kpi` default of attribution's own CLI; the report passes "
-        "`attr_kpi` and the manifest records that choice under `params`",
+        "the report's own signature defaults to it, so it IS taken when nobody "
+        "passes --attr-kpi — what exempts it is that the CHOICE is archived "
+        "under `params`, the same footing as DEFAULT_MIN_SAMPLES, rather than "
+        "under `thresholds` (D-263 corrected the earlier wording, which implied "
+        "the report never takes it)",
     ("order_effect", "DEFAULT_KPI"):
         "the `--kpi` default of order_effect's own CLI; the report loops "
         "`order_effect_kpis`",
     ("trend", "DEFAULT_METRIC"):
-        "the `--metric` default of trend's own CLI, and its value IS "
-        "`METRIC_AQS`, archived as `trend_metric_key`",
+        "every trend.analyze call in the report omits `metric`, so the report "
+        "DOES take this default — calling it 'the CLI's default' was wrong "
+        "(D-263). What exempts it is that its value is `METRIC_AQS`, archived "
+        "as `trend_metric_key`: retune the metric and the archived key moves "
+        "with it, so the manifest cannot look unchanged",
     ("stability", "DEFAULT_TARGET_EFFECT_PCT"):
         "only the standalone `--plan` sample-size CLI; no report section reads it",
     ("campaign_common", "PLAN_POWER"):
