@@ -502,3 +502,53 @@ def test_publish_check_exit_code_is_decided_by_fail_alone():
     assert warn_and_na_at_exit_zero >= 2, (
         f"only {warn_and_na_at_exit_zero} corpora exited 0 while carrying both "
         "WARN and N/A rows — 「WARN 可以留着」 and 「N/A 不改判」 went unchecked")
+
+
+def _encodable_in_gbk(ch):
+    try:
+        ch.encode("gbk")
+    except (UnicodeEncodeError, LookupError):
+        return False
+    return True
+
+
+# CLIs whose output carries marks a GBK console cannot encode. corpus_health is
+# not one of them — it prints no severity icon at all, which the assertion below
+# said so plainly when this list first named it. The test proves membership per
+# run rather than trusting the list: a tool that stops printing them fails here
+# instead of quietly passing.
+_ICON_CLIS = ("publish_check.py", "campaign_report.py")
+
+
+def test_the_cli_survives_a_gbk_console():
+    """This file's docstring says it catches 「exactly the Windows GBK/U+26A0 case
+    fixed via force_utf8_stdout」. It did not: _run passes no environment, so every
+    child inherits the parent's UTF-8 and that path is never taken. Switching
+    force_utf8_stdout off leaves the whole suite green (D-240), while under a GBK
+    console the first ⚠ becomes UnicodeEncodeError and the tool exits 1 (D-241).
+    """
+    exercised = 0
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "a.jsonl")
+        _write_jsonl(path, _labelled(4))
+
+        for script in _ICON_CLIS:
+            utf8 = _run(script, path)
+            unencodable = [ch for ch in (utf8.stdout or "")
+                           if not _encodable_in_gbk(ch)]
+            assert unencodable, (
+                f"{script} no longer prints anything a GBK console would choke "
+                "on — this case is not being exercised any more")
+
+            env = dict(os.environ, PYTHONIOENCODING="gbk")
+            gbk = subprocess.run(
+                [sys.executable, os.path.join(SCRIPTS, script), path],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", cwd=SCRIPTS, env=env)
+            exercised += 1
+            assert gbk.returncode == utf8.returncode, (
+                f"{script}: exits {gbk.returncode} on a GBK console but "
+                f"{utf8.returncode} on a UTF-8 one — the console encoding is "
+                f"deciding the verdict\n  {(gbk.stderr or '')[-300:]}")
+
+    assert exercised == len(_ICON_CLIS), exercised
