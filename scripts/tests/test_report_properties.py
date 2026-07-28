@@ -504,17 +504,32 @@ def test_hostile_labels_do_not_break_tables_or_html():
 
 def test_every_markdown_table_has_a_uniform_column_count():
     """A ragged table renders as garbage in any markdown viewer."""
-    tabled = 0
-    for seed in SEEDS:
-        md = rpt.build_report_markdown(_random_corpus(seed))
+    def _ragged(md, where):
+        n = 0
+        if not isinstance(md, str):                  # stability renders per KPI
+            md = "\n".join(md)
         for chunk in re.split(r"(?m)^#{2,3} ", md)[1:]:
             widths = {_columns(ln) for ln in chunk.splitlines() if ln.startswith("| ")}
             if widths:
-                tabled += 1
-            assert len(widths) <= 1, (seed, chunk.splitlines()[0], widths)
+                n += 1
+            assert len(widths) <= 1, (where, chunk.splitlines()[0], widths)
+        return n
+
+    tabled = swept = 0
+    for seed in SEEDS:
+        recs = _random_corpus(seed)
+        tabled += _ragged(rpt.build_report_markdown(recs), seed)
+        # ...and every renderer, not only the ones the report assembles.
+        # coverage_matrix and publish_check print tables that no report contains,
+        # so a ragged row in either rendered as garbage with nothing to say so
+        # (D-253). _SWEEP is the derived list — a renderer added later is swept
+        # here on its own.
+        for name, render in _SWEEP.items():
+            swept += _ragged(render(recs), f"{name}@{seed}")
     # An empty width set satisfies `<= 1`, so sections without a table cost
     # nothing to pass — only the ones that have one are evidence (D-227).
-    _at_least(tabled, 300, "sections that actually contained a table")
+    _at_least(tabled, 300, "report sections that actually contained a table")
+    _at_least(swept, 150, "renderer sections that actually contained a table")
 
 
 _EPOCH = 1783944000000          # 2026-07-13T12:00:00Z
