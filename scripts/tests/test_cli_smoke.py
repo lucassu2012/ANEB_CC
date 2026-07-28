@@ -451,3 +451,54 @@ def test_corpus_health_exit_code_matches_its_verdict():
             assert said_error == bool(expected), (
                 f"{kind}: printed ERROR={said_error} but exited {r.returncode} — "
                 "the page and the exit code have to say the same thing")
+
+
+def _labelled(n, aqs=90, campaign="base"):
+    out = []
+    for r in aqs_records(aqs, n):
+        r["run"]["campaign"] = {"campaign_id": campaign, "tier": "metro",
+                                "point_id": "P1", "carrier": "cmcc",
+                                "time_band": "busy"}
+        out.append(contractify(r))
+    return out
+
+
+def test_publish_check_exit_code_is_decided_by_fail_alone():
+    """publish_check says "Exit 0 = no FAIL (WARNs may remain), 1 = at least one
+    FAIL" — the number that decides whether a report ships. Nothing invoked it:
+    not a test, not verify_all. And D-229 had just added a fourth severity to the
+    very rows it counts, so「N/A 不影响退出码」was a promise nobody was keeping
+    watch over (D-238).
+    """
+    import synth_campaign as sc
+
+    corpora = {
+        "clean single campaign": _labelled(6),
+        "thin but honest": _labelled(2),
+        "two campaigns": _labelled(6) + _labelled(6, aqs=70, campaign="opt"),
+        "synthetic": sc.generate(points=1, repeats=2, campaigns=("base",),
+                                 carriers=("cmcc",), time_bands=("busy",),
+                                 tiers=("metro",)),
+    }
+
+    seen_exits, warn_and_na_at_exit_zero = set(), 0
+    for name, recs in corpora.items():
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "a.jsonl")
+            _write_jsonl(path, recs)
+            r = _run("publish_check.py", path)
+            out = r.stdout or ""
+            fails = out.count("⛔ FAIL")
+            assert r.returncode == (1 if fails else 0), (
+                f"{name}: {fails} FAIL row(s) but exit {r.returncode} — the exit "
+                "code is what decides whether this report ships\n" + out[:400])
+            seen_exits.add(r.returncode)
+            if r.returncode == 0 and out.count("⚠ WARN") and out.count("➖ N/A"):
+                warn_and_na_at_exit_zero += 1
+
+    assert seen_exits == {0, 1}, (
+        f"only exit {sorted(seen_exits)} occurred — one side of the contract was "
+        "never exercised")
+    assert warn_and_na_at_exit_zero >= 2, (
+        f"only {warn_and_na_at_exit_zero} corpora exited 0 while carrying both "
+        "WARN and N/A rows — 「WARN 可以留着」 and 「N/A 不改判」 went unchecked")

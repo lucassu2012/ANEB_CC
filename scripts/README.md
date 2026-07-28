@@ -94,6 +94,10 @@ PASS 的含义收紧为**该项已在非空集合上核查且未见问题**；N/
 与机器判定互为充要（有守卫盯着，见 `test_a_check_with_nothing_to_run_on_never_renders_as_pass`）。
 WARN 也绝不自动升格为 PASS——工具不替人做判断，只保证作者被问到"这个格为什么这样"时答得上来。
 自检**不能**替代 runbook §5 里需要人工判断的条目（结论措辞、归档完整性、claim_scope 落款）。
+**退出码即契约**：`exit 1` 当且仅当出现 FAIL 行——WARN 可以留着、**N/A 也不参与阻断**。
+此前这个数字没有任何东西守着（测试不跑它的 CLI，`verify_all` 也不跑这个工具），
+而 D-229 刚给它数的那些行加了第四种严重度；现由 `test_publish_check_exit_code_is_decided_by_fail_alone`
+按四种语料核对，并要求「带 WARN 与 N/A 却仍 exit 0」的情形至少出现两次（D-238）。
 
 ### `transport_rollup.py` — 接入介质对比（wifi vs cellular）（D-110）
 按 (点位,运营商,时段) 出各介质 run 数 + AQS 中位 + Δ(cellular−wifi) + **噪声尺度**（D-180）。
