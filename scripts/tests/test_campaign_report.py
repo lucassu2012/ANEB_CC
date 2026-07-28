@@ -1043,8 +1043,32 @@ def test_every_declared_range_is_actually_evaluated_somewhere():
     live in one place (kpi map / aqs.score / aqs.sub_scores / buffering), so the
     sweep sites and the range table have to be reconciled explicitly: asking
     scenario_kpi for "sub_score" would quietly return None forever."""
-    BLOCK_LEVEL = {"aqs_score", "sub_score", "buffering_score",
-                   "sawtooth_ratio", "near_zero_arrival_ratio"}
+    # Read from the evaluation sites, not typed here. The five block-level names
+    # used to be a literal set, so the reconciliation proved that the NAMES line
+    # up with VALUE_RANGES — not that anything evaluates them. Add a name to that
+    # set with no code behind it and this passed, which is §2.9's silent-check
+    # trap one level up, in the very guard that cites it (D-262).
+    import ast
+    import io
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    BLOCK_LEVEL = set()
+    for name in ("campaign_report.py", "subscore_rollup.py"):
+        with io.open(os.path.join(here, name), encoding="utf-8-sig") as fh:
+            tree = ast.parse(fh.read(), name)
+        for node in ast.walk(tree):
+            # cc.value_problem("<range key>", value)
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "value_problem" and node.args
+                    and isinstance(node.args[0], ast.Constant)
+                    and isinstance(node.args[0].value, str)):
+                BLOCK_LEVEL.add(node.args[0].value)
+            # ("<field on the block>", "<range key>") pairs feeding the same call
+            if (isinstance(node, ast.Tuple) and len(node.elts) == 2
+                    and all(isinstance(e, ast.Constant) and isinstance(e.value, str)
+                            for e in node.elts)
+                    and node.elts[1].value in cc.VALUE_RANGES):
+                BLOCK_LEVEL.add(node.elts[1].value)
+    assert len(BLOCK_LEVEL) >= 5, f"only {sorted(BLOCK_LEVEL)} — did the scan break?"
     swept = set(rpt._SCENARIO_KPI_RANGES) | BLOCK_LEVEL
     assert swept == set(cc.VALUE_RANGES), swept ^ set(cc.VALUE_RANGES)
 
