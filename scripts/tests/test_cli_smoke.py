@@ -400,3 +400,54 @@ def test_only_inplace_ever_writes_back_to_the_input():
                     rec = json.loads(fh.readline())
                 assert rec["run"]["campaign"]["point_id"] == "P1", (
                     "--inplace rewrote the file without applying the label")
+
+
+# The three things corpus_health calls ERROR, plus the corpus that has none of
+# them. 「ERROR（exit 1，会让聚合出错）」 is a promise about the exit code, and
+# every test for this module called it in-process — the CLI was never run, so
+# nothing would have noticed main() returning 0 on a broken corpus (D-237).
+def _health_corpus(kind):
+    import copy
+
+    recs = [contractify(r) for r in aqs_records(90, 3)]
+    extra = []
+    if kind == "claim_scope drift":
+        recs[0] = copy.deepcopy(recs[0])
+        recs[0]["claim_scope"] = "something_else_entirely"
+    elif kind == "malformed line":
+        extra = ["{not json at all"]
+    elif kind == "same run_id, two bodies":
+        twin = copy.deepcopy(recs[0])
+        twin["run"]["aqs"]["score"] = 12.0
+        recs = recs + [twin]
+    return recs, extra
+
+
+_HEALTH_CASES = {
+    "clean": 0,
+    "claim_scope drift": 1,
+    "malformed line": 1,
+    "same run_id, two bodies": 1,
+}
+
+
+def test_corpus_health_exit_code_matches_its_verdict():
+    """Whoever runs this at the front door reads the exit code, not the table."""
+    for kind, expected in _HEALTH_CASES.items():
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "a.jsonl")
+            recs, extra = _health_corpus(kind)
+            with open(path, "w", encoding="utf-8") as fh:
+                for r in recs:
+                    fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+                for line in extra:
+                    fh.write(line + "\n")
+
+            r = _run("corpus_health.py", path)
+            assert r.returncode == expected, (
+                f"{kind}: exit {r.returncode}, expected {expected} — the gate's "
+                "verdict and its exit code disagree\n" + (r.stdout or "")[:400])
+            said_error = "## ERROR" in (r.stdout or "")
+            assert said_error == bool(expected), (
+                f"{kind}: printed ERROR={said_error} but exited {r.returncode} — "
+                "the page and the exit code have to say the same thing")

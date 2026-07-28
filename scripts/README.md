@@ -154,7 +154,10 @@ quick-forensic / 时钟跳变 / 极端离群 / 全无效格 / 未标注记录）
 [`../docs/CAMPAIGN_LABELS_WIRING_SPEC.md`](../docs/CAMPAIGN_LABELS_WIRING_SPEC.md) §8。
 
 ### `corpus_health.py` — 语料完整性预检
-在信任任何报告之前先跑：分析再正确，也只与其下的语料一样诚实。**ERROR（exit 1，会让聚合出错）**：
+在信任任何报告之前先跑：分析再正确，也只与其下的语料一样诚实。
+（**退出码按三类 ERROR 逐类核对**，判据是等价关系：`exit 1` ⟺ 页面印出 `## ERROR`——
+此前该模块的用例全在进程内调函数，**CLI 一次都没跑过，`main()` 若对坏语料返回 0 没人会发现**，D-237。）
+**ERROR（exit 1，会让聚合出错）**：
 同 run_id 两异 body、坏行（静默丢数据）、`claim_scope` 漂移（不同测量口径被并进同一中位数，
 R-10 红线）、缺 run 体。**WARN（exit 0，值得知道但不致错）**：良性重复 run_id（D-09 双写的
 预期重导，加载时去重）、无 run_id 记录、混 `schema_version`、缺 AQS/战役标签。`--json` 出机读结果。
