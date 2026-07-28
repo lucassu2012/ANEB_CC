@@ -453,3 +453,53 @@ def test_order_effect_gate_distinguishes_three_corpora():
     detail = _detail(pc.check(rotated), "序位效应")
     assert "未轮转" not in detail
     assert "无 `scenario_order`" not in detail
+
+
+def _summary_flags_validity(summary):
+    return any(l.startswith("- **有效率不达门") for l in summary.splitlines())
+
+
+def _summary_flags_buffering(summary):
+    return any(l.startswith("- **批化失真热点**") or "无批化标注" in l
+               for l in summary.splitlines())
+
+
+# (gate item, does the summary flag the same problem?). Both surfaces speak
+# about one thing; if they disagree, one of them is lying to the operator.
+_GATE_VS_SUMMARY = (
+    ("有效率", _summary_flags_validity),
+    ("批化失真", _summary_flags_buffering),
+)
+
+
+def test_the_publish_gate_and_the_summary_tell_the_same_story():
+    """The gate decides whether a report may be published; the summary is what
+    the reader sees. On anything both of them speak about, they have to agree.
+
+    They can drift: the media item carried its unestimable-noise branch since
+    D-198 while the summary printed a clean negative for the same cells until
+    D-216. Checked here as an enumerable list so the next pair is one line
+    (D-228).
+    """
+    import campaign_report as rpt
+    from test_report_properties import _corrupt_corpus, _random_corpus
+
+    corpora = [("chaos", _corrupt_corpus())]
+    corpora += [(f"seed{s}", _random_corpus(s)) for s in range(20)]
+
+    seen = {item: set() for item, _ in _GATE_VS_SUMMARY}
+    for tag, recs in corpora:
+        sev = {r["item"]: r["severity"] for r in pc.check(recs)}
+        summary = rpt.render_summary_markdown(recs)
+        for item, summary_flags in _GATE_VS_SUMMARY:
+            warns = sev.get(item) == pc.WARN
+            assert warns == summary_flags(summary), (
+                f"{tag}: the gate says {sev.get(item)} for {item} while the "
+                "summary says the opposite — one of them is lying")
+            seen[item].add(warns)
+
+    # Both sides have to occur, or the agreement was only ever checked one way.
+    for item, states in seen.items():
+        assert states == {True, False}, (
+            f"{item}: only {sorted(states)} occurred across {len(corpora)} "
+            "corpora — one side of the agreement was never exercised")
