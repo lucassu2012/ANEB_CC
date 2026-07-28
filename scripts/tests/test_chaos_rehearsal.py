@@ -113,15 +113,35 @@ def test_single_carrier_point_is_reported_unmeasured_not_filled_in():
     assert all(c["samples"] == 0 for c in gaps)
 
 
+_THIS = "test_every_declared_pathology_is_actually_checked"
+
+
 def test_every_declared_pathology_is_actually_checked():
     """CHAOS_PATHOLOGIES documents what each injected fault should produce. A
     pathology nobody asserts is a promise with no guard behind it — which is
     exactly what single_carrier was. Whoever adds one must name its key in the
     test that covers it; no separate mapping table to fall out of date."""
+    import ast
     with open(__file__, encoding="utf-8") as f:
         src = f.read()
+    # ...searched with THIS function cut out of it. Its own docstring names
+    # single_carrier as the example, so the key it exists to protect was being
+    # found in the sentence explaining the protection: delete that pathology's
+    # test and this stayed green. Self-satisfying by luck, not by design (D-256).
+    lines = src.split("\n")
+    mine = [n for n in ast.parse(src, "chaos").body
+            if isinstance(n, ast.FunctionDef) and n.name == _THIS]
+    assert len(mine) == 1, f"expected one {_THIS}, found {len(mine)}"
+    for i in range(mine[0].lineno - 1, mine[0].end_lineno):
+        lines[i] = ""
+    cut = mine[0].end_lineno - mine[0].lineno + 1
+    src = "\n".join(lines)
+    # the name itself still appears — it is the _THIS constant, outside the
+    # function. What has to be gone is the BODY, so check that instead.
+    assert cut >= 10, f"only {cut} lines blanked — the self-exclusion missed"
     unchecked = [k for k, _ in sc.CHAOS_PATHOLOGIES if k not in src]
     assert not unchecked, f"pathologies with no test naming them: {unchecked}"
+    assert len(sc.CHAOS_PATHOLOGIES) >= 10, len(sc.CHAOS_PATHOLOGIES)
 
 
 def test_clock_jump_becomes_a_trust_hotspot():
