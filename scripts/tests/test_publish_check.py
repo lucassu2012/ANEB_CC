@@ -268,11 +268,38 @@ def test_implausible_epoch_is_warned_before_publication():
 def test_every_check_item_appears_for_every_corpus_shape():
     """The runbook checklist is read against this output — an item that only
     appears for some corpora makes the checklist unverifiable."""
-    single = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
-    multi = _two_campaigns([70, 72, 74, 71, 73], [80, 82, 84, 81, 83])
-    items_single = {r["item"] for r in pc.check(single)}
-    items_multi = {r["item"] for r in pc.check(multi)}
-    assert items_single == items_multi, items_single ^ items_multi
+    import synth_campaign as sc
+    from test_report_properties import _corrupt_corpus, _random_corpus
+
+    # Two shapes was not every shape. Seven now, and they do agree — the honest
+    # answer is that this promise was being kept; it simply was never asked of a
+    # corpus with impossible values, or a chaos rehearsal, or a three-campaign
+    # grid where the trend section exists (D-254).
+    shapes = {
+        "single": [contractify(r) for r in aqs_records(90, 5, campaign_id="base")],
+        "two": _two_campaigns([70, 72, 74, 71, 73], [80, 82, 84, 81, 83]),
+        "corrupt": _corrupt_corpus(),
+        "random0": _random_corpus(0),
+        "random3": _random_corpus(3),
+        "synth3": sc.generate(points=3, repeats=3,
+                              campaigns=("base", "opt", "later")),
+        "chaos": sc.inject_chaos(sc.generate(points=3, repeats=3,
+                                             campaigns=("base", "opt"))),
+    }
+    sets = {k: {r["item"] for r in pc.check(v)} for k, v in shapes.items()}
+    first = sets["single"]
+    for name, items in sorted(sets.items()):
+        assert items == first, (name, sorted(items ^ first))
+    assert len(first) >= 20, f"only {len(first)} check items — did the gate shrink?"
+    assert len(shapes) >= 7, "the shape set was narrowed"
+
+    # The one shape that does NOT produce the full list, pinned rather than left
+    # as an unexamined difference: an empty corpus collapses to a single row.
+    # That is the right answer — one plain statement beats 22 N/A rows — but it
+    # has to be a decided answer, and it must not be green (D-150 / D-229).
+    empty = pc.check([])
+    assert len(empty) == 1, [r["item"] for r in empty]
+    assert empty[0]["severity"] != pc.PASS, empty[0]
 
 
 def test_inferred_time_band_is_warned_before_publication():
