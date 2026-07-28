@@ -1479,3 +1479,56 @@ def test_no_blank_line_leaves_a_report_row_outside_its_table():
     assert tables >= 20 and rows >= 200, (
         f"only {tables} tables / {rows} rows rendered across {len(SEEDS) + 1} "
         "corpora — the scan found nothing to check")
+
+
+_SECTION_SPLIT = re.compile(r"[（(：:]")
+
+
+def _section_key(title):
+    """The phrase before the first bracket or colon.
+
+    The two surfaces word their titles differently — HTML says 「…（AQS 中位；
+    * = 样本不足 low_conf）」 where markdown says 「…（AQS 中位）」, and splits the
+    per-KPI sections into one heading each. Matching the full title reports
+    misses that are the matcher's fault, not the report's (D-243)."""
+    return _SECTION_SPLIT.split(title.strip())[0].strip()
+
+
+def _md_section_keys(md):
+    return {_section_key(l.lstrip("# ")) for l in md.splitlines()
+            if l.startswith("## ")}
+
+
+def _html_section_keys(html):
+    return {_section_key(re.sub(r"<[^>]+>", "", m.group(1)))
+            for m in re.finditer(r"<h[1-6][^>]*>(.*?)</h[1-6]>", html, re.S)}
+
+
+def test_every_markdown_section_reaches_the_html():
+    """§2.6: the delivery surfaces carry the same information. What stood behind
+    it was a marker-level check (`test_every_attribution_marker_reaches_all_three
+    _surfaces`) — a whole section added to markdown alone would pass it (D-243).
+
+    Section by section, not marker by marker, and keyed loosely enough that the
+    two surfaces are allowed to phrase a title differently.
+    """
+    stamp = "2026-01-01 00:00:00 +0800"
+    corpora = [("chaos", _corrupt_corpus())]
+    corpora += [(f"seed{s}", _random_corpus(s)) for s in SEEDS]
+    corpora += [("3camp0", _three_campaign_corpus(0))]
+
+    compared = 0
+    for tag, recs in corpora:
+        md = _md_section_keys(rpt.build_report_markdown(recs))
+        html = _html_section_keys(rpt.build_report_html(recs, stamp))
+        compared += len(md)
+        missing = sorted(md - html)
+        assert not missing, (
+            f"{tag}: {missing} appear in the markdown report and nowhere in the "
+            "HTML — the two deliverables no longer say the same thing")
+        assert len(md) >= 14, (
+            f"{tag}: only {len(md)} markdown sections — the corpus stopped "
+            "producing a full report and this comparison proves little")
+
+    # Floor: measured 119 sections over these corpora.
+    _at_least(compared, 100, "markdown sections compared against the HTML")
