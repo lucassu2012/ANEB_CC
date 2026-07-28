@@ -137,42 +137,72 @@ def test_report_is_deterministic_for_a_given_corpus():
         assert rpt.build_report_markdown(recs) == rpt.build_report_markdown(recs), seed
 
 
+def _at_least(seen, floor, what):
+    """The assertions above only mean something if they ran.
+
+    These tests put their only assertion inside a loop over something the
+    corpora derive, and several inside an `if` on top of that. They were all
+    non-vacuous — measured at 102 to 2049 executions — but by luck, since
+    nothing would have noticed a collection going empty. Writing the measured
+    count down turns 'it happened to run' into 'it has to run' (D-227).
+    """
+    assert seen >= floor, (
+        f"{what}: the assertion ran {seen} times, below the {floor} these "
+        "corpora used to produce — it is passing on almost nothing")
+
+
 def test_low_confidence_marked_whenever_below_the_floor():
     """Never silently present a cell built from too few samples."""
+    seen = 0
     for seed in SEEDS:
         for c in rpt.heat_cells(_random_corpus(seed), cc.DEFAULT_MIN_SAMPLES):
+            seen += 1
             assert c["low_confidence"] == (c["n"] < cc.DEFAULT_MIN_SAMPLES), seed
+    _at_least(seen, 80, "heat cells checked for the low-confidence mark")
 
 
 def test_null_medians_never_render_as_zero():
     """A cell with no usable samples must show the placeholder, not 0 (R-10)."""
+    seen = 0
     for seed in SEEDS:
         for c in buffering_rollup.analyze(_random_corpus(seed))["cells"]:
             for key in ("score_median", "sawtooth_median", "near_zero_median"):
                 if c[key] is None:
+                    seen += 1
                     assert cc.fmt_num(c[key], 3) == "—", (seed, key)
+    # the assertion lives under an `if`, so an all-populated corpus would skip
+    # every one of them and still pass
+    _at_least(seen, 150, "null medians actually rendered")
 
 
 def test_suspect_shares_stay_in_range():
+    n_suspect = n_clock = 0
     for seed in SEEDS:
         recs = _random_corpus(seed)
         for c in buffering_rollup.analyze(recs)["cells"]:
             if c["suspect_share"] is not None:
+                n_suspect += 1
                 assert 0.0 <= c["suspect_share"] <= 1.0, seed
         for c in trust_rollup.analyze(recs)["cells"]:
             if c["clock_suspect_share"] is not None:
+                n_clock += 1
                 assert 0.0 <= c["clock_suspect_share"] <= 1.0, seed
             assert c["clock_suspect"] <= c["clock_annotated"], seed
             assert c["stream_bad"] <= c["stream_counted"], seed
+    _at_least(n_suspect, 70, "buffering suspect shares in range")
+    _at_least(n_clock, 70, "clock suspect shares in range")
 
 
 def test_validity_counts_never_exceed_attempts():
+    seen = 0
     for seed in SEEDS:
         for c in validity_rollup.analyze(_random_corpus(seed))["cells"]:
+            seen += 1
             total = c["valid"] + c["valid_low_confidence"] + c["invalid"] + c["unknown"]
             assert total == c["attempted"], seed
             if c["valid_rate"] is not None:
                 assert 0.0 <= c["valid_rate"] <= 1.0, seed
+    _at_least(seen, 130, "validity cells whose four buckets were reconciled")
 
 
 def test_publish_check_always_returns_known_severities():
