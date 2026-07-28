@@ -994,9 +994,14 @@ def test_no_module_defines_the_same_top_level_name_twice():
     import ast
     import glob
     scripts = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    files = sorted(glob.glob(os.path.join(scripts, "*.py"))
-                   + glob.glob(os.path.join(scripts, "tests", "*.py")))
-    assert len(files) >= 20, len(files)
+    tools = sorted(glob.glob(os.path.join(scripts, "*.py")))
+    suite = sorted(glob.glob(os.path.join(scripts, "tests", "*.py")))
+    files = sorted(tools + suite)
+    # Counted per half. A single `>= 20` over the union passed with the tests/
+    # half deleted outright — the tools alone are 22 — and tests/ is precisely
+    # where the docstring says the shadowing bug was found (D-255).
+    assert len(tools) >= 18, f"only {len(tools)} tool modules — scripts/ half shrank"
+    assert len(suite) >= 20, f"only {len(suite)} test modules — tests/ half shrank"
     dupes = []
     for path in files:
         # campaign_report.py carries a UTF-8 BOM; Python's importer strips it and
