@@ -379,6 +379,16 @@ def test_segment_profile_reaches_markdown_and_csv():
     md = rpt.build_report_markdown(recs)
     html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
     assert "分段异常定位" in md and "分段异常定位" in html
+    # ...and the VERDICT reaches both, not just the heading. The CSV half of this
+    # test has always checked content — which cell is the outlier, whether the
+    # segment is uniform — while the two rendered surfaces were evidenced by a
+    # section title. Empty the section's rows, keep the heading, and this used to
+    # pass on the two surfaces a reader actually looks at (D-260). Scoped to the
+    # section, because P99 appears in the heat card too.
+    seg_md = md.split("## 分段异常定位")[1].split("\n## ")[0]
+    seg_html = html.split("分段异常定位")[1].split("<h2>")[0]
+    assert "P99" in seg_md, "the outlier point never reaches the markdown section"
+    assert "P99" in seg_html, "the outlier point never reaches the HTML section"
     with tempfile.TemporaryDirectory() as d:
         prefix = os.path.join(d, "camp")
         rpt.write_csv_tables(recs, prefix)
