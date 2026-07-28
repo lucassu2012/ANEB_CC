@@ -4,9 +4,11 @@
 The severity split is the whole point: FAIL is for things a machine can be sure
 are wrong (blocks publication), WARN is for things that need a human to explain.
 A WARN must never be silently upgraded to PASS, and "cannot judge" must never
-read as "no problem".
+read as "no problem" — split further by D-229 into WARN (there are objects, the
+evidence to judge them is missing) and N/A (there is no object at all).
 """
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
@@ -481,9 +483,23 @@ def _summary_flags_buffering(summary):
 
 # (gate item, does the summary flag the same problem?). Both surfaces speak
 # about one thing; if they disagree, one of them is lying to the operator.
+def _summary_flags_trust(summary):
+    # 「时钟可疑热点：无。」 shares its prefix with the hot-spot line, so a prefix
+    # test reads "none" as "some" — the probe error D-228 records, kept out of
+    # the guard here by matching the negative form explicitly.
+    for line in summary.splitlines():
+        if line.startswith("- **测量可信度"):            # no clock/seq/parse evidence
+            return True
+        if (line.startswith("- **时钟可疑热点**：")
+                and not line.startswith("- **时钟可疑热点**：无")):
+            return True
+    return False
+
+
 _GATE_VS_SUMMARY = (
     ("有效率", _summary_flags_validity),
     ("批化失真", _summary_flags_buffering),
+    ("测量可信度", _summary_flags_trust),
 )
 
 
@@ -552,3 +568,76 @@ def test_a_check_with_nothing_to_run_on_never_renders_as_pass():
     # test_no_usable_cell_is_not_sufficient_sampling / test_unlabelled_corpus_fails.
     assert na_rows >= 20, f"only {na_rows} N/A rows — the branches stopped being reached"
     assert len(na_items) >= 4, f"N/A seen on {sorted(na_items)} only"
+
+
+_UNJUDGEABLE = ("噪声内", "判不了", "噪声不可估")
+_BEYOND = re.compile(r"(\d+)/(\d+) 个负 Δ 超出噪声尺度")
+_ALL_NOISY = re.compile(r"^(\d+) 个格 Δ\(cellular−wifi\) 为负")
+
+
+def _counted_in_transport_table(recs):
+    """(negative Δ rows, of which beyond noise) — counted the way a reader would,
+    off the rendered section rather than off the analysis dict."""
+    import transport_rollup
+
+    md = transport_rollup.render_markdown(transport_rollup.analyze(recs))
+    neg = real = 0
+    for line in md.splitlines():
+        if not line.startswith("| ") or line.startswith("| 点位"):
+            continue
+        if set(line) <= set("|- "):                       # the |---|---| rule row
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 9:
+            continue
+        delta, note = cells[5], cells[7]
+        if delta.startswith("-") and delta != "—":
+            neg += 1
+            if not any(m in note for m in _UNJUDGEABLE):
+                real += 1
+    return neg, real
+
+
+def test_the_gate_figure_can_be_counted_in_the_transport_table():
+    """The README promises 「`publish_check` 的「介质效应量」项与本段共用同一判据，
+    不会分歧」 and nothing checked it — a stated premise with nothing standing
+    behind it is how D-216 got in (D-230).
+
+    The gate prints 「N/M 个负 Δ 超出噪声尺度」; the section renders one row per
+    cell. A reader who counts the table has to reach the same N and M. Both
+    numbers travel through independent renderings, so a criterion that drifts on
+    either side lands here.
+    """
+    from test_report_properties import _corrupt_corpus, _random_corpus
+
+    corpora = [("chaos", _corrupt_corpus())]
+    corpora += [(f"seed{s}", _random_corpus(s)) for s in range(20)]
+    # Measured: 6 random corpora carry a figure and every one of them is 0/M.
+    # Without these two the guard would only ever check the half where the
+    # section has no finding to show.
+    corpora += [
+        ("media-beyond", _media({"P1": ([80, 82, 84, 86, 88], [50, 52, 54, 56, 58])})),
+        ("media-unknown", _media({"P1": ([80, 82, 84, 86, 88], [50, 52, 54, 56, 58]),
+                                  "P2": ([80, 82, 84, 86, 88], [60])})),
+    ]
+
+    checked, with_finding = 0, 0
+    for tag, recs in corpora:
+        detail = _detail(pc.check(recs), "介质效应量")
+        m, m2 = _BEYOND.search(detail), _ALL_NOISY.match(detail)
+        if m:
+            gate = (int(m.group(2)), int(m.group(1)))     # (negative, beyond noise)
+        elif m2:
+            gate = (int(m2.group(1)), 0)
+        else:
+            continue                                      # N/A row: no figure to check
+        checked += 1
+        if gate[1]:
+            with_finding += 1
+        counted = _counted_in_transport_table(recs)
+        assert gate == counted, (
+            f"{tag}: the gate says {detail[:44]!r} while the section table counts "
+            f"{counted} (negative rows, of which beyond noise)")
+
+    assert checked >= 6, f"only {checked} corpora carried a figure to check"
+    assert with_finding >= 1, "the half where the section shows a real finding was never reached"
