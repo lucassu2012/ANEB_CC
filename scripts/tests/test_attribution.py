@@ -69,6 +69,33 @@ def test_every_severe_flag_is_producible_and_emphasised():
                                   "low_confidence": True})
     assert plain and not any(f.startswith("**") for f in plain), plain
 
+    # …and the emphasis survives onto the pages. Everything above is md_flags on
+    # a synthetic dict — a pure function, not a deliverable. The promise names
+    # renderers, so a renderer that stopped emphasising would have gone unseen
+    # (the shape D-232 named, applied here). Measured: markdown carries it as
+    # ** ** and the HTML as <b>, so this costs nothing to pin (D-261).
+    import re
+    import campaign_report as rpt
+    from test_campaign_report import _every_marker_corpus
+    recs = _every_marker_corpus()
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    # Which flags this corpus PRODUCES, not which names appear in the page: the
+    # section's own method paragraph names TIER_ENDPOINT_CONFLICT in prose, and
+    # a substring test read that as a marker on a row. Same substitute-criterion
+    # mistake this file keeps catching — caught here before the commit.
+    produced = {f.split(":")[0]
+                for c in attribution.attribute(recs)["cells"]
+                for f in attribution.incomparability_flags(c)}
+    on_page = sorted(produced & set(attribution.SEVERE_FLAGS))
+    assert len(on_page) >= 2, ("this corpus produces too few severe flags to "
+                               f"prove anything: {on_page}")
+    for flag in on_page:
+        assert re.search(r"\*\*" + re.escape(flag) + r"[^*]*\*\*", md), (
+            f"{flag} reaches the markdown unemphasised")
+        assert re.search(r"<b>[^<]*" + re.escape(flag), html), (
+            f"{flag} reaches the HTML unemphasised")
+
 
 def test_severe_and_ordinary_markers_render_differently():
     """The rule end-to-end on one real cell: severe bolded, ordinary plain."""
