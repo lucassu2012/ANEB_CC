@@ -148,8 +148,13 @@ def test_every_tool_is_mentioned_in_the_readme():
         body = f.read()
     tools = [n for n in sorted(os.listdir(SCRIPTS))
              if n.endswith(".py") and not n.startswith("_")]
-    missing = [n for n in tools if n not in body and n[:-3] not in body]
+    # The filename, not the bare stem. `trend`, `stability` and `provenance` are
+    # ordinary words in this prose, so the stem fallback would have accepted a
+    # tool the README never names — a criterion weaker than the promise. All 22
+    # tools already appear by filename, so this only closes the hole (D-249).
+    missing = [n for n in tools if n not in body]
     assert not missing, f"tools missing from scripts/README.md: {missing}"
+    assert len(tools) >= 20, f"only {len(tools)} tools scanned — did the scan break?"
 
 
 def test_documented_flags_exist_in_argparse():
@@ -306,11 +311,14 @@ def test_quoted_tool_output_is_still_produced():
             "whichever column they happen to read first")
 
 
+# Read from the directory, not typed here. The list used to name five docs out of
+# the twenty-two in docs/, under a test called "every doc table row" — sixteen of
+# the unnamed ones have tables, one of them 74 rows long, and none was ever
+# checked. Widening it costs nothing: measured, all of them already pass (D-249).
 _TABLE_DOCS = [os.path.join(SCRIPTS, "README.md")] + [
-    os.path.join(REPO, "docs", name) for name in (
-        "DECISION_LOG.md", "ANALYSIS_LAYER_HANDOVER.md",
-        "M2_CAMPAIGN_RUNBOOK.md", "M2_REPORT_TEMPLATE.md",
-        "M2_GRID_DESIGN_PROPOSAL.md")]
+    os.path.join(REPO, "docs", name)
+    for name in sorted(os.listdir(os.path.join(REPO, "docs")))
+    if name.endswith(".md")]
 
 _DELIM = re.compile(r"\|[-|: ]+\|")
 
@@ -380,9 +388,14 @@ def test_every_doc_table_row_survives_rendering():
         f"-- the overflow is dropped when rendered: {mismatched[:6]}")
     # Backstop only: the corpus has to reach the branch, or a scan that quietly
     # stopped recognising tables would report a clean sweep of nothing.
-    assert tables >= 12 and rows >= 300, (
+    # Measured 67 tables / 831 rows across every doc; the five-doc list this
+    # replaced reached 15 / 393. The floor sits above THAT, so narrowing the
+    # sweep back to a hand-picked few fails here instead of passing quietly
+    # (D-249).
+    assert tables >= 55 and rows >= 700, (
         f"only {tables} tables / {rows} rows seen across {len(_TABLE_DOCS)} "
-        "docs -- the scan stopped finding tables, so its verdict means nothing")
+        "docs -- either the scan stopped finding tables or the doc list was "
+        "narrowed; either way its verdict means nothing")
 
 
 def test_every_severity_the_gate_can_emit_is_described_where_the_operator_reads():
