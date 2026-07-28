@@ -887,22 +887,27 @@ def test_a_non_positive_mean_yields_no_cv_rather_than_a_reassuring_one():
 
 
 def _table_rows(md, title):
-    """Rows of the table under `title`, as {column: cell} dicts."""
-    if title not in md:
-        return []
-    body = md.split(title)[1].split("\n## ")[0]
-    rows, header = [], None
-    for ln in body.splitlines():
-        s = ln.strip()
-        if not (s.startswith("|") and s.endswith("|")):
-            continue
-        cells = [c.strip() for c in s.strip("|").split("|")]
-        if set("".join(cells)) <= set("-: "):
-            continue
-        if header is None:
-            header = cells
-            continue
-        rows.append(dict(zip(header, cells)))
+    """Rows of EVERY table under a heading with this title, as {column: cell}.
+
+    Attribution, segment-profile and order-effect each render one section per
+    KPI. Reading only the first occurrence left roughly half the report's rows
+    unchecked — 40 of 118, 63 of 123, 95 of 204 — while the guard above still
+    called itself a sweep of every printed relation (D-226).
+    """
+    rows = []
+    for part in md.split(title)[1:]:
+        header = None
+        for ln in part.split("\n## ")[0].splitlines():
+            s = ln.strip()
+            if not (s.startswith("|") and s.endswith("|")):
+                continue
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if set("".join(cells)) <= set("-: "):
+                continue
+            if header is None:
+                header = cells
+                continue
+            rows.append(dict(zip(header, cells)))
     return rows
 
 
@@ -923,21 +928,28 @@ def _lead_num(s):
 # (name, section title, columns, relation -> deviation, minimum rows to see).
 # The relation is exactly what a reader can check with the numbers on the page.
 _ARITH_CASES = (
+    # Floors sit near three quarters of what the corpora currently produce
+    # (13 / 22 / 13 / 197 / 197 / 103), so a scan that quietly narrows again —
+    # reading one section per repeated title, as this one used to — fails here
+    # rather than reporting a clean sweep of half the rows (D-226).
     ("接入介质 Δ = cellular − wifi", "## 接入介质对比",
      ("wifi", "cellular", "Δ(cell−wifi)"),
-     lambda w, c, d: abs((c - w) - d), 8),
+     lambda w, c, d: abs((c - w) - d), 10),
     ("分段 离差/典型 = MAD ÷ |典型|", "## 分段异常定位",
      ("典型值(中位)", "离差(MAD)", "离差/典型"),
-     lambda t, m, p: abs(m / abs(t) * 100.0 - p) if t else None, 6),
+     lambda t, m, p: abs(m / abs(t) * 100.0 - p) if t else None, 15),
     ("优化前后 Δ = after − before", "## 优化前后对比",
      ("before", "after", "Δ"),
-     lambda b, a, d: abs((a - b) - d), 8),
+     lambda b, a, d: abs((a - b) - d), 10),
     ("有效性 尝试 = 有效+低置信+失效+未知", "## 有效性与失效原因",
      ("尝试", "有效(严格)", "低置信", "失效", "未知"),
-     lambda att, v, lc, inv, unk: abs((v + lc + inv + unk) - att), 100),
+     lambda att, v, lc, inv, unk: abs((v + lc + inv + unk) - att), 150),
     ("有效率 = (有效+低置信) ÷ 尝试", "## 有效性与失效原因",
      ("尝试", "有效(严格)", "低置信", "有效率"),
-     lambda att, v, lc, rate: abs((v + lc) / att * 100.0 - rate) if att else None, 100),
+     lambda att, v, lc, rate: abs((v + lc) / att * 100.0 - rate) if att else None, 150),
+    ("序位 极差% = 极差 ÷ |总体中位|", "## 序位效应诊断",
+     ("极差", "总体中位", "极差%"),
+     lambda sp, ov, pct: abs(sp / abs(ov) * 100.0 - pct) if ov else None, 80),
 )
 
 

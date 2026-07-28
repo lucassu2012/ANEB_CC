@@ -178,8 +178,26 @@ def render_markdown(res):
     lines += ["| profile | 位次中位数 | 极差 | 极差% | 总体中位 | 判定 | 备注 |",
               "|---|---|---|---|---|---|---|"]
     for p in res["profiles"]:
-        pos_txt = " / ".join(f"#{i}:{cc.fmt_num(v['median'])}(n={v['n']})"
-                             for i, v in sorted(p["positions"].items())) or "—"
+        # The row prints the position medians, their spread, the overall median
+        # and the spread as a percentage of it — two relations the reader can
+        # check on the page. Rounded independently they disagreed on 26% and 15%
+        # of rows respectively (D-226).
+        pos = sorted(p["positions"].items())
+        meds = [v["median"] for _, v in pos]
+        k = len(meds)
+
+        def _holds(r, d, k=k):
+            span_ok = abs((max(r[:k]) - min(r[:k])) - r[k]) < 0.5 * 10 ** -(d + 3)
+            if not r[k + 1]:
+                return span_ok
+            return span_ok and abs(r[k] / abs(r[k + 1]) * 100.0
+                                   - r[k + 2]) < 0.5 * 10 ** -d
+
+        shown, reconciled = cc.fmt_values_consistent(
+            meds + [p["spread"], p["overall_median"], p["spread_pct"]], _holds)
+        pos_txt = " / ".join(f"#{i}:{s}(n={v['n']})"
+                             for (i, v), s in zip(pos, shown)) or "—"
+        spread_s, overall_s, pct_s = shown[k], shown[k + 1], shown[k + 2]
         if p["order_effect_suspected"] is None:
             verdict = "不可计算"
         elif p["order_effect_suspected"]:
@@ -194,9 +212,11 @@ def render_markdown(res):
                 f"{r}×{n}" for r, n in sorted(p["implausible_values"].items())) + "**")
         if p["low_confidence"]:
             notes.append("low_conf")
+        if reconciled is False:
+            notes.append("ROUNDING_UNRECONCILED")
         lines.append(
-            f"| {p['profile_id']} | {pos_txt} | {cc.fmt_num(p['spread'])} | "
-            f"{cc.fmt_num(p['spread_pct'])} | {cc.fmt_num(p['overall_median'])} | "
+            f"| {p['profile_id']} | {pos_txt} | {spread_s} | "
+            f"{pct_s} | {overall_s} | "
             f"{verdict} | {'; '.join(notes) or '—'} |")
     return "\n".join(lines)
 
