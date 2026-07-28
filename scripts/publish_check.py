@@ -5,7 +5,7 @@ The runbook's pre-publish checklist is eight manual items — and a manual
 checklist at the end of a field day is exactly what gets skipped. This runs the
 mechanically decidable ones in a single command (D-124).
 
-Two severities, deliberately separated:
+Four severities, deliberately separated:
 
   FAIL — objectively wrong, blocks publication. The machine can be sure:
          synthetic (fabricated) records mixed in, contract violations, a corpus
@@ -13,6 +13,15 @@ Two severities, deliberately separated:
   WARN — needs a human to explain before publishing, not something a tool can
          settle: cells below the validity floor, distortion hot-spots, suspect
          clocks, low-confidence cells, order-effect evidence.
+  N/A  — the check had nothing to run on, so it reached no verdict. NOT a quiet
+         PASS: the reader's first action on this table is to scan the icons, and
+         a green tick against a check that never ran is the same lie D-163 and
+         D-198 removed from three items and left standing in the rest (D-229).
+  PASS — the check ran over a non-empty set and found nothing wrong.
+
+What separates the last two is the object, not the evidence: no object at all is
+N/A, while objects whose evidence is missing stay WARN — a corpus that has cells
+but no `server_tier_endpoint` cannot be reconciled, and someone has to say why.
 
 A WARN is never auto-upgraded to PASS and never silently swallowed: the point is
 that the report author must be able to answer "why is this cell like that?"
@@ -34,7 +43,7 @@ import transport_rollup
 import trust_rollup
 import validity_rollup
 
-FAIL, WARN, PASS = "FAIL", "WARN", "PASS"
+FAIL, WARN, NA, PASS = "FAIL", "WARN", "N/A", "PASS"
 
 
 def _row(sev, item, detail):
@@ -179,17 +188,20 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     # find anywhere, and double the apparent severity. Mixed media, tier timing
     # and endpoint conflicts are properties of the CELL, not of the KPI, so the
     # union of cell keys is what to count (D-191).
-    mixed_tp = set()
+    mixed_tp, tp_cells = set(), set()
     for k in attribution.ATTRIBUTABLE_KPIS:
         for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
+            tp_cells.add(_cell_key(c))
             if c.get("mixed_transports"):
                 mixed_tp.add(_cell_key(c))
     if mixed_tp:
         rows.append(_row(WARN, "同一接入",
                          f"{len(mixed_tp)} 个格的三层级混用了不同接入介质"
                          "——该格的骨干增量其实含 wifi/蜂窝差，不可用"))
+    elif tp_cells:
+        rows.append(_row(PASS, "同一接入", f"{len(tp_cells)} 个格三层级接入介质一致"))
     else:
-        rows.append(_row(PASS, "同一接入", "各格三层级接入介质一致"))
+        rows.append(_row(NA, "同一接入", "无可归因单元——接入介质一致性**未核算**"))
 
     # 层级对账: the tier label is typed by the operator; server_tier_endpoint is
     # what the run actually hit. Written by annotate, read by nobody — so a
@@ -210,7 +222,7 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                          f"{len(conflicts)} 个格的同一端点被标成多种层级"
                          "——三层其实打的同一个端,**骨干分解不成立**"))
     elif not total_cells:
-        rows.append(_row(PASS, "层级对账", "无可归因单元,无需对账"))
+        rows.append(_row(NA, "层级对账", "无可归因单元——层级对账**未核算**"))
     elif not known_cells:
         rows.append(_row(WARN, "层级对账",
                          "语料无 `server_tier_endpoint`——**无法对账** tier 标签是否"
@@ -247,9 +259,10 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                          "——共模不再抵消，该格的骨干增量可能是时段差异"))
     elif not judged and unknown:
         rows.append(_row(WARN, "层级同时性", f"{unknown} 个多层级格无时间戳——无法核对同时性"))
+    elif judged:
+        rows.append(_row(PASS, "层级同时性", f"{judged} 个格的三层级测量在门限内"))
     else:
-        rows.append(_row(PASS, "层级同时性",
-                         f"{judged} 个格的三层级测量在门限内" if judged else "无多层级格可核对"))
+        rows.append(_row(NA, "层级同时性", "无多层级格——层级同时性**未核算**"))
 
     # A veto caps the score at 70/54 — the grade-band edges — so a low grade can
     # mean the sessions failed rather than the network being slow (D-154)
@@ -260,8 +273,10 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                          f"{len(veto_cells)}/{len(cells)} 个格含被否决封顶的 run（共 {n_runs} 条，"
                          "T4 严重卡顿率 >1% → 封顶 54）——封顶分只说明「至少这么差」，"
                          "不是该格体验的度量，须回到卡顿证据本身"))
+    elif cells:
+        rows.append(_row(PASS, "否决封顶", f"{len(cells)} 个格均无被否决封顶的 run"))
     else:
-        rows.append(_row(PASS, "否决封顶", "无被否决封顶的 run"))
+        rows.append(_row(NA, "否决封顶", "无可用 AQS 的格——否决封顶**未核算**"))
 
     # A heat-card dimension filled by a rule of thumb is not the same evidence
     # as one recorded on site, and the report says "busy is N points worse than
@@ -328,9 +343,10 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
                          f"本语料含 {len(labeled)} 个战役（{', '.join(labeled)}）——"
                          "除「优化前后对比」/「纵向趋势」外各段均按格池化，其中位数"
                          "**既不是前也不是后**；头条数字须取自 `--campaign <id>` 的单战役报告"))
+    elif labeled:
+        rows.append(_row(PASS, "战役池化", f"单战役（{labeled[0]}）"))
     else:
-        rows.append(_row(PASS, "战役池化",
-                         f"单战役（{labeled[0]}）" if labeled else "无战役标签，无池化风险"))
+        rows.append(_row(NA, "战役池化", "无战役标签——跨战役池化**未核算**"))
 
     # "It got better" is the claim a second round exists to make. Publishing it
     # when every cell's Δ sits inside the measurement noise is the failure mode
@@ -362,8 +378,11 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             rows.append(_row(PASS, "效应量", detail))
     else:
         # every other item emits a row in every case; a silently absent one
-        # cannot be told apart from a check that was forgotten (D-150)
-        rows.append(_row(PASS, "效应量", "单战役语料，无前后对比可核算"))
+        # cannot be told apart from a check that was forgotten (D-150). The row
+        # is N/A rather than PASS because a single-campaign corpus has no
+        # before/after pair to compare — the summary already says the improvement
+        # question is unanswerable this round, and the gate has to agree (D-229).
+        rows.append(_row(NA, "效应量", "单战役语料，无前后可比对象——效应量**未核算**"))
 
     # Same claim shape as 效应量, different section: "cellular is worse than wifi
     # here" is a difference of two medians and was published from the sign alone
@@ -380,10 +399,19 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     # (D-198). The same two-state slip D-144 was written to prevent, in the item
     # added to prevent it.
     tunknown = [c for c in tneg if c["within_noise"] is None]
+    # A cell is comparable only where both media were measured; elsewhere
+    # `cellular_minus_wifi` is None and there is nothing to compare. That state
+    # used to share a row with "cellular is not worse", so one green tick meant
+    # either "checked, clean" or "never checked" and the reader could not tell
+    # which (D-229).
+    tcomparable = [c for c in tres["cells"] if c["cellular_minus_wifi"] is not None]
     if tres["only_unknown"]:
-        rows.append(_row(PASS, "介质效应量", "无 transport 证据，无介质差异可核算"))
+        rows.append(_row(NA, "介质效应量", "无 transport 证据——介质效应量**未核算**"))
+    elif not tcomparable:
+        rows.append(_row(NA, "介质效应量", "无同格双介质可比——介质效应量**未核算**"))
     elif not tneg:
-        rows.append(_row(PASS, "介质效应量", "无同格双介质可比，或蜂窝不劣于 wifi"))
+        rows.append(_row(PASS, "介质效应量",
+                         f"{len(tcomparable)} 个格同格双介质可比，蜂窝均不劣于 wifi"))
     elif not treal:
         rows.append(_row(WARN, "介质效应量",
                          f"{len(tneg)} 个格 Δ(cellular−wifi) 为负但无一超出噪声尺度"
@@ -429,24 +457,29 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     else:
         rows.append(_row(PASS, "序位效应", f"{judged} 处均未见序位偏倚"))
 
-    rank = {FAIL: 0, WARN: 1, PASS: 2}
+    # N/A above PASS: "no answer" is closer to the reader's problem than "fine"
+    rank = {FAIL: 0, WARN: 1, NA: 2, PASS: 3}
     return sorted(rows, key=lambda r: rank[r["severity"]])
 
 
 def render_markdown(rows):
     lines = ["## 发布前自检", "",
              "> FAIL=客观错误，**阻断发布**；WARN=**须由人解释**后才可发布"
-             "（工具不替人判断）；PASS=该项无问题。本自检**不能**替代 runbook §5 中"
+             "（工具不替人判断）；N/A=**该项无可核算对象，未作判断**——不等于无问题；"
+             "PASS=该项已核查且未见问题。本自检**不能**替代 runbook §5 中"
              "需要人工判断的条目（结论措辞、归档完整性、claim_scope 落款）。", "",
              "| 判定 | 检查项 | 说明 |", "|---|---|---|"]
-    icon = {FAIL: "⛔ FAIL", WARN: "⚠ WARN", PASS: "✅ PASS"}
+    icon = {FAIL: "⛔ FAIL", WARN: "⚠ WARN", NA: "➖ N/A", PASS: "✅ PASS"}
     for r in rows:
         lines.append(f"| {icon[r['severity']]} | {r['item']} | {r['detail']} |")
     fails = sum(1 for r in rows if r["severity"] == FAIL)
     warns = sum(1 for r in rows if r["severity"] == WARN)
+    nas = sum(1 for r in rows if r["severity"] == NA)
     lines += ["", f"**结论：{'不可发布' if fails else '可发布'}**"
-                  f"（FAIL {fails} / WARN {warns}）。"
-                  + ("" if fails else "每条 WARN 都须在报告正文有对应说明。")]
+                  f"（FAIL {fails} / WARN {warns} / N/A {nas}）。"
+                  + ("" if fails else "每条 WARN 都须在报告正文有对应说明；"
+                                      f"另有 {nas} 项**本轮未核算**，"
+                                      "报告不得就这些方向作出结论。")]
     return "\n".join(lines)
 
 

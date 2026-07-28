@@ -206,7 +206,7 @@ def test_validity_counts_never_exceed_attempts():
 
 
 def test_publish_check_always_returns_known_severities():
-    known = {pc.FAIL, pc.WARN, pc.PASS}
+    known = {pc.FAIL, pc.WARN, pc.NA, pc.PASS}
     for seed in SEEDS:
         rows = pc.check(_random_corpus(seed))
         assert rows, seed

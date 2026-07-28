@@ -57,6 +57,11 @@ def test_synthetic_records_block_publication():
 def test_unlabelled_corpus_fails():
     recs = [contractify(make_record(aqs=90, scenarios=[])) for _ in range(5)]
     assert _sev(pc.check(recs), "战役标签") == pc.FAIL
+    # 「无战役标签，无池化风险」 was a PASS: true in the letter — you cannot pool
+    # two campaigns when there are none — and the opposite of the truth in the
+    # eye, since everything is already pooled into one cell (D-229). No random
+    # corpus reaches this branch either.
+    assert _sev(pc.check(recs), "战役池化") == pc.NA
 
 
 def test_clean_corpus_has_no_fail():
@@ -187,6 +192,11 @@ def test_no_usable_cell_is_not_sufficient_sampling():
     rows = pc.check([contractify(r) for r in aqs_records(None, 5)])
     assert _sev(rows, "样本充分性") == pc.WARN
     assert "无从核算" in _detail(rows, "样本充分性")
+    # Same corpus, sibling row: with no scoreable cell there is no run whose
+    # score could have been veto-capped, and 「无被否决封顶的 run」 read as a
+    # clean result over an empty set (D-229). Pinned here because no random
+    # corpus reaches this branch.
+    assert _sev(rows, "否决封顶") == pc.NA
 
 
 def test_verdict_wording_states_the_warn_contract():
@@ -200,7 +210,7 @@ def test_verdict_wording_states_the_warn_contract():
 
 def test_rows_sorted_most_severe_first():
     sev = [r["severity"] for r in pc.check(sc.generate(**SYNTH_SMALL))]
-    rank = {pc.FAIL: 0, pc.WARN: 1, pc.PASS: 2}
+    rank = {pc.FAIL: 0, pc.WARN: 1, pc.NA: 2, pc.PASS: 3}
     assert sev == sorted(sev, key=lambda s: rank[s])
 
 
@@ -228,10 +238,15 @@ def test_lookalike_labels_are_warned_before_publication():
 
 def test_effect_size_row_exists_even_with_one_campaign():
     """Every other item emits a row in every case; a silently absent one cannot
-    be told apart from a check that was forgotten (D-150)."""
+    be told apart from a check that was forgotten (D-150).
+
+    The row is N/A, not PASS: with one campaign there is no before/after pair,
+    the summary already tells the reader the improvement question is
+    unanswerable this round, and a green tick here said the opposite (D-229).
+    """
     recs = [contractify(r) for r in aqs_records(90, 5, campaign_id="base")]
-    assert _sev(pc.check(recs), "效应量") == pc.PASS
-    assert "无前后对比可核算" in _detail(pc.check(recs), "效应量")
+    assert _sev(pc.check(recs), "效应量") == pc.NA
+    assert "无前后可比对象" in _detail(pc.check(recs), "效应量")
 
 
 def test_implausible_epoch_is_warned_before_publication():
@@ -503,3 +518,37 @@ def test_the_publish_gate_and_the_summary_tell_the_same_story():
         assert states == {True, False}, (
             f"{item}: only {sorted(states)} occurred across {len(corpora)} "
             "corpora — one side of the agreement was never exercised")
+
+
+def test_a_check_with_nothing_to_run_on_never_renders_as_pass():
+    """A green tick against a check that never ran is the lie D-163 and D-198
+    took out of 批化失真 / 测量可信度 / 样本充分性 and left standing everywhere
+    else: 「无同格双介质可比，或蜂窝不劣于 wifi」 was one row for both readings,
+    and 12 of the 15 times it appeared, nothing had been compared (D-229).
+
+    The invariant ties the machine's severity to the words the reader sees:
+    a row says 未核算 exactly when the gate calls it N/A. Either half can drift
+    on its own — a PASS whose text admits it checked nothing, or an N/A phrased
+    like a clean result — so the biconditional is what gets asserted.
+    """
+    from test_report_properties import _corrupt_corpus, _random_corpus
+
+    corpora = [("chaos", _corrupt_corpus())]
+    corpora += [(f"seed{s}", _random_corpus(s)) for s in range(20)]
+
+    na_rows, na_items = 0, set()
+    for tag, recs in corpora:
+        for r in pc.check(recs):
+            assert ("未核算" in r["detail"]) == (r["severity"] == pc.NA), (
+                f"{tag}/{r['item']}: severity {r['severity']} on detail "
+                f"{r['detail']!r} — 未核算 and N/A have to mean each other")
+            if r["severity"] == pc.NA:
+                na_rows += 1
+                na_items.add(r["item"])
+
+    # Floors, not counts: measured 27 N/A rows over 5 items on these corpora
+    # (介质效应量 12, 层级同时性 11, 效应量 2, 同一接入 1, 层级对账 1). The other
+    # two N/A branches are unreachable from random corpora and are pinned in
+    # test_no_usable_cell_is_not_sufficient_sampling / test_unlabelled_corpus_fails.
+    assert na_rows >= 20, f"only {na_rows} N/A rows — the branches stopped being reached"
+    assert len(na_items) >= 4, f"N/A seen on {sorted(na_items)} only"
