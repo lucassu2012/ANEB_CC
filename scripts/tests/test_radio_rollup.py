@@ -204,6 +204,70 @@ def _markers_the_module_can_raise():
     return found
 
 
+def test_the_csv_alone_reproduces_what_the_section_prints():
+    """D-205's question, on the newest section: can an analyst who pulled only
+    the CSVs re-derive the conclusions the page states? That is where D-205
+    found a verdict excluding 62 of 72 cells whose criterion was never exported.
+
+    Two things are checked because they fail differently. The band distribution
+    is a count over rows — it breaks if `band` stops being exported. The
+    busy/idle verdicts are a DERIVED judgement, and they break if serving_cells
+    goes missing or if the rule moves in the renderer without moving here: the
+    row says CELL_CHANGED while the exported cells say otherwise, and the
+    analyst's own arithmetic disagrees with the page (D-296).
+    """
+    import csv as csvmod
+    import tempfile
+    import campaign_report as rpt
+
+    recs = sc.generate(points=8, repeats=5, tiers=("metro",),
+                       campaigns=("SZ",), radio=True)
+    md = rr.render_markdown(rr.analyze(recs))
+    with tempfile.TemporaryDirectory() as d:
+        paths = rpt.write_csv_tables(recs, os.path.join(d, "c"))
+        radio_csv = [p for p in paths if p.endswith("_radio.csv")][0]
+        with io.open(radio_csv, encoding="utf-8-sig", newline="") as fh:
+            rows = list(csvmod.DictReader(fh))
+    assert len(rows) >= 16, len(rows)
+
+    # ...the distribution line, counted off the exported band column
+    counts = {}
+    for r in rows:
+        counts[r["band"] or ""] = counts.get(r["band"] or "", 0) + 1
+    printed = [ln for ln in md.split("\n") if ln.startswith("**档位分布**")]
+    assert len(printed) == 1, printed
+    for band in cc.SIGNAL_BANDS:
+        assert "%s %d 格" % (cc.SIGNAL_LABELS[band], counts.get(band, 0)) in printed[0], (
+            band, counts, printed[0])
+
+    # ...and every busy/idle verdict, re-derived from serving_cells
+    place = {}
+    for r in rows:
+        cells = set(filter(None, r["serving_cells"].split("/")))
+        place.setdefault((r["point_id"], r["carrier"]), {})[r["time_band"]] = cells
+    recomputed = {}
+    for key, bands in place.items():
+        bands = {b: c for b, c in bands.items() if c}
+        if len(bands) < 2:
+            continue
+        shared = set.intersection(*bands.values())
+        union = set.union(*bands.values())
+        recomputed[key] = ("CELL_CHANGED" if not shared else
+                           "CELL_PARTIAL" if len(union) > len(shared) else "同一小区")
+    from_page = {}
+    for ln in md.split("\n"):
+        m = re.match(r"^\| (\S+) \| (\S+) \|.*\| \*{0,2}(CELL_CHANGED|CELL_PARTIAL|同一小区)",
+                     ln)
+        if m:
+            from_page[(m.group(1), m.group(2))] = m.group(3)
+    assert len(from_page) >= 8, ("read %d verdict rows off the page — the scan "
+                                 "broke and this compares nothing" % len(from_page))
+    assert from_page == recomputed, (
+        "the page and the CSV disagree about the busy/idle verdict: %s"
+        % sorted(k for k in set(from_page) | set(recomputed)
+                 if from_page.get(k) != recomputed.get(k)))
+
+
 def test_the_runbook_checklist_for_the_radio_rehearsal_is_true():
     """The runbook tells the operator what the radio rehearsal must show, and
     names the point that carries the cell-change confound. Nothing reconciled
