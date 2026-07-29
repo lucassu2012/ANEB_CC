@@ -138,8 +138,8 @@ def main(argv):
     uniform = _parse_set(args.sets)
     mapping = None
     if args.map_path:
-        with open(args.map_path, encoding="utf-8") as f:
-            mapping = json.load(f)
+        mapping = cc.load_operator_json(
+            args.map_path, '{"SZ-CBD-01": {"tier": "metro"}}')
 
     # Expand globs HERE, not per-file inside the loop: PowerShell (the primary
     # shell on this project) does not expand wildcards for external programs, so

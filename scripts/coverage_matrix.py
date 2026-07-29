@@ -27,7 +27,6 @@ Usage:
 """
 import argparse
 import itertools
-import json
 import sys
 from collections import defaultdict
 
@@ -132,8 +131,10 @@ def _load_target(args):
     # typo on one key is enough to get there. 'cannot check' must never look like
     # 'checked' — and must never look like 'checking'.
     if args.config:
-        with open(args.config, encoding="utf-8") as f:
-            cfg = json.load(f)
+        cfg = cc.load_operator_json(
+            args.config,
+            '{"point_id": ["SZ-CBD-01"], "carrier": ["cmcc"], '
+            '"time_band": ["busy", "idle"]}')
         target = {d: cfg.get(d) or [] for d in CELL_DIMS}
         empty = [d for d in CELL_DIMS if not target[d]]
         if empty:

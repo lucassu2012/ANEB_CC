@@ -34,6 +34,34 @@ GRADE_COLORS = {
 }
 GRADE_ORDER = ["excellent", "good", "fair", "poor"]  # best -> worst
 
+
+def load_operator_json(path, example=""):
+    """Read a JSON file a HUMAN wrote, and fail the way the corpus loader does.
+
+    The corpus path already answers a BOM by name — `skip <file>:1: Unexpected
+    UTF-8 BOM (decode using utf-8-sig)` — and the front-door gate then refuses
+    to report. The two JSON files an operator writes by hand, the coverage grid
+    and the annotate mapping, were opened as plain utf-8 with a bare json.load,
+    so Notepad, VS Code's default and PowerShell's `Set-Content -Encoding utf8`
+    — on this project's primary platform — produced a traceback instead, at the
+    operator's daily coverage check (D-272).
+
+    One loader rather than one per caller: the same hazard handled twice is the
+    twin implementation this layer keeps finding (D-216 / D-264).
+    """
+    tail = f"\n  example: {example}" if example else ""
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except OSError as e:
+        raise SystemExit(f"cannot read {path}: {e}")
+    except ValueError as e:
+        raise SystemExit(f"{path} is not valid JSON: {e}{tail}")
+    if not isinstance(data, dict):
+        raise SystemExit(
+            f"{path} must be a JSON object, got {type(data).__name__}{tail}")
+    return data
+
 # ---- three server tiers (campaign labels convention §2/§3) ------------------
 TIERS = ["metro", "regional", "core"]
 TIER_LABELS = {"metro": "同城", "regional": "区域", "core": "中心"}

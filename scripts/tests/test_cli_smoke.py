@@ -554,6 +554,67 @@ def test_the_cli_survives_a_gbk_console():
     assert exercised == len(_ICON_CLIS), exercised
 
 
+_BOM = b"\xef\xbb\xbf"
+
+
+def test_the_json_an_operator_writes_may_carry_a_bom():
+    """Notepad, VS Code's default and PowerShell's `Set-Content -Encoding utf8`
+    all emit a BOM, and Windows is this project's primary platform.
+
+    The corpus loader already answers a BOM by name — it prints the file, the
+    line and `decode using utf-8-sig`, and the front-door gate then refuses to
+    report. The two JSON files a HUMAN writes, the coverage grid and the
+    annotate mapping, were opened as plain utf-8 with a bare json.load: the
+    operator's daily coverage check ended in a traceback instead (D-272).
+
+    A traceback is the thing being guarded against, not merely the exit code —
+    a tool that dies without saying what to fix has failed the operator even
+    when the exit code is correct.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        corpus = os.path.join(d, "a.jsonl")
+        _write_jsonl(corpus, _labelled(6))
+
+        grid = os.path.join(d, "grid.json")
+        with open(grid, "wb") as fh:
+            fh.write(_BOM + b'{"point_id": ["P1"], "carrier": ["cmcc"], '
+                            b'"time_band": ["busy"]}')
+        with open(grid, "rb") as fh:
+            assert fh.read(3) == _BOM, "the fixture carries no BOM to be read"
+
+        mapping = os.path.join(d, "map.json")
+        with open(mapping, "wb") as fh:
+            fh.write(_BOM + b'{"P1": {"tier": "metro"}}')
+
+        bad = os.path.join(d, "bad.json")
+        with open(bad, "wb") as fh:
+            fh.write(b'{"point_id": [')
+
+        def run(script, *args):
+            return subprocess.run(
+                [sys.executable, os.path.join(SCRIPTS, script)] + list(args),
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", cwd=SCRIPTS)
+
+        cov = run("coverage_matrix.py", corpus, "--config", grid)
+        assert "Traceback" not in (cov.stdout + cov.stderr), cov.stderr[-400:]
+        assert cov.returncode == 0, cov.stderr[-400:]
+
+        out = os.path.join(d, "out.jsonl")
+        ann = run("annotate_campaign.py", corpus, "-o", out, "--map", mapping)
+        assert "Traceback" not in (ann.stdout + ann.stderr), ann.stderr[-400:]
+        assert ann.returncode == 0, ann.stderr[-400:]
+
+        broken = run("coverage_matrix.py", corpus, "--config", bad)
+        blob = broken.stdout + broken.stderr
+        assert broken.returncode != 0, "malformed JSON was accepted"
+        assert "Traceback" not in blob, (
+            "a hand-written file with a typo still ends in a traceback: " + blob[-400:])
+        assert bad in blob and "example" in blob, (
+            "the message names neither the file nor what a good one looks "
+            "like: " + blob[-400:])
+
+
 def test_the_runner_reports_a_failure_it_cannot_print():
     """A failure line is assertion text, and assertion text quotes the report,
     which carries marks like the warning sign. The runner printed it bare, so
