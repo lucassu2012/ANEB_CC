@@ -1589,11 +1589,22 @@ def _lead_num(s):
 
 # (name, section title, columns, relation -> deviation, minimum rows to see).
 # The relation is exactly what a reader can check with the numbers on the page.
+# How many relations this list must keep carrying. Which columns stand in an
+# arithmetic relation is a semantic judgement — it cannot be enumerated from the
+# rendered page the way sections or CSV columns can, so this side is
+# irreducibly hand-written and the usual "derive one side" fix does not apply
+# (D-262). What is available instead is a floor on the list itself: deleting a
+# case is then a failure rather than a quieter sweep (D-278).
+_ARITH_MIN_CASES = 7
+
 _ARITH_CASES = (
-    # Floors sit near three quarters of what the corpora currently produce
-    # (13 / 22 / 13 / 197 / 197 / 103), so a scan that quietly narrows again —
-    # reading one section per repeated title, as this one used to — fails here
-    # rather than reporting a clean sweep of half the rows (D-226).
+    # Each case's floor sits near three quarters of what the corpora currently
+    # produce for it, so a scan that quietly narrows again — reading one section
+    # per repeated title, as this one used to — fails here rather than reporting
+    # a clean sweep of half the rows (D-226). The floors used to be enumerated
+    # in this comment and had already gone stale by one case (D-278): a number
+    # restated where nothing compares it drifts, which is the same reason the
+    # docs stopped carrying counts.
     ("接入介质 Δ = cellular − wifi", "## 接入介质对比",
      ("wifi", "cellular", "Δ(cell−wifi)"),
      lambda w, c, d: abs((c - w) - d), 10),
@@ -1697,6 +1708,12 @@ def test_every_printed_arithmetic_relation_holds():
     # have been checked on a single row and called covered (D-252).
     mds.append(rpt.build_report_markdown(sc.generate(
         points=3, repeats=3, campaigns=("base", "opt", "later"))))
+
+    assert len(_ARITH_CASES) >= _ARITH_MIN_CASES, (
+        f"{len(_ARITH_CASES)} relations left in the sweep, {_ARITH_MIN_CASES} "
+        "expected — which columns stand in an arithmetic relation cannot be "
+        "read off the page, so a case that disappears takes its relation with "
+        "it and the sweep still reports clean")
 
     for name, title, cols, relation, floor in _ARITH_CASES:
         seen, bad = 0, []
