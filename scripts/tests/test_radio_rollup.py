@@ -204,6 +204,44 @@ def _markers_the_module_can_raise():
     return found
 
 
+def test_the_runbook_checklist_for_the_radio_rehearsal_is_true():
+    """The runbook tells the operator what the radio rehearsal must show, and
+    names the point that carries the cell-change confound. Nothing reconciled
+    that: a promise about the tool, made on the page an operator reads before a
+    field trip, in the document that changes least often (D-273's shape).
+
+    Both the point name and the rehearsal's parameters are read OUT of the
+    runbook, so editing either side is caught rather than only the code side.
+    """
+    docs = os.path.join(_ROOT, "docs")
+    with io.open(os.path.join(docs, "M2_CAMPAIGN_RUNBOOK.md"),
+                 encoding="utf-8-sig") as fh:
+        book = fh.read()
+
+    cmd = [ln for ln in book.split("\n")
+           if ln.startswith("python synth_campaign.py") and "--radio" in ln]
+    assert len(cmd) == 1, ("expected one radio rehearsal command in the "
+                           "runbook, found %d" % len(cmd))
+    tiers = re.search(r"--tiers\s+(\S+)", cmd[0]).group(1).split(",")
+    campaigns = re.search(r"--campaigns\s+(\S+)", cmd[0]).group(1).split(",")
+
+    named = re.findall(r"`?(SYNTH-P\d+)`?\*{0,2}\s*被标\s*\*{0,2}`?CELL_CHANGED",
+                       book)
+    assert len(named) == 1, ("the checklist no longer names exactly one point "
+                             "for CELL_CHANGED: %r" % named)
+
+    md = rr.render_markdown(rr.analyze(sc.generate(
+        points=8, repeats=5, tiers=tuple(tiers), campaigns=tuple(campaigns),
+        radio=True)))
+    rows = [ln for ln in md.split("\n")
+            if named[0] in ln and "CELL_CHANGED" in ln]
+    assert rows, ("the runbook tells the operator %s will carry CELL_CHANGED "
+                  "and the rehearsal does not produce it" % named[0])
+    for band in cc.SIGNAL_BANDS:
+        assert "| %s |" % cc.SIGNAL_LABELS[band] in md, (
+            "the checklist promises all three bands; %s never appears" % band)
+
+
 def test_every_marker_the_module_can_raise_is_demonstrated_somewhere():
     """A marker nobody has ever seen fire is a claim, not a check. Each must show
     up either in the rehearsal corpus — where an operator meets it — or in this
