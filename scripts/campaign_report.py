@@ -1975,6 +1975,10 @@ def effective_thresholds():
         "buffering_hotspot_share": buffering_rollup.HOTSPOT_SHARE,
         "clock_hotspot_share": trust_rollup.CLOCK_HOTSPOT_SHARE,
         "aqs_grade_bands": [[b, g] for b, g in cc.AQS_GRADE_BANDS],
+        # Exempt until D-266 gave it a reader: the summary now asks it which
+        # grades rank below good, so it decides which cells the city is told
+        # are its worst. Archived the moment it started deciding (D-267).
+        "grade_order": list(cc.GRADE_ORDER),
         "heat_kpis": list(DEFAULT_KPI_HEAT),
         "stability_kpis": list(stability.DEFAULT_STABILITY_KPIS),
         "attribution_kpis": list(attribution.ATTRIBUTABLE_KPIS),

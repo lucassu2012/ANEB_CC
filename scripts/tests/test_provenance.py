@@ -147,9 +147,6 @@ _NOT_A_REPORT_GATE = {
         "as `tiers`. Perturbing it changes words on the page and leaves every "
         "numeral identical",
     ("campaign_common", "GRADE_COLORS"): "HTML swatch colours",
-    ("campaign_common", "GRADE_ORDER"):
-        "the best→worst ordering the grade bands already encode; "
-        "`aqs_grade_bands` is the archived gate",
     ("campaign_common", "NOISE_CAVEAT"):
         "the sentence printed under every 噪声内 verdict; the factors it "
         "describes are archived as median_se_factor / mad_to_sigma",
@@ -229,6 +226,9 @@ _GATE_KEY = {
     # are the gates that widening it turned up unarchived (D-248).
     ("attribution", "ATTRIBUTABLE_KPIS"): "attribution_kpis",
     ("campaign_common", "AQS_GRADE_BANDS"): "aqs_grade_bands",
+    # exempt until D-266 gave it a reader in the summary; archived once the
+    # perturbation guard showed it moving printed numbers (D-267)
+    ("campaign_common", "GRADE_ORDER"): "grade_order",
     ("campaign_common", "VALUE_RANGES"): "value_ranges",
     ("stability", "DEFAULT_STABILITY_KPIS"): "stability_kpis",
     ("attribution", "SEGMENTS"): "attribution_segments",
@@ -340,6 +340,10 @@ _PERTURB = {
     "aqs_grade_bands": (campaign_common, "AQS_GRADE_BANDS",
                         [(95.0, "excellent"), (90.0, "good"),
                          (85.0, "fair"), (0.0, "poor")]),
+    # drop the worst grade rather than reorder: the summary asks this constant
+    # which grades rank below good, so removing one changes which cells the
+    # report calls the city's worst (D-267)
+    "grade_order": (campaign_common, "GRADE_ORDER", ["excellent", "good", "fair"]),
     "heat_kpis": (rpt, "DEFAULT_KPI_HEAT", ("t1_ttft_ms",)),
     "attribution_kpis": (attribution, "ATTRIBUTABLE_KPIS", ("n1_rtt_p50_ms",)),
     "tier_time_spread_gate_ms": (attribution, "TIER_TIME_SPREAD_GATE_MS", 1),
@@ -405,6 +409,145 @@ def test_every_archived_threshold_actually_decides_the_report():
         f"changed: {inert}")
     # every perturbation restored — otherwise this test poisons the ones after it
     assert rpt.build_report_markdown(recs) == base
+
+
+def _perturbed_value(v):
+    """A generic nudge by type, or None when there is no way to move this one."""
+    if isinstance(v, bool):
+        return not v
+    if isinstance(v, (int, float)):
+        return v + 5
+    if isinstance(v, str):
+        return v + "_X"
+    if isinstance(v, dict) and len(v) > 1:
+        drop = sorted(v, key=str)[-1]
+        return {k: val for k, val in v.items() if k != drop}
+    if isinstance(v, (list, tuple)) and len(v) > 1:
+        return type(v)(list(v)[:-1])
+    if isinstance(v, (set, frozenset)) and len(v) > 1:
+        return type(v)(sorted(v, key=str)[:-1])
+    return None
+
+
+def _captured_as_a_default(mod, name):
+    """Frozen into a signature, where setattr cannot reach it.
+
+    This is the first of the two ways to get a false 'inert' verdict, recorded
+    above _PERTURB. Such constants are counted and reported rather than passed
+    quietly: "cannot be checked this way" is not the same as "checked".
+    """
+    import ast
+    import io
+    with io.open(mod.__file__, encoding="utf-8-sig") as fh:
+        tree = ast.parse(fh.read(), mod.__name__)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        for d in (list(node.args.defaults)
+                  + [x for x in node.args.kw_defaults if x is not None]):
+            for sub in ast.walk(d):
+                if isinstance(sub, ast.Name) and sub.id == name:
+                    return True
+    return False
+
+
+def test_every_exempt_constant_leaves_the_numbers_alone():
+    """The converse of the test above, for the other half of the biconditional.
+
+    「every archived gate must decide something」 has a test. 「every gate that
+    decides something must be archived」 rests on _NOT_A_REPORT_GATE, and that
+    table was checked only for existing and carrying a non-empty reason — the
+    judgements themselves went unverified until D-263 read three by hand and
+    found two misworded.
+
+    Perturb each exemption and require the NUMERALS to stay put. Numerals, not
+    the whole page, because that is what the exemptions claim: they say the
+    value changes wording, not a number.
+
+    This is a tripwire, not a proof. A perturbation too weak to cross the values
+    in the corpus reads as inert and says nothing, so this can miss — it cannot
+    lie. What it catches is an exemption that STOPS being true: D-264's bucket
+    literal moved three printed counts, and D-266 gave GRADE_ORDER a reader in
+    the summary while its exemption still said the bands already encoded it.
+    The second was caught here, by this test, on its first run (D-267).
+
+    Buckets when written: 1 moving numbers (GRADE_ORDER, now archived), 7 frozen
+    into signatures, 5 raising, 11 inert.
+    """
+    import re
+    import synth_campaign as sc
+    numeral = re.compile(r"\d+(?:\.\d+)?")
+    hex_colour = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+    # chaos, or the placeholder constants never render and half of this is idle
+    recs = sc.inject_chaos(sc.generate(points=2, repeats=3,
+                                       campaigns=("base", "opt", "later")))
+
+    def numerals():
+        text = (rpt.build_report_markdown(recs)
+                + rpt.build_report_html(recs, "2026-01-01 00:00:00"))
+        return sorted(numeral.findall(hex_colour.sub("#", text)))
+
+    base = numerals()
+
+    # A control, through the same perturbation function: if that function ever
+    # became a no-op, or the corpus stopped reaching these sections, every
+    # exemption below would read "inert" and this test would pass by doing
+    # nothing at all — which is the failure mode it exists to catch elsewhere.
+    control_old = stability.DEFAULT_CV_GATE
+    try:
+        stability.DEFAULT_CV_GATE = _perturbed_value(control_old)
+        assert numerals() != base, (
+            "the control moved no numeral: an archived gate known to decide the "
+            "report changed nothing here, so the perturbation, the corpus or the "
+            "extraction is inert and every verdict below is empty")
+    finally:
+        stability.DEFAULT_CV_GATE = control_old
+
+    moved, captured, unmovable, raised, inert = [], [], [], [], []
+    for (modname, name) in sorted(_NOT_A_REPORT_GATE):
+        mod = sys.modules.get(modname) or __import__(modname)
+        label = f"{modname}.{name}"
+        if _captured_as_a_default(mod, name):
+            captured.append(label)
+            continue
+        old = getattr(mod, name)
+        new = _perturbed_value(old)
+        if new is None:
+            unmovable.append(f"{label} ({type(old).__name__})")
+            continue
+        # The control below only exercises the numeric branch. Checking the
+        # nudge here covers every branch: a dispatcher that quietly starts
+        # handing back what it was given would leave these reading "inert".
+        assert new != old, (
+            f"the perturbation for {label} returns the value unchanged — that "
+            f"branch of _perturbed_value has gone limp and every "
+            f"{type(old).__name__} exemption reads inert while proving nothing")
+        try:
+            setattr(mod, name, new)
+            try:
+                (moved if numerals() != base else inert).append(label)
+            except Exception as e:                        # noqa: BLE001
+                raised.append(f"{label} -> {type(e).__name__}")
+        finally:
+            setattr(mod, name, old)
+
+    assert numerals() == base, "a perturbation was not restored — results void"
+    assert not moved, (
+        f"exempt from the manifest, yet perturbing them moves printed numbers: "
+        f"{moved} — archive them in effective_thresholds(), or say in the "
+        "exemption why the number that moved does not belong to this report")
+    assert not unmovable, (
+        f"nothing here can move {unmovable} — an exemption no perturbation "
+        "reaches is an exemption nothing checks. Teach _perturbed_value how to "
+        "move that kind of value, or record in the exemption itself that it "
+        "cannot be tested this way")
+    assert len(inert) >= 11, (
+        f"only {len(inert)} exemptions were actually exercised "
+        f"({len(captured)} frozen into signatures, {len(unmovable)} unmovable, "
+        f"{len(raised)} raised) — the perturbations have stopped reaching the "
+        "report and this test is measuring almost nothing")
+    assert (len(moved) + len(captured) + len(unmovable) + len(raised)
+            + len(inert)) == len(_NOT_A_REPORT_GATE), "an exemption went uncounted"
 
 
 def test_gate_exemptions_still_refer_to_real_constants():
