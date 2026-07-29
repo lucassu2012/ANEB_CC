@@ -466,12 +466,52 @@ def _screen_caliber(seg):
     to one time in three, depending on grid size (D-200)."""
     k, fa = seg.get("outlier_k"), seg.get("false_alarm") or (None, None)
     if k is None:
-        return "判据非 3σ"
+        return "判据非阈值筛查"
     txt = f"K={cc.fmt_num(k, 1)}×1.4826×MAD"
     if fa[0] is not None:
         txt += (f"；干净网格误报 对称{cc.fmt_num(fa[0] * 100, 1)}%"
                 f"/右偏{cc.fmt_num(fa[1] * 100, 1)}%")
     return txt
+
+
+_BASIS_LABEL = {
+    "zero_spread": "与共同取值不等（**非阈值筛查**：过半单元取值相同）",
+    "insufficient": "可比单元不足(<2)，无法比较",
+}
+
+
+def screen_basis_label(segments):
+    """Name the screen these rows actually ran, for whoever summarises them.
+
+    The summary named 「3σ 筛查」 from a table of its own. D-200 then replaced the
+    fixed 3σ with a K calibrated per cell count, and nobody went back: on a real
+    corpus the section printed 「K=8×1.4826×MAD」 while the summary credited 3σ
+    for the same finding -- a screen nearly three times tighter than the one that
+    ran, on the sentence 「未见单点异常」. Claiming a tighter screen makes "we
+    found nothing" read as stronger evidence than it is, which is the direction
+    that costs (D-301).
+
+    So derive the label from the rows instead of writing it twice. Bases with no
+    entry here are printed raw rather than dropped -- `too_few_to_screen` was
+    missing from the old table and vanished from the summary silently (§2.4).
+    """
+    present = {s.get("basis") for s in segments}
+    out = []
+    for b in ("mad", "zero_spread", "too_few_to_screen", "insufficient"):
+        if b not in present:
+            continue
+        if b == "mad":
+            ks = sorted({s["outlier_k"] for s in segments
+                         if s.get("basis") == "mad" and s.get("outlier_k")})
+            k = "/".join(cc.fmt_num(x, 1) for x in ks) or "—"
+            out.append(f"MAD 稳健筛查（K={k}×1.4826×MAD，K 随可比单元数标定）")
+        elif b == "too_few_to_screen":
+            out.append(f"可比单元 <{MIN_CELLS_TO_SCREEN}，未做筛查")
+        else:
+            out.append(_BASIS_LABEL[b])
+    out += [f"未知判据 `{b}`" for b in sorted(present - {None} - {
+        "mad", "zero_spread", "too_few_to_screen", "insufficient"})]
+    return "；".join(out) or "—"
 
 
 def render_segment_profile_markdown(prof):
@@ -495,7 +535,10 @@ def render_segment_profile_markdown(prof):
         "**所以 `存在单点异常` 的意思是「值得去看一眼」，不是「已证明异常」**。"
         "代价也要说清楚：这个阈值只抓得住**很粗的**异常，"
         "一个 +5 稳健 σ 的真异常约有一半会被漏掉（+10 σ 才接近必中）。"
-        "**少于 4 个可比单元时本段拒绝给结论**——那个规模下没有任何阈值达得到上述口径。"
+        f"**少于 {MIN_CELLS_TO_SCREEN} 个可比单元时本段拒绝给阈值筛查结论**"
+        "——那个规模下没有任何阈值达得到上述口径。"
+        "（**唯一例外**：过半单元取值完全相同时，MAD 退化为 0，"
+        "「与共同取值不等」是不需要标定的事实，仍如实列出，判读里会写明判据已变。）"
         "（此前阈值是固定 3σ，听着严格，实测在干净网格上误报 20%～65%，"
         "**32 单元的时延网格三次里有两次会点名一个没问题的点位**。）",
         "",
@@ -503,7 +546,12 @@ def render_segment_profile_markdown(prof):
         "**不等于各单元相同**——单元间到底有多齐，看 `离差/典型` 一列。"
         "该列小且无异常，才说得上是路径共性。",
         "",
-        "| 段 | 参与单元 | 典型值(中位) | 离差(MAD) | 离差/典型 | 显著高 | 显著低 | 判读 |",
+        # NOT 显著高/显著低: this section says two lines above that it is a
+        # descriptive screen and not a significance test, and a reader scanning
+        # columns never reaches that caveat. The basis of each flag travels in
+        # 判读 beside it, so nothing is lost by naming the columns for what the
+        # cells are -- higher and lower than the rest (D-301).
+        "| 段 | 参与单元 | 典型值(中位) | 离差(MAD) | 离差/典型 | 偏高 | 偏低 | 判读 |",
         "|---|---|---|---|---|---|---|---|",
     ]
     for s in prof["segments"]:
@@ -516,8 +564,11 @@ def render_segment_profile_markdown(prof):
         elif s["basis"] == "zero_spread" and s["uniform"]:
             verdict, high, low = "全部单元取值相同", "—", "—"
         elif s["basis"] == "zero_spread":
+            # "不是 3σ" was the old disclaimer, and 3σ has itself been retired
+            # (D-200 replaced it with a K calibrated per cell count), so it
+            # pointed at a screen that no longer exists (D-301).
             verdict = ("过半单元取值相同，下列单元与之不同"
-                       "（判据是**与共同取值不等**，不是 3σ）")
+                       "（判据是**与共同取值不等**，不是阈值筛查）")
             high = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
                              for o in s["high"]) or "—"
             low = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"

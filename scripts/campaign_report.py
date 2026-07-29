@@ -296,16 +296,12 @@ _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨
 # unconditionally, but a segment where over half the cells share one value has no
 # usable sigma at all — segment_profile falls back to "differs from the common
 # value" and says so in its own section, while the summary was still crediting a
-# screen that had not been run (D-199).
-_BASIS_TEXT = {"mad": "3σ 筛查",
-               "zero_spread": "与共同取值不等（**非 3σ**：过半单元取值相同）",
-               "insufficient": "可比单元不足"}
-
-
+# screen that had not been run (D-199). The table that fixed it was then hand-
+# written a second time next to the section's own, and drifted: D-200 retired the
+# fixed 3σ for a calibrated K and only the section was updated (D-301). One side
+# derived, never two — attribution owns the screen, so attribution names it.
 def _basis_text(segments):
-    seen = [b for b in ("mad", "zero_spread", "insufficient")
-            if b in {s.get("basis") for s in segments}]
-    return "；".join(_BASIS_TEXT[b] for b in seen) or "—"
+    return attribution.screen_basis_label(segments)
 
 
 def _segment_tally(attr):

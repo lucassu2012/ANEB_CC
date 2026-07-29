@@ -581,19 +581,36 @@ def test_summary_does_not_credit_a_screen_that_was_not_run():
 
     The frozen report snapshot carried exactly this sentence, on a corpus whose
     every segment was zero-spread: the screen it named had never run.
+
+    D-200 then retired the fixed 3σ itself in favour of a K calibrated per cell
+    count, and only the section was updated. The summary went on crediting 3σ for
+    a finding the section printed as K=8 in the same breath — a screen nearly
+    three times tighter than the one that ran, which makes 「未见单点异常」 read as
+    stronger evidence than it is. So the name is not written here either: it is
+    read back out of the very segment rows the section renders (D-301).
     """
+    import attribution
     recs = _attr_cell("P1", (20, 38, 65)) + _attr_cell("P2", (20, 38, 65))
     line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
             if "分段归因" in ln][0]
     assert "未见单点异常" in line
-    assert "非 3σ" in line
-    assert "（判据：3σ 筛查）" not in line
-    # and a corpus with real spread must still get the real screen named
+    assert "非阈值筛查" in line
+    assert "3σ" not in line, line        # the retired screen, credited nowhere
+    # and a corpus with real spread must still get the real screen named — at the
+    # K the section screened at, parsed back rather than typed in here
     spread = (_attr_cell("P1", (20, 38, 50)) + _attr_cell("P2", (20, 38, 65))
               + _attr_cell("P3", (20, 38, 90)) + _attr_cell("P4", (20, 38, 72)))
     line2 = [ln for ln in rpt.render_summary_markdown(spread).splitlines()
              if "分段归因" in ln][0]
-    assert "3σ 筛查" in line2
+    prof = attribution.segment_profile(
+        attribution.attribute(spread, kpi="n1_rtt_p50_ms"))
+    ks = {s["outlier_k"] for s in prof["segments"] if s.get("outlier_k")}
+    assert ks, "no MAD-screened segment here; this half of the case is not run"
+    m = re.search(r"K=([\d./]+)×1\.4826×MAD", line2)
+    assert m, ("summary does not name the screen it ran: %s" % line2)
+    assert {float(x) for x in m.group(1).split("/")} == {float(k) for k in ks}, (
+        "summary says K=%s, the section screened at %s" % (m.group(1), sorted(ks)))
+    assert "3σ" not in line2, line2
 
 
 def test_summary_attribution_reports_not_computable_honestly():

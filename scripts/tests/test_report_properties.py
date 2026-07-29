@@ -1556,6 +1556,63 @@ def test_the_worst_cell_headline_states_the_population_it_surveyed():
     assert 0 < int(m.group(1)) <= int(m.group(2)), line
 
 
+def test_the_report_names_the_retired_screen_only_as_retired():
+    """D-200 replaced the segment screen's fixed 3σ with a K calibrated per cell
+    count. The section was updated; the summary was not, and went on printing
+    「判据：3σ 筛查」 beside a section printing K=8 for the same finding — a screen
+    three times tighter than the one that ran, which makes 「未见单点异常」 read as
+    stronger evidence than it is (D-301).
+
+    A list of the places to fix would go stale exactly the way that one did, so
+    the guard is a criterion: 3σ may appear only inside the sentence that says it
+    was retired. Counted, not searched — a stray mention sharing a line with the
+    retirement sentence would hide from a per-line scan.
+    """
+    import synth_campaign as sc
+    recs = sc.generate(points=8, repeats=5, campaigns=("base", "opt"))
+    md = rpt.build_report_markdown(recs)
+    html = rpt.build_report_html(recs, generated_at="2026-07-30T00:00:00Z")
+    retired = "此前阈值是固定 3σ"
+    assert retired in md, "the sentence explaining the retirement is itself gone"
+    for name, text in (("markdown", md), ("html", html)):
+        assert text.count("3σ") == text.count(retired), (
+            "%s names 3σ %d times but explains its retirement %d times; the "
+            "extra mentions credit a screen that no longer runs"
+            % (name, text.count("3σ"), text.count(retired)))
+
+
+def test_no_column_claims_significance_in_a_section_that_disclaims_it():
+    """The segment-profile section says 「描述性筛查、不是显著性检验」 in its banner
+    and then headed its two output columns 「显著高」/「显著低」 (D-301). A reader
+    scanning columns never reaches the banner, so the table asserted exactly what
+    the prose denied.
+
+    Written as a property of any section that makes that disclaimer, not as a
+    check on this one: a future section that copies the caveat inherits the rule.
+    """
+    import synth_campaign as sc
+    recs = sc.generate(points=8, repeats=5, campaigns=("base", "opt"))
+    md = rpt.build_report_markdown(recs)
+
+    checked = 0
+    for chunk in md.split("\n## "):
+        if "不是显著性检验" not in chunk:
+            continue
+        lines = chunk.split("\n")
+        headers = [ln for i, ln in enumerate(lines)
+                   if ln.startswith("|") and i + 1 < len(lines)
+                   and set(lines[i + 1].replace("|", "").strip()) <= set("- :")
+                   and lines[i + 1].startswith("|")]
+        assert headers, "section disclaims significance but renders no table: " \
+                        + lines[0]
+        for h in headers:
+            assert "显著" not in h, (
+                "section 「%s」 says it is not a significance test, then heads a "
+                "column with 显著: %s" % (lines[0], h))
+        checked += 1
+    assert checked, "no section carried the disclaimer; the guard checked nothing"
+
+
 def test_an_unknown_grade_word_does_not_wear_the_no_data_colour():
     """D-266 wrote this consequence into a docstring — "every per-KPI heat cell
     renders the new word with GRADE_COLORS.get(..., 'n/a'), the grey reserved

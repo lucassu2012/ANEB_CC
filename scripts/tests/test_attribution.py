@@ -343,7 +343,45 @@ def test_zero_spread_still_reports_the_odd_cell():
     assert [o["cell"]["point_id"] for o in odd["high"]] == ["P99"]
     md = attribution.render_segment_profile_markdown(
         attribution.segment_profile(attribution.attribute(recs)))
-    assert "不是 3σ" in md          # the weaker basis is stated, not hidden
+    # the weaker basis is stated, not hidden. It used to disclaim "不是 3σ", but
+    # 3σ was itself retired by D-200, so the disclaimer pointed at a screen that
+    # no longer exists (D-301).
+    assert "不是阈值筛查" in md
+    assert "3σ" not in md.replace("此前阈值是固定 3σ", "")
+
+
+def test_every_basis_the_screen_can_produce_gets_a_name():
+    """The summary's basis table was hand-written with three entries while the
+    analyzer produced four: segments screened at `too_few_to_screen` had no word
+    and left the first line without a trace (D-301). Every basis the analyzer can
+    reach must come back named, and an unrecognised one must print raw rather
+    than vanish (§2.4 — never truncate silently).
+    """
+    def _basis_of(recs, seg="core_backbone_incr"):
+        return _segs(recs)[seg]
+
+    one = _point("P00", 30, 42, 70)
+    zero = [r for i in range(6) for r in _point(f"P{i:02d}", 30, 42, 70)] \
+        + _point("P99", 30, 42, 200)
+    three = [r for i, v in enumerate((50, 65, 90))
+             for r in _point(f"Q{i:02d}", 30, 42, v)]
+    four = [r for i, v in enumerate((50, 65, 90, 72))
+            for r in _point(f"R{i:02d}", 30, 42, v)]
+
+    produced = {}
+    for recs in (one, zero, three, four):
+        s = _basis_of(recs)
+        produced.setdefault(s["basis"], s)
+    assert set(produced) == {"insufficient", "zero_spread",
+                             "too_few_to_screen", "mad"}, sorted(produced)
+
+    for basis, seg in sorted(produced.items()):
+        label = attribution.screen_basis_label([seg])
+        assert label and label != "—", (basis, label)
+        assert "未知判据" not in label, (basis, label)
+
+    made_up = attribution.screen_basis_label([{"basis": "brand_new_basis"}])
+    assert "brand_new_basis" in made_up, made_up
 
 
 def test_uniform_verdict_does_not_claim_the_cells_are_alike():
