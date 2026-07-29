@@ -96,6 +96,40 @@ def test_the_grid_proposal_plans_by_the_arithmetic_the_tool_judges_by():
             f"n≥{got}. The trip is planned from one and judged by the other")
 
 
+def test_the_numbers_the_proposal_quotes_from_the_layer_still_hold():
+    """D-273 reconciled the power column. Applying the same question to the
+    rest of that document turns up two more numbers it states as facts about
+    this layer (D-274).
+
+    Both matter to the reader in the same way. The whole case for n=5 rests on
+    it lining up with the layer's sample floor, so if that constant moves the
+    argument is quietly wrong. And the sentence telling an operator that cells
+    above 10% CV need the apparatus checked is the report's own gate — retune
+    it and the proposal advises one threshold while the report marks another.
+    """
+    import campaign_common as cc
+    import stability
+    docs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "docs")
+    with open(os.path.join(docs, "M2_GRID_DESIGN_PROPOSAL.md"),
+              encoding="utf-8-sig") as fh:
+        text = fh.read()
+
+    m = re.search(r"`min_samples=(\d+)`", text)
+    assert m, "the proposal no longer states the sample floor it aligns with"
+    assert int(m.group(1)) == cc.DEFAULT_MIN_SAMPLES, (
+        f"the proposal aligns n=5 with min_samples={m.group(1)}, the layer "
+        f"uses {cc.DEFAULT_MIN_SAMPLES} — the case for n=5 rests on that "
+        "alignment")
+
+    m = re.search(r"CV>(\d+)%\s*的格", text)
+    assert m, "the proposal no longer states the CV threshold it sends to the tool"
+    assert float(m.group(1)) == stability.DEFAULT_CV_GATE, (
+        f"the proposal tells the operator to check the apparatus above "
+        f"{m.group(1)}%, the report marks 超门 above "
+        f"{stability.DEFAULT_CV_GATE}%")
+
+
 def test_docs_contain_commands():
     """Guard the guard: if the extraction breaks, the checks below go vacuous."""
     cmds = _commands()
