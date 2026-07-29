@@ -650,6 +650,50 @@ def test_the_shipped_grid_config_is_one_the_tool_accepts():
         "is computed for 8 points x 2 carriers x 2 bands")
 
 
+_TIER_CLAIM_MARKS = ("三级差分", "三层级", "三级归因")
+_TIER_REALITY_MARKS = ("D-48", "单实例", "单层级")
+
+
+def test_every_doc_asserting_three_tiers_also_carries_the_deployment_it_has():
+    """Four documents in a row turned out to describe the three-tier
+    decomposition as current design while D-48 had already cut the deployment to
+    one instance: the grid proposal budgeted three times the trip (D-283), the
+    deliverable skeleton taught a decomposition nobody can compute (D-289), the
+    wiring spec and the annotator's convention offered a three-way tier choice
+    with no servers behind two of them (D-292/D-293). Each was found by hand, one
+    at a time, and the fifth would have been found the same way. This is that
+    review written down as a criterion (D-294).
+
+    Deliberately NOT reconciled against a declared "how many tiers are deployed"
+    constant: no such constant exists, and inventing one would create a second
+    thing to keep true — the trap this layer keeps finding. The rule is weaker
+    and honest: describe the three-tier method as much as you like, but say in
+    the same document what is actually deployed.
+    """
+    docs = os.path.join(REPO, "docs")
+    claiming, offenders = 0, []
+    for root, _dirs, files in os.walk(docs):
+        for name in sorted(files):
+            if not name.endswith(".md"):
+                continue
+            path = os.path.join(root, name)
+            with open(path, encoding="utf-8-sig") as fh:
+                text = fh.read()
+            if not any(m in text for m in _TIER_CLAIM_MARKS):
+                continue
+            claiming += 1
+            if not any(m in text for m in _TIER_REALITY_MARKS):
+                offenders.append(os.path.relpath(path, REPO))
+    assert claiming >= 8, (
+        "only %d docs mention the three-tier decomposition — the scan probably "
+        "broke, and a guard with nothing to check passes for the wrong reason"
+        % claiming)
+    assert not offenders, (
+        "these docs describe the three-tier decomposition and never say what is "
+        "deployed: %s — add the D-48 delta (a pointer is enough; the baseline "
+        "plan keeps its own wording and carries one at the top)" % offenders)
+
+
 def test_every_tool_is_mentioned_in_the_readme():
     """The command guard checks that documented commands work; it cannot notice a
     tool nobody documented. corpus_health.py and order_effect.py sat unmentioned
