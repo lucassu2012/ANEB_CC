@@ -542,6 +542,27 @@ def render_segment_profile_markdown(prof):
 
 # ---------------------------------------------------------------- rendering
 
+def between_tier_population(result):
+    """Cells on which a BETWEEN-tier premise has anything to bite, plus the tiers
+    the corpus actually carries. Returns (paired, total, tiers_seen).
+
+    Three of the four premises below are about the three tiers agreeing with each
+    OTHER, so each presupposes a cell holding at least two of them. A single-server
+    pilot emits one tier everywhere, and then `tier_time_confound` returns None by
+    construction (fewer than two midpoints) and `tier_endpoint_conflicts` cannot
+    fire at all (no endpoint can carry two labels). Printing 已核对 for those would
+    be the very "没法查 ≠ 查过了" this same checklist preaches one clause later.
+
+    Derived from the cells the run produced, so the wording follows the corpus
+    rather than a claim typed in beside it (D-275).
+    """
+    cells = result.get("cells") or []
+    paired = sum(1 for c in cells if len(c.get("coverage") or []) >= 2)
+    seen = sorted({t for c in cells for t in (c.get("coverage") or [])},
+                  key=cc.TIERS.index)
+    return paired, len(cells), seen
+
+
 def premise_notes(result):
     """Everything the attribution section says ABOVE its table, as plain strings.
 
@@ -550,23 +571,53 @@ def premise_notes(result):
     premise checklist and the tier-less coverage line — was silently absent from
     the sendable deliverable (D-160). Same remedy D-140 used for corpus warnings.
     """
+    paired, total, seen = between_tier_population(result)
+    single_tier = bool(total) and not paired
+    if single_tier:
+        scope = ("**不适用**（本轮 %d 个单元无一覆盖 ≥2 层级，层级间差分不存在，"
+                 "本条无对象可核——不是「已核对」）" % total)
+    elif paired < total:
+        scope = ("仅 %d/%d 个单元覆盖 ≥2 层级，其余单元没有层级间差分，本条对它们"
+                 "无从谈起" % (paired, total))
+    else:
+        scope = ""
+    # 同一时段 carries a verdict word; 层级名副其实 never claimed one — it only ever
+    # described its mechanism and its own "语料无该字段则无法对账" caveat. Adding
+    # 已核对 there would put a promise in the reader's hands that was never made.
+    time_checked = scope if single_tier else ("已核对（%s）" % scope if scope else "已核对")
+    endpoint_scope = ("%s。" % scope) if scope else ""
     out = [
         f"claim_scope: `{result['claim_scope']}` — 应用层路径分段，非无线层/运营商全网评级。",
         "方法：铁律 3 客户端差分消共模；缺层记 coverage 不外推；负增量记 inversion 不清零。",
         "**前提核对**——共模抵消只在三层级条件相同时成立，逐条列出本表核对到什么程度：",
-        f"- **同一时段**：已核对。`time_band` 只到忙/闲（几小时宽），故另比测量时刻，"
+        f"- **同一时段**：{time_checked}。`time_band` 只到忙/闲（几小时宽），故另比测量时刻，"
         f"相隔超 {TIER_TIME_SPREAD_GATE_MS // 60000} 分钟标 `TIER_TIME_SPREAD`——"
         "那样的增量可能只是**时段差异**穿了骨干的外衣；无时间戳标 `TIER_TIME_UNKNOWN`"
         "（**没法查 ≠ 查过了**）。",
-        "- **同一接入**：已核对。混用的格标 `MIXED_TRANSPORT`——`metro` 走场地 wifi、"
-        "`core` 走 SIM 时，增量其实是 **wifi 与蜂窝的接入差**，**该格增量不可用**，"
-        "只能各介质分开重测。",
-        "- **层级名副其实**：靠 `server_tier_endpoint` 对账。同一个端点被标成两种层级 → "
-        "标 `TIER_ENDPOINT_CONFLICT`,**该格的骨干分解不成立**(三层其实打的同一个端);"
-        "语料无该字段则**无法对账**,不等于对上了。",
+        # MIXED_TRANSPORT is per-cell, so it still fires with one tier — but what it
+        # then MEANS is different, and a banner explaining it by metro-vs-core while
+        # the table shows the flag would mislead in the other direction.
+        ("- **同一接入**：已核对，但**本轮含义不同**——没有层级间增量，"
+         "`MIXED_TRANSPORT` 标的是**该格内混了 wifi 与蜂窝**，意思是该格绝对值"
+         "不可混池，而非「增量不可用」。" if single_tier else
+         "- **同一接入**：已核对。混用的格标 `MIXED_TRANSPORT`——`metro` 走场地 wifi、"
+         "`core` 走 SIM 时，增量其实是 **wifi 与蜂窝的接入差**，**该格增量不可用**，"
+         "只能各介质分开重测。"),
+        f"- **层级名副其实**：{endpoint_scope}靠 `server_tier_endpoint` 对账。同一个端点被标成"
+        "两种层级 → 标 `TIER_ENDPOINT_CONFLICT`,**该格的骨干分解不成立**"
+        "(三层其实打的同一个端);语料无该字段则**无法对账**,不等于对上了。",
         "- **同一客户端**：**无法核对**（契约无任何设备标识字段）。中途换机的机型差异会"
         "整个计入骨干增量且**不会有任何标记**——只能由采集方书面确认（runbook §5 清单）。",
     ]
+    if single_tier:
+        # The section degenerates to one absolute column. Say so where the reader
+        # meets it, or 96 rows of TIER_MISSING read as a botched collection rather
+        # than as the shape a one-server pilot necessarily produces. What the layer
+        # canNOT know is which of the two it is, so it does not guess (§2.2).
+        out.insert(0, "⚠ **本轮是单层级语料**（覆盖：%s）：三级差分的骨干分解本轮"
+                      "**不可得**，下表只有接入段绝对值；本层**无法判断**这是采集设计"
+                      "如此（如单服务器试点）还是采集缺层——原因须由采集方在方法说明"
+                      "里写明。" % "/".join(cc.TIER_LABELS[t] for t in seen))
     if result["excluded_no_tier"]:
         out.append(f"⚠ coverage：{result['excluded_no_tier']} 条记录无 tier 标签，未进归因。")
     return out

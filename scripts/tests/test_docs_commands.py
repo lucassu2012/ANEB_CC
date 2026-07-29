@@ -96,6 +96,70 @@ def test_the_grid_proposal_plans_by_the_arithmetic_the_tool_judges_by():
             f"n≥{got}. The trip is planned from one and judged by the other")
 
 
+def test_every_row_of_the_field_budget_uses_the_same_arithmetic():
+    """§2 turns a run count into hours and field days, and the PO picks a design
+    off that table. Its three inputs — seconds per run, the field-overhead
+    factor, the hours in a field day — are stated in that section's own prose,
+    so every other column is derivable and nothing needs typing twice.
+
+    Nothing recomputed them. v2.0 rewrote every row for the single-tier grid
+    (D-283), and a slip in any one plans a trip by a number no tool agrees
+    with — the same shape D-273 found in the power column, one table down.
+
+    Rows are read out of the document, so adding a design is covered without
+    anyone remembering to. Tolerance is 0.06 because the document rounds some
+    cells and truncates others; what is being checked is that the columns are
+    one arithmetic, not how the digits were rendered.
+    """
+    docs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "docs")
+    with open(os.path.join(docs, "M2_GRID_DESIGN_PROPOSAL.md"),
+              encoding="utf-8-sig") as fh:
+        lines = fh.read().split("\n")
+    text = "\n".join(lines)
+
+    def one(pattern, what):
+        m = re.search(pattern, text)
+        assert m, "§2 no longer states %s" % what
+        return m.group(1)
+
+    per_run_s = float(one(r"=\s*([\d.]+)\s*秒", "the per-run duration"))
+    overhead = 1 + int(one(r"现场开销\s*(\d+)%", "the field overhead")) / 100.0
+    day_h = float(one(r"外场日（(\d+)h/天）", "the hours in a field day"))
+
+    # §0 has a five-column table too, so anchor on the header naming this one.
+    heads = [i for i, ln in enumerate(lines)
+             if ln.startswith("|") and "纯测量" in ln]
+    assert len(heads) == 1, "expected one budget table, found %d" % len(heads)
+
+    rows = []
+    for ln in lines[heads[0] + 2:]:
+        cells = [c.strip().strip("*").strip()
+                 for c in ln.strip().strip("|").split("|")]
+        if len(cells) != 5 or not re.match(r"^\d+$", cells[1]):
+            break
+        rows.append((int(cells[1]),
+                     float(cells[2].rstrip(" h")),
+                     float(cells[3].rstrip(" h")),
+                     float(cells[4].rstrip(" 天"))))
+
+    assert len(rows) >= 6, (
+        "read %r out of the budget table — the shape changed and this check is "
+        "comparing whatever it happened to match" % (rows,))
+
+    for runs, pure_h, with_oh_h, days in rows:
+        want_pure = runs * per_run_s / 3600.0
+        want_oh = want_pure * overhead
+        want_days = want_oh / day_h
+        for got, want, col in ((pure_h, want_pure, "纯测量"),
+                               (with_oh_h, want_oh, "含开销"),
+                               (days, want_days, "外场日")):
+            assert abs(got - want) <= 0.06, (
+                "%d runs: the table says %s=%s, the stated arithmetic "
+                "(%.1fs/run, x%.1f, %.0fh/day) gives %.3f"
+                % (runs, col, got, per_run_s, overhead, day_h, want))
+
+
 def test_the_numbers_the_proposal_quotes_from_the_layer_still_hold():
     """D-273 reconciled the power column. Applying the same question to the
     rest of that document turns up two more numbers it states as facts about

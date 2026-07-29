@@ -689,3 +689,48 @@ def test_the_three_components_still_add_to_the_end_to_end_as_printed():
         215.26742051131131)
     assert ok is False, (parts, total)
     assert cc.fmt_parts_summing((1.0, 2.0), None)[2] is None   # nothing to check
+
+
+def _premise_verdict(md, name):
+    """What the banner says immediately AFTER a premise name, as RENDERED (D-232).
+
+    Sliced rather than substring-searched: 「不是「已核对」」 contains 已核对, so a
+    plain `in` test reads the disclaimer as the claim (the D-282 too-wide-a-word
+    trap). Only the opening words are the verdict.
+    """
+    needle = "- **%s**：" % name
+    hits = [ln for ln in md.split("\n") if needle in ln]
+    assert len(hits) == 1, (name, hits)
+    return hits[0].split(needle, 1)[1]
+
+
+def test_a_single_tier_corpus_will_not_claim_the_tier_premises_were_checked():
+    """Two of the four 铁律 3 premises are about the tiers agreeing with each
+    OTHER, so both need a cell holding two tiers. With one tier
+    `tier_time_confound` returns None by construction (<2 midpoints) and
+    `TIER_ENDPOINT_CONFLICT` cannot fire (no endpoint can carry two labels) —
+    yet the banner printed 已核对 for both unconditionally, which is the very
+    没法查 ≠ 查过了 it preaches one clause later.
+
+    A one-server pilot emits exactly this shape, so the case stopped being an
+    edge case. Both directions are pinned: the three-tier control must still
+    say 已核对, or "不适用 everywhere" would pass just as well (D-267)."""
+    K = "n1_rtt_p50_ms"
+    one = attribution.render_markdown(
+        attribution.attribute(tier_records("metro", K, 20, 5)))
+    three = attribution.render_markdown(attribution.attribute(
+        tier_records("metro", K, 20, 5) + tier_records("regional", K, 40, 5)
+        + tier_records("core", K, 80, 5)))
+
+    for premise in ("同一时段", "层级名副其实"):
+        v_one, v_three = _premise_verdict(one, premise), _premise_verdict(three, premise)
+        assert v_one.startswith("**不适用**"), (premise, v_one[:48])
+        assert not v_three.startswith("**不适用**"), (premise, v_three[:48])
+    # 同一时段 is the one that carries a verdict word at all, and it must survive
+    # on the three-tier side — "不适用 everywhere" would satisfy the loop above.
+    assert _premise_verdict(three, "同一时段").startswith("已核对")
+
+    # ...and the section says up front that it degenerated, naming the tier it
+    # does have, so a wall of TIER_MISSING does not read as a botched collection.
+    assert "单层级语料" in one and cc.TIER_LABELS["metro"] in one
+    assert "单层级语料" not in three
