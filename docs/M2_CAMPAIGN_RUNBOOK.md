@@ -44,8 +44,14 @@ python annotate_campaign.py rehearsal_raw.jsonl -o rehearsal_labelled.jsonl --se
 ```
 python synth_campaign.py -o rehearsal_full.jsonl
 python campaign_report.py rehearsal_full.jsonl --md r.md --html r.html --csv rt
+python campaign_report.py rehearsal_full.jsonl --campaign SYNTH-opt --md r_opt.md --csv ropt
 python publish_check.py rehearsal_full.jsonl
 ```
+
+**第二条报告命令不是多余的**：彩排语料含两个战役，而归因段的格键不含战役，
+于是**全量报告里 192 行归因，192 行都带 `MIXED_CAMPAIGN`——一行干净的都没有**。
+照手册只跑第一条，操作者在彩排里**永远看不到一行他外场真正要读的归因**。
+限定战役后该标记归零，其中 58 行完全无标记（D-270 实测）。
 
 （`publish_check` 必然报 FAIL：彩排语料本就是合成的，正是它该拦的。）
 
@@ -65,6 +71,10 @@ python publish_check.py rehearsal_full.jsonl
 - [ ] 「接入介质」信号说**未观察到超出测量噪声的介质差异**，**不**点名"蜂窝劣于 wifi"。
 - [ ] 热力卡有明显颜色梯度（末位点位最差），归因矩阵三层级增量齐全。
 - [ ] 报告顶端有红色合成数据警告；CSV 能被你的表格工具正常打开（中文点位名不乱码）。
+- [ ] **对比 `rt_attribution.csv` 与 `ropt_attribution.csv`**：前者 192 行**全部**带
+      `MIXED_CAMPAIGN`（两个战役池化在同一格，增量既不是前也不是后），后者该标记**归零**、
+      58 行完全无标记。**这才是外场要读的那种归因行**——只跑全量报告的话，你在彩排里
+      一行都见不到。若限定战役后标记仍在 → 战役过滤已坏，别带去外场。
 
 > ⛔ 彩排产物**数字全是虚构的**。见到红色合成数据警告的报告**一律不得**外发或作为任何
 > 结论依据。彩排文件用完即删，**绝不可**与外场语料放同一目录。

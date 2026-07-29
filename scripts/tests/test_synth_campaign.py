@@ -23,6 +23,52 @@ SMALL = dict(points=2, carriers=("cmcc",), time_bands=("busy", "idle"),
              tiers=("metro", "core"), repeats=2, campaigns=("base",))
 
 
+def test_the_rehearsal_can_show_a_clean_attribution_row():
+    """The rehearsal exists so nobody meets a full-scale report for the first
+    time in the field. On the default corpus every attribution row carries
+    MIXED_CAMPAIGN — the cell key has no campaign dimension and there are two —
+    so an operator running only the command the runbook used to give never sees
+    the kind of row they will actually read. Scoping to one campaign is the
+    second command it now gives them (D-270).
+
+    Both sides have floors. The pooled view must really be fully marked, or
+    there is nothing to demonstrate; the scoped view must really come out
+    clean, or the demonstration is empty.
+    """
+    import attribution
+    import campaign_common as cc
+
+    def mixed(cell):
+        return [f for f in attribution.incomparability_flags(cell)
+                if f.startswith("MIXED_CAMPAIGN")]
+
+    recs = sc.generate()
+    ids = {cc.campaign_labels(r)["campaign_id"] for r in recs}
+    assert len(ids) >= 2, f"corpus has {ids} — the pooled case cannot arise"
+
+    pooled = attribution.attribute(recs)["cells"]
+    assert pooled, "no attribution cells at all"
+    unmarked = [c for c in pooled if not mixed(c)]
+    assert not unmarked, (
+        f"{len(unmarked)} of {len(pooled)} pooled rows carry no MIXED_CAMPAIGN "
+        "— the rehearsal no longer demonstrates the pooling it warns about")
+
+    one = sorted(ids)[0]
+    scoped = attribution.attribute(
+        [r for r in recs if cc.campaign_labels(r)["campaign_id"] == one])["cells"]
+    still = [c for c in scoped if mixed(c)]
+    assert not still, f"{len(still)} rows still pooled after --campaign {one}"
+    # 30 of the 96 cells here, measured. The rehearsal CSV showed 58 note-free
+    # rows, and that is a DIFFERENT population — one row per (cell, KPI), two
+    # KPIs, against one cell per key at the default KPI. A floor lifted from
+    # the other population is not a floor for this one.
+    clean = [c for c in scoped if not attribution.incomparability_flags(c)]
+    assert len(clean) >= 30, (
+        f"only {len(clean)} of {len(scoped)} scoped rows are free of "
+        "incomparability flags — the rehearsal can no longer show the operator "
+        "a usable attribution row")
+
+
 def test_generated_corpus_passes_the_contract_gate():
     """The whole point: this corpus must survive validate_results / the report
     front door, exactly like real field data would."""
