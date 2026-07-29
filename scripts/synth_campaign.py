@@ -345,7 +345,16 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
                                     "campaign": {  # marker #2: the SYNTH- prefix
                                         "campaign_id": CAMPAIGN_PREFIX + campaign,
                                         "tier": tier, "point_id": point,
-                                        "carrier": carrier, "time_band": band},
+                                        "carrier": carrier, "time_band": band,
+                                        # One endpoint per tier, because that is
+                                        # what a campaign the wiring spec asks
+                                        # for looks like. Without it every
+                                        # multi-tier row carries
+                                        # TIER_ENDPOINT_UNVERIFIED (D-292) and
+                                        # the rehearsal can no longer show the
+                                        # operator a clean attribution row.
+                                        "server_tier_endpoint":
+                                            "https://e-01-%s.invalid" % tier},
                                 },
                                 "scenarios": scns,
                             })

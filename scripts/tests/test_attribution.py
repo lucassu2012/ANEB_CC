@@ -691,6 +691,57 @@ def test_the_three_components_still_add_to_the_end_to_end_as_printed():
     assert cc.fmt_parts_summing((1.0, 2.0), None)[2] is None   # nothing to check
 
 
+def _stamp_endpoints(recs, one_for_all=None):
+    for r in recs:
+        camp = r["run"]["campaign"]
+        camp["server_tier_endpoint"] = (
+            one_for_all or "https://e-01-%s.invalid" % camp["tier"])
+    return recs
+
+
+def test_a_tier_decomposition_nobody_could_check_says_so():
+    """Measured, and it is why this marker exists: one server, an operator who
+    labelled thirds of the runs metro/regional/core, and numbers that happen to
+    come out monotonic — the matrix printed access 20 / 区域+6 / 核心+5 /
+    端到端 31 with ZERO flags, not low-confidence, nothing not-computable. A
+    complete backbone decomposition, entirely fictional.
+
+    D-48 is what turns this from an exotic operator error into the likely one:
+    with a single instance, every tier label but the true one is a mislabel. The
+    section banner already said 「语料无该字段则无法对账」, but no ROW said which
+    rows that applied to — the shape D-284 fixed one level up (D-292).
+    """
+    K = "n1_rtt_p50_ms"
+
+    def corpus():
+        return (tier_records("metro", K, 20, 5) + tier_records("regional", K, 26, 5)
+                + tier_records("core", K, 31, 5))
+
+    bare = attribution.attribute(corpus())["cells"][0]
+    assert bare["regional_backbone_incr"] == 6 and bare["core_backbone_incr"] == 5
+    flags = attribution.incomparability_flags(bare)
+    assert "TIER_ENDPOINT_UNVERIFIED" in flags, flags
+    # ...and it does NOT accuse: unverifiable is not the same as proven wrong
+    assert not any(f.startswith("TIER_ENDPOINT_CONFLICT") for f in flags), flags
+    assert "TIER_ENDPOINT_UNVERIFIED" not in attribution.SEVERE_FLAGS
+
+    # evidence present and consistent -> silent
+    honest = attribution.attribute(_stamp_endpoints(corpus()))["cells"][0]
+    assert "TIER_ENDPOINT_UNVERIFIED" not in attribution.incomparability_flags(honest)
+
+    # evidence present and self-contradicting -> named, not merely unverified
+    caught = attribution.incomparability_flags(attribution.attribute(
+        _stamp_endpoints(corpus(), one_for_all="https://e-01.invalid"))["cells"][0])
+    assert any(f.startswith("TIER_ENDPOINT_CONFLICT") for f in caught), caught
+    assert "TIER_ENDPOINT_UNVERIFIED" not in caught
+
+    # the single-tier pilot must NOT collect this on every row: with one tier
+    # there is no decomposition to caveat, and a marker on every row of every
+    # report is the wallpaper this layer refuses to print
+    one = attribution.attribute(tier_records("metro", K, 20, 5))["cells"][0]
+    assert "TIER_ENDPOINT_UNVERIFIED" not in attribution.incomparability_flags(one)
+
+
 def _premise_verdict(md, name):
     """What the banner says immediately AFTER a premise name, as RENDERED (D-232).
 

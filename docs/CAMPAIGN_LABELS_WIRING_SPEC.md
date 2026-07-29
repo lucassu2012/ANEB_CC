@@ -43,7 +43,7 @@
     "carrier":     { "type": ["string", "null"], "description": "运营商：cmcc / cucc / ctcc / 自定义" },
     "time_band":   { "type": ["string", "null"], "description": "时段：busy / idle" },
     "label_source":{ "type": ["string", "null"], "description": "标签来源溯源串，如 ui / auto:carrier / inferred:time_band，多来源用 + 连接" },
-    "server_tier_endpoint": { "type": ["string", "null"], "description": "可选诊断：本 run 目标服务端（层级对账），不参与分组" }
+    "server_tier_endpoint": { "type": ["string", "null"], "description": "**写了 tier 就必须写它**（原「可选诊断」已作废，见陷阱 3）：本 run 实际打的目标服务端，供层级对账；不参与分组" }
   }
 }
 ```
@@ -165,8 +165,20 @@ if (run.campaignId != null || run.campaignPointId != null || run.campaignCarrier
    coverage 缺口伪装成数据。
 3. **`tier` 与实际目标服务端不一致** —— 三级差分归因的整个方法学（铁律 3 共模抵消）
    建立在"同客户端同接入对三级镜像端各测一轮"之上。若 UI 标了 `core` 而实际打的是同城端，
-   归因矩阵会给出**看起来合理但完全错误**的骨干增量。建议 `tier` 由实际选用的服务端配置
+   归因矩阵会给出**看起来合理但完全错误**的骨干增量。`tier` 应由实际选用的服务端配置
    **派生**而非人工独立选择，并把目标端写进 `server_tier_endpoint` 供对账。
+
+   **单实例部署下这条不再是「建议」（2026-07-30 复核）。** D-48 定为只保留 E-01 一台后，
+   **除那唯一真值外的每个层级标签都必然是误标**——而误标的代价已实测：
+   同一台服务器、三分之一的 run 各标 metro/regional/core、数值恰好单调时，矩阵印出
+   **接入 20 / 区域骨干+ 6 / 核心骨干+ 5 / 端到端 31，且零标记、不低置信、无不可计算项**——
+   一组完整、干净、自信而完全虚构的骨干分解。**唯一能查出它的就是 `server_tier_endpoint`**：
+   填了它，同一端点带两个层级标签会触发 `TIER_ENDPOINT_CONFLICT`（严重标记，该格增量作废）；
+   没填，分析层只能逐行标 `TIER_ENDPOINT_UNVERIFIED`「无人能核对」（D-292），
+   那是提醒，不是防线。故本字段由「可选诊断」改为**写了 tier 就必须写**。
+
+   **对 UI 的直接含义**：当前部署只有一个合法层级值。下拉框若仍列出三项，
+   就是在邀请这次误标——要么按实际服务端配置派生、要么只列真实存在的那一项。
 4. **推断值不打 `inferred` 标记** —— 忙闲推断是本地小时启发式（近似），未标记就会被当作
    实测事实。离线补注已建立该规则，接线必须沿用。
 5. **在标签写入路径上做任何"顺手清洗"**（trim 后为空转 null 可以；大小写归一、

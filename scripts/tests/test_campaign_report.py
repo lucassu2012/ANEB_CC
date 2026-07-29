@@ -1722,7 +1722,16 @@ def test_heat_card_and_attribution_agree_about_the_same_cell():
         attribution.attribute(recs)["cells"][0])
     heat_flags = attribution.incomparability_flags(rpt.heat_cells(recs)[0])
     assert "MIXED_TRANSPORT:cellular/wifi" in attr_flags
-    assert heat_flags == attr_flags
+    # TIER_ENDPOINT_UNVERIFIED is structurally single-surface — the mirror image
+    # of the heat-card-only markers this same function already carries. It says
+    # nobody could check the TIER LABELS, and the heat card does not decompose by
+    # tier: its median pools every run in the cell whatever the labels say, so
+    # the caveat would be about a claim it never makes (D-292). Excluded by name,
+    # and asserted present first, so the exclusion cannot quietly turn into "the
+    # comparison stopped comparing anything".
+    attribution_only = {"TIER_ENDPOINT_UNVERIFIED"}
+    assert attribution_only & set(attr_flags), attr_flags
+    assert heat_flags == [f for f in attr_flags if f not in attribution_only]
     md = rpt.render_heatcard_markdown(rpt.heat_cells(recs))
     assert "**MIXED_TRANSPORT:cellular/wifi**" in md
     assert "MIXED_MODE:forensic/quick" in md

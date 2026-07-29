@@ -134,10 +134,10 @@ _无可信度证据（clock/seq/parse 块均未标注）——覆盖缺口，非
 
 | 单元 | 覆盖层级 | 接入(metro) | 区域骨干+ | 核心骨干+ | 端到端(core) | 备注 |
 |---|---|---|---|---|---|---|
-| point_id=P1 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
-| point_id=P1 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
-| point_id=P2 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
-| point_id=P2 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | MIXED_CAMPAIGN:base/opt |
+| point_id=P1 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | TIER_ENDPOINT_UNVERIFIED; MIXED_CAMPAIGN:base/opt |
+| point_id=P1 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | TIER_ENDPOINT_UNVERIFIED; MIXED_CAMPAIGN:base/opt |
+| point_id=P2 · carrier=cmcc · time_band=busy · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | TIER_ENDPOINT_UNVERIFIED; MIXED_CAMPAIGN:base/opt |
+| point_id=P2 · carrier=cmcc · time_band=idle · profile_id=s1_chat | 同城,区域,中心 | 20 | 18 | 27 | 65 | TIER_ENDPOINT_UNVERIFIED; MIXED_CAMPAIGN:base/opt |
 
 ## 分段异常定位（n1_rtt_p50_ms，同一段跨单元比较，ms）
 

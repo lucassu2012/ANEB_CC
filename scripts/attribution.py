@@ -273,9 +273,21 @@ def incomparability_flags(cell):
             f"{r}×{n}" for r, n in sorted(cell["implausible_values"].items())))
     if cell.get("not_computable_reason"):
         out.append(cell["not_computable_reason"])
-    for ep, tiers in sorted((cell.get("tier_endpoint_conflicts") or {}).items()):
+    conflicts = cell.get("tier_endpoint_conflicts") or {}
+    for ep, tiers in sorted(conflicts.items()):
         short = ep.replace("|", "/")
         out.append(f"TIER_ENDPOINT_CONFLICT:{short}={'/'.join(tiers)}")
+    # The courtesy TIER_TIME_UNKNOWN already extends to the time premise: say per
+    # ROW when the check could not be made. The endpoint side never did, and
+    # after D-48 that asymmetry bites — with one server every tier label but the
+    # true one is a mislabel, and a corpus with no endpoint evidence renders a
+    # complete backbone decomposition with NO marker at all whenever the numbers
+    # happen to come out monotonic (measured: access 20 / +6 / +5, zero flags,
+    # not low-confidence). This does not claim the labels are wrong; it says
+    # nobody could check them, which is §2.2's whole point (D-292).
+    if (not conflicts and len(cell.get("coverage") or []) > 1
+            and not cell.get("tier_endpoints_known")):
+        out.append("TIER_ENDPOINT_UNVERIFIED")
     if cell.get("tier_time_confound"):
         hrs = cell["tier_time_spread_ms"] / 3600_000.0
         out.append(f"TIER_TIME_SPREAD:{cc.fmt_num(hrs, 1)}h")
