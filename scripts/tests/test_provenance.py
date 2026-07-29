@@ -166,8 +166,6 @@ _NOT_A_REPORT_GATE = {
     ("campaign_common", "TRANSPORT_EXPLICIT"):
         "the same two media as `transport_media`, in the normaliser that maps a "
         "raw string onto them; the archived key is the one the section reads",
-    ("attribution", "DEFAULT_GROUP_BY"): "the default group_by ARGUMENT",
-    ("stability", "STAB_GROUP_BY"): "the stability cell key: structural, not a level",
     ("buffering_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
     ("transport_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
     ("trend", "CELL_DIMS"): "the cell key: structural, not a level",
@@ -229,6 +227,11 @@ _GATE_KEY = {
     # exempt until D-266 gave it a reader in the summary; archived once the
     # perturbation guard showed it moving printed numbers (D-267)
     ("campaign_common", "GRADE_ORDER"): "grade_order",
+    # exempt as "structural" until source-level mutation reached them: setattr
+    # cannot touch a captured default, so the perturbation that would have
+    # noticed never ran on either one (D-269)
+    ("attribution", "DEFAULT_GROUP_BY"): "attribution_group_by",
+    ("stability", "STAB_GROUP_BY"): "stability_group_by",
     ("campaign_common", "VALUE_RANGES"): "value_ranges",
     ("stability", "DEFAULT_STABILITY_KPIS"): "stability_kpis",
     ("attribution", "SEGMENTS"): "attribution_segments",
@@ -344,6 +347,14 @@ _PERTURB = {
     # which grades rank below good, so removing one changes which cells the
     # report calls the city's worst (D-267)
     "grade_order": (campaign_common, "GRADE_ORDER", ["excellent", "good", "fair"]),
+    # drop the last dimension of each cell key: measured at 418 and 494 printed
+    # numerals moved, and reachable by setattr only because D-269 stopped both
+    # from being captured in a signature
+    "attribution_group_by": (attribution, "DEFAULT_GROUP_BY",
+                             ("point_id", "carrier", "time_band")),
+    "stability_group_by": (stability, "STAB_GROUP_BY",
+                           ("campaign_id", "point_id", "carrier", "time_band",
+                            "tier")),
     "heat_kpis": (rpt, "DEFAULT_KPI_HEAT", ("t1_ttft_ms",)),
     "attribution_kpis": (attribution, "ATTRIBUTABLE_KPIS", ("n1_rtt_p50_ms",)),
     "tier_time_spread_gate_ms": (attribution, "TIER_TIME_SPREAD_GATE_MS", 1),

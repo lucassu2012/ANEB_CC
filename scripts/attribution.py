@@ -40,8 +40,14 @@ def _cell_key(labels, profile_id, group_by):
     return tuple(parts)
 
 
-def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
+def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=None):
     """Group KPI samples by (cell, tier). Returns (cells, excluded_no_tier).
+
+    `group_by` defaults to the module constant READ AT CALL TIME, not captured
+    in the signature — the same reason as `cc.aqs_grade`'s bands (D-204). It is
+    archived in the provenance manifest, and a value frozen at import can drift
+    from the value archived; it also puts the constant out of reach of the
+    perturbation that checks archived gates still decide something (D-269).
 
     cells: {cell_key(tuple) -> {tier -> [values]}}
     excluded_no_tier: count of records with no usable tier label (coverage gap).
@@ -50,6 +56,7 @@ def collect_tier_samples(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY):
            record which versions/histogram edges landed in each cell and flag the
            ones that pooled incomparable measurements (D-32 / R-27).
     """
+    group_by = DEFAULT_GROUP_BY if group_by is None else group_by
     cells, meta = {}, {}
     times = {}                      # {cell_key -> {tier -> [started_ms, ...]}}
     endpoints = {}                  # {cell_key -> {endpoint -> {tiers}}}
@@ -173,10 +180,14 @@ def attribute_cell(tier_samples, min_samples=cc.DEFAULT_MIN_SAMPLES):
     }
 
 
-def attribute(records, kpi=DEFAULT_KPI, group_by=DEFAULT_GROUP_BY,
+def attribute(records, kpi=DEFAULT_KPI, group_by=None,
               min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Full attribution over a record set. Returns a dict with per-cell results
-    and coverage metadata."""
+    and coverage metadata.
+
+    `group_by` is read at call time, not captured in the signature (D-269; see
+    collect_tier_samples for why)."""
+    group_by = DEFAULT_GROUP_BY if group_by is None else group_by
     cells, excluded, meta, times, endpoints, implausible = collect_tier_samples(
         records, kpi, group_by)
     results = []

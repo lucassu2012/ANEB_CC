@@ -1979,6 +1979,12 @@ def effective_thresholds():
         # grades rank below good, so it decides which cells the city is told
         # are its worst. Archived the moment it started deciding (D-267).
         "grade_order": list(cc.GRADE_ORDER),
+        # What a cell IS in the two sections that pool by one. Exempt as
+        # "structural, not a level" until source-level mutation showed them
+        # moving 418 and 494 printed numbers with nothing archived anywhere —
+        # neither here nor under `params` (D-269).
+        "attribution_group_by": list(attribution.DEFAULT_GROUP_BY),
+        "stability_group_by": list(stability.STAB_GROUP_BY),
         "heat_kpis": list(DEFAULT_KPI_HEAT),
         "stability_kpis": list(stability.DEFAULT_STABILITY_KPIS),
         "attribution_kpis": list(attribution.ATTRIBUTABLE_KPIS),

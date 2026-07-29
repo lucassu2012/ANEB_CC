@@ -71,10 +71,14 @@ def cv_reason(vals, cv):
 _UNSET = object()
 
 
-def stability_cells(records, kpi_key, group_by=STAB_GROUP_BY,
+def stability_cells(records, kpi_key, group_by=None,
                     cv_gate=None, min_samples=cc.DEFAULT_MIN_SAMPLES):
-    # read live, not captured in the signature — see cc.aqs_grade (D-204)
+    # read live, not captured in the signature — see cc.aqs_grade (D-204).
+    # group_by sat captured right beside cv_gate until D-269: the fix had been
+    # applied to the archived gate and not to the one next to it, which decides
+    # what a stability cell IS and was archived nowhere at all.
     cv_gate = DEFAULT_CV_GATE if cv_gate is None else cv_gate
+    group_by = STAB_GROUP_BY if group_by is None else group_by
     buckets = {}
     implausible = {}
     for rec in records:
