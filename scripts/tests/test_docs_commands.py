@@ -21,8 +21,32 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                  
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(SCRIPTS)
-DOCS = [os.path.join(SCRIPTS, "README.md"),
-        os.path.join(REPO, "docs", "M2_CAMPAIGN_RUNBOOK.md")]
+def _doc_files():
+    """Every doc that could carry a runnable command, walked rather than listed.
+
+    This was two hand-typed paths while `_commands`'s own docstring promised
+    "every documented python invocation" — 26 commands checked, 7 outside the
+    list entirely. One of the seven was `python scripts/update_shared_test_status.py`
+    in a launchpad blueprint: a copy-pasteable command for a script that no longer
+    exists. The guard that exists to catch exactly that had never been pointed at
+    the only doc that needed it (D-287).
+    """
+    out = [os.path.join(SCRIPTS, "README.md")]
+    for root, _dirs, files in os.walk(os.path.join(REPO, "docs")):
+        out += [os.path.join(root, f) for f in sorted(files) if f.endswith(".md")]
+    return out
+
+
+DOCS = _doc_files()
+
+# The two pages an operator actually reads before and during a field trip. Named
+# rather than walked, and the distinction is the point: which docs carry runnable
+# commands is a property of their content, so DOCS is derived; which pages owe
+# the operator a description of the gate's verdicts is an editorial decision
+# about audience, and pretending to derive it would silently demand that every
+# blueprint in docs/ explain publish_check (D-287).
+_SEVERITY_PAGES = [os.path.join(SCRIPTS, "README.md"),
+                   os.path.join(REPO, "docs", "M2_CAMPAIGN_RUNBOOK.md")]
 
 _FENCE = re.compile(r"```[a-zA-Z]*\n(.*?)```", re.S)
 _CMD = re.compile(r"^python\s+(\S+\.py)\s*(.*)$")
@@ -46,7 +70,12 @@ def _commands():
                     continue
                 m = _CMD.match(line)
                 if m:
-                    out.append((os.path.basename(doc), m.group(1),
+                    # docs outside scripts/ spell the path from the repo root;
+                    # the checks below resolve names against scripts/
+                    script = m.group(1).replace("\\", "/")
+                    if script.startswith("scripts/"):
+                        script = script[len("scripts/"):]
+                    out.append((os.path.basename(doc), script,
                                 _FLAG.findall(m.group(2))))
     return out
 
@@ -389,14 +418,34 @@ def test_the_canonical_labels_the_layer_produces_are_named_in_the_convention():
 
 
 def test_docs_contain_commands():
-    """Guard the guard: if the extraction breaks, the checks below go vacuous."""
+    """Guard the guard: if the extraction breaks, the checks below go vacuous.
+
+    The floor moved from 8 to 25 when DOCS stopped being two typed paths: the
+    walk finds 33, and a floor left at 8 would let three quarters of them
+    disappear without a word (D-287)."""
     cmds = _commands()
-    assert len(cmds) >= 8, f"only found {len(cmds)} documented commands — parser broken?"
+    assert len(cmds) >= 25, f"only found {len(cmds)} documented commands — parser broken?"
 
 
 def test_documented_scripts_exist():
-    missing = [(doc, s) for doc, s, _ in _commands()
-               if not os.path.exists(os.path.join(SCRIPTS, s))]
+    """A doc that tells you to run a script it no longer has is the retirement
+    trap one level down: the banner says the mechanism is dead, and a fenced
+    block three sections later still runs it.
+
+    Commands naming the retired script inside a doc that carries the banner are
+    exempt — that reader has already been told not to run them. Both halves of
+    the exemption are read from the files rather than typed here, so a different
+    missing script in the same doc still fails (D-287).
+    """
+    bannered = {os.path.basename(p) for p in DOCS
+                if os.path.exists(p) and _has_retirement_banner(p)}
+    missing = []
+    for doc, script, _flags in _commands():
+        if os.path.exists(os.path.join(SCRIPTS, script)):
+            continue
+        if doc in bannered and script in _RETIRED_SCRIPTS:
+            continue
+        missing.append((doc, script))
     assert not missing, f"docs reference scripts that do not exist: {missing}"
 
 
@@ -506,6 +555,23 @@ _RETIRED_BANNER_NOT_NEEDED = {
 
 _RETIRED_MARKS = ("SHARED_TEST_STATUS", "update_shared_test_status")
 _RETIRED_BANNER = "> ⛔ **本文中所有 `SHARED_TEST_STATUS.md`"
+# Scripts the retirement removed. Named so that a doc carrying the banner is
+# excused for THESE and nothing else: a different missing script in the same
+# file is still a broken instruction.
+_RETIRED_SCRIPTS = ("update_shared_test_status.py",)
+
+
+def _has_retirement_banner(path):
+    """Does this doc say, before its first section, that the lease is retired?
+
+    Before the first `## `, because a reader has to meet it ahead of the
+    instructions rather than after following them.
+    """
+    with open(path, encoding="utf-8-sig") as fh:
+        lines = fh.read().split("\n")
+    first = next((i for i, ln in enumerate(lines) if ln.startswith("## ")),
+                 len(lines))
+    return any(ln.startswith(_RETIRED_BANNER) for ln in lines[:first])
 
 
 def test_every_doc_describing_the_retired_lease_says_it_is_retired():
@@ -537,11 +603,7 @@ def test_every_doc_describing_the_retired_lease_says_it_is_retired():
             scanned += 1
             if name in _RETIRED_BANNER_NOT_NEEDED:
                 continue
-            first_section = next(
-                (i for i, ln in enumerate(lines) if ln.startswith("## ")),
-                len(lines))
-            if not any(ln.startswith(_RETIRED_BANNER)
-                       for ln in lines[:first_section]):
+            if not _has_retirement_banner(path):
                 offenders.append(os.path.relpath(path, REPO))
     assert scanned >= 5, (
         "only %d docs mention the retired mechanism — the scan probably broke, "
@@ -872,7 +934,7 @@ def test_every_severity_the_gate_can_emit_is_described_where_the_operator_reads(
         f"only {sorted(emitted)} were produced — the corpora stopped reaching "
         "the branches, so this proves nothing about the docs")
 
-    for path in DOCS:
+    for path in _SEVERITY_PAGES:
         with open(path, encoding="utf-8-sig") as fh:
             text = fh.read()
         missing = sorted(s for s in emitted if s not in text)
