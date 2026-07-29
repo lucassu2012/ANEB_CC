@@ -666,11 +666,14 @@ def _output_quotes(docs=None):
         if not os.path.exists(doc):
             continue
         with open(doc, encoding="utf-8") as f:
-            m = _QUOTES_BLOCK.search(f.read())
-        if not m:
+            blocks = _QUOTES_BLOCK.findall(f.read())
+        if not blocks:
             continue
         stem = os.path.splitext(os.path.basename(doc))[0]
-        for line in m.group(1).splitlines():
+        # findall, not search: one block per doc today, and a second one added
+        # later would have been dropped without a word — the silent-drop path
+        # this layer keeps finding, closed before it has anything to drop.
+        for line in "\n".join(blocks).splitlines():
             if "|" not in line:
                 continue
             key, _, phrase = line.partition("|")
@@ -716,6 +719,14 @@ def _segment_profile_md():
 
 # '<doc-stem>.<key>' -> what to render to prove the doc's quote is still emitted.
 # Adding a quote to a doc without adding a renderer here fails, and vice versa.
+def _single_tier_attr_md():
+    """The attribution section as the Shenzhen pilot will render it: one tier."""
+    import attribution
+    import synth_campaign as sc
+    recs = sc.generate(points=2, repeats=5, tiers=("metro",), campaigns=("base",))
+    return attribution.render_markdown(attribution.attribute(recs))
+
+
 _QUOTE_RENDERERS = {
     "M2_CAMPAIGN_RUNBOOK.plan_verdict_short": _noisy_plan_md,
     "M2_CAMPAIGN_RUNBOOK.plan_col_power": _noisy_plan_md,
@@ -729,6 +740,10 @@ _QUOTE_RENDERERS = {
     "M2_REPORT_TEMPLATE.seg_anomaly_no": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_verdict_col": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_spread_col": _segment_profile_md,
+    # The skeleton's 分段归因 chapter is written for three tiers, and the pilot
+    # has one. It now opens with what to write instead, keyed off the sentence
+    # the section prints — so that sentence has to keep being printed (D-289).
+    "M2_REPORT_TEMPLATE.tier_single": _single_tier_attr_md,
 }
 
 
@@ -775,8 +790,7 @@ def test_quoted_tool_output_is_still_produced():
                    if os.path.splitext(os.path.basename(d))[0] == key.split(".")[0])
         with open(doc, encoding="utf-8") as f:
             text = f.read()
-        m = _QUOTES_BLOCK.search(text)
-        body = (text[:m.start()] + text[m.end():]) if m else text
+        body = _QUOTES_BLOCK.sub("", text)   # every block, for the same reason
         assert _bare(phrase) in _bare(body), (
             f"{key} is registered but its prose no longer quotes it: {phrase}")
         seen += 1
