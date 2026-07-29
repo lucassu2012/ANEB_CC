@@ -62,6 +62,33 @@ def test_the_rehearsal_can_show_a_clean_attribution_row():
     # rows, and that is a DIFFERENT population — one row per (cell, KPI), two
     # KPIs, against one cell per key at the default KPI. A floor lifted from
     # the other population is not a floor for this one.
+    # Everything above reads attribute()'s return value, and the claim in the
+    # docstring is about what the OPERATOR SEES. Those are different objects:
+    # the note lists are written per surface by hand, and markers have gone
+    # missing from a rendered table while the analyser still reported them
+    # (D-160 / D-222). So the rendered side gets its own look (D-280).
+    import csv
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        written = {os.path.basename(p): p for p in rpt.write_csv_tables(
+            [r for r in recs
+             if cc.campaign_labels(r)["campaign_id"] == one],
+            os.path.join(d, "report"))}
+        assert "report_attribution.csv" in written, sorted(written)
+        with open(written["report_attribution.csv"],
+                  encoding="utf-8-sig", newline="") as fh:
+            rows = list(csv.DictReader(fh))
+    assert rows, "the scoped attribution table rendered no rows at all"
+    # The CSV splits what markdown prints as one note into typed columns, so the
+    # flags land in `incomparability` rather than a 备注 cell — read off the
+    # header rather than assumed, after the first version of this guessed and
+    # the missing-column assertion printed the real one (D-280).
+    assert "incomparability" in rows[0], list(rows[0])
+    rendered_clean = [r for r in rows if not (r["incomparability"] or "").strip()]
+    assert rendered_clean, (
+        "every rendered attribution row carries a note — the operator still "
+        "never meets a clean row, whatever attribute() reports")
+
     clean = [c for c in scoped if not attribution.incomparability_flags(c)]
     assert len(clean) >= 30, (
         f"only {len(clean)} of {len(scoped)} scoped rows are free of "
