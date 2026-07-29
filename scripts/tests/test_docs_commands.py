@@ -400,6 +400,13 @@ def test_documented_scripts_exist():
     assert not missing, f"docs reference scripts that do not exist: {missing}"
 
 
+# Report sections the deliverable skeleton deliberately does not carry, each with
+# its reason. Empty today — every section the report renders has a home in the
+# skeleton — and kept so that dropping one is a written decision rather than an
+# omission nobody notices.
+_SECTION_NOT_IN_SKELETON = {}
+
+
 def test_deliverable_template_section_map_resolves():
     """The deliverable skeleton tells the author which report section each of its
     chapters comes from. If a section is renamed and the map is not updated, the
@@ -428,10 +435,11 @@ def test_deliverable_template_section_map_resolves():
         wanted.append(line.strip("|").split("|")[1].strip())
     assert len(wanted) >= 10, f"section map looks truncated: {wanted}"
 
-    # union over corpus shapes: 2 campaigns render before/after, 3+ render trend
+    # union over corpus shapes: 2 campaigns render before/after, 3+ render trend;
+    # radio=True so that section renders its table rather than its gap notice
     headings = set()
     for campaigns in (("base", "opt"), ("base", "opt", "r3")):
-        recs = sc.generate(points=3, repeats=5, campaigns=campaigns)
+        recs = sc.generate(points=3, repeats=5, campaigns=campaigns, radio=True)
         md = rpt.build_report_markdown(recs, provenance=prov.compute(
             [], {"lines": 1, "kept": 1}, {}, generated_at="2026-01-01",
             thresholds=rpt.effective_thresholds()))
@@ -439,6 +447,19 @@ def test_deliverable_template_section_map_resolves():
 
     missing = [w for w in wanted if not any(w in h for h in headings)]
     assert not missing, f"template maps to sections the report does not emit: {missing}"
+
+    # ...and the other direction, which had no test. The map was complete by
+    # hand, but nothing kept it that way: the radio section walked straight past
+    # it, and an author assembling the deliverable from the skeleton would never
+    # have learned the section exists. D-267's shape — of a two-way promise, ask
+    # which half is checked (D-284).
+    unmapped = sorted(h for h in headings
+                      if not any(w in h for w in wanted)
+                      and h not in _SECTION_NOT_IN_SKELETON)
+    assert not unmapped, (
+        f"the report renders {unmapped} and the skeleton never mentions them — "
+        "add a row to SECTION-MAP, or say in _SECTION_NOT_IN_SKELETON why the "
+        "deliverable does not carry that section")
 
 
 def test_deliverable_template_field_map_resolves():
