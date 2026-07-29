@@ -1019,6 +1019,56 @@ def test_the_unlabeled_bucket_is_spelled_in_exactly_one_place():
     assert scanned >= 18, "only %d modules scanned — did the scan break?" % scanned
 
 
+def test_every_dimension_of_a_cell_reaches_its_csv():
+    """A cell's identity has to be complete on the surface the analyst computes
+    on, and CSV is the one with no banner above it (D-141).
+
+    Removing a dimension from a cell key raises KeyError downstream, because
+    the names are written by hand there too (D-267) — loud, and fine. Adding
+    one is the silent direction: cells split by something no column shows, so
+    two rows carry the same visible labels while holding different subsets, and
+    n per cell quietly falls below the sample floor.
+
+    The identity comes from what analyze() returns, not from the CELL_DIMS
+    constant beside it: validity_rollup keys on that constant PLUS profile_id,
+    so the constant understates its own cell (D-268).
+    """
+    import csv
+    import tempfile
+    import synth_campaign as sc
+    import transport_rollup
+    import trend
+    import trust_rollup
+    import validity_rollup
+
+    mods = [buffering_rollup, transport_rollup, trend, trust_rollup,
+            validity_rollup]
+    recs = sc.generate(points=2, repeats=3,
+                       campaigns=("base", "opt", "later"))
+    checked = 0
+    with tempfile.TemporaryDirectory() as d:
+        written = {os.path.basename(p): p
+                   for p in rpt.write_csv_tables(recs, os.path.join(d, "report"))}
+        for mod in mods:
+            name = f"report_{mod.__name__.replace('_rollup', '')}.csv"
+            assert name in written, (
+                f"{mod.__name__} exports no {name} — either the section stopped "
+                f"reaching the bundle or it was renamed; wrote {sorted(written)}")
+            cells = mod.analyze(recs)["cells"]
+            assert cells, f"{mod.__name__} produced no cells on this corpus"
+            dims = list(cells[0]["cell"])
+            assert dims, f"{mod.__name__} cells carry no identity at all"
+            with io.open(written[name], encoding="utf-8-sig", newline="") as fh:
+                header = next(csv.reader(fh), [])
+            missing = [x for x in dims if x not in header]
+            assert not missing, (
+                f"{name} has no column for {missing}, which {mod.__name__} uses "
+                "to tell one cell from another — two rows can print the same "
+                f"labels and mean different things. header={header}")
+            checked += 1
+    assert checked == len(mods), checked
+
+
 def test_the_grade_vocabulary_agrees_with_itself():
     """`GRADE_ORDER` declares best -> worst and, until D-266, had no reader at
     all: the bands, the colour table and the report's idea of "bad" each spelled
