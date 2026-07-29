@@ -51,6 +51,51 @@ def _commands():
     return out
 
 
+def test_the_grid_proposal_plans_by_the_arithmetic_the_tool_judges_by():
+    """The field trip is planned from a table in the grid proposal — how many
+    repeats a cell needs for an 80% chance of seeing a 5% difference, and what
+    that costs in field days. On day one the operator runs `stability.py
+    --plan`, which computes the same number from cc.required_n_at_power.
+
+    Two artefacts, one question, and nothing reconciled them. Retune the power
+    factor and the tool would demand several times the repeats while the
+    proposal still says eleven: a trip planned at 5.1 field days, declared
+    insufficient by the first check run on arrival (D-273).
+
+    The doc's column came from 40000 simulations and the tool from a closed
+    form, so exact equality was not a given — it was measured, and holds on
+    every row. The rows are read out of the document, so editing the table is
+    caught as surely as editing the function.
+    """
+    import campaign_common as cc
+    docs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "docs")
+    with open(os.path.join(docs, "M2_GRID_DESIGN_PROPOSAL.md"),
+              encoding="utf-8-sig") as fh:
+        lines = fh.read().split("\n")
+
+    # This document has a second CV table whose rows also start with `| 3% |`,
+    # so find the header that names the column and read only what follows it.
+    heads = [i for i, ln in enumerate(lines) if "八成把握需 n≥" in ln]
+    assert len(heads) == 1, f"expected one power table, found {len(heads)}"
+    rows = []
+    for ln in lines[heads[0] + 2:]:
+        m = re.match(r"^\|\s*(\d+)%\s*\|.*\|\s*\*{0,2}(\d+)\*{0,2}\s*\|\s*$", ln)
+        if not m:
+            break
+        rows.append((int(m.group(1)), int(m.group(2))))
+
+    assert len(rows) == 4, (
+        f"read {rows} out of the power table — the shape changed and this "
+        "check is comparing whatever it happened to match")
+    for cv, need in rows:
+        # the median cancels out of n, so CV and the 5% target go in as-is
+        got = cc.required_n_at_power(cv, 5.0)
+        assert got == need, (
+            f"CV {cv}%: the proposal plans for n≥{need}, the tool requires "
+            f"n≥{got}. The trip is planned from one and judged by the other")
+
+
 def test_docs_contain_commands():
     """Guard the guard: if the extraction breaks, the checks below go vacuous."""
     cmds = _commands()
