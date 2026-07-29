@@ -134,6 +134,17 @@ def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
     if not cells:
         lines.append(f"_无 `{kpi_key}` 数据。_")
         return "\n".join(lines)
+    # The summary states 「N/M 单元超 CV 门」 and until D-297 NEITHER number
+    # appeared anywhere below it: this section renders rows, not counts, and M is
+    # a sum across the KPI subsections. The reader was handed a ratio with no way
+    # to reach either half of it. Counted BEFORE any truncation, so M is the
+    # population the verdict was computed over rather than the rows that survived.
+    total = len(cells)
+    n_unstable = sum(1 for c in cells if c["unstable"])
+    n_nocv = sum(1 for c in cells if c["cv_percent"] is None)
+    lines += [f"> **本表共 {total} 个单元**：✗超门 {n_unstable}，"
+              f"CV 不可计算 {n_nocv}，其余稳定。摘要的「N/M 单元超 CV 门」"
+              "即各 KPI 分表这两个数各自相加。", ""]
     # "stable" here means stable AND clean: a cell carrying impossible readings
     # is never a row to fold away, whatever its CV says about the rest.
     stable_ids = [id(c) for c in cells

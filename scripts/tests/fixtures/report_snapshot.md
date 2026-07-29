@@ -63,6 +63,8 @@
 
 ### 复测稳定性：`n1_rtt_p50_ms`（CV% = 样本 stdev/mean；门 ≤10% 为稳定）
 
+> **本表共 24 个单元**：✗超门 0，CV 不可计算 0，其余稳定。摘要的「N/M 单元超 CV 门」即各 KPI 分表这两个数各自相加。
+
 | 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |
 |---|---|---|---|---|---|---|
 | campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |

@@ -1517,6 +1517,39 @@ def test_every_pooling_section_keeps_the_banner_s_promise():
         assert "IMPLAUSIBLE_VALUE" in render(recs), name
 
 
+def test_the_summary_unstable_ratio_adds_up_from_the_sections():
+    """The summary states 「N/M 单元超 CV 门」 and until D-297 neither number
+    appeared anywhere below it — measured: of 32 numerals in the summary, three
+    were unfindable in the body, and they were N, M and N again. The section
+    renders rows, not counts, and M is a sum across KPI subsections, so a reader
+    was handed a ratio with no way to reach either half.
+
+    Each subsection now states its own population before truncation. This checks
+    the two halves add up, which is the property that makes the summary
+    checkable rather than merely present: change the denominator in one place
+    and the page contradicts itself instead of quietly disagreeing.
+    """
+    import synth_campaign as sc
+    recs = sc.generate(points=8, repeats=5, campaigns=("base", "opt"), radio=True)
+    md = rpt.build_report_markdown(recs)
+
+    # one regex for the whole totals line: matching 「✗超门 N」 alone would also
+    # hit the table's own verdict cells
+    per_kpi = re.findall(
+        r"本表共 (\d+) 个单元\*\*：✗超门 (\d+)，CV 不可计算 (\d+)", md)
+    assert len(per_kpi) >= 3, (
+        "read %r totals lines — the stability sections stopped stating their "
+        "population and this check is comparing nothing" % (per_kpi,))
+    m = re.search(r"复测不稳定\*\*：(\d+)/(\d+) 单元超 CV 门", md)
+    assert m, "the summary no longer states the unstable ratio"
+
+    got_unstable = sum(int(u) for _t, u, _n in per_kpi)
+    got_total = sum(int(t) for t, _u, _n in per_kpi)
+    assert (got_unstable, got_total) == (int(m.group(1)), int(m.group(2))), (
+        "summary says %s/%s; the KPI sections add up to %d/%d"
+        % (m.group(1), m.group(2), got_unstable, got_total))
+
+
 def test_every_module_that_can_raise_the_marker_is_a_named_pooling_section():
     """The list above is hand-written, and it has now gone stale twice: D-251
     found attribution missing from it, and the radio section walked past it the
