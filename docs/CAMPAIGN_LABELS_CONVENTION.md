@@ -51,7 +51,16 @@
 | `point_id` | string | 外场测点自由标识 | 热力卡归入 `point_id="unlabeled"` 单格 |
 | `carrier` | string | `cmcc`/`cucc`/`ctcc`/自定义 | 热力卡 carrier 维塌缩为 `carrier="unknown"` |
 | `time_band` | string | `busy` / `idle` | 热力卡 time_band 维塌缩为 `time_band="unknown"` |
-| `server_tier_endpoint` | string(可选) | URL | 仅诊断，不参与分组 |
+| `server_tier_endpoint` | string（**写了 `tier` 就必须写**） | URL | 无从对账层级标签，逐格标 `TIER_ENDPOINT_UNVERIFIED`；不参与分组 |
+
+> ⚠ **当前部署只有一个合法的 `tier` 值（2026-07-30 复核）。** D-48 定为只保留单实例
+> E-01 后，`regional` / `core` 在深圳试点里**没有对应的服务端**——标上去就是编造。
+> 代价已实测：同一台服务器、三分之一的 run 各标 metro/regional/core、数值恰好单调时，
+> 归因矩阵印出 **接入 20 / 区域骨干+ 6 / 核心骨干+ 5 / 端到端 31，且零标记、不低置信**——
+> 一组完整、干净、自信而**完全虚构**的骨干分解（D-292）。
+> **唯一能查出它的就是 `server_tier_endpoint`**：填了它，同一端点带两个层级标签会触发
+> `TIER_ENDPOINT_CONFLICT`（严重标记，该格增量作废）。所以它不再是「可选诊断」。
+> **标注时**：`tier` 按本次**实际打的服务端**填，不要按「这一轮我们想比哪三层」填。
 
 **R-10 铁律**：任何缺失标签**绝不**折算成默认值当真值参与统计——降级为显式 `unlabeled`/`unknown` 桶并在报告里
 标注 coverage 缺口。热力卡某格样本数 < 门限标 `low_confidence`，不隐藏、不补零。

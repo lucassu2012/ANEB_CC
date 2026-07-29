@@ -754,6 +754,17 @@ def _segment_profile_md():
 
 # '<doc-stem>.<key>' -> what to render to prove the doc's quote is still emitted.
 # Adding a quote to a doc without adding a renderer here fails, and vice versa.
+def _unverified_tiers_attr_md():
+    """Three tier labels with no endpoint evidence — the shape the runbook warns
+    a Shenzhen operator about, and the only one that raises this marker."""
+    import attribution
+    from synth import tier_records
+    K = "n1_rtt_p50_ms"
+    recs = (tier_records("metro", K, 20, 5) + tier_records("regional", K, 26, 5)
+            + tier_records("core", K, 31, 5))
+    return attribution.render_markdown(attribution.attribute(recs))
+
+
 def _single_tier_attr_md():
     """The attribution section as the Shenzhen pilot will render it: one tier."""
     import attribution
@@ -771,6 +782,10 @@ _QUOTE_RENDERERS = {
     "M2_CAMPAIGN_RUNBOOK.plan_col_mde_power": _noisy_plan_md,
     "M2_CAMPAIGN_RUNBOOK.plan_col_mde_flat": _noisy_plan_md,
     "M2_CAMPAIGN_RUNBOOK.noise_marker": _within_noise_md,
+    # The runbook tells the operator this marker must not appear in a Shenzhen
+    # report, and what it means if it does (D-292). That instruction is only
+    # worth anything while the tool still prints the string.
+    "M2_CAMPAIGN_RUNBOOK.tier_unverified": _unverified_tiers_attr_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_yes": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_no": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_verdict_col": _segment_profile_md,
