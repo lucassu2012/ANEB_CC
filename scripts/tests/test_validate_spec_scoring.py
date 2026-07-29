@@ -118,3 +118,46 @@ def test_real_spec_scoring_pack_passes():
     errors, missing = vs.validate_dir(vs.DEFAULT_DIR)
     assert missing == [], f"missing scoring files: {missing}"
     assert errors == [], f"real scoring pack violates invariants: {errors}"
+
+
+def test_a_spec_file_nobody_validates_is_an_error_not_a_silence():
+    """`_CHECKS` names three files, and this gate is the only thing standing
+    between a spec edit and a shipped scoring rule. The pack is meant to grow —
+    the radio-band handoff proposes a fourth file — and until now a YAML dropped
+    in beside the three would have been validated by nothing while verify_all
+    went on printing PASS (D-291, the D-287 shape on the spec gate).
+
+    Both directions are pinned: unregistered fails, and registering it as
+    "no invariants of its own" with a reason makes it pass again. Without the
+    second half the remedy would be undemonstrated.
+    """
+    import shutil
+    import tempfile
+    try:
+        import yaml  # noqa: F401
+    except ImportError:
+        return
+    if not os.path.isdir(vs.DEFAULT_DIR):
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for fname, _check in vs._CHECKS:
+            shutil.copy(os.path.join(vs.DEFAULT_DIR, fname),
+                        os.path.join(tmp, fname))
+        errors, missing = vs.validate_dir(tmp)
+        assert (errors, missing) == ([], []), (errors, missing)
+
+        stray = "radio_bands.yaml"
+        with open(os.path.join(tmp, stray), "w", encoding="utf-8") as fh:
+            fh.write('schema_version: "1.0.0"\n')
+        errors, _missing = vs.validate_dir(tmp)
+        assert any(stray in e for e in errors), (
+            "an unregistered spec file passed the gate: %s" % errors)
+
+        vs._NO_INVARIANTS[stray] = "test fixture"
+        try:
+            errors, _missing = vs.validate_dir(tmp)
+            assert errors == [], (
+                "registering it as invariant-free left it failing: %s" % errors)
+        finally:
+            vs._NO_INVARIANTS.pop(stray, None)

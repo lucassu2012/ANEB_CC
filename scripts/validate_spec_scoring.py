@@ -130,8 +130,22 @@ _CHECKS = (("weights.yaml", check_weights), ("anchors.yaml", check_anchors),
            ("vetoes.yaml", check_vetoes))
 
 
+# Files in the pack that deliberately carry no invariants of their own, each with
+# its reason. Empty today, and kept so that leaving a spec file unchecked is a
+# written decision rather than an omission nobody sees.
+_NO_INVARIANTS = {}
+
+
 def validate_dir(scoring_dir):
-    """Load + validate all three files. Returns (errors, missing_files)."""
+    """Load + validate the registered files. Returns (errors, missing_files).
+
+    `_CHECKS` names three files and the pack is meant to grow — the radio-band
+    handoff proposes a fourth. A file dropped in beside them would be loaded by
+    nobody and validated by nothing while `verify_all` went on reporting the
+    pack as PASS: the hand-written-subject shape (D-287), on the one gate
+    standing between a spec edit and a shipped scoring rule. So the directory is
+    walked, and anything unregistered is an error rather than a silence.
+    """
     import yaml  # deferred: absence -> NOT_EXECUTED at the CLI edge
     errors, missing = [], []
     for fname, check in _CHECKS:
@@ -142,6 +156,15 @@ def validate_dir(scoring_dir):
         with open(path, encoding="utf-8") as f:
             doc = yaml.safe_load(f)
         errors.extend(check(doc))
+
+    known = {f for f, _c in _CHECKS} | set(_NO_INVARIANTS)
+    if os.path.isdir(scoring_dir):
+        for fname in sorted(os.listdir(scoring_dir)):
+            if fname.endswith((".yaml", ".yml")) and fname not in known:
+                errors.append(
+                    "%s: in spec/scoring but validated by nothing — add a "
+                    "checker to _CHECKS, or say in _NO_INVARIANTS why this file "
+                    "has no invariants of its own" % fname)
     return errors, missing
 
 

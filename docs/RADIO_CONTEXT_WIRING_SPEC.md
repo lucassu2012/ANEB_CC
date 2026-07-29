@@ -78,16 +78,49 @@ wifi 场景**不写该键**（而不是写一个全 null 的壳）。
   ——合成规则是可测的，而生产者替下游做的语义决定不是。
 - **不要整段时间序列**：本层按场景取中位，不需要逐样本序列；真要做细粒度分析时再谈。
 
-## 5. 顺带的一个发现：阈值该进 spec
+## 5. 阈值搬进 spec（**可直接动手的交接，不是建议**）
 
-R1 的四个阈值（`RSRP_WEAK_DBM=-105`、`RSRP_GOOD_DBM=-95`、`SINR_WEAK_DB=0`、
-`SINR_GOOD_DB=10`）今天**只存在于** `app/.../scoring/BufferingDetector.kt`，
-`spec/` 树里没有它们的位置。后果是：**任何第二个消费方都只能抄一份**——分析层现在就抄了。
+R1 的四个阈值今天**只存在于** `app/probe/src/main/java/com/aneb/probe/scoring/BufferingDetector.kt`：
 
-抄本已经被守卫钉住（`test_the_signal_bands_match_the_producer_that_defines_them`
-读 Kotlin 源码逐个对账，任一侧漂移即失败），所以这不是隐患，但它是**不该存在的重复**。
-建议随本次接线把四个阈值搬进 `spec/scoring/`（或新增 `spec/radio.yaml`），
-两侧改读同一处；届时该守卫改为对 spec 对账即可。
+| 常量 | 现值 | 含义 |
+|---|---|---|
+| `RSRP_WEAK_DBM` | `-105.0` | 弱信号线（dBm） |
+| `RSRP_GOOD_DBM` | `-95.0` | 良信号下界（dBm） |
+| `SINR_WEAK_DB` | `0.0` | 弱信号线（dB） |
+| `SINR_GOOD_DB` | `10.0` | 良信号下界（dB） |
+
+`spec/` 树里没有它们的位置，后果是**任何第二个消费方都只能抄一份**——分析层现在就抄了。
+抄本已被守卫钉住（`test_the_signal_bands_match_the_producer_that_defines_them` 逐个读
+Kotlin 源码对账，任一侧漂移即失败），所以不是隐患；但这是**不该存在的重复**，
+且每多一个消费方就多一份。
+
+### 5.1 放哪、长什么样
+
+**`spec/scoring/radio_bands.yaml`**，格式对齐同目录既有的 `vetoes.yaml`：
+`schema_version: "1.0.0"` + 头部注明**逐字导出的来源**（哪个 .kt 的哪些常量）+
+点名负责对拍的测试。内容形如：
+
+```yaml
+schema_version: "1.0.0"
+bands:
+  rsrp_weak_dbm: -105.0
+  rsrp_good_dbm: -95.0
+  sinr_weak_db: 0.0
+  sinr_good_db: 10.0
+```
+
+**组合语义也要写进头部注释**——它比数值更容易被抄错：弱 = **任一已知分量**越线；
+良 = **已知分量均不越线**（未知分量不阻止「良」，也不为它背书）；两个分量都不可得 = **不定档**。
+
+### 5.2 两边各做什么
+
+| 谁 | 做什么 | 为什么 |
+|---|---|---|
+| **P1b / spec lane** | 建 `spec/scoring/radio_bands.yaml`；在 Kotlin 侧加一条对拍测试，形如既有的 `SpecScoringParityTest.veto_constants_parity`——**代码侧常量全集必须被该文件覆盖** | 与 scoring 包同一套路：**导出 + 对拍**，而不是让代码去读 YAML |
+| **P1b / spec lane** | 给该文件在 `scripts/validate_spec_scoring.py` 的 `_CHECKS` 里加一个检查器（四键齐备、均为数、`weak < good`），**或**在 `_NO_INVARIANTS` 里写明它为何无需不变量检查 | **该门已改为遍历目录**：未注册的 YAML 会让 `spec-scoring-unit` 直接失败并点名（D-291）——文件落地即被看管，不会静默无人校验 |
+| **分析层（本 lane）** | 把 `test_the_signal_bands_match_the_producer_that_defines_them` 的对账目标从 `.kt` 源码换成该 YAML | 少一跳跨树依赖，并让 spec **在事实上**成为单一事实源，而不只是原则上 |
+
+**三步互不阻塞，顺序无所谓。** 文件先落地也行——门会立刻要求给它一个检查器，那正是想要的效果。
 
 ## 6. 验收（两边各自可独立验证）
 
