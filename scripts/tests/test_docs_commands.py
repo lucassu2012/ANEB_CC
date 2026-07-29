@@ -180,6 +180,64 @@ def test_every_default_the_readme_states_is_the_one_the_code_uses():
                 f"the code uses {want}, the README line does not carry it: {ln}")
 
 
+def test_every_field_the_wiring_spec_asks_for_has_a_consumer():
+    """The wiring spec is what the other lane implements from. A field it names
+    that this layer never reads is data the app writes for nobody, and the way
+    that surfaces is a field trip coming back unusable (D-276).
+
+    All seven have consumers today — the five cell dimensions, `label_source`
+    in the inventory (D-153) and `server_tier_endpoint` in the tier-endpoint
+    reconciliation (D-155). Nothing checked it.
+
+    Consumption is read off the AST, not the file text: a field named only in a
+    docstring is documentation, not a consumer.
+    """
+    import ast
+    docs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "docs")
+    with open(os.path.join(docs, "CAMPAIGN_LABELS_WIRING_SPEC.md"),
+              encoding="utf-8-sig") as fh:
+        # only the string-typed leaves: the enclosing `campaign` object is
+        # declared ["object","null"] and is not one of the label fields. Told
+        # apart by shape rather than by naming it, so nothing has to be kept
+        # in an exemption list (D-275).
+        fields = re.findall(r'^\s*"(\w+)":\s*\{\s*"type":\s*\[\s*"string"',
+                            fh.read(), re.M)
+    assert len(fields) == 7, (
+        f"read {fields} out of the spec — the schema fragment changed shape "
+        "and this check is comparing whatever it happened to match")
+
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    consumed = set()
+    scanned = 0
+    for name in sorted(os.listdir(scripts_dir)):
+        if not name.endswith(".py"):
+            continue
+        with open(os.path.join(scripts_dir, name), encoding="utf-8-sig") as fh:
+            try:
+                tree = ast.parse(fh.read(), name)
+            except SyntaxError:
+                continue
+        scanned += 1
+        docstrings = {
+            id(n.body[0].value) for n in ast.walk(tree)
+            if isinstance(n, (ast.Module, ast.FunctionDef, ast.ClassDef))
+            and getattr(n, "body", None) and isinstance(n.body[0], ast.Expr)
+            and isinstance(n.body[0].value, ast.Constant)
+            and isinstance(n.body[0].value.value, str)}
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and node.value in fields and id(node) not in docstrings):
+                consumed.add(node.value)
+    assert scanned >= 18, f"only {scanned} modules scanned — did the scan break?"
+
+    orphans = [f for f in fields if f not in consumed]
+    assert not orphans, (
+        f"the wiring spec asks the app to write {orphans}, and no module here "
+        "reads them — the other lane would ship a field this layer ignores, "
+        "and the trip comes back before anyone notices")
+
+
 def test_docs_contain_commands():
     """Guard the guard: if the extraction breaks, the checks below go vacuous."""
     cmds = _commands()
