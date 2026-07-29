@@ -343,6 +343,35 @@ def test_tier_simultaneity_is_checked_before_publication():
     assert _sev(pc.check(together), "层级同时性") == pc.PASS
 
 
+def test_every_row_the_gate_produces_reaches_the_page_intact():
+    """The individual item guards assert on what check() returns, which is one
+    step before the operator. Dropping the detail column from render_markdown
+    was caught by exactly one of 498 tests (D-281) — an entire column could
+    vanish from what a reader sees and almost nothing noticed.
+
+    So this walks the rows the gate actually produced, rather than a list of
+    items typed here, and requires each to arrive whole: named once, carrying
+    its own explanation, wearing a verdict (D-282).
+    """
+    seen = 0
+    for corpus in (_clean(), _two_campaigns([70, 72, 74], [80, 82, 84])):
+        rows = pc.check(corpus)
+        assert rows, "the gate produced no rows to check"
+        md = pc.render_markdown(rows)
+        for r in rows:
+            # by cell, not by substring: 效应量 is inside 介质效应量, and the
+            # first version matched both rows (the "too wide a word" trap this
+            # layer already records against its own assertions)
+            cell = "| %s |" % r["item"]
+            named = [ln for ln in md.split("\n") if cell in ln]
+            assert len(named) == 1, (r["item"], named)
+            assert r["detail"] in named[0], (r["item"], r["detail"], named[0])
+            assert any(v in named[0] for v in ("FAIL", "WARN", "N/A", "PASS")), \
+                named[0]
+            seen += 1
+    assert seen >= 20, f"only {seen} rendered rows checked"
+
+
 def test_uncheckable_premise_is_stated_not_omitted():
     # ⚠ SOLE targeted guard on handover §2.2 "cannot check" != "checked"
     #   (D-186's mutation map). Flipping this item to PASS breaks nothing else.
