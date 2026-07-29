@@ -1465,27 +1465,33 @@ def _corrupt_corpus():
 # A new pooling tool belongs in this list, or the banner ends up speaking for a
 # section that never agreed to it.
 _POOLING_SECTIONS = (
-    ("heat_cells", lambda recs: rpt.render_heatcard_markdown(rpt.heat_cells(recs))),
-    ("kpi_heat", lambda recs: rpt.render_kpi_heatcard_markdown(
+    ("heat_cells", "campaign_report",
+     lambda recs: rpt.render_heatcard_markdown(rpt.heat_cells(recs))),
+    ("kpi_heat", "campaign_report", lambda recs: rpt.render_kpi_heatcard_markdown(
         rpt.kpi_heat_cells(recs, "t1_ttft_ms"), "t1_ttft_ms")),
-    ("stability", lambda recs: stability.render_markdown(
+    ("stability", "stability", lambda recs: stability.render_markdown(
         stability.stability_cells(recs, "t1_ttft_ms"), "t1_ttft_ms")),
-    ("transport", lambda recs: transport_rollup.render_markdown(
+    ("transport", "transport_rollup", lambda recs: transport_rollup.render_markdown(
         transport_rollup.analyze(recs))),
-    ("order_effect", lambda recs: order_effect.render_markdown(
+    ("order_effect", "order_effect", lambda recs: order_effect.render_markdown(
         order_effect.analyze(recs, kpi="t1_ttft_ms"))),
-    ("trend", lambda recs: trend.render_markdown(trend.analyze(recs))),
-    ("buffering", lambda recs: buffering_rollup.render_markdown(
+    ("trend", "trend", lambda recs: trend.render_markdown(trend.analyze(recs))),
+    ("buffering", "buffering_rollup", lambda recs: buffering_rollup.render_markdown(
         buffering_rollup.analyze(recs))),
-    ("subscore", lambda recs: subscore_rollup.render_markdown(
+    ("subscore", "subscore_rollup", lambda recs: subscore_rollup.render_markdown(
         subscore_rollup.analyze(recs))),
     # The three-tier matrix pools tier medians and its cells carry the marker
     # through incomparability_flags — and it was the one pooling section this
     # list never named, while being the largest analytical section in the report
     # (D-251). Measured: it already renders the marker; the list simply never
     # asked.
-    ("attribution", lambda recs: attribution.render_markdown(
+    ("attribution", "attribution", lambda recs: attribution.render_markdown(
         attribution.attribute(recs, kpi="t1_ttft_ms"))),
+    # ...and it happened again with the radio section (D-288), which is why each
+    # entry now names its module and a second guard derives the set rather than
+    # trusting this list to stay complete on its own.
+    ("radio", "radio_rollup", lambda recs: radio_rollup.render_markdown(
+        radio_rollup.analyze(recs))),
 )
 
 
@@ -1507,8 +1513,58 @@ def test_every_pooling_section_keeps_the_banner_s_promise():
       replacing it, put the replacement in first.
     """
     recs = _corrupt_corpus()
-    for name, render in _POOLING_SECTIONS:
+    for name, _module, render in _POOLING_SECTIONS:
         assert "IMPLAUSIBLE_VALUE" in render(recs), name
+
+
+def test_every_module_that_can_raise_the_marker_is_a_named_pooling_section():
+    """The list above is hand-written, and it has now gone stale twice: D-251
+    found attribution missing from it, and the radio section walked past it the
+    same way one round later (D-288). A list nobody derives keeps its promise
+    only until the next section.
+
+    The criterion is read off the modules: one that checks values through the
+    shared range gate, carries an `implausible_values` field AND renders the
+    marker is a pooling section. `publish_check` re-renders other sections'
+    markers without pooling anything, and falls out because it never checks a
+    value — an exemption by construction rather than by a line typed here
+    (D-275).
+    """
+    import ast
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pooling = set()
+    scanned = 0
+    for name in sorted(os.listdir(scripts_dir)):
+        if not name.endswith(".py"):
+            continue
+        with io.open(os.path.join(scripts_dir, name), encoding="utf-8-sig") as fh:
+            try:
+                tree = ast.parse(fh.read(), name)
+            except SyntaxError:
+                continue
+        scanned += 1
+        marks = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if "IMPLAUSIBLE_VALUE" in node.value:
+                    marks.add("renders")
+                if node.value == "implausible_values":
+                    marks.add("field")
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in ("keep_value", "value_problem")):
+                marks.add("checks")
+        if len(marks) == 3:
+            pooling.add(name[:-3])
+    assert scanned >= 18, f"only {scanned} modules scanned — did the scan break?"
+    assert len(pooling) >= 8, (
+        f"only {sorted(pooling)} qualify — the criterion stopped matching and "
+        "this check is comparing whatever it happened to find")
+
+    named = {m for _label, m, _render in _POOLING_SECTIONS}
+    assert pooling == named, (
+        "modules that can raise the marker but are in no _POOLING_SECTIONS "
+        "entry: %s; entries naming a module that no longer qualifies: %s"
+        % (sorted(pooling - named), sorted(named - pooling)))
 
 
 def test_an_impossible_reading_changes_no_number_it_only_adds_a_marker():
