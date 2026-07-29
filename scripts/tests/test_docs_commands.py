@@ -130,6 +130,56 @@ def test_the_numbers_the_proposal_quotes_from_the_layer_still_hold():
         f"{stability.DEFAULT_CV_GATE}%")
 
 
+def test_every_default_the_readme_states_is_the_one_the_code_uses():
+    """The README is this layer's front door, and it states six defaults as
+    plain fact. Every one of them is a tunable — the CV gate, the plan target,
+    the order-effect threshold, the validity floor, the sample floor, and the
+    shape of the synthetic grid. Retune any and the front door starts lying
+    (D-275).
+
+    The sites are enumerated FROM the document: every 「默认」 followed by a
+    number must be registered here. The four non-numeric mentions (stdout, an
+    ordering rule, a gate that runs at the entrance, and a sentence saying
+    `unknown` is never counted valid by default) carry no digit and so never
+    enter the list — no hand-written exemptions to go stale.
+    """
+    import campaign_common as cc
+    import order_effect
+    import stability
+    import synth_campaign as sc
+    import validity_rollup
+
+    docs = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(docs, "README.md"), encoding="utf-8-sig") as fh:
+        lines = fh.read().split("\n")
+
+    recs = sc.generate()
+    scenarios = sum(len(list(cc.iter_scenarios(r))) for r in recs)
+    registry = [
+        ("CV% = 样本 stdev/mean", [stability.DEFAULT_CV_GATE]),
+        ("--plan [PCT]", [stability.DEFAULT_TARGET_EFFECT_PCT]),
+        ("生成 M2 规模网格", [len(recs), scenarios]),
+        ("spread_pct = ", [order_effect.DEFAULT_THRESHOLD_PCT]),
+        ("低于门默认", [validity_rollup.DEFAULT_MIN_RATE * 100]),
+        ("样本 < `min_samples`", [cc.DEFAULT_MIN_SAMPLES]),
+    ]
+
+    sites = [ln for ln in lines if re.search(r"默认\s*\d", ln)]
+    assert len(sites) == 6, (
+        f"{len(sites)} numeric defaults in the README, 6 registered — a new "
+        f"one was written into the prose without being reconciled: {sites}")
+
+    for ln in sites:
+        hits = [(ctx, vals) for ctx, vals in registry if ctx in ln]
+        assert len(hits) == 1, (
+            f"this default matches {len(hits)} registry entries, need exactly "
+            f"one: {ln}")
+        numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", ln)]
+        for want in hits[0][1]:
+            assert float(want) in numbers, (
+                f"the code uses {want}, the README line does not carry it: {ln}")
+
+
 def test_docs_contain_commands():
     """Guard the guard: if the extraction breaks, the checks below go vacuous."""
     cmds = _commands()
