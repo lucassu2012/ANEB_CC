@@ -1052,25 +1052,30 @@ def test_every_declared_range_is_actually_evaluated_somewhere():
     import io
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     BLOCK_LEVEL = set()
-    for name in ("campaign_report.py", "subscore_rollup.py"):
+    # radio_rollup joined the sites in D-284, and it reaches the same check
+    # through keep_value rather than value_problem — a scan that knew only the
+    # one entry point would have reported its two ranges as never evaluated.
+    for name in ("campaign_report.py", "subscore_rollup.py", "radio_rollup.py"):
         with io.open(os.path.join(here, name), encoding="utf-8-sig") as fh:
             tree = ast.parse(fh.read(), name)
         for node in ast.walk(tree):
-            # cc.value_problem("<range key>", value)
+            # cc.value_problem("<range key>", value) / cc.keep_value("<key>", ...)
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "value_problem" and node.args
-                    and isinstance(node.args[0], ast.Constant)
+                    and node.func.attr in ("value_problem", "keep_value")
+                    and node.args and isinstance(node.args[0], ast.Constant)
                     and isinstance(node.args[0].value, str)):
                 BLOCK_LEVEL.add(node.args[0].value)
             # ("<field on the block>", "<range key>") pairs feeding the same call
             if (isinstance(node, ast.Tuple) and len(node.elts) == 2
                     and all(isinstance(e, ast.Constant) and isinstance(e.value, str)
                             for e in node.elts)
-                    and node.elts[1].value in cc.VALUE_RANGES):
+                    and node.elts[1].value in cc.all_value_ranges()):
                 BLOCK_LEVEL.add(node.elts[1].value)
     assert len(BLOCK_LEVEL) >= 5, f"only {sorted(BLOCK_LEVEL)} — did the scan break?"
     swept = set(rpt._SCENARIO_KPI_RANGES) | BLOCK_LEVEL
-    assert swept == set(cc.VALUE_RANGES), swept ^ set(cc.VALUE_RANGES)
+    # ALL, not just the KPI half: the non-KPI ranges are exempt from being
+    # planned against, not from being evaluated.
+    assert swept == set(cc.all_value_ranges()), swept ^ set(cc.all_value_ranges())
 
 
 def test_out_of_range_aqs_does_not_become_the_best_grade():

@@ -34,6 +34,7 @@ import campaign_report as rpt
 import coverage_matrix
 import order_effect
 import publish_check as pc
+import radio_rollup
 import stability
 import subscore_rollup
 import transport_rollup
@@ -140,6 +141,7 @@ _SWEEP = {
     # its icon raises KeyError on every corpus and nothing here would have noticed
     "publish_check": lambda r: pc.render_markdown(pc.check(r)),
     "coverage_matrix": lambda r: coverage_matrix.render_markdown(coverage_matrix.analyze(r)),
+    "radio_rollup": lambda r: radio_rollup.render_markdown(radio_rollup.analyze(r)),
 }
 
 # Reached through build_report_markdown rather than called here (D-231).
@@ -1235,6 +1237,7 @@ _CSV_FOR_SECTION = {
     "attribution": "attribution",
     "buffering_rollup": "buffering",
     "order_effect": "order_effect",
+    "radio_rollup": "radio",
     "stability": "stability",
     "subscore_rollup": "subscores",
     "transport_rollup": "transport",
@@ -1445,6 +1448,15 @@ def _corrupt_corpus():
         for r in clean:
             r["run"]["transport"] = "cellular"
             r["run"]["started_at_epoch_ms"] = _EPOCH + day * _DAY
+            # A radio reading is one of this run's numbers now (D-284), so the
+            # bad run's radio has to be impossible too — otherwise the radio CSV
+            # grows an implausible_values column that no corpus ever fills, and
+            # the column-position guard above would be checking a blank.
+            ok = r["run"]["aqs"]["score"] != 9999
+            r["scenarios"][0].setdefault("network_snapshot", {})["radio"] = {
+                "rat": "NR", "rsrp_dbm": -98 if ok else 0, "sinr_db": 7,
+                "pci": 238, "tac": 12345, "arfcn": 504990,
+                "sampled_n": 12, "stale": False}
         out += clean
     return [contractify(r) for r in out]
 

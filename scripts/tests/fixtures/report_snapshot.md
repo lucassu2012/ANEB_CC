@@ -182,6 +182,10 @@ _无可信度证据（clock/seq/parse 块均未标注）——覆盖缺口，非
 
 _无 transport 证据（run 均为 auto 且无 network_snapshot 观测）——覆盖缺口，非数据。_
 
+## 无线上下文（信号档与小区一致性）
+
+_本轮语料**不含无线上下文**——这是**采集缺口，不是「信号良好」**。无线量在设备侧已采集(RadioCollector)并被 App 内部消费,但 `ResultReporter` 写入 `network_snapshot` 的只有 transport/capabilities/interface/server_observed_addr,故本层从未见过任何无线取值。三级归因按 D-48 取消后,无线上下文是 `PLAN_ALIGNMENT` §7.3 点名的**第一顺位替代协变量**——接线规格见 `docs/RADIO_CONTEXT_WIRING_SPEC.md`。_
+
 ## 优化前后对比（before=`base` → after=`opt`，AQS 中位）
 
 > **噪声尺度**：Δ 旁的 `±` 是该格测量离散度推得的**指示性**噪声量级（正态近似 SE≈1.253·sd/√n，两格求和取方根）。时延右偏，故它只指示**量级、不是显著性检验**；|Δ| 小于它的格标 `噪声内`——**不应作为改善/回退的结论**。`±0` 只表示这几次复测未观察到离散，**不等于没有噪声**；样本不足的格（标 `low_conf`）其噪声估计本身也不可靠，噪声无法估计时留 `—`、不以 0 顶替。

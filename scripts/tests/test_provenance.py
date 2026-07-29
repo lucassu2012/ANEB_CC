@@ -211,6 +211,7 @@ _GATE_KEY = {
     ("buffering_rollup", "HOTSPOT_SHARE"): "buffering_hotspot_share",
     ("campaign_common", "EPOCH_MS_MIN"): None,      # archived as a pair, below
     ("campaign_common", "EPOCH_MS_MAX"): None,
+    ("campaign_common", "NON_KPI_RANGES"): "value_ranges_non_kpi",
     ("campaign_common", "MAD_TO_SIGMA"): "mad_to_sigma",
     ("campaign_common", "MEDIAN_SE_FACTOR"): "median_se_factor",
     ("order_effect", "DEFAULT_THRESHOLD_PCT"): "order_effect_threshold_percent",
@@ -224,6 +225,16 @@ _GATE_KEY = {
     # are the gates that widening it turned up unarchived (D-248).
     ("attribution", "ATTRIBUTABLE_KPIS"): "attribution_kpis",
     ("campaign_common", "AQS_GRADE_BANDS"): "aqs_grade_bands",
+    # Radio bands (D-284): they decide the 弱/中/良 printed for every cellular
+    # cell, and unlike every other gate here they are a COPY of a constant that
+    # lives in the app — so the archived value is also the record of which copy
+    # produced the report.
+    ("campaign_common", "RSRP_WEAK_DBM"): "rsrp_weak_dbm",
+    ("campaign_common", "RSRP_GOOD_DBM"): "rsrp_good_dbm",
+    ("campaign_common", "SINR_WEAK_DB"): "sinr_weak_db",
+    ("campaign_common", "SINR_GOOD_DB"): "sinr_good_db",
+    ("campaign_common", "SIGNAL_BANDS"): "signal_bands",
+    ("campaign_common", "SIGNAL_LABELS"): "signal_labels",
     # exempt until D-266 gave it a reader in the summary; archived once the
     # perturbation guard showed it moving printed numbers (D-267)
     ("campaign_common", "GRADE_ORDER"): "grade_order",
@@ -381,6 +392,21 @@ _PERTURB = {
     "order_effect_kpis": (order_effect, "ORDER_SENSITIVE_KPIS", ("t1_ttft_ms",)),
     "transport_media": (transport_rollup, "EXPLICIT", ("wifi",)),
     "trend_metric_key": (trend, "METRIC_AQS", "aqs_X"),
+    # The rehearsal's radio points sit at -85 dBm / 15 dB, so each perturbation
+    # is chosen to CROSS that: move a threshold past the observed reading and the
+    # printed band changes. Pushing them the other way would read as inert and
+    # prove nothing, which is what this table's header warns about.
+    # tightened past the readings the rehearsal actually contains (-85 dBm), so
+    # they become "impossible" and drop out — loosening it would change nothing
+    "value_ranges_non_kpi": (campaign_common, "NON_KPI_RANGES",
+                             {"rsrp_dbm": (-160.0, -90.0), "sinr_db": (-30.0, 45.0)}),
+    "rsrp_weak_dbm": (campaign_common, "RSRP_WEAK_DBM", -80.0),
+    "rsrp_good_dbm": (campaign_common, "RSRP_GOOD_DBM", -80.0),
+    "sinr_weak_db": (campaign_common, "SINR_WEAK_DB", 20.0),
+    "sinr_good_db": (campaign_common, "SINR_GOOD_DB", 20.0),
+    "signal_bands": (campaign_common, "SIGNAL_BANDS", ["weak"]),
+    "signal_labels": (campaign_common, "SIGNAL_LABELS",
+                      {"weak": "W", "medium": "M", "good": "G"}),
 }
 
 
@@ -400,7 +426,11 @@ def test_every_archived_threshold_actually_decides_the_report():
     # three campaigns, so the trend section actually renders: with two, the gate
     # keeps it off the page and every trend-side perturbation reads as inert
     # while proving nothing (D-248)
-    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt", "later"))
+    # radio=True for the same reason three campaigns are used: without it the
+    # radio section renders its coverage-gap notice instead of a table, and every
+    # band-side perturbation reads as inert while proving nothing (D-284).
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt", "later"),
+                       radio=True)
     base = rpt.build_report_markdown(recs)
     th = rpt.effective_thresholds()
     assert set(th) == set(_PERTURB), (

@@ -302,6 +302,60 @@ def test_every_field_the_wiring_spec_asks_for_has_a_consumer():
         "and the trip comes back before anyone notices")
 
 
+def test_every_field_the_radio_spec_asks_for_has_a_consumer():
+    """The radio spec's whole claim is that its consumer was written first, so a
+    field in it that nothing reads would falsify the document's own premise —
+    and would be the D-276 mistake committed by the guard against D-276.
+
+    The field list is read out of the spec's §3 table, which is the column that
+    also names the consumer: one table, so a field cannot be requested in one
+    place and justified in another. Consumption is read off the AST, not the file
+    text — a field named only in a docstring is documentation, not a reader.
+    """
+    import ast
+    docs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "docs")
+    path = os.path.join(docs, "RADIO_CONTEXT_WIRING_SPEC.md")
+    assert os.path.exists(path), (
+        "the radio wiring spec is gone, but radio_rollup's coverage notice still "
+        "sends every report's reader to it")
+    with open(path, encoding="utf-8-sig") as fh:
+        text = fh.read()
+    body = text.split("## 3.", 1)[1].split("\n## ", 1)[0]
+    fields = re.findall(r"^\|\s*`(\w+)`\s*\|", body, re.M)
+    assert len(fields) == 8, (
+        f"read {fields} out of the spec — the field table changed shape and "
+        "this check is comparing whatever it happened to match")
+
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    consumed, scanned = set(), 0
+    for name in sorted(os.listdir(scripts_dir)):
+        if not name.endswith(".py"):
+            continue
+        with open(os.path.join(scripts_dir, name), encoding="utf-8-sig") as fh:
+            try:
+                tree = ast.parse(fh.read(), name)
+            except SyntaxError:
+                continue
+        scanned += 1
+        docstrings = {
+            id(n.body[0].value) for n in ast.walk(tree)
+            if isinstance(n, (ast.Module, ast.FunctionDef, ast.ClassDef))
+            and getattr(n, "body", None) and isinstance(n.body[0], ast.Expr)
+            and isinstance(n.body[0].value, ast.Constant)
+            and isinstance(n.body[0].value.value, str)}
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and node.value in fields and id(node) not in docstrings):
+                consumed.add(node.value)
+    assert scanned >= 18, f"only {scanned} modules scanned — did the scan break?"
+
+    orphans = [f for f in fields if f not in consumed]
+    assert not orphans, (
+        f"the radio spec asks the app to write {orphans}, and no module here "
+        "reads them — the document promises a consumer for every field")
+
+
 def test_the_canonical_labels_the_layer_produces_are_named_in_the_convention():
     """The convention doc is what an annotator reads before typing a label. The
     alias tables decide what those labels become. A canonical value the tables

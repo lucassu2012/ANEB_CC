@@ -15,7 +15,7 @@
 | 层 | 脚本 | 粒度 | 产出 |
 |---|---|---|---|
 | 逐-run | `analyze_results.py` · `dashboard.py` | 单次 run | 清单/KPI 中位摘要、单文件 HTML 看板 |
-| **战役级** | `campaign_report.py`（综合报告）+ 各分析段：`attribution` · `stability` · `validity_rollup` · `subscore_rollup` · `buffering_rollup` · `transport_rollup` · `trust_rollup` · `order_effect` · `trend` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 有效性分母 · 分数侧归因 · 批化失真 · 介质对比 · 测量可信度 · 序位效应 · 纵向趋势 |
+| **战役级** | `campaign_report.py`（综合报告）+ 各分析段：`attribution` · `stability` · `validity_rollup` · `subscore_rollup` · `buffering_rollup` · `transport_rollup` · `trust_rollup` · `radio_rollup` · `order_effect` · `trend` | 跨 run 分组 | 热力卡 · 三级归因 · 复测 CV · 有效性分母 · 分数侧归因 · 批化失真 · 介质对比 · 测量可信度 · 无线上下文 · 序位效应 · 纵向趋势 |
 | 入门/守门 | `validate_results` · `corpus_health` · `publish_check` · `annotate_campaign` · `coverage_matrix` · `provenance` | 语料与发布 | 契约门 · 语料完整性 · 发布前自检 · 标签补注 · 覆盖矩阵 · 溯源清单 |
 | 规格门禁 | `validate_spec_scoring` · `validate_profiles` | spec 树 | 评分包不变量 · profile spec↔runtime 一致性 |
 | 彩排 | `synth_campaign` | 合成语料 | M2 规模网格 + `--chaos` 病理注入（**仅供彩排**） |
@@ -124,6 +124,16 @@ unknown，**均不并入任何介质**（**两个桶各查一遍**：`test_no_bu
 `parse.per_event_parse_us` 中位（解析开销大会混淆 ITL：端侧算力≠网络）。各信号分母=
 实际带标注的场景数，未标注**不算干净**；全无证据 → 覆盖缺口告示。时钟可疑过半标
 `时钟可疑热点`。集成进综合报告 + 独立 CLI。
+
+### `radio_rollup.py` — 无线上下文（信号档与小区一致性）（D-284）
+三级归因随 D-48 取消后，`PLAN_ALIGNMENT` §7.3 记下的替代是「单点参考端 + 多维协变量」，
+而**无线上下文是其中第一顺位**。读 `scenarios[].network_snapshot.radio`：按 App 侧 R1
+判据定档（`RSRP<-105dBm` 或 `SINR<0dB` → 弱；两项均不越线 → 良；两个分量都不可得 → **不定档**），
+并标三类混淆——同格混了多个服务小区（`MIXED_SERVING_CELL`）、混了制式（`MIXED_RAT`）、
+以及**同点位忙闲挂了不同小区**（`CELL_CHANGED`，与 `TIER_ENDPOINT_CONFLICT` 同形：
+差值真实、但归因不成立）。`stale` 样本只排除并计数、绝不入池；把「不可得」写成 `0` dBm
+的取值由值域检查拦下。**语料无该块时本段照出**，写明是**采集缺口而非「信号良好」**——
+接线未落地前这就是它要传达的事。集成进综合报告 + CSV + 独立 CLI。
 
 ### `synth_campaign.py` — 合成全网格语料（**仅供彩排**，D-116/117）
 > ⛔ **产出的数字是虚构的、不是实测**。每条记录带**双重标记**（加性 `synthetic` 块 +

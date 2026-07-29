@@ -33,6 +33,7 @@ import attribution
 import buffering_rollup
 import order_effect
 import provenance as prov_mod
+import radio_rollup
 import stability
 import subscore_rollup
 import transport_rollup
@@ -1244,6 +1245,11 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # Access-medium comparison: is cellular worse than wifi in this cell? (D-110)
     parts.append(transport_rollup.render_markdown(transport_rollup.analyze(records, min_samples)))
     parts.append("")
+    # Radio context: the first covariate the post-D-48 fallback names, and the
+    # section renders even when the corpus carries none — that absence is the
+    # finding, and burying it would let a wiring gap read as "signal was fine".
+    parts.append(radio_rollup.render_markdown(radio_rollup.analyze(records, min_samples)))
+    parts.append("")
     if before_id and after_id:
         parts.append(render_comparison_markdown(
             compare_campaigns(records, before_id, after_id, min_samples)))
@@ -1897,6 +1903,28 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _mixed(cell), _bad(c) if is_cell else ""])
     written.append(p)
 
+    # Radio context on the surface analysts compute on. The band is the derived
+    # verdict and the two medians are what produced it, so all three ride the
+    # same row — reading the band without them cannot tell a weak cell from an
+    # unmeasured one, which is the whole distinction this section carries.
+    rcells = radio_rollup.analyze(records, min_samples)["cells"]
+    p = prefix + "_radio.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = csv.writer(f)
+        w.writerow(["point_id", "carrier", "time_band", "band", "rsrp_median_dbm",
+                    "sinr_median_db", "rats", "serving_cells", "n", "n_with_radio",
+                    "sampled_n_median", "stale_samples", "low_confidence",
+                    "thin_samples", "implausible_values"])
+        for c in rcells:
+            cell = c["cell"]
+            w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
+                        c["band"] or "", _cell(c["rsrp_median_dbm"]),
+                        _cell(c["sinr_median_db"]), "/".join(sorted(c["rats"])),
+                        "/".join(sorted(c["cell_keys"])), c["n"], c["n_with_radio"],
+                        _cell(c["sampled_n_median"]), c["stale_samples"],
+                        c["low_confidence"], c["thin_samples"], _bad(c)])
+    written.append(p)
+
     # The headline "did it get better" payloads (survey gap 6): before/after delta
     # and the N-campaign trajectory, in spreadsheet-consumable long format (D-114).
     if before_id is None and after_id is None:
@@ -1987,6 +2015,17 @@ def effective_thresholds():
         "buffering_hotspot_share": buffering_rollup.HOTSPOT_SHARE,
         "clock_hotspot_share": trust_rollup.CLOCK_HOTSPOT_SHARE,
         "aqs_grade_bands": [[b, g] for b, g in cc.AQS_GRADE_BANDS],
+        # The radio bands decide the 弱/中/良 printed for every cellular cell,
+        # and they are a COPY of the app's constants (spec/ has no home for them
+        # yet). A re-run disagreeing with an archived report over a signal band
+        # is exactly what this manifest exists to make explainable (D-284).
+        "value_ranges_non_kpi": {k: list(v) for k, v in sorted(cc.NON_KPI_RANGES.items())},
+        "rsrp_weak_dbm": cc.RSRP_WEAK_DBM,
+        "rsrp_good_dbm": cc.RSRP_GOOD_DBM,
+        "sinr_weak_db": cc.SINR_WEAK_DB,
+        "sinr_good_db": cc.SINR_GOOD_DB,
+        "signal_bands": list(cc.SIGNAL_BANDS),
+        "signal_labels": dict(cc.SIGNAL_LABELS),
         # Exempt until D-266 gave it a reader: the summary now asks it which
         # grades rank below good, so it decides which cells the city is told
         # are its worst. Archived the moment it started deciding (D-267).

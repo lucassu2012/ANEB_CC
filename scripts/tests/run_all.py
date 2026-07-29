@@ -24,7 +24,7 @@ TEST_MODULES = ["test_attribution", "test_campaign_report", "test_annotate",
                 "test_buffering_rollup", "test_transport_rollup", "test_trust_rollup",
                 "test_dashboard", "test_synth_campaign", "test_docs_commands",
                 "test_publish_check", "test_chaos_rehearsal", "test_report_properties",
-                "test_report_snapshot", "test_cli_smoke"]
+                "test_report_snapshot", "test_cli_smoke", "test_radio_rollup"]
 
 
 def _encodable(ch, enc):

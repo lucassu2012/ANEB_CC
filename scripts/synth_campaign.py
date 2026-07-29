@@ -132,8 +132,52 @@ def _sub_scores(kpi):
     }
 
 
+# Synthetic radio, rehearsal only. Bands are assigned by point so a rehearsal
+# shows 弱/中/良 all three, and four pathologies are planted so every marker the
+# rollup can raise has something to raise it on — a rehearsal that only produces
+# clean rows never demonstrates the check that matters (D-270).
+_RADIO_BANDS = [(-85.0, 15.0), (-85.0, 15.0), (-85.0, 15.0),
+                (-100.0, 5.0), (-100.0, 5.0), (-100.0, 5.0),
+                (-112.0, -2.0), (-112.0, -2.0)]
+RADIO_HANDOVER_POINT = 1         # handover WITHIN one cell (busy and idle both)
+RADIO_THIN_POINT = 2             # producer samples once or twice per scenario
+RADIO_CELL_CHANGE_POINT = 4      # different serving cell in busy vs idle
+RADIO_MIXED_RAT_POINT = 5        # NR and LTE inside one cell
+RADIO_STALE_POINT = 6            # some samples arrive stale
+RADIO_IMPLAUSIBLE_POINT = 7      # "unavailable" written as 0 dBm
+# Points where pi % 3 == 0 alternate wifi/cellular by repeat, so rep 0 there
+# carries no radio at all — planting a cellular-only pathology on an even repeat
+# of such a point produces a rehearsal that silently never exercises it.
+_DUAL_MEDIUM_EVERY = 3
+
+
+def _radio(rng, pi, band, rep, scn_index):
+    """One synthetic radio block. Cellular only — wifi has no serving cell."""
+    base_rsrp, base_sinr = _RADIO_BANDS[pi % len(_RADIO_BANDS)]
+    rsrp = round(base_rsrp + rng.gauss(0, 2.5), 1)
+    sinr = round(base_sinr + rng.gauss(0, 1.5), 1)
+    rat = "LTE" if (pi == RADIO_MIXED_RAT_POINT and scn_index == 1) else "NR"
+    pci = 200 + pi
+    if pi == RADIO_CELL_CHANGE_POINT and band == "idle":
+        pci = 300 + pi          # a DIFFERENT cell served idle than served busy
+    elif pi == RADIO_HANDOVER_POINT and rep >= 2 and band == "busy":
+        # Handover part-way through the busy visit only, so this one point shows
+        # BOTH markers: the busy cell mixes two serving cells, and the busy/idle
+        # pair overlaps partially rather than not at all.
+        pci = 250 + pi
+    if pi == RADIO_IMPLAUSIBLE_POINT and rep == 1 and scn_index == 0:
+        rsrp = 0        # the classic sentinel: not a strong signal, not a value
+    n = rng.randint(1, 2) if pi == RADIO_THIN_POINT else rng.randint(6, 20)
+    # rep 1 rather than rep 0: RADIO_STALE_POINT is a dual-medium point, whose
+    # even repeats are measured on wifi and therefore carry no radio block.
+    stale = (pi == RADIO_STALE_POINT and rep == 1 and scn_index == 0)
+    return {"rat": rat, "rsrp_dbm": rsrp, "sinr_db": sinr,
+            "pci": pci, "tac": 12000 + pi, "arfcn": 504990,
+            "sampled_n": n, "stale": bool(stale)}
+
+
 def _scenario(rng, idx, rtt, *, order_index, suspect_clock, batching, transport,
-              noise=0.045):
+              noise=0.045, radio=None):
     kpi = _kpis(rng, rtt, noise)
     roll = rng.random()
     if roll < 0.06:
@@ -154,9 +198,11 @@ def _scenario(rng, idx, rtt, *, order_index, suspect_clock, batching, transport,
         "clock": {"offset_start_us": int(rng.uniform(-4000, 4000)),
                   "offset_end_us": int(rng.uniform(-4000, 4000)),
                   "drift_ppm": round(drift, 2), "offset_suspect": bool(suspect_clock)},
-        "network_snapshot": {"transport": transport, "capabilities": "INTERNET,VALIDATED",
-                             "interface": "rmnet0" if transport == "cellular" else "wlan0",
-                             "server_observed_addr": "203.0.113.7:8443"},
+        "network_snapshot": dict(
+            {"transport": transport, "capabilities": "INTERNET,VALIDATED",
+             "interface": "rmnet0" if transport == "cellular" else "wlan0",
+             "server_observed_addr": "203.0.113.7:8443"},
+            **({"radio": radio} if radio else {})),
         "parse": {"parse_dur_us": int(rng.uniform(400, 3000)),
                   "per_event_parse_us": round(rng.uniform(20, 110), 1)},
         "buffering": ({"score": round(rng.uniform(0.35, 0.7), 4),
@@ -206,7 +252,8 @@ DESIGNED_EFFECTS = (
 
 def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle"),
              tiers=("metro", "regional", "core"), repeats=5,
-             campaigns=("base", "opt"), seed=20260725, start_ms=1783944000000):
+             campaigns=("base", "opt"), seed=20260725, start_ms=1783944000000,
+             radio=False):
     """Full-grid synthetic corpus. Returns a list of contract-complete records.
 
     Carries the outcomes listed in DESIGNED_EFFECTS — one detectable improvement,
@@ -258,7 +305,10 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
                                           order_index=(rep + i) % len(PROFILES),
                                           suspect_clock=suspect_point and rng.random() < 0.7,
                                           batching=batching_point and band == "busy",
-                                          transport=medium, noise=noise)
+                                          transport=medium, noise=noise,
+                                          radio=(_radio(rng, pi, band, rep, i)
+                                                 if radio and medium == "cellular"
+                                                 else None))
                                 for i in range(len(PROFILES))
                             ]
                             usable = [s for s in scns if s["validity"] != "invalid"]
@@ -417,6 +467,11 @@ def main(argv):
                     help="strip run.campaign, matching what the app emits TODAY "
                          "(label wiring not landed) — so a rehearsal also practises "
                          "the annotate step, the one most likely to go wrong")
+    ap.add_argument("--radio", action="store_true",
+                    help="attach a synthetic network_snapshot.radio block to "
+                         "cellular scenarios — the shape docs/"
+                         "RADIO_CONTEXT_WIRING_SPEC.md asks the app to emit, so "
+                         "the rollup can be rehearsed before the wiring lands")
     ap.add_argument("--chaos", action="store_true",
                     help="seed realistic field pathologies (missing tier, aborted "
                          "runs, mixed profile versions, clock jumps, all-invalid "
@@ -427,7 +482,8 @@ def main(argv):
                     carriers=tuple(args.carriers.split(",")),
                     time_bands=tuple(args.time_bands.split(",")),
                     tiers=tuple(args.tiers.split(",")),
-                    campaigns=tuple(args.campaigns.split(",")), seed=args.seed)
+                    campaigns=tuple(args.campaigns.split(",")), seed=args.seed,
+                    radio=args.radio)
     if args.chaos:
         recs = inject_chaos(recs, seed=args.seed + 1)
         print("chaos: " + "; ".join(name for name, _ in CHAOS_PATHOLOGIES))

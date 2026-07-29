@@ -113,6 +113,72 @@ VALUE_RANGES = {
     "near_zero_arrival_ratio":   (0.0, None),
 }
 
+# Plausibility envelopes for quantities that are NOT KPIs. Separate table on
+# purpose: VALUE_RANGES had quietly become two things at once — a plausibility
+# map and the registry of what may be planned against — and stability's plan
+# states its target as a percentage of the median, which only means anything on
+# a ratio scale. D-225 wrote that hypothetically, naming rsrp_dbm as the example
+# that "would pass through unnoticed"; D-284 brought the example. -105 dBm is an
+# interval scale, so 5% of it is 5.25 dB of signal dressed up as a small target.
+# `value_problem` consults both maps; only this one is exempt from being planned
+# against, and it is exempt by construction rather than by a written exception.
+NON_KPI_RANGES = {
+    # Loose envelopes around the 3GPP reporting ranges (LTE RSRP -140..-44, NR
+    # SS-RSRP -156..-31; RS-SNR -20..30, SS-SINR -23..40): the point is to catch
+    # values that are not measurements at all — "unavailable" written as 0 dBm,
+    # or Android's Integer.MAX_VALUE sentinel arriving intact. A tight envelope
+    # would reject real weak-signal readings, the false positive these tables
+    # exist to avoid.
+    "rsrp_dbm":                  (-160.0, -30.0),
+    "sinr_db":                   (-30.0, 45.0),
+}
+
+def all_value_ranges():
+    """Both tables, merged AT CALL TIME.
+
+    A module-level merged dict would freeze both halves at import, and then
+    perturbing either one would leave the report byte-identical and read as
+    "this gate decides nothing" — D-204's trap through a different door, which
+    is exactly how it was found here.
+    """
+    return dict(VALUE_RANGES, **NON_KPI_RANGES)
+
+# R1 signal bands. These DUPLICATE app/probe/src/main/java/com/aneb/probe/
+# scoring/BufferingDetector.kt because spec/ has no home for radio thresholds
+# today — which is itself a finding, and is why the wiring spec asks for them to
+# move there. Until then the duplication is reconciled rather than silent:
+# test_the_signal_bands_match_the_producer_that_defines_them reads the Kotlin
+# source and fails if either side drifts.
+RSRP_WEAK_DBM = -105.0
+RSRP_GOOD_DBM = -95.0
+SINR_WEAK_DB = 0.0
+SINR_GOOD_DB = 10.0
+SIGNAL_BANDS = ["weak", "medium", "good"]
+SIGNAL_LABELS = {"weak": "弱", "medium": "中", "good": "良"}
+
+
+def signal_band(rsrp_dbm, sinr_db):
+    """"weak" / "medium" / "good", or None when neither component is known.
+
+    Mirrors BufferingDetector's R1 combination exactly, including its asymmetry:
+    weak fires if any KNOWN component crosses its line, while good requires that
+    no known component fails — an unknown component does not block "good", it
+    just does not vouch for it. Both unknown yields None, never "medium": a band
+    assigned to a cell nobody measured would read as a measurement.
+    """
+    rsrp, sinr = fnum(rsrp_dbm), fnum(sinr_db)
+    if rsrp is None and sinr is None:
+        return None
+    w1 = None if rsrp is None else rsrp < RSRP_WEAK_DBM
+    w2 = None if sinr is None else sinr < SINR_WEAK_DB
+    if w1 is True or w2 is True:
+        return "weak"
+    g1 = None if rsrp is None else rsrp >= RSRP_GOOD_DBM
+    g2 = None if sinr is None else sinr >= SINR_GOOD_DB
+    if g1 is not False and g2 is not False:
+        return "good"
+    return "medium"
+
 
 def value_problem(field, v):
     """Short reason this value is impossible for `field`, or None.
@@ -120,7 +186,7 @@ def value_problem(field, v):
     A corrupt value is not a bad measurement, it is not a measurement: a negative
     metro RTT does not merely lower one median, it manufactures backbone latency
     out of nothing in the differential (D-178)."""
-    lo, hi = VALUE_RANGES.get(field, (None, None))
+    lo, hi = all_value_ranges().get(field, (None, None))
     v = fnum(v)
     if v is None:
         return None
