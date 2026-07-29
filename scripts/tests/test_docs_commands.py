@@ -238,6 +238,38 @@ def test_every_field_the_wiring_spec_asks_for_has_a_consumer():
         "and the trip comes back before anyone notices")
 
 
+def test_the_canonical_labels_the_layer_produces_are_named_in_the_convention():
+    """The convention doc is what an annotator reads before typing a label. The
+    alias tables decide what those labels become. A canonical value the tables
+    can produce and the doc never names is a column in the heat card that the
+    convention does not describe (D-277).
+
+    Six today, all named. The doc deliberately teaches only the canonical form
+    and does not list the aliases — behaviour more forgiving than documented,
+    which is the safe direction, so this checks the outputs and not the inputs.
+    """
+    import campaign_common as cc
+    docs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "docs")
+    with open(os.path.join(docs, "CAMPAIGN_LABELS_CONVENTION.md"),
+              encoding="utf-8-sig") as fh:
+        text = fh.read()
+
+    tiers = set(cc._TIER_ALIASES.values())
+    carriers = set(cc._CARRIER_ALIASES.values())
+    assert tiers == set(cc.TIERS), (
+        f"the tier aliases canonicalise to {sorted(tiers)} but the layer's "
+        f"tiers are {cc.TIERS} — one of them can never reach attribution")
+    produced = sorted(tiers | carriers)
+    assert len(produced) == 6, (
+        f"{produced} canonical labels — the tables changed shape and this "
+        "check is comparing whatever it happened to find")
+    missing = [v for v in produced if v not in text]
+    assert not missing, (
+        f"the alias tables can produce {missing}, and the convention names "
+        "neither — an annotator meets a value the document never described")
+
+
 def test_docs_contain_commands():
     """Guard the guard: if the extraction breaks, the checks below go vacuous."""
     cmds = _commands()
