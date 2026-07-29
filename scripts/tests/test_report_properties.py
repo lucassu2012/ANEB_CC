@@ -603,7 +603,10 @@ def test_the_summary_never_sends_anyone_to_the_unlabeled_bucket():
     line = [ln for ln in rpt.render_summary_markdown(recs).splitlines()
             if ln.startswith("- **体验最差格")][0]
     assert f"{cc.UNLABELED}/" not in line, line   # never named as a destination
-    assert "1 个格 AQS 达 fair/poor" in line, line  # …but still counted
+    # …but still counted. Matched without pinning the denominator: the headline
+    # gained its population in D-300, and which population it surveyed is that
+    # guard's subject, not this one's.
+    assert re.search(r"\b1/\d+ 个格 AQS 达 fair/poor", line), line
     assert "无点位标签" in line, line               # …and said out loud
     assert "无 fair/poor 格" not in line, line      # …and NOT reported as clean
 
@@ -614,7 +617,7 @@ def test_the_summary_never_sends_anyone_to_the_unlabeled_bucket():
     line2 = [ln for ln in rpt.render_summary_markdown(mixed).splitlines()
              if ln.startswith("- **体验最差格")][0]
     assert "SZ-BAD-02" in line2 and f"{cc.UNLABELED}/" not in line2, line2
-    assert "2 个格 AQS 达 fair/poor" in line2, line2
+    assert re.search(r"\b2/\d+ 个格 AQS 达 fair/poor", line2), line2
     assert "1 个格无点位标签" in line2, line2
 
 
@@ -1515,6 +1518,42 @@ def test_every_pooling_section_keeps_the_banner_s_promise():
     recs = _corrupt_corpus()
     for name, _module, render in _POOLING_SECTIONS:
         assert "IMPLAUSIBLE_VALUE" in render(recs), name
+
+
+def test_the_worst_cell_headline_states_the_population_it_surveyed():
+    """Day one of a field trip can come back with a single cell, and the report's
+    FIRST line used to say 「无 fair/poor 格」 over a set of one — which reads as a
+    survey that found nothing wrong. The other branch had the same gap from the
+    other side: 「6 个格 AQS 达 fair/poor」 with no denominator to weigh it against.
+
+    Both now carry the population, and it is checked against the heat card's own
+    scored cells rather than a number typed here, so the headline cannot drift
+    from the table it summarises (D-300; the shape of D-229 and D-297).
+    """
+    import synth_campaign as sc
+
+    def headline(recs):
+        md = rpt.build_report_markdown(recs)
+        hits = [l for l in md.split("\n") if "体验最差格" in l]
+        assert len(hits) == 1, hits
+        return hits[0]
+
+    def scored(recs):
+        return sum(1 for c in rpt.heat_cells(recs) if c["aqs_median"] is not None)
+
+    thin = sc.generate(points=1, repeats=5, carriers=("cmcc",),
+                       time_bands=("busy",), tiers=("metro",), campaigns=("SZ",))
+    line = headline(thin)
+    assert "%d 个格中无 fair/poor" % scored(thin) in line, line
+
+    full = sc.generate(points=8, repeats=5, campaigns=("base", "opt"))
+    line = headline(full)
+    m = re.search(r"\*\*：(\d+)/(\d+) 个格 AQS 达 fair/poor", line)
+    assert m, ("the bad-cell branch no longer states its denominator: %s" % line)
+    assert int(m.group(2)) == scored(full), (
+        "the headline surveys %s cells, the heat card scored %d"
+        % (m.group(2), scored(full)))
+    assert 0 < int(m.group(1)) <= int(m.group(2)), line
 
 
 def test_an_unknown_grade_word_does_not_wear_the_no_data_colour():

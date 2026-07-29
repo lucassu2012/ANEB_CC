@@ -418,9 +418,16 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             tail = ("，**全部无点位标签**（落在 `" + cc.UNLABELED + "` 桶——"
                     "**它不是一个地点**，据此派不出人；先用 `annotate_campaign.py` "
                     "补注 `point_id` 再看本条）" + veto_note)
-        bullets.append(f"**体验最差格**：{len(bad_cells)} 个格 AQS 达 fair/poor{tail}。")
+        bullets.append(f"**体验最差格**：{len(bad_cells)}/{len(scored)} 个格"
+                       f" AQS 达 fair/poor{tail}。")
     else:
-        bullets.append(f"**体验最差格**：无 fair/poor 格（最低 "
+        # The population, on the report's first line. Day one of a field trip may
+        # come back with a single cell, and 「无 fair/poor 格」 over a set of one
+        # reads like a survey that found nothing — the shape D-229 fixed for the
+        # transport section (「没有可比的格」≠「比过了没问题」) and D-297 for the
+        # stability ratio. No threshold is invented here: print the denominator
+        # and let the reader see that 共 1 个格 is not a finding (D-300).
+        bullets.append(f"**体验最差格**：{len(scored)} 个格中无 fair/poor（最低 "
                        f"{_cell_label(scored[0]['cell'])}="
                        f"{cc.fmt_num(scored[0]['aqs_median'], 1)}）。")
 
