@@ -1069,6 +1069,31 @@ def test_every_dimension_of_a_cell_reaches_its_csv():
     assert checked == len(mods), checked
 
 
+def test_the_trend_section_says_why_it_is_absent():
+    """Below three campaigns the trend section used to be simply missing, while
+    the corpus banner above it went on naming 纵向趋势 as one of the two
+    campaign-aware sections. A reader sent looking for it found nothing and no
+    reason — §2.4, and D-150's 恒出行 raised from a row to a section (D-271).
+
+    Both halves are checked here: the note appears when the section cannot, and
+    it gets out of the way when the section can.
+    """
+    import synth_campaign as sc
+    two = rpt.build_report_markdown(
+        sc.generate(points=2, repeats=3, campaigns=("base", "opt")))
+    assert "## 纵向趋势" in two, "the section the banner names is missing entirely"
+    assert "本段无数据" in two and "2 个带标签战役" in two, (
+        "the placeholder no longer says what is missing or what it would take")
+
+    three = rpt.build_report_markdown(
+        sc.generate(points=2, repeats=3, campaigns=("base", "opt", "later")))
+    assert "## 纵向趋势（" in three, (
+        "the real section, which carries metric and polarity in its heading, "
+        "did not render on three campaigns")
+    assert "本段无数据" not in three, (
+        "the placeholder is still there beside a section that did render")
+
+
 def test_the_grade_vocabulary_agrees_with_itself():
     """`GRADE_ORDER` declares best -> worst and, until D-266, had no reader at
     all: the bands, the colour table and the report's idea of "bad" each spelled

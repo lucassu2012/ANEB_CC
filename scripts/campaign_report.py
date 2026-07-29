@@ -1255,6 +1255,18 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if len(labeled) >= trend.MIN_CAMPAIGNS_FOR_TREND:
         parts.append(trend.render_markdown(trend.analyze(records, min_samples=min_samples)))
         parts.append("")
+    else:
+        # The corpus banner names 纵向趋势 among the two campaign-aware sections,
+        # and below three campaigns the section simply was not there: a reader
+        # sent looking for it found nothing, and no reason. §2.4 and D-150's
+        # 恒出行, applied to a whole section rather than a row (D-271).
+        parts.append("## 纵向趋势")
+        parts.append("")
+        parts.append(
+            f"> **本段无数据，不是「全部平稳」。** 本语料有 **{len(labeled)} 个带标签战役**，"
+            f"而趋势需要至少 **{trend.MIN_CAMPAIGNS_FOR_TREND}** 个才能表达轨迹——"
+            "两个只够说前后（见「优化前后对比」段），第三轮起本段自动出现。")
+        parts.append("")
     return "\n".join(parts)
 
 
