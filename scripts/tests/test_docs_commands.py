@@ -497,6 +497,62 @@ def test_deliverable_template_field_map_resolves():
     assert not missing, f"template asks for fields the report never emits: {missing}"
 
 
+# The decision log is the one place the retired mechanism SHOULD appear without a
+# banner: it records what was decided and when, including things since retired.
+# Banner-ing it would be editing the record rather than annotating a runbook.
+_RETIRED_BANNER_NOT_NEEDED = {
+    "DECISION_LOG.md": "records history, including mechanisms since retired",
+}
+
+_RETIRED_MARKS = ("SHARED_TEST_STATUS", "update_shared_test_status")
+_RETIRED_BANNER = "> ⛔ **本文中所有 `SHARED_TEST_STATUS.md`"
+
+
+def test_every_doc_describing_the_retired_lease_says_it_is_retired():
+    """The PO retired the SHARED_TEST_STATUS lease on 2026-07-19, and CLAUDE.md
+    forbids treating it as authorisation to use the device. One runbook was given
+    a banner saying exactly that. Four other operational docs went on describing
+    the mechanism — command templates included — with nothing marking it dead,
+    so an agent that picked one up would run a retired coordination protocol and
+    wait on a hand-off that is never coming.
+
+    Measured before fixing: seven docs mention it, two carried the banner. This
+    is D-272's shape on the documentation side — a mature remedy exists, and the
+    question is which of the paths into it the remedy actually covers (D-286).
+
+    The banner must appear BEFORE the first `## ` section: a reader has to meet
+    it before the instructions, not after following them.
+    """
+    docs = os.path.join(REPO, "docs")
+    scanned, offenders = 0, []
+    for root, _dirs, files in os.walk(docs):
+        for name in sorted(files):
+            if not name.endswith(".md"):
+                continue
+            path = os.path.join(root, name)
+            with open(path, encoding="utf-8-sig") as fh:
+                lines = fh.read().split("\n")
+            if not any(m in ln for ln in lines for m in _RETIRED_MARKS):
+                continue
+            scanned += 1
+            if name in _RETIRED_BANNER_NOT_NEEDED:
+                continue
+            first_section = next(
+                (i for i, ln in enumerate(lines) if ln.startswith("## ")),
+                len(lines))
+            if not any(ln.startswith(_RETIRED_BANNER)
+                       for ln in lines[:first_section]):
+                offenders.append(os.path.relpath(path, REPO))
+    assert scanned >= 5, (
+        "only %d docs mention the retired mechanism — the scan probably broke, "
+        "and a guard that finds nothing to check passes for the wrong reason"
+        % scanned)
+    assert not offenders, (
+        "these docs still describe the retired lease with nothing saying it is "
+        "retired: %s — copy the banner from the crosscut runbook, or exempt it "
+        "with a reason in _RETIRED_BANNER_NOT_NEEDED" % offenders)
+
+
 def test_every_tool_is_mentioned_in_the_readme():
     """The command guard checks that documented commands work; it cannot notice a
     tool nobody documented. corpus_health.py and order_effect.py sat unmentioned
