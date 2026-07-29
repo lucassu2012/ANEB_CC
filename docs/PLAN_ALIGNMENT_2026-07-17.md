@@ -81,6 +81,22 @@
 
 **与计划契约形态的差距**:现行 descriptor 是服务端相位 JSON(server 段),未含计划 YAML 示例中的 client 段(connection/repeats/record)与 kpi 段——这两段目前在客户端代码/facet 注册表里。走向计划形态 = 把 TestModeProfile 的 facet2/facet4 与采集配置外置进 descriptor。[INFERRED]
 
+### 5.1 计划点名的字段 ← 实现里的名字(2026-07-30 实测)
+
+计划 §5.2 的 descriptor 示例含 10 个 snake_case 字段名,**7 个在本仓的代码与 spec 里一次都没出现过**。
+逐个查过后分三类——**区别要紧:名字漂移是静默的不一致,而「还没做」是正常的待办**:
+
+| 计划里的名字 | 实况 | 类别 |
+|---|---|---|
+| `radio_ctx` | 能力有(`RadioCollector` 采 rsrp/sinr/pci/tac/arfcn、Room 存、App 内部消费),但**导出契约里没有**,且实现从不用这个名字 | **名字漂移 + 导出缺口**(D-284,已出接线规格) |
+| `token_arrivals` | 能力有,实现叫 **`arrivals`**(`ApiProbe` / `AnthropicSseAdapter` / `ApiProbeKpi`) | **名字漂移**(仅命名,能力齐备) |
+| `t_srv_ms` | 本仓找不到任何近似名——但它是**服务端**配置,而服务端在 Codex 那棵树,**本树看不到** | **查不了**(≠ 不存在) |
+| `maps_to` / `prompt_set` / `think_gaps` / `seg_timestamps` | descriptor 结构与 Profile 3 / A2 型的采集项,按路线图属 M3 | **未建**(正常待办) |
+
+**为什么这条不做成守卫**:「漂移」与「还没做」的区别**推导不出来**——硬立一条「计划点名的字段必须存在」,
+会把 M3 的正常待办全报成缺陷,正是本层拒绝的那种吵闹守卫。故此处只做一次性对账、把结论写下来,
+下一个人不必重新推导(D-295)。
+
 ## 6. 里程碑映射
 
 | 里程碑 | 计划验收 | 现状 |
