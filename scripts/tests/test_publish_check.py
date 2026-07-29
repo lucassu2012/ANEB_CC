@@ -352,6 +352,14 @@ def test_uncheckable_premise_is_stated_not_omitted():
     rows = pc.check(_clean())
     assert _sev(rows, "同一客户端") == pc.WARN
     assert "无法核对" in _detail(rows, "同一客户端")
+    # Everything above stops at the row dict that CARRIES the words, and the
+    # claim is that the reader is told. Drop the detail column from the
+    # renderer and all of it still passes while the operator sees a bare WARN
+    # (D-281 — the same gap D-280 found in the rehearsal guard).
+    named = [ln for ln in pc.render_markdown(rows).split("\n")
+             if "同一客户端" in ln]
+    assert len(named) == 1, named
+    assert "无法核对" in named[0], named[0]
     # …and it must be a WARN on every corpus, since nothing can ever clear it
     for corpus in (_clean(), _two_campaigns([70, 72, 74], [80, 82, 84])):
         assert _sev(pc.check(corpus), "同一客户端") == pc.WARN
