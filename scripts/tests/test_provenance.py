@@ -482,8 +482,13 @@ def test_every_exempt_constant_leaves_the_numbers_alone():
     the summary while its exemption still said the bands already encoded it.
     The second was caught here, by this test, on its first run (D-267).
 
-    Buckets when written: 1 moving numbers (GRADE_ORDER, now archived), 7 frozen
-    into signatures, 5 raising, 11 inert.
+    The exemptions fall into three kinds: most are inert under perturbation,
+    some are frozen into signatures where setattr cannot reach them, and the
+    cell-key tuples raise rather than regroup. The counts are deliberately not
+    written here — an enumeration in a comment is a number nothing compares,
+    and this one had already gone stale by two buckets when D-269 moved two
+    constants out of the table (D-279). The floor below carries the only count
+    that has to stay true, and the assertion prints the rest when it fires.
     """
     import re
     import synth_campaign as sc
@@ -552,7 +557,7 @@ def test_every_exempt_constant_leaves_the_numbers_alone():
         "reaches is an exemption nothing checks. Teach _perturbed_value how to "
         "move that kind of value, or record in the exemption itself that it "
         "cannot be tested this way")
-    assert len(inert) >= 11, (
+    assert len(inert) >= 12, (
         f"only {len(inert)} exemptions were actually exercised "
         f"({len(captured)} frozen into signatures, {len(unmovable)} unmovable, "
         f"{len(raised)} raised) — the perturbations have stopped reaching the "
