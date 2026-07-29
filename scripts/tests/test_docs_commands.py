@@ -615,6 +615,41 @@ def test_every_doc_describing_the_retired_lease_says_it_is_retired():
         "with a reason in _RETIRED_BANNER_NOT_NEEDED" % offenders)
 
 
+def test_the_shipped_grid_config_is_one_the_tool_accepts():
+    """The Shenzhen grid stopped being a code block in a proposal and became a
+    file an operator points the tool at (D-290). A config that only exists as
+    prose is copied by hand; one that ships has to actually load.
+
+    Three things, because each has a different failure: the keys are the ones
+    coverage_matrix names (a plural key is rejected outright), the file carries
+    no extra key (an unknown key makes the tool warn on every single run, and a
+    config that always warns teaches the operator to ignore warnings — measured,
+    a `_comment` key did exactly that), and the joint grid it declares is the
+    size the proposal says it is.
+    """
+    import campaign_common as cc
+    import coverage_matrix as cm
+
+    path = os.path.join(REPO, "docs", "campaign_grid_shenzhen.json")
+    assert os.path.exists(path), (
+        "the shipped grid config is gone, but the proposal and runbook both "
+        "send the operator to it")
+    grid = cc.load_operator_json(path)
+    assert set(grid) == set(cm.CELL_DIMS), (
+        f"grid keys {sorted(grid)} vs the dimensions the tool reads "
+        f"{sorted(cm.CELL_DIMS)} — anything extra warns on every run")
+    for dim, values in sorted(grid.items()):
+        assert isinstance(values, list) and values, (dim, values)
+        assert all(isinstance(v, str) and v.strip() for v in values), (dim, values)
+
+    joint = 1
+    for dim in cm.CELL_DIMS:
+        joint *= len(grid[dim])
+    assert joint == 32, (
+        f"the shipped grid declares {joint} joint cells; the proposal's budget "
+        "is computed for 8 points x 2 carriers x 2 bands")
+
+
 def test_every_tool_is_mentioned_in_the_readme():
     """The command guard checks that documented commands work; it cannot notice a
     tool nobody documented. corpus_health.py and order_effect.py sat unmentioned
