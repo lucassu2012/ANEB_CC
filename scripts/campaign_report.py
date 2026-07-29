@@ -388,7 +388,12 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # a cell built on one run used to head the list of the city's worst points
     # with nothing saying so — the heat card flagged it, the summary did not
     # (D-168). The summary is the only section decision-makers read closely.
-    bad_cells = [c for c in scored if c["grade"] in ("poor", "fair")]
+    # "bad" is every grade ranked below good, read off cc.GRADE_ORDER rather
+    # than spelled out a second time here: that constant exists to be the one
+    # place saying which grades are worse than which, and had no reader at all
+    # until this line (D-266).
+    worse_than_good = cc.GRADE_ORDER[cc.GRADE_ORDER.index("good") + 1:]
+    bad_cells = [c for c in scored if c["grade"] in worse_than_good]
     weak = [f"{_cell_label(c['cell'])}({cc.fmt_num(c['aqs_median'], 1)}"
             + (f"，n={c['n']} low_conf" if c["low_confidence"] else "") + ")"
             for c in bad_cells if _located(c["cell"])]     # rankable places only

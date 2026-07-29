@@ -999,7 +999,6 @@ def test_the_unlabeled_bucket_is_spelled_in_exactly_one_place():
     what a dead branch in a guard looks like from the outside.
     """
     import ast
-    import io
     scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     offenders, scanned = [], 0
     for name in sorted(os.listdir(scripts_dir)):
@@ -1018,6 +1017,69 @@ def test_the_unlabeled_bucket_is_spelled_in_exactly_one_place():
         "the %r literal is written out at %s — use cc.UNLABELED, or renaming "
         "the bucket leaves half the code behind" % (cc.UNLABELED, offenders))
     assert scanned >= 18, "only %d modules scanned — did the scan break?" % scanned
+
+
+def test_the_grade_vocabulary_agrees_with_itself():
+    """`GRADE_ORDER` declares best -> worst and, until D-266, had no reader at
+    all: the bands, the colour table and the report's idea of "bad" each spelled
+    the four words again on their own. They agree today. The point of this is
+    that a fourth copy cannot quietly disagree.
+
+    The last assertion runs the real band function across its own edges, so the
+    vocabulary is checked against what a record can actually be given, not just
+    against another table.
+    """
+    assert [g for _t, g in cc.AQS_GRADE_BANDS] == cc.GRADE_ORDER, (
+        "the AQS bands run %s but the declared order is %s"
+        % ([g for _t, g in cc.AQS_GRADE_BANDS], cc.GRADE_ORDER))
+    thresholds = [t for t, _g in cc.AQS_GRADE_BANDS]
+    assert thresholds == sorted(thresholds, reverse=True), (
+        "the bands are not descending, so their order says nothing: %s"
+        % thresholds)
+    uncoloured = [g for g in cc.GRADE_ORDER if g not in cc.GRADE_COLORS]
+    assert not uncoloured, (
+        "%s have no colour, so the HTML card would render them as n/a — the "
+        "grey of 'no data', on a cell that has data" % uncoloured)
+
+    produced = {cc.aqs_grade(v) for v in
+                (100.0, 85.0, 84.9, 70.0, 69.9, 54.0, 53.9, 0.0)}
+    assert produced == set(cc.GRADE_ORDER), (
+        "band edges produce %s, declared vocabulary is %s"
+        % (sorted(produced), sorted(cc.GRADE_ORDER)))
+
+
+_KPI_GRADING_KT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "app", "probe", "src", "main", "java", "com", "aneb", "probe", "engine",
+    "KpiGrading.kt")
+
+
+def test_the_grade_words_match_the_producer_that_writes_them():
+    """README §「各工具」 says KpiGrading.kt stays authoritative for these
+    strings, and nothing checked that sentence.
+
+    A record's `<k>_grade` is written by that file. If its words ever change,
+    every per-KPI heat cell renders the new word with `GRADE_COLORS.get(...,
+    "n/a")` — the grey reserved for "no data", on a cell that has data — and no
+    check anywhere says a word arrived that this layer does not know (D-266).
+
+    Compared as a set: reordering the Kotlin declarations is not a semantic
+    change, and a guard that failed on it would be reporting something untrue.
+    """
+    kt = _KPI_GRADING_KT
+    assert os.path.exists(kt), (
+        "%s is gone — either the producer moved, in which case this guard must "
+        "follow it, or the grade words now come from somewhere unchecked" % kt)
+    with io.open(kt, encoding="utf-8-sig") as fh:
+        words = re.findall(r'const val \w+\s*=\s*"([^"]*)"', fh.read())
+    assert len(words) == 4, (
+        "extracted %d grade constants from KpiGrading.kt, expected 4 — the "
+        "pattern has stopped matching and this guard is comparing nothing: %s"
+        % (len(words), words))
+    assert set(words) == set(cc.GRADE_ORDER), (
+        "the producer writes %s, this layer knows %s — grades outside the "
+        "second set reach the heat card and render as 'no data'"
+        % (sorted(words), sorted(cc.GRADE_ORDER)))
 
 
 def test_no_module_defines_the_same_top_level_name_twice():
@@ -1650,7 +1712,7 @@ def test_the_html_deliverable_satisfies_the_same_arithmetic():
         f"{bad[:3]}")
 
 
-_GRADE_WORDS = ("excellent", "good", "fair", "poor")
+_GRADE_WORDS = tuple(cc.GRADE_ORDER)   # not a fifth copy of the vocabulary
 
 
 def test_the_html_heat_card_score_never_contradicts_its_grade():
