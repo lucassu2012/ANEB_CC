@@ -229,7 +229,7 @@ def corpus_warnings(inv):
     # Cross-campaign pooling is the most consequential incomparability: a cell
     # holding a baseline round and an optimisation round shows a median that is
     # neither. Say so BEFORE the heat card, not only in the per-cell note (D-135).
-    labeled_ids = [c for c in inv["campaigns"] if c != "unlabeled"]
+    labeled_ids = [c for c in inv["campaigns"] if c != cc.UNLABELED]
     if len(labeled_ids) > 1:
         out.append(f"本语料含 **{len(labeled_ids)} 个战役**（{', '.join(sorted(labeled_ids))}）。"
                    "除「优化前后对比」/「纵向趋势」两段外，**各段均按格池化了所有战役**——"
@@ -625,7 +625,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # "Did it get better" — the headline question of any second round (D-143).
     inv_ = inventory(records)
     before_id, after_id = auto_compare_ids(inv_)
-    labeled = [c for c in inv_["campaigns"] if c != "unlabeled"]
+    labeled = [c for c in inv_["campaigns"] if c != cc.UNLABELED]
     if before_id and after_id:
         rows = [r for r in compare_campaigns(records, before_id, after_id,
                                              min_samples)["rows"]
@@ -1035,7 +1035,7 @@ def compare_basis(inv):
     the pair itself so a caller can say WHICH case it is instead of the section
     silently vanishing.
     """
-    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    labeled = [c for c in inv["campaigns"] if c != cc.UNLABELED]
     if len(labeled) != 2:
         return "not_two"
     firsts = inv.get("campaign_first_ms") or {}
@@ -1062,7 +1062,7 @@ def auto_compare_ids(inv):
     """
     if compare_basis(inv) != "time":
         return (None, None)
-    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    labeled = [c for c in inv["campaigns"] if c != cc.UNLABELED]
     firsts = inv["campaign_first_ms"]
     a, b = sorted(labeled, key=lambda c: (firsts[c], c))
     return (a, b)
@@ -1246,7 +1246,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # 3+ labeled campaigns: before/after can't express a trajectory — add one. (D-98)
     # The threshold comes from trend so this gate, trend's own renderer and the
     # CSV writer cannot disagree about when a trend exists (D-196).
-    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    labeled = [c for c in inv["campaigns"] if c != cc.UNLABELED]
     if len(labeled) >= trend.MIN_CAMPAIGNS_FOR_TREND:
         parts.append(trend.render_markdown(trend.analyze(records, min_samples=min_samples)))
         parts.append("")
@@ -1584,8 +1584,8 @@ def campaigns_by_cell(records, dims=HEAT_DIMS):
     acc = {}
     for rec in records:
         labels = cc.campaign_labels(rec)
-        key = tuple(labels.get(d) or "unlabeled" for d in dims)
-        acc.setdefault(key, set()).add(labels.get("campaign_id") or "unlabeled")
+        key = tuple(labels.get(d) or cc.UNLABELED for d in dims)
+        acc.setdefault(key, set()).add(labels.get("campaign_id") or cc.UNLABELED)
     return {k: sorted(v) for k, v in acc.items() if len(v) > 1}
 
 
@@ -1606,7 +1606,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     def _mixed(cell):
         return "/".join(mixed_by_cell.get(
-            tuple(cell.get(d) or "unlabeled" for d in HEAT_DIMS), []))
+            tuple(cell.get(d) or cc.UNLABELED for d in HEAT_DIMS), []))
 
     def _severe(c):
         """Only the flags that mean NOT USABLE, so a CSV filter can reproduce the

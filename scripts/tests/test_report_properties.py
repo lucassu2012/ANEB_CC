@@ -981,6 +981,45 @@ def test_the_summarys_attribution_exclusion_is_reproducible_from_csv():
         "this corpus — the fixture no longer proves the column is needed")
 
 
+def test_the_unlabeled_bucket_is_spelled_in_exactly_one_place():
+    """`cc.UNLABELED` exists to be the single spelling of that bucket, and
+    thirteen sites across five modules wrote the literal instead — filters like
+    `c != "unlabeled"`, fallbacks like `labels.get(d) or "unlabeled"`, bucket
+    names in the publish gate.
+
+    Harmless while the two agree, and silently wrong the moment they do not:
+    measured before the fix, renaming the constant split the bucket in two and
+    three printed counts each rose by one, because half the code kept the old
+    string. After it, renaming changes wording and no number at all (D-264).
+
+    Prose needs no exemption: the test is exact equality, so a docstring that
+    mentions the bucket is a longer string and never matches, and comments do
+    not reach the AST at all. The first draft of this guard carried a
+    docstring-exemption branch anyway; deleting it changed no outcome, which is
+    what a dead branch in a guard looks like from the outside.
+    """
+    import ast
+    import io
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    offenders, scanned = [], 0
+    for name in sorted(os.listdir(scripts_dir)):
+        if not name.endswith(".py") or name == "campaign_common.py":
+            continue
+        with io.open(os.path.join(scripts_dir, name), encoding="utf-8-sig") as fh:
+            try:
+                tree = ast.parse(fh.read(), name)
+            except SyntaxError:
+                continue
+        scanned += 1
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and node.value == cc.UNLABELED:
+                offenders.append("%s:%d" % (name, node.lineno))
+    assert not offenders, (
+        "the %r literal is written out at %s — use cc.UNLABELED, or renaming "
+        "the bucket leaves half the code behind" % (cc.UNLABELED, offenders))
+    assert scanned >= 18, "only %d modules scanned — did the scan break?" % scanned
+
+
 def test_no_module_defines_the_same_top_level_name_twice():
     """Python takes the LAST definition and says nothing about the first.
 

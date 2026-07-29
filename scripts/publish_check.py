@@ -86,8 +86,8 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     # (D-162). Judge per grouping dimension, not by block presence.
     total = inv["records"]
     gaps = []
-    for key, dim, bucket in (("campaigns", "campaign_id", "unlabeled"),
-                             ("points", "point_id", "unlabeled"),
+    for key, dim, bucket in (("campaigns", "campaign_id", cc.UNLABELED),
+                             ("points", "point_id", cc.UNLABELED),
                              ("carriers", "carrier", "unknown"),
                              ("time_bands", "time_band", "unknown"),
                              ("tiers", "tier", "unknown")):
@@ -337,7 +337,7 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     # pooled one used only for the before/after section. Nothing until now
     # checked that the corpus being published was the single-campaign kind, so
     # publishing pooled headline numbers was a one-command mistake (D-147).
-    labeled = [c for c in inv["campaigns"] if c != "unlabeled"]
+    labeled = [c for c in inv["campaigns"] if c != cc.UNLABELED]
     if len(labeled) > 1:
         rows.append(_row(WARN, "战役池化",
                          f"本语料含 {len(labeled)} 个战役（{', '.join(labeled)}）——"

@@ -84,7 +84,7 @@ def stability_cells(records, kpi_key, group_by=STAB_GROUP_BY,
             if v is None:
                 continue
             pid = scn.get("profile_id") or "?"
-            key = tuple(pid if f == "profile_id" else (labels.get(f) or "unlabeled")
+            key = tuple(pid if f == "profile_id" else (labels.get(f) or cc.UNLABELED)
                         for f in group_by)
             # Out of the pool, counted where it shows — the treatment the heat
             # card and the attribution matrix have given impossible values since

@@ -552,3 +552,51 @@ def test_the_cli_survives_a_gbk_console():
                 f"deciding the verdict\n  {(gbk.stderr or '')[-300:]}")
 
     assert exercised == len(_ICON_CLIS), exercised
+
+
+def test_the_runner_reports_a_failure_it_cannot_print():
+    """A failure line is assertion text, and assertion text quotes the report,
+    which carries marks like the warning sign. The runner printed it bare, so
+    on a GBK console the first such failure raised UnicodeEncodeError from
+    inside the reporting loop: the operator got a traceback where the finding
+    should be, and every failure after that one was never printed at all.
+
+    D-241 hardened the CLIs against this console. This is the runner that
+    reports on them, and nothing had pointed the same question at it (D-265).
+    """
+    import io
+    import run_all
+
+    class _Gbk(io.StringIO):
+        """Refuses the same characters a GBK console refuses, on any machine."""
+        encoding = "gbk"
+
+        def write(self, s):
+            s.encode(self.encoding)
+            return io.StringIO.write(self, s)
+
+    line = "  FAIL test_x: 缺 ⚠并列good/poor — 见热力卡"
+    assert [c for c in line if not _encodable_in_gbk(c)], (
+        "the sample carries nothing a GBK console chokes on — this test would "
+        "pass whether or not the runner were fixed")
+
+    real = sys.stdout
+    try:
+        sys.stdout = _Gbk()
+        raised = False
+        try:
+            print(line)
+        except UnicodeEncodeError:
+            raised = True
+        sys.stdout = shown = _Gbk()
+        run_all._say(line)
+        text = shown.getvalue()
+    finally:
+        sys.stdout = real
+
+    assert raised, "a bare print survives this console — the hazard is gone " \
+                   "and this guard is now measuring nothing"
+    assert "\\u26a0" in text, text        # the mark is reported, as an escape
+    assert "并列good/poor" in text, text  # Chinese is not collateral damage
+    assert "见热力卡" in text, text
+    assert "FAIL test_x" in text, text

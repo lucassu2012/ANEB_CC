@@ -35,7 +35,8 @@ DEFAULT_GROUP_BY = ("point_id", "carrier", "time_band", "profile_id")
 def _cell_key(labels, profile_id, group_by):
     parts = []
     for field in group_by:
-        parts.append(profile_id if field == "profile_id" else labels.get(field, "unlabeled"))
+        parts.append(profile_id if field == "profile_id"
+                     else labels.get(field, cc.UNLABELED))
     return tuple(parts)
 
 

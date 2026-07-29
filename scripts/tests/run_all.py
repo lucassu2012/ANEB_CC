@@ -27,6 +27,35 @@ TEST_MODULES = ["test_attribution", "test_campaign_report", "test_annotate",
                 "test_report_snapshot", "test_cli_smoke"]
 
 
+def _encodable(ch, enc):
+    try:
+        ch.encode(enc)
+    except (UnicodeEncodeError, LookupError):
+        return False
+    return True
+
+
+def _say(text):
+    """Print a report line even when the console cannot encode what it says.
+
+    What gets printed here is assertion text, and assertions quote the report,
+    which carries marks like the warning sign. This console is cp936: print()
+    raises on the first such character — from inside the loop below, so every
+    remaining failure goes unreported and the operator sees a traceback where
+    the findings should be. D-241 hardened the CLIs against exactly this; the
+    runner that reports on them was still bare (D-265).
+
+    Escape only what cannot be shown, so Chinese assertion text survives.
+    """
+    enc = getattr(sys.stdout, "encoding", None) or "ascii"
+    try:
+        text.encode(enc)
+    except (UnicodeEncodeError, LookupError):
+        text = "".join(c if _encodable(c, enc) else "\\u%04x" % ord(c)
+                       for c in text)
+    print(text)
+
+
 def main():
     total = passed = 0
     failures = []
@@ -50,9 +79,9 @@ def main():
             except Exception as e:
                 failures.append((f"{modname}.{name}", "".join(
                     traceback.format_exception_only(type(e), e)).strip()))
-    print(f"campaign-analysis reflex: {passed}/{total} passed")
+    _say(f"campaign-analysis reflex: {passed}/{total} passed")
     for name, err in failures:
-        print(f"  FAIL {name}: {err}")
+        _say(f"  FAIL {name}: {err}")
     return 0 if not failures else 1
 
 
