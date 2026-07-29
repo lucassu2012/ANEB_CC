@@ -1304,8 +1304,12 @@ def _heat_grid_html(cells, value_key="aqs_median", agree=None):
                 tds.append("<td>—</td>")
                 continue
             grade = c["grade"] or "n/a"
-            bg, fg = cc.GRADE_COLORS.get(grade, cc.GRADE_COLORS["n/a"])
-            lc = (" *" if c["low_confidence"] else "") \
+            # An unknown word used to borrow the "n/a" grey, so a cell WITH data
+            # wore the no-data colour while printing its own unfamiliar grade
+            # (D-298). One colour, one meaning; the mark carries it in print too.
+            bg, fg, unknown_mark = cc.grade_swatch(grade)
+            lc = (f" {unknown_mark}" if unknown_mark else "") \
+                + (" *" if c["low_confidence"] else "") \
                 + (" ⚠混战役" if c.get("mixed_campaigns") else "") \
                 + (f" ⚠封顶{c['veto_n']}" if c.get("veto_n") else "") \
                 + (" ⚠缺" + "/".join(c["missing_tiers"]) if c.get("missing_tiers") else "") \

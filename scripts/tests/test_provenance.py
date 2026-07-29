@@ -147,6 +147,15 @@ _NOT_A_REPORT_GATE = {
         "as `tiers`. Perturbing it changes words on the page and leaves every "
         "numeral identical",
     ("campaign_common", "GRADE_COLORS"): "HTML swatch colours",
+    # Same class, added with the fix that stopped an unknown grade borrowing the
+    # no-data grey (D-298): both change how the page looks and what it calls the
+    # situation, and leave every numeral identical. The behaviour they encode —
+    # an unknown word must not render as "no data" — is pinned by
+    # test_an_unknown_grade_word_does_not_wear_the_no_data_colour, not by a
+    # number in this manifest.
+    ("campaign_common", "GRADE_UNKNOWN_COLOR"): "the swatch an unknown grade wears",
+    ("campaign_common", "GRADE_UNKNOWN_MARK"):
+        "the words printed beside an unknown grade; no numeral moves with it",
     ("campaign_common", "NOISE_CAVEAT"):
         "the sentence printed under every 噪声内 verdict; the factors it "
         "describes are archived as median_se_factor / mad_to_sigma",

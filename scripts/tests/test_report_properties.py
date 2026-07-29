@@ -1517,6 +1517,51 @@ def test_every_pooling_section_keeps_the_banner_s_promise():
         assert "IMPLAUSIBLE_VALUE" in render(recs), name
 
 
+def test_an_unknown_grade_word_does_not_wear_the_no_data_colour():
+    """D-266 wrote this consequence into a docstring — "every per-KPI heat cell
+    renders the new word with GRADE_COLORS.get(..., 'n/a'), the grey reserved
+    for no data, on a cell that has data" — and then asserted only the
+    vocabulary. The harm it named went unchecked for as long as the guard
+    existed, which is the shape D-281 hunts: a docstring about the page, an
+    assertion about a set.
+
+    Measured before fixing: markdown prints the unfamiliar word plainly and is
+    honest; the HTML fell back to the n/a swatch, so the colour said "no data"
+    while the text beside it said otherwise. HTML-only, which is why nobody saw
+    it (D-160's surface). Both entrances are checked here, and the third case —
+    no grade at all — must still be grey, or the fix would have taken the
+    meaning away from the colour that legitimately owns it (D-298).
+    """
+    import dashboard
+    from synth import contractify, kpi_scenario_records
+
+    recs = [contractify(r) for r in kpi_scenario_records(
+        6, kpi={"t1_ttft_ms": 120.0, "t1_grade": "zzz_new_word"})]
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "zzz_new_word" in html, "the unknown grade never reached the page"
+
+    grey = cc.GRADE_COLORS["n/a"][0]
+    tds = [(bg, body) for bg, body in
+           re.findall(r"<td style='background:([^;]+);[^>]*>(.*?)</td>", html, re.S)
+           if "zzz_new_word" in body]
+    assert tds, "the unknown grade reached the page but never a coloured cell"
+    for bg, body in tds:
+        assert bg != grey, (
+            "a cell WITH data is wearing the no-data grey while printing an "
+            "unfamiliar grade: %r" % body[:80])
+        assert cc.GRADE_UNKNOWN_MARK in body, (
+            "colour alone does not survive printing or colourblind reading; "
+            "the cell needs to say it: %r" % body[:80])
+
+    # the second entrance into the same mistake
+    cell = dashboard.grade_cell(1.0, "zzz_new_word", 3)
+    assert dashboard.GRADE_UNKNOWN_COLOR[0] in cell, cell
+    assert dashboard.GRADE_UNKNOWN_MARK in cell, cell
+    # ...and grey still means what it meant
+    assert "#f5f5f5" in dashboard.grade_cell(1.0, None, 3)
+    assert dashboard.GRADE_UNKNOWN_MARK not in dashboard.grade_cell(1.0, "good", 3)
+
+
 def test_the_summary_unstable_ratio_adds_up_from_the_sections():
     """The summary states 「N/M 单元超 CV 门」 and until D-297 neither number
     appeared anywhere below it — measured: of 32 numerals in the summary, three

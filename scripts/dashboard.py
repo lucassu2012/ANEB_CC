@@ -194,10 +194,25 @@ def modal_grade(counter):
     return counter.most_common(1)[0][0] if counter else None
 
 
+GRADE_UNKNOWN_COLOR = ("#fff0f6", "#8e1a5b")   # mirrors campaign_common (D-298)
+GRADE_UNKNOWN_MARK = "⚠未知等级"
+
+
 def grade_cell(val, grade, n):
     txt = f"{val:.3f}".rstrip("0").rstrip(".") if val is not None else "—"
-    bg, fg = GRADE_COLORS.get(grade or "", ("#f5f5f5", "#444"))
-    g = esc(grade) if grade else ""
+    # No grade at all keeps the grey. A grade word this file does not know is a
+    # different thing and must not borrow it: that cell HAS data, and the grey is
+    # what "no data" looks like. Same fix as the campaign layer's heat grid — the
+    # second entrance into one mistake (D-298).
+    mark = ""
+    if not grade:
+        bg, fg = "#f5f5f5", "#444"
+    elif grade in GRADE_COLORS:
+        bg, fg = GRADE_COLORS[grade]
+    else:
+        bg, fg = GRADE_UNKNOWN_COLOR
+        mark = " " + GRADE_UNKNOWN_MARK
+    g = (esc(grade) + mark) if grade else ""
     return (f"<td style='background:{bg};color:{fg}'><b>{txt}</b>"
             f"<span class='sub'>{g} · n={n}</span></td>")
 

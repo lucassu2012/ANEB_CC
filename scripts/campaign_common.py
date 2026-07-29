@@ -34,6 +34,25 @@ GRADE_COLORS = {
 }
 GRADE_ORDER = ["excellent", "good", "fair", "poor"]  # best -> worst
 
+# A grade word this layer does not know, on a cell that HAS data. The HTML used
+# to fall back to the "n/a" swatch, so such a cell wore the grey reserved for
+# "no data" while displaying its own unfamiliar word — the grey said one thing
+# and the text said another. D-266 wrote that consequence into a docstring and
+# nothing asserted it; measured on the rendered page it is real, and HTML-only
+# (markdown prints the word plainly). One colour, one meaning: grey stays with
+# "no data", and an unknown word gets its own look AND a visible mark, because
+# a colour by itself is not something a printed or colourblind reading carries
+# (D-298).
+GRADE_UNKNOWN_COLOR = ("#fff0f6", "#8e1a5b")
+GRADE_UNKNOWN_MARK = "⚠未知等级"
+
+
+def grade_swatch(grade):
+    """(bg, fg, mark) for a grade word, as the HTML surfaces should show it."""
+    if grade in GRADE_COLORS:
+        return GRADE_COLORS[grade] + ("",)
+    return GRADE_UNKNOWN_COLOR + (GRADE_UNKNOWN_MARK,)
+
 
 def load_operator_json(path, example=""):
     """Read a JSON file a HUMAN wrote, and fail the way the corpus loader does.
