@@ -157,6 +157,43 @@ def test_a_section_cli_says_when_two_runs_disagree():
         "telling the operator must not change whether the tool succeeds")
 
 
+def test_a_section_cli_says_when_records_have_no_run_id():
+    """run.run_id is contract-LEGAL to omit — neither the server's required
+    field set nor validate_results asks for it — so a corpus can hold records
+    that cannot be de-duplicated at all, R-10 forbidding a fabricated key.
+    Repeats among them are undetectable and inflate every denominator they
+    reach, and only the publish gate said so (D-332).
+
+    Printed once per corpus, not per record: with thousands of them a wall of
+    identical lines is noise, and that is pinned below by counting occurrences.
+    """
+    from synth import make_record
+
+    recs = [make_record(aqs=90, run_id="R-%d" % i) for i in range(2)]
+    anon = json.loads(json.dumps(recs))
+    for r in anon:
+        del r["run"]["run_id"]
+
+    with tempfile.TemporaryDirectory() as d:
+        clean_p = os.path.join(d, "clean.jsonl")
+        _write_jsonl(clean_p, recs)
+        clean = _run("stability.py", clean_p)
+
+        anon_p = os.path.join(d, "anon.jsonl")
+        _write_jsonl(anon_p, anon)
+        got = _run("stability.py", anon_p)
+
+    assert "without run.run_id" not in clean.stderr, (
+        "the notice fires on a corpus where every record has an id: %s"
+        % clean.stderr[:200])
+    assert got.stderr.count("without run.run_id") == 1, (
+        "expected exactly one notice for the whole corpus, got %d: %r"
+        % (got.stderr.count("without run.run_id"), got.stderr[:300]))
+    assert "2 record(s)" in got.stderr, got.stderr[:300]
+    assert got.returncode == clean.returncode, (
+        "telling the operator must not change whether the tool succeeds")
+
+
 def test_a_file_that_cannot_be_read_stops_the_report():
     """The report's front door refuses a damaged corpus, citing corpus_health's
     ERROR classification — and listed two of its three. load_records catches

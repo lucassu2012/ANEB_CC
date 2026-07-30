@@ -388,6 +388,17 @@ def load_records(patterns, dedupe=True, stats=None, quiet=False):
                 st["unreadable_files"] += 1
                 if not quiet:
                     print(f"skip {path}: {e}", file=sys.stderr)
+    # Once per corpus, not per record: there can be thousands, and a wall of
+    # identical lines is noise rather than a signal. Contract-legal — neither
+    # the server's required-field set nor validate_results asks for run.run_id —
+    # so this is a state a corpus can legitimately be in, and R-10 forbids
+    # inventing a key to merge them under. What the operator has to know is the
+    # consequence: repeats among these are undetectable and inflate every
+    # denominator they reach (D-332).
+    if st["no_run_id"] and not quiet:
+        print(f"{st['no_run_id']} record(s) without run.run_id — cannot be "
+              "de-duplicated, so repeats among them stay invisible and inflate "
+              "the denominators they land in", file=sys.stderr)
     if stats is not None:
         stats.update(st)
     return records, files
