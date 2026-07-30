@@ -894,6 +894,21 @@ def _unverified_tiers_attr_md():
     return attribution.render_markdown(attribution.attribute(recs))
 
 
+def _reused_repeats_coverage_md():
+    """Six records in one cell that are three repeats run twice each — the only
+    shape that raises this marker, and the one the runbook tells the operator
+    means 「这格仍要回去补」 (D-340/D-341)."""
+    import coverage_matrix
+    from synth import aqs_records
+    recs = []
+    for i, ri in enumerate([0, 1, 2, 0, 1, 2]):
+        r = aqs_records(80 + (i % 3), 1, point="P1", carrier="cmcc",
+                        time_band="busy")[0]
+        r["run"]["repeat_index"] = ri
+        recs.append(r)
+    return coverage_matrix.render_markdown(coverage_matrix.analyze(recs))
+
+
 def _single_tier_attr_md():
     """The attribution section as the Shenzhen pilot will render it: one tier."""
     import attribution
@@ -915,6 +930,10 @@ _QUOTE_RENDERERS = {
     # report, and what it means if it does (D-292). That instruction is only
     # worth anything while the tool still prints the string.
     "M2_CAMPAIGN_RUNBOOK.tier_unverified": _unverified_tiers_attr_md,
+    # §3 now tells the operator that a cell carrying this marker still has to be
+    # revisited — the daily check decides tomorrow's route, so the string it
+    # keys on has to keep being printed (D-341).
+    "M2_CAMPAIGN_RUNBOOK.repeats_reused": _reused_repeats_coverage_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_yes": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_no": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_verdict_col": _segment_profile_md,

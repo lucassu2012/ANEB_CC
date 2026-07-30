@@ -176,6 +176,13 @@ python coverage_matrix.py labeled/*.jsonl --config ../docs/campaign_grid_shenzhe
 
 未测/欠采格 = 明日路线；**计划外**格 = 疑似误标，回查台账。
 
+⚠ **别只看「样本」列，要看「不同重复」列**（D-340/D-341）：D3 要的是每格 11 次**不同**重复，
+而样本数只是记录条数。崩溃重跑写的是**新 `run_id`、同 `repeat_index`**，去重看不到它，
+于是 12 条记录若其实是 3 次重复各跑四遍，样本列照样显示 12、状态照样「已覆盖」。
+标了 `REPEATS_REUSED` 的格 = **条数靠重跑凑出来的，这格仍要回去补**；
+计划外表同样有这一列，判「误标还是该保留」时一并看。
+`(+N 无编号)` 是缺 `run.repeat_index` 的记录——它们**不计入**不同重复（查不了 ≠ 算一次）。
+
 **第一个点位测完当天，另跑一次采样量核算**（这时改采集计划还来得及）：
 
 ```
@@ -198,6 +205,7 @@ plan_col_mde_power | 可辨最小差异(80%)
 plan_col_mde_flat  | 可辨最小差异(平)
 noise_marker       | 噪声内
 tier_unverified    | TIER_ENDPOINT_UNVERIFIED
+repeats_reused     | REPEATS_REUSED
 OUTPUT-QUOTES -->
 
 ⚠ **两列 `需 n≥` 不要看错**（D-201）：`需 n≥(平)` 是让目标差异**正好等于**噪声尺度的复测数，
