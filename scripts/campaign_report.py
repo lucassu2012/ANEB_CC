@@ -2329,6 +2329,14 @@ def main(argv):
                              + ", ".join(stats["conflicts"][:5]))
         if stats.get("malformed"):
             integrity.append(f"malformed lines × {stats['malformed']}")
+        # The third ERROR-class counter, and the one this gate omitted. The
+        # comment above cites corpus_health's classification but listed two of
+        # its three: load_records catches OSError and continues, so a file that
+        # cannot be read takes ALL of its records out of the corpus and the
+        # report came out anyway, every denominator short (D-330, the shape of
+        # D-328 in a second consumer — and this one is the door that refuses).
+        if stats.get("unreadable_files"):
+            integrity.append(f"unreadable files × {stats['unreadable_files']}")
         if integrity:
             print("语料完整性 FAIL：" + "；".join(integrity)
                   + " —— 拒绝出报告（先用 corpus_health.py 诊断；"

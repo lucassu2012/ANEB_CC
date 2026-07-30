@@ -119,6 +119,39 @@ def test_the_documented_batch_workflow_creates_its_output_directory():
             "a prefix flag must not create the parent it was pointed at")
 
 
+def test_a_file_that_cannot_be_read_stops_the_report():
+    """The report's front door refuses a damaged corpus, citing corpus_health's
+    ERROR classification — and listed two of its three. load_records catches
+    OSError and carries on, so a file it cannot open takes ALL of its records
+    out of the corpus and the report came out regardless, every denominator
+    short and nothing saying so (D-330).
+
+    A directory is used as the unreadable path: opening one raises OSError on
+    every platform (PermissionError on Windows, IsADirectoryError on POSIX),
+    which needs no permission juggling to arrange.
+    """
+    from synth import make_record
+
+    with tempfile.TemporaryDirectory() as d:
+        good = os.path.join(d, "good.jsonl")
+        _write_jsonl(good, [make_record(aqs=90, run_id="R-%d" % i)
+                            for i in range(3)])
+
+        ok = _run("campaign_report.py", good, "--md", os.path.join(d, "r.md"))
+        assert ok.returncode == 0, (
+            "the corpus alone does not produce a report, so adding a bad path "
+            "proves nothing: %s" % ok.stderr[:300])
+
+        # same inputs plus the directory itself, which cannot be opened
+        bad = _run("campaign_report.py", good, d, "--md",
+                   os.path.join(d, "r2.md"))
+
+    assert bad.returncode == 1, (
+        "a corpus missing an entire file still produced a report (exit %d)"
+        % bad.returncode)
+    assert "unreadable" in bad.stderr, bad.stderr[:300]
+
+
 def test_the_publish_gate_reports_integrity_from_the_command_line():
     """The unit guard exercises check(); whether main() actually hands it the
     loader's counters is a different surface. The mutation removing
