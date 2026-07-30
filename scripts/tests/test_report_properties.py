@@ -1581,6 +1581,118 @@ def test_the_report_names_the_retired_screen_only_as_retired():
             % (name, text.count("3σ"), text.count(retired)))
 
 
+def test_the_printed_tables_and_the_exported_tables_carry_the_same_numbers():
+    """§2.6's cross-surface guards all compare markers and section presence. None
+    of them compares a value — yet the analyst computes on the CSV, so a filter
+    added to one surface and not the other splits the report from the analysis
+    with nothing to notice it (D-302; the D-141 shape moved from marks to
+    numbers).
+
+    Scope, stated rather than implied: the two cell-keyed heat cards, which are
+    where a reader takes numbers off the page. The other eleven CSVs legitimately
+    carry different populations (per-transport rows, cells present in both
+    campaigns only) and are not reconciled here.
+
+    The two surfaces write R-10 in their own idiom — markdown prints 「—」, CSV
+    leaves the field empty and names the reason in a neighbouring column — so
+    that pairing is encoded, and a self-guard requires the corpus to actually
+    produce one, otherwise this half asserts nothing.
+    """
+    import csv as csvmod
+    import os
+    import tempfile
+    import synth_campaign as sc
+
+    def data_rows(chunk):
+        for ln in chunk.split("\n"):
+            if not ln.startswith("|"):
+                continue
+            body = ln.strip().strip("|")
+            if set(body.replace("|", "").strip()) <= set("- :"):
+                continue
+            cells = [c.strip() for c in body.split("|")]
+            if cells[0] in ("点位", "单元", "段"):
+                continue
+            yield cells
+
+    def same(printed, exported, digits):
+        """markdown cell vs CSV field, R-10 idioms paired."""
+        if exported in ("", "None"):
+            return printed == cc.fmt_num(None, digits) or printed == ""
+        try:
+            return printed == cc.fmt_num(float(exported), digits)
+        except ValueError:
+            return printed == exported
+
+    recs = sc.generate(points=8, repeats=5, campaigns=("base", "opt"))
+    md = rpt.build_report_markdown(recs)
+
+    heat_md, kpi_md, section, kpi = {}, {}, None, None
+    for chunk in md.split("\n#"):
+        head = chunk.split("\n", 1)[0]
+        if head.startswith("# 点位 × 忙闲 × 运营商 热力卡"):
+            section, kpi = "heat", None
+        elif head.startswith("## 分 KPI 热力卡："):
+            section, kpi = "kpi", head.split("`")[1]
+        else:
+            section = None
+        if section == "heat":
+            for r in data_rows(chunk):
+                heat_md[(r[0], r[1], r[2])] = r
+        elif section == "kpi":
+            for r in data_rows(chunk):
+                kpi_md[(kpi, r[0], r[1], r[2])] = r
+
+    with tempfile.TemporaryDirectory() as d:
+        paths = rpt.write_csv_tables(recs, os.path.join(d, "c"))
+        tables = {}
+        for suffix in ("heat", "kpi_heat"):
+            p = [x for x in paths if x.endswith("_%s.csv" % suffix)][0]
+            with open(p, encoding="utf-8-sig", newline="") as f:
+                tables[suffix] = list(csvmod.DictReader(f))
+
+    heat_csv = {(r["point_id"], r["carrier"], r["time_band"]): r
+                for r in tables["heat"]}
+    kpi_csv = {(r["kpi"], r["point_id"], r["carrier"], r["time_band"]): r
+               for r in tables["kpi_heat"]}
+    assert len(heat_md) >= 8 and len(kpi_md) >= 32, (len(heat_md), len(kpi_md))
+    assert set(heat_md) == set(heat_csv), (
+        "heat card and _heat.csv describe different cells: only printed %s / "
+        "only exported %s" % (sorted(set(heat_md) - set(heat_csv))[:3],
+                              sorted(set(heat_csv) - set(heat_md))[:3]))
+    assert set(kpi_md) == set(kpi_csv), (
+        "per-KPI card and _kpi_heat.csv differ: only printed %s / only exported "
+        "%s" % (sorted(set(kpi_md) - set(kpi_csv))[:3],
+                sorted(set(kpi_csv) - set(kpi_md))[:3]))
+
+    for k, m in sorted(heat_md.items()):
+        c = heat_csv[k]
+        for name, printed, exported, digits in (
+                ("aqs_median", m[3], c["aqs_median"], 1),
+                ("stdev", m[4], c["stdev"], 1),
+                ("grade", m[5], c["grade"], 0),
+                ("n", m[6], c["n"], 0)):
+            assert same(printed, exported, digits), (
+                "heat %s %s: printed %r, exported %r" % (k, name, printed, exported))
+
+    ties = 0
+    for k, m in sorted(kpi_md.items()):
+        c = kpi_csv[k]
+        for name, printed, exported, digits in (
+                ("median", m[3], c["median"], 2),
+                ("grade", m[4], c["grade"], 0),
+                ("n", m[5], c["n"], 0)):
+            assert same(printed, exported, digits), (
+                "kpi %s %s: printed %r, exported %r" % (k, name, printed, exported))
+        if c["grade"] == "" and c["grade_tie"]:
+            # R-10 both ways: no grade printed, and the reason named beside it
+            assert m[4] == cc.fmt_num(None, 0), (k, m[4])
+            assert "GRADE_TIE" in m[-1], (k, m[-1])
+            ties += 1
+    assert ties, ("no tied grade in this corpus — the R-10 half of this guard "
+                  "checked nothing")
+
+
 def test_no_column_claims_significance_in_a_section_that_disclaims_it():
     """The segment-profile section says 「描述性筛查、不是显著性检验」 in its banner
     and then headed its two output columns 「显著高」/「显著低」 (D-301). A reader
