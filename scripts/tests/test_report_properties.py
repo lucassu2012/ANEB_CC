@@ -2716,16 +2716,19 @@ def test_a_judgement_sentence_never_reaches_only_one_surface():
     — 「本轮不足以判定好坏」 tells the reader the whole round is unusable, and a
     reader who only got the HTML would never see it (D-322).
 
-    This list is hand-written and carries the blind spot D-275 warns about. The
-    derived check is the section-level one; this covers the layer beneath it,
-    where no derivation was available — "which sentences carry a judgement" is
-    not something the source can be asked.
+    D-322 shipped this with a hand-written list of sentences and said no
+    derivation was available. That was wrong, and D-323's sweep proved it by
+    finding a defect the list had missed: judgement WORDS are a criterion the
+    rendered product can be filtered by, and a criterion beats a list (D-275).
+    The named sentences survive only as a floor on the criterion's reach.
 
     Measured but NOT covered here: the provenance line's 「去重丢」 count. It is
     produced by load_records, so an in-process render never sees it; a CLI run
     listing one file twice showed it on both surfaces, but that was a probe, not
     a guard.
     """
+    import html as _html_mod
+    import re
     import synth_campaign as _sc
 
     stamp = "2026-01-01 00:00:00 +0800"
@@ -2739,25 +2742,59 @@ def test_a_judgement_sentence_never_reaches_only_one_surface():
     rendered = {k: (rpt.build_report_markdown(v), rpt.build_report_html(v, stamp))
                 for k, v in corpora.items()}
 
-    sentences = [
-        ("本轮不足以判定好坏", "pilot"),   # the round is unusable, D-313
-        ("UTC+", "wide"),                  # which day the trend bucketed by, D-318
-        ("失效原因分布", "pilot"),         # why the attempts were lost, D-319
-        # The boundary of claim. A full sweep of every judgement-bearing
-        # sentence found exactly one that reached the markdown and not the
-        # HTML, and it was this one — the sentence whose whole job is to stop
-        # the report being read as an operator-network or MOS rating, missing
-        # from the surface most likely to be forwarded (D-323).
-        ("不表述为", "wide"),
-    ]
-    for phrase, corpus in sentences:
+    # A CRITERION, not a list of instances (D-275). D-322 shipped a hand-written
+    # list and said no derivation was available; D-323's sweep showed one is —
+    # judgement words are a criterion the product can be filtered by, and it
+    # found a real defect the hand-written list had missed.
+    JUDGEMENT_WORDS = ("不可", "不足", "不能", "无法", "不要", "别", "应", "须",
+                       "建议", "疑似", "怀疑", "不可信", "慎", "勿", "不表述为")
+
+    def _plain(s):
+        """Content, not typography.
+
+        Structure characters are literal text in markdown and tag structure in
+        HTML. Leaving them in made D-323's first sweep call 70 of 87 sentences
+        missing — table rows and blockquotes — i.e. the instrument measuring
+        layout. A guard that cries wolf gets ignored (D-319).
+        """
+        s = re.sub(r"<[^>]+>", "", s)
+        s = _html_mod.unescape(s)
+        return re.sub("[|>#*" + chr(96) + "_~+\\-\\s　]", "", s)
+
+    examined, only_md = 0, []
+    for tag, (md, html) in rendered.items():
+        flat = _plain(html)
+        seen = set()
+        for raw in re.split(r"[。\n]", md):
+            s = _plain(raw)
+            if len(s) < 10 or s in seen or not any(w in s for w in JUDGEMENT_WORDS):
+                continue
+            seen.add(s)
+            examined += 1
+            if s not in flat:
+                only_md.append("[%s] %s" % (tag, raw.strip()[:110]))
+
+    _at_least(examined, 30, "judgement-bearing sentences compared across surfaces")
+    assert not only_md, (
+        "these carry a judgement, reach the markdown, and never reach the HTML "
+        "— a reader handed the page never sees them (§2.6): %s" % only_md[:5])
+
+    # Floor on the criterion itself: the three sentences that cost the most to
+    # lose must be INSIDE the set the filter examined. If the word list ever
+    # drifts past them, this fails rather than quietly narrowing.
+    for phrase, corpus in (("本轮不足以判定好坏", "pilot"),   # round unusable, D-313
+                           ("不表述为", "wide"),              # boundary of claim, D-323
+                           ("疑似", "wide")):                 # order-bias verdict
         md, html = rendered[corpus]
         assert phrase in md, (
-            "%r does not render on the %s corpus, so comparing the surfaces "
-            "proves nothing about it" % (phrase, corpus))
-        assert phrase in html, (
-            "%r reaches the markdown and not the HTML: a reader handed the page "
-            "never sees it (§2.6)" % phrase)
+            "%r does not render on the %s corpus, so the floor proves nothing"
+            % (phrase, corpus))
+        assert any(phrase in w for w in JUDGEMENT_WORDS) or \
+            any(w in phrase for w in JUDGEMENT_WORDS), (
+            "%r is no longer matched by any judgement word — the criterion "
+            "narrowed past a sentence that must never go missing" % phrase)
+        assert phrase in _plain(html), (
+            "%r reaches the markdown and not the HTML (§2.6)" % phrase)
 
 
 def test_every_markdown_section_reaches_the_html():
