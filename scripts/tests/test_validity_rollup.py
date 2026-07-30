@@ -14,6 +14,75 @@ import validity_rollup as vr
 from synth import validity_records, make_record
 
 
+_T0 = 1783944000000          # 2026-07-13T12:00:00Z, synth's own default
+_DAY = 86400000
+
+
+def _day_recs(n, *, point, validity, started_ms, undated=False):
+    out = []
+    for _ in range(n):
+        r = make_record(campaign={"campaign_id": "base", "tier": "metro",
+                                  "point_id": point, "carrier": "cmcc",
+                                  "time_band": "busy"},
+                        scenarios=[("s1_chat", {})], started_ms=started_ms)
+        r["scenarios"][0]["validity"] = validity
+        r["scenarios"][0]["invalid_reasons"] = "" if validity == "valid" else "timeout"
+        if undated:
+            r["run"].pop("started_at_epoch_ms", None)
+        out.append(r)
+    return out
+
+
+def test_a_change_of_site_is_not_reported_as_a_harness_regression():
+    """This table's docstring calls a decaying rate a harness regression signal,
+    and it pools every cell into one daily number. An easy site on Monday and a
+    hard one on Tuesday draws exactly the same falling line — 100% then 0% —
+    and the per-cell table above carries no dates, so the reader cannot connect
+    the two (D-336, same shape as D-335).
+    """
+    recs = (_day_recs(10, point="P-good", validity="valid", started_ms=_T0)
+            + _day_recs(10, point="P-bad", validity="invalid", started_ms=_T0 + _DAY))
+    res = vr.analyze(recs)
+    assert len(res["trend"]) == 2
+    assert res["trend_stats"]["days_share_cells"] is False
+    assert res["trend_stats"]["cells_uneven"], "the flag must carry its evidence"
+    md = vr.render_markdown(res)
+    assert "并非测的同一组单元" in md
+    assert "P-bad/cmcc/busy" in md, "name the cells, do not just assert a fact"
+
+
+def test_two_days_on_the_same_cells_are_not_flagged():
+    """The half that matters: a caveat that fires on a clean corpus is one
+    everybody learns to skip."""
+    recs = (_day_recs(10, point="P-good", validity="valid", started_ms=_T0)
+            + _day_recs(10, point="P-good", validity="invalid", started_ms=_T0 + _DAY))
+    res = vr.analyze(recs)
+    assert res["trend_stats"]["days_share_cells"] is True
+    assert res["trend_stats"]["cells_uneven"] == []
+    assert "并非测的同一组单元" not in vr.render_markdown(res)
+
+
+def test_scenarios_with_no_timestamp_are_counted_out_loud():
+    """`run.started_at_epoch_ms` is absent from validate_results.py, so a record
+    without it is contract-legal, reaches the trend and is skipped. Silently:
+    30 scenarios in the corpus, 20 in the table, nothing said (D-336, the shape
+    D-332 fixed for run_id)."""
+    recs = (_day_recs(10, point="P-good", validity="valid", started_ms=_T0)
+            + _day_recs(10, point="P-good", validity="valid", started_ms=_T0 + _DAY)
+            + _day_recs(10, point="P-good", validity="invalid", started_ms=_T0,
+                        undated=True))
+    res = vr.analyze(recs)
+    assert sum(t["attempted"] for t in res["trend"]) == 20
+    assert res["trend_stats"]["undated_scenarios"] == 10
+    md = vr.render_markdown(res)
+    assert "started_at_epoch_ms" in md and "10" in md
+    # …and a corpus where none are missing must not carry the line at all
+    clean = vr.analyze(_day_recs(5, point="P-good", validity="valid", started_ms=_T0)
+                       + _day_recs(5, point="P-good", validity="valid",
+                                   started_ms=_T0 + _DAY))
+    assert "started_at_epoch_ms" not in vr.render_markdown(clean)
+
+
 def test_one_shenzhen_field_day_is_one_trend_row():
     # ⚠ SOLE targeted guard on TWO behaviours (D-321's census): bucketing the
     #   trend by UTC again, and freezing the shared offset in a default argument

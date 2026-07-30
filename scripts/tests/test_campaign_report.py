@@ -827,6 +827,40 @@ def test_rollup_csvs_mark_pooled_campaigns():
             assert all(r["mixed_campaigns"] == "SYNTH-base/SYNTH-opt" for r in rows), table
 
 
+def test_validity_trend_csv_says_which_cells_fed_each_day():
+    """An analyst plotting this file alone sees a decaying rate. Whether that is
+    a harness regression or a move to a harder site is decided by which cells
+    fed which day — a fact that lived only in the markdown until D-336. Same
+    surface argument as the order-effect CSV above (§2.6).
+    """
+    import os
+    import tempfile
+    from synth import make_record
+    t0, day = 1783944000000, 86400000
+
+    def recs(n, point, validity, started_ms):
+        out = []
+        for _ in range(n):
+            r = make_record(campaign={"campaign_id": "base", "tier": "metro",
+                                      "point_id": point, "carrier": "cmcc",
+                                      "time_band": "busy"},
+                            scenarios=[("s1_chat", {})], started_ms=started_ms)
+            r["scenarios"][0]["validity"] = validity
+            r["scenarios"][0]["invalid_reasons"] = "" if validity == "valid" else "timeout"
+            out.append(r)
+        return out
+
+    corpus = (recs(10, "P-good", "valid", t0) + recs(10, "P-bad", "invalid", t0 + day))
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(corpus, prefix)
+        rows = _rollup_csv(prefix, "validity_trend")
+    assert len(rows) == 2, rows
+    assert {r["cells"] for r in rows} == {"P-good/cmcc/busy", "P-bad/cmcc/busy"}, rows
+    assert all(r["days_share_cells"] == "False" for r in rows), rows
+    assert all(r["undated_scenarios"] == "0" for r in rows), rows
+
+
 def test_order_effect_csv_carries_the_pooling_premise():
     """CSV is the surface with no banner above it — the export block says so in
     its own comment. Once the markdown started refusing to call a confounded

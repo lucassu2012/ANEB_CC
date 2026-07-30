@@ -1944,11 +1944,21 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w = _TaggedWriter(f, synthetic)
         # local_day, not day: the CSV travels without the heading that says
         # which day it is, and UTC-vs-local is exactly what went wrong (D-318).
-        w.writerow(["local_day", "attempted", "usable", "valid_rate"])
+        # …and which cells fed each day, plus how many scenarios fell outside
+        # every day for want of a timestamp. Without them an analyst plotting
+        # this file sees a decaying rate and no way to tell a harness
+        # regression from a change of site (D-336). The corpus-level counts
+        # repeat per row, as _order_effect.csv already does for rotation.
+        w.writerow(["local_day", "attempted", "usable", "valid_rate",
+                    "cells", "days_share_cells", "undated_scenarios"])
         if len(validity["trend"]) > 1:
+            vts = validity.get("trend_stats") or {}
             for t in validity["trend"]:
                 w.writerow([t["day"], t["attempted"], t["usable"],
-                            _cell(t["valid_rate"])])
+                            _cell(t["valid_rate"]),
+                            "; ".join(t.get("cells") or []),
+                            _cell(vts.get("days_share_cells")),
+                            _cell(vts.get("undated_scenarios"))])
     written.append(p)
 
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]

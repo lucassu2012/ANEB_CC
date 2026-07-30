@@ -96,7 +96,7 @@ def validity_cells(records, min_rate=None):
     return cells, corpus_reasons
 
 
-def validity_trend(records, tz_offset_h=None):
+def validity_trend(records, tz_offset_h=None, stats=None):
     """Per-LOCAL-day usable-rate. A decaying rate is a harness regression signal.
 
     Local, not UTC, and at the same offset annotate_campaign uses for the time
@@ -115,22 +115,47 @@ def validity_trend(records, tz_offset_h=None):
     if tz_offset_h is None:
         tz_offset_h = cc.DEFAULT_TZ_OFFSET_H
     days = defaultdict(Counter)
+    day_cells = defaultdict(set)
+    undated = 0
     shift = timedelta(hours=tz_offset_h)
     for rec in records:
         ms = cc.run_started_ms(rec)
         if ms is None:
+            # `run.started_at_epoch_ms` is absent from validate_results.py, so a
+            # record without it is contract-legal and lands here. Skipping it
+            # silently made the trend's totals smaller than the corpus totals
+            # printed four lines above, with nothing to say so (D-336, the same
+            # shape D-332 fixed for run_id). Counted in SCENARIOS, the unit
+            # `attempted` uses, or the two numbers would not be comparable.
+            undated += sum(1 for _ in cc.iter_scenarios(rec))
             continue
         day = (datetime.fromtimestamp(ms / 1000.0, timezone.utc)
                + shift).strftime("%Y-%m-%d")
+        labels = cc.campaign_labels(rec)
+        cell = "/".join(str(labels[d]) for d in CELL_DIMS)
         for scn in cc.iter_scenarios(rec):
             days[day][cc.scenario_validity(scn)] += 1
+            day_cells[day].add(cell)
     out = []
     for day in sorted(days):
         c = days[day]
         attempted = sum(c.values())
         usable = c["valid"] + c["valid_low_confidence"]
         out.append({"day": day, "attempted": attempted, "usable": usable,
-                    "valid_rate": (usable / attempted) if attempted else None})
+                    "valid_rate": (usable / attempted) if attempted else None,
+                    # which cells fed this day: a falling rate across days that
+                    # measured different sites is a change of site, not the
+                    # harness regression this table exists to surface (D-336)
+                    "cells": sorted(day_cells[day])})
+    if stats is not None:
+        sets = [frozenset(r["cells"]) for r in out]
+        common = set(sets[0]).intersection(*sets[1:]) if len(sets) > 1 else set()
+        union = set().union(*sets) if sets else set()
+        stats["undated_scenarios"] = undated
+        # flag and evidence out of one computation, so they cannot disagree
+        stats["cells_uneven"] = sorted(union - common) if len(sets) > 1 else []
+        stats["days_share_cells"] = (
+            None if len(sets) < 2 else not (union - common))
     return out
 
 
@@ -139,13 +164,15 @@ def analyze(records, min_rate=None):      # None -> the live gate (D-204)
     # render it as the gate in force
     min_rate = DEFAULT_MIN_RATE if min_rate is None else min_rate
     cells, reasons = validity_cells(records, min_rate)
+    trend_stats = {}
     attempted = sum(c["attempted"] for c in cells)
     usable = sum(c["valid"] + c["valid_low_confidence"] for c in cells)
     return {
         "min_rate": min_rate,
         "cells": cells,
         "corpus_reasons": dict(cc.ranked(reasons)),
-        "trend": validity_trend(records),
+        "trend": validity_trend(records, stats=trend_stats),
+        "trend_stats": trend_stats,
         "attempted": attempted,
         "usable": usable,
         "overall_valid_rate": (usable / attempted) if attempted else None,
@@ -209,6 +236,23 @@ def render_markdown(res):
             lines.append(f"| {t['day']} | {t['attempted']} | {t['usable']} | "
                          f"{_pct(t['valid_rate'])} |")
         lines.append("")
+        # This table's stated purpose is to make a harness regression visible.
+        # It pools every cell into one daily rate, so a corpus that measured an
+        # easy site on one day and a hard one on the next draws exactly the same
+        # falling line — and the per-cell table above carries no dates, so the
+        # reader cannot connect them (D-336).
+        ts = res.get("trend_stats") or {}
+        uneven = ts.get("cells_uneven") or []
+        if uneven:
+            shown = "、".join(cc.md_cell(c) for c in uneven[:3])
+            lines += [f"> ⚠ 各日**并非测的同一组单元**（{shown}"
+                      + (f" 等 {len(uneven)} 个" if len(uneven) > 3 else "")
+                      + "未出现在每一天）——率的升降**可能是换了点位/运营商/时段**，"
+                      "而不是装置回归信号。逐单元的率见上表。", ""]
+        if ts.get("undated_scenarios"):
+            lines += [f"> ⚠ 另有 {ts['undated_scenarios']} 个场景**缺 "
+                      "`run.started_at_epoch_ms`**，不属于任何一天——"
+                      "**本表分母因此小于上方的全语料合计**（该字段非契约必填）。", ""]
     return "\n".join(lines)
 
 
