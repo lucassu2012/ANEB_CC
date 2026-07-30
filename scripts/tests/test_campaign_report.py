@@ -827,6 +827,40 @@ def test_rollup_csvs_mark_pooled_campaigns():
             assert all(r["mixed_campaigns"] == "SYNTH-base/SYNTH-opt" for r in rows), table
 
 
+def test_the_two_pooling_caveats_reach_the_html_page_too():
+    """D-335 and D-336 each added a sentence that qualifies a verdict. Both went
+    into a render_markdown(), and the HTML report derives md-only sections from
+    that same output — so they should arrive for free.
+
+    Asserted anyway, at SENTENCE level. §2.6's section guard is keyed loosely
+    on purpose, and D-322 measured what that costs: a sentence living only in
+    the markdown still passes it. A caveat is exactly the kind of sentence that
+    must not be the one to slip.
+    """
+    from synth import make_record, order_records
+    rot = "s1_chat,s2_rag|s2_rag,s1_chat"
+    t0, day = 1783944000000, 86400000
+    corpus = (order_records(5, value=40.0, order_index=0, point="P-fast",
+                            scenario_order=rot)
+              + order_records(5, value=120.0, order_index=1, point="P-slow",
+                              scenario_order=rot))
+    for point, validity, ms in (("P-good", "valid", t0), ("P-bad", "invalid", t0 + day)):
+        for _ in range(10):
+            r = make_record(campaign={"campaign_id": "base", "tier": "metro",
+                                      "point_id": point, "carrier": "cmcc",
+                                      "time_band": "busy"},
+                            scenarios=[("s1_chat", {})], started_ms=ms)
+            r["scenarios"][0]["validity"] = validity
+            r["scenarios"][0]["invalid_reasons"] = "" if validity == "valid" else "timeout"
+            corpus.append(r)
+
+    md = rpt.build_report_markdown(corpus)
+    html = rpt.build_report_html(corpus, "2026-01-01 00:00:00 +0800")
+    for sentence in ("不可单独归因", "CELL_CONFOUNDED", "并非测的同一组单元"):
+        assert sentence in md, f"{sentence} left the markdown"
+        assert sentence in html, f"{sentence} is markdown-only — §2.6 wants三面"
+
+
 def test_validity_trend_csv_says_which_cells_fed_each_day():
     """An analyst plotting this file alone sees a decaying rate. Whether that is
     a harness regression or a move to a harder site is decided by which cells

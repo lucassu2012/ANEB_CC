@@ -1116,6 +1116,19 @@ def auto_compare_ids(inv):
     return (a, b)
 
 
+def inventory_note(inv, min_samples):
+    """How much corpus the report rests on, and the floor that decided which
+    cells got marked low-confidence.
+
+    Written once and rendered by each surface, like CLAIM_SCOPE_NOTE (D-323).
+    D-140 moved the corpus warnings out of the markdown-only preamble for this
+    exact reason; this line stayed behind, so an HTML-only reader saw the grades
+    and the medians but not how many records carried an AQS or a campaign label
+    at all — the size of what the report is actually about (D-337)."""
+    return (f"输入记录：{inv['records']}；含 run.aqs：{inv['aqs_present']}；"
+            f"含 campaign 标签：{inv['with_campaign']}。样本地板 min_samples={min_samples}。")
+
+
 def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                           attr_kpi=attribution.DEFAULT_KPI,
                           before_id=None, after_id=None, kpi_heat=None,
@@ -1146,8 +1159,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         ]
     parts += [
         "> " + CLAIM_SCOPE_NOTE,
-        f"> 输入记录：{inv['records']}；含 run.aqs：{inv['aqs_present']}；"
-        f"含 campaign 标签：{inv['with_campaign']}。样本地板 min_samples={min_samples}。",
+        "> " + inventory_note(inv, min_samples),
         "",
         "## 覆盖盘点",
         "",
@@ -1581,6 +1593,9 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # same corpus-wide notices the markdown carries — they used to exist only in
     # the markdown preamble, which the md->html conversion drops (D-140)
     warn += "".join(f"<p class='warn'>⚠ {_md_inline(w)}</p>" for w in corpus_warnings(inv))
+    # …and the inventory line, which D-140 left behind: it was the one caveat of
+    # 55 that a sweep found in the markdown and nowhere on the page (D-337).
+    warn += f"<p class='warn'>{_md_inline(inventory_note(inv, min_samples))}</p>"
     # Rendered through _md_inline for the same reason the corpus warnings above
     # are: the constant is written once, in markdown, and each surface renders
     # it its own way (D-262/D-323).

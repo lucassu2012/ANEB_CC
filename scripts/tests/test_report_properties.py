@@ -488,6 +488,65 @@ def _columns(line):
     return len(_UNESCAPED_PIPE.split(line.strip().strip("|")))
 
 
+def _caveat_plain(s):
+    # '#' among them: the synthetic banner is a heading inside a blockquote in
+    # markdown and a <b> on the page, so the residues differed by one character
+    return re.sub(r"\s+", "", re.sub(r"[*`⚠⛔_#]", "", s))
+
+
+def _caveat_html_norm(s):
+    """Strip real tags FIRST — unescaping before that would turn a rendered
+    &lt;b&gt; into a tag and delete it — then put the entities back. The caveats
+    are full of '>' (「> 10.0%」, 「|漂移|>100ppm」) and of `<prefix>_stability.csv`,
+    which the page carries as &gt; and &lt;prefix&gt;."""
+    s = re.sub(r"<[^>]+>", "", s)
+    for ent, ch in (("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'),
+                    ("&#39;", "'"), ("&amp;", "&")):
+        s = s.replace(ent, ch)
+    return _caveat_plain(s)
+
+
+def test_every_caveat_in_the_markdown_reaches_the_html_page():
+    """§2.6 at SENTENCE level, for the sentences that qualify a number.
+
+    The existing section guard is keyed loosely on purpose, and D-322 measured
+    the cost: a sentence living only in the markdown still passes it. Four
+    sections are rebuilt natively for HTML instead of converted, and D-140
+    already had to move the corpus warnings across by hand once — so this is a
+    place where a caveat has gone missing before.
+
+    Derived from the rendered report, not from a list: a caveat added later is
+    checked without anyone remembering to (D-275).
+
+    The first two runs of this sweep were WRONG, both in the normaliser, and
+    both in D-323's direction — 11 of 55 "missing", then 2, then 1. Only the
+    last was real: the inventory line, markdown-only since D-140. When a
+    cross-surface scan reports a pile, suspect the measurement first.
+    """
+    import synth_campaign as sc
+    recs = sc.generate(points=3, repeats=3, campaigns=("base", "opt"),
+                       carriers=("cmcc", "cucc"), time_bands=("busy", "idle"),
+                       tiers=("metro",))
+    md = rpt.build_report_markdown(recs)
+    nhtml = _caveat_html_norm(rpt.build_report_html(recs, "2026-01-01 00:00:00 +0800"))
+
+    section, missing, total = "(preamble)", [], 0
+    for line in md.splitlines():
+        s = line.strip()
+        if s.startswith("## "):
+            section = s[3:]
+        if not s.startswith("> "):
+            continue
+        body = _caveat_plain(s[2:].strip())
+        if len(body) < 8:                 # a stub is evidence either way
+            continue
+        total += 1
+        if body not in nhtml:
+            missing.append((section, s[2:].strip()[:80]))
+    assert not missing, missing
+    _at_least(total, 40, "caveat lines the report actually emitted")
+
+
 def _hostile_label_knobs():
     """Every label dimension the fixture can stamp onto a record, read out of
     its signature instead of typed here — a dimension added later is swept on
