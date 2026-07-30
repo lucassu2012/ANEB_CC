@@ -56,6 +56,43 @@ def test_twelve_re_runs_of_three_repeats_are_not_twelve_repeats():
     assert "REPEATS_REUSED" not in md_distinct, md_distinct
 
 
+def _off_plan_cell(indices, point="P9"):
+    out = []
+    for i, ri in enumerate(indices):
+        r = aqs_records(80 + (i % 3), 1, point=point, carrier="cmcc",
+                        time_band="busy")[0]
+        r["run"]["repeat_index"] = ri
+        out.append(r)
+    return out
+
+
+def test_the_off_plan_table_answers_the_repeat_question_too():
+    """D-340 put the 「不同重复」 column on the planned grid and left the off-plan
+    table showing a bare record count — a fix landing only on the object that
+    triggered it (D-341).
+
+    Off-plan cells are the ones an operator inspects to decide 「误标还是该保留」,
+    so a count that overstates coverage matters there for the same reason.
+
+    The key-set assertion is the structural half: adding a key to `cells` and
+    forgetting `off_plan` fails here without anyone listing the column names.
+    """
+    reused = cm.analyze(_off_plan_cell([0, 1] * 3), target=TARGET)
+    assert reused["off_plan"], "fixture built no off-plan cell"
+    assert set(reused["off_plan"][0]) == set(reused["cells"][0]) - {"status"}, (
+        reused["off_plan"][0], reused["cells"][0])
+    assert reused["off_plan"][0]["distinct_repeats"] == 2
+
+    md = cm.render_markdown(reused)
+    off_section = md.split("计划外已测单元")[1]
+    assert "REPEATS_REUSED" in off_section, off_section
+
+    # …and the half that matters: six genuine repeats off-plan are not marked
+    clean = cm.analyze(_off_plan_cell(list(range(6))), target=TARGET)
+    clean_off = cm.render_markdown(clean).split("计划外已测单元")[1]
+    assert "REPEATS_REUSED" not in clean_off, clean_off
+
+
 def test_a_record_without_a_repeat_index_is_not_counted_as_a_repeat():
     """R-10: an absent index is unknown, never one more repeat. It still counts
     toward `samples`, so the reuse test has to allow for it or every corpus

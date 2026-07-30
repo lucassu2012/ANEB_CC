@@ -105,7 +105,12 @@ def analyze(records, target=None, min_samples=cc.DEFAULT_MIN_SAMPLES):
         cells.append({"cell": dict(zip(CELL_DIMS, key)), "samples": n,
                       "distinct_repeats": d_rep, "repeats_unknown": u_rep,
                       "status": status})
-    off_plan = [{"cell": dict(zip(CELL_DIMS, k)), "samples": observed[k]}
+    # same key set as `cells`: an off-plan cell can overstate its coverage in
+    # exactly the same way, and a reader comparing the two tables should not
+    # find one of them answering a question the other does not (D-341)
+    off_plan = [{"cell": dict(zip(CELL_DIMS, k)), "samples": observed[k],
+                 "distinct_repeats": spread.get(k, (0, 0))[0],
+                 "repeats_unknown": spread.get(k, (0, 0))[1]}
                 for k in sorted(observed) if k not in planned_set]
     total = len(planned)
     return {
@@ -116,6 +121,30 @@ def analyze(records, target=None, min_samples=cc.DEFAULT_MIN_SAMPLES):
 
 
 _STATUS_LABEL = {"UNMEASURED": "未测", "UNDER_SAMPLED": "欠采", "COVERED": "已覆盖"}
+
+
+def _repeat_cell(c):
+    """The 「不同重复」 cell for one row, wherever that row is printed.
+
+    Both tables show a sample count and both can overstate coverage the same
+    way, so both get the same column from the same code — D-340 put it on the
+    planned grid only, and the off-plan table (the cells an operator inspects to
+    decide 「误标还是该保留」) kept showing a bare record count (D-341, §2.14).
+    """
+    d_rep, u_rep = c.get("distinct_repeats"), c.get("repeats_unknown")
+    # None is not zero on any surface — the guard that exists to stop that
+    # caught this column the moment it was first written (R-10)
+    out = (cc.fmt_num(None, 0) if d_rep is None else f"{d_rep}") \
+        + (f"(+{u_rep} 无编号)" if u_rep else "")
+    # a record with no repeat_index is not a repeat we can vouch for, so it is
+    # never folded into the distinct count — but it still counts toward
+    # `samples`, which is why the reuse test allows for it. And when the sample
+    # count is not a number, reuse is not judgeable: say nothing rather than
+    # compare against a stand-in zero.
+    if (isinstance(c.get("samples"), int) and d_rep is not None
+            and c["samples"] > d_rep + (u_rep or 0)):
+        out += " **REPEATS_REUSED**"
+    return out
 
 
 def render_markdown(res):
@@ -144,29 +173,16 @@ def render_markdown(res):
               "|---|---|---|---|---|---|"]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
-        d_rep, u_rep = c.get("distinct_repeats"), c.get("repeats_unknown")
-        # None is not zero on any surface — the guard that exists to stop that
-        # caught this column the moment it was written (R-10)
-        rep = (cc.fmt_num(None, 0) if d_rep is None else f"{d_rep}") \
-            + (f"(+{u_rep} 无编号)" if u_rep else "")
-        # a record with no repeat_index is not a repeat we can vouch for, so it
-        # is never folded into the distinct count — but it still counts toward
-        # `samples`, which is why the reuse test allows for it. And when the
-        # sample count is not a number, reuse is not judgeable: say nothing
-        # rather than compare against a stand-in zero.
-        if (isinstance(c.get("samples"), int) and d_rep is not None
-                and c["samples"] > d_rep + (u_rep or 0)):
-            rep += " **REPEATS_REUSED**"
         lines.append(f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "
-                     f"{c['samples']} | {rep} | "
+                     f"{c['samples']} | {_repeat_cell(c)} | "
                      f"{_STATUS_LABEL.get(c['status'], c['status'])} |")
     if res["off_plan"]:
         lines += ["", "### 计划外已测单元（不在目标网格；疑似误标或未规划点位）", "",
-                  "| 点位 | 运营商 | 时段 | 样本 |", "|---|---|---|---|"]
+                  "| 点位 | 运营商 | 时段 | 样本 | 不同重复 |", "|---|---|---|---|---|"]
         for c in res["off_plan"]:
             cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
             lines.append(f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "
-                         f"{c['samples']} |")
+                         f"{c['samples']} | {_repeat_cell(c)} |")
     return "\n".join(lines)
 
 
