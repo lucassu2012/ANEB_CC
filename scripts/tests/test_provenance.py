@@ -138,6 +138,44 @@ _GATE_MODULES = (attribution, buffering_rollup, campaign_common, order_effect,
 # gate that happens to be a tuple of KPI names or a list of tiers was therefore
 # outside a check whose own name promises every output-deciding gate — and five
 # such gates were unarchived when the scan was widened (D-248).
+def test_the_provenance_line_names_every_load_decision_it_records():
+    """The sidecar has carried no_run_id since D-93 and the rendered line never
+    showed it — the module docstring said five counters, compute() sent six,
+    the page displayed four (D-333, the shape of D-246).
+
+    The reader gets the page, not the JSON. These records cannot be
+    de-duplicated at all, so repeats among them are invisible and the kept
+    count can exceed the runs actually performed, which is exactly what this
+    line exists to disclose.
+    """
+    stamp = "2026-01-01 00:00:00 +0800"
+    # The dedupe count is disclosed unconditionally, even at zero; the other
+    # three appear only when non-zero. Asserting the first is conditional was
+    # my mistake, and this guard's own self-check caught it.
+    ALWAYS = ("去重丢",)
+    ONLY_WHEN_NONZERO = ("冲突", "坏行", "无 run_id")
+
+    clean = {"lines": 4, "kept": 4, "duplicates": 0, "conflicts": [],
+             "malformed": 0, "no_run_id": 0, "unreadable_files": 0}
+    quiet_line = prov.render_markdown(prov.compute([], clean, {}, stamp))
+    for frag in ALWAYS:
+        assert frag in quiet_line, (
+            "%r is meant to be disclosed even at zero: %r" % (frag, quiet_line[:300]))
+    for frag in ONLY_WHEN_NONZERO:
+        assert frag not in quiet_line, (
+            "%r shows on a clean load, so seeing it on a dirty one would prove "
+            "nothing" % frag)
+
+    dirty = dict(clean, lines=9, duplicates=2, conflicts=["R-1"],
+                 malformed=1, no_run_id=2)
+    line = prov.render_markdown(prov.compute([], dirty, {}, stamp))
+    for frag in ALWAYS + ONLY_WHEN_NONZERO:
+        assert frag in line, (
+            "the load dropped or could not identify records for this reason "
+            "and the rendered provenance line never says so: %r not in %r"
+            % (frag, line[:400]))
+
+
 _NOT_A_REPORT_GATE = {
     ("campaign_common", "DEFAULT_MIN_SAMPLES"):
         "a CLI knob; the manifest records it under `params`, not `thresholds`",

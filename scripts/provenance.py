@@ -9,8 +9,11 @@ count. This attaches the missing chain of custody.
 
 A manifest records:
   * each input file's basename + sha256 (content identity, not the local path)
-  * lines read / records kept / duplicates dropped / conflicts / malformed
-    (the load-path decisions from D-93 dedup — what was and wasn't counted)
+  * lines read / records kept / duplicates dropped / conflicts / malformed /
+    records with no run_id (the load-path decisions from D-93 dedup — what was
+    and wasn't counted). The last one was emitted but neither listed here nor
+    rendered: the description said five, build() sent six, the page showed four
+    (D-333).
   * the tool parameters that shaped the numbers (min_samples, attr_kpi, …)
   * tool version + an injected generated_at (injected, not wall-clocked, so the
     deterministic report body stays snapshot-testable)
@@ -77,6 +80,12 @@ def render_markdown(prov):
         f"（去重丢 {prov['duplicates_dropped']}"
         + (f"，冲突 {len(prov['conflicting_run_ids'])}" if prov["conflicting_run_ids"] else "")
         + (f"，坏行 {prov['malformed_lines']}" if prov["malformed_lines"] else "")
+        # Emitted into the sidecar since D-93 and never rendered. It belongs
+        # beside the other two: these records cannot be de-duplicated at all
+        # (R-10 forbids a fabricated key), so repeats among them are invisible
+        # and the kept count may exceed the runs actually performed — which is
+        # precisely what this line exists to disclose (D-333).
+        + (f"，无 run_id {prov['no_run_id']}" if prov.get("no_run_id") else "")
         + f"）。参数 {json.dumps(prov['params'], ensure_ascii=False)}。",
         "",
     ]
