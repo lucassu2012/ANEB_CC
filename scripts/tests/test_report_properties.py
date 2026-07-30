@@ -1830,6 +1830,52 @@ def test_the_comparability_verdict_is_the_same_word_on_both_surfaces():
         "corpus produced only %s — the verdicts that matter are untested" % got)
 
 
+def test_the_producers_additive_scoring_blocks_do_not_move_the_report():
+    """ResultReporter writes run.aqs_v02 and run.aqs_token beside run.aqs, and
+    the rehearsal corpus carries neither — so nothing had ever asked what this
+    layer does when they arrive (D-309). Two ways that could have gone wrong and
+    both would land on the day real data shows up: the contract gate refusing a
+    corpus it should accept (D-105 refuses to report on a violation, and a false
+    refusal is worse than a missing feature), or some consumer quietly pooling
+    the parallel scores with run.aqs.
+
+    Measured end to end: the gate accepts them and the report is byte-identical.
+    This pins that. Built in memory rather than through files, so the input
+    filename and its sha256 — which must differ — stay out of the comparison.
+    """
+    import copy
+    import synth_campaign as sc
+
+    plain = sc.generate(points=2, repeats=5, campaigns=("base",))
+    extra = copy.deepcopy(plain)
+    for rec in extra:
+        run = rec.setdefault("run", {})
+        run["aqs_v02"] = {
+            "aqs_version": "0.2", "score": 81.0, "low_confidence": False,
+            "veto_applied": False, "not_computable_reason": None,
+            "sub_scores": {"c1_continuity": 88.0, "c2_recovery": 74.0}}
+        run["aqs_token"] = {
+            "aqs_version": "token-0.1", "score": 77.5, "low_confidence": False,
+            "veto_applied": False, "not_computable_reason": None,
+            "weights_table_id": "token_w_v1", "s1_veto_applied": False,
+            "s1_session_success_rate": 0.98, "s1_rounds": 12,
+            "s1_low_confidence": False,
+            "sub_scores": {"t_token": 80.0, "u_token": 71.0,
+                           "workload": {"uplink_bytes_per_round": 1536,
+                                        "peak_to_mean_ratio": 2.4}}}
+    assert all("aqs_token" in r["run"] for r in extra), "the blocks never landed"
+    assert not any("aqs_token" in r["run"] for r in plain), "baseline is polluted"
+
+    before = rpt.build_report_markdown(plain)
+    after = rpt.build_report_markdown(extra)
+    if before != after:
+        diff = [(i + 1, a, b) for i, (a, b) in
+                enumerate(zip(before.split("\n"), after.split("\n"))) if a != b]
+        raise AssertionError(
+            "a parallel scoring block this layer says it does not read moved "
+            "the report: %s" % diff[:3])
+
+
 def test_every_exported_table_says_whether_its_numbers_are_fabricated():
     """The red synthetic-data banner reached markdown and HTML and stopped there:
     write_csv_tables never called count_synthetic at all (D-303, §2.7).
