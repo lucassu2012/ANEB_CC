@@ -1693,6 +1693,143 @@ def test_the_printed_tables_and_the_exported_tables_carry_the_same_numbers():
                   "checked nothing")
 
 
+# Heading prefix -> the CSV that lets an analyst rebuild that table. Keyed by
+# heading rather than by module because the module-level mapping above cannot
+# see a module that renders two tables and exports one — which is exactly how
+# radio's 忙闲可比性 verdict and validity's daily trend stayed page-only (D-304).
+_CSV_FOR_TABLE = {
+    "点位 × 忙闲 × 运营商 热力卡": "heat",
+    "分 KPI 热力卡：": "kpi_heat",
+    "复测稳定性：": "stability",
+    "序位效应诊断（": "order_effect",
+    "有效性与失效原因": "validity",
+    "有效率趋势": "validity_trend",
+    "测量可信度": "trust",
+    "三级差分归因矩阵": "attribution",
+    "分段异常定位": "segment_profile",
+    "AQS 分数侧归因": "subscores",
+    "批化(buffering)归因": "buffering",
+    "接入介质对比": "transport",
+    "无线上下文": "radio",
+    "忙闲可比性": "radio_comparability",
+    "优化前后对比": "comparison",
+    "纵向趋势": "trend",
+}
+
+
+def test_every_table_on_the_page_has_a_csv_that_reproduces_it():
+    """The module-level mapping asks "does this module ship a CSV" and answers
+    yes for a module that renders two tables and exports one. Both hid that way:
+    radio's 忙闲可比性 carries 「CELL_CHANGED——该点位忙闲差不可单独归因于时段」,
+    which disqualifies a busy/idle delta the analyst is computing in _heat.csv,
+    and validity's daily trend is the signal D-145 wants read on the evening of
+    day one. Neither reached a file (D-304).
+
+    The subject is scanned out of the rendered report, so a new table fails here
+    until it is registered and exported. Two corpora, because _trend.csv wants
+    three campaigns and the comparability rows want radio.
+    """
+    import csv as csvmod
+    import os
+    import tempfile
+    import synth_campaign as sc
+
+    def tables_and_csvs(recs):
+        md = rpt.build_report_markdown(recs)
+        lines = md.split("\n")
+        heading, seen = None, []
+        for i, ln in enumerate(lines):
+            if ln.startswith("#"):
+                heading = ln.lstrip("# ").strip()
+            elif (ln.startswith("|") and i + 1 < len(lines)
+                  and lines[i + 1].startswith("|---") and heading not in seen):
+                seen.append(heading)
+        with tempfile.TemporaryDirectory() as d:
+            paths = rpt.write_csv_tables(recs, os.path.join(d, "c"))
+            suffixes = {os.path.basename(p)[len("c_"):-len(".csv")] for p in paths}
+        return seen, suffixes
+
+    used, total = set(), 0
+    for label, recs in (
+            ("radio grid", sc.generate(points=8, repeats=5, radio=True,
+                                       campaigns=("base", "opt"))),
+            ("three campaigns", sc.generate(points=6, repeats=5,
+                                            campaigns=("r1", "r2", "r3")))):
+        headings, suffixes = tables_and_csvs(recs)
+        total += len(headings)
+        for h in headings:
+            hit = [k for k in _CSV_FOR_TABLE if h.startswith(k)]
+            assert len(hit) == 1, (
+                "%s renders a table under 「%s」 that no CSV is registered for — "
+                "an analyst can read it on the page and cannot rebuild it "
+                "(matched %s)" % (label, h, hit))
+            used.add(hit[0])
+            suffix = _CSV_FOR_TABLE[hit[0]]
+            assert suffix in suffixes, (
+                "「%s」 is mapped to _%s.csv, which write_csv_tables did not write "
+                "on the %s corpus; it wrote %s" % (h, suffix, label,
+                                                   sorted(suffixes)))
+    assert total >= 20, ("only %d table-bearing headings found across both "
+                         "corpora — the scan is broken, not the report" % total)
+    stale = sorted(set(_CSV_FOR_TABLE) - used)
+    assert not stale, ("registered headings that no corpus renders: %s — either "
+                       "the table is gone or the corpora stopped exercising it"
+                       % stale)
+
+
+def test_the_comparability_verdict_is_the_same_word_on_both_surfaces():
+    """D-304 gave the busy/idle comparability verdict a CSV. Existence is not
+    agreement: the export reads `changed` and `partial` a second time, and a
+    swap there would tell the analyst a place kept its cell while the page says
+    it did not — the direction that costs, since the verdict is what disqualifies
+    a busy/idle delta.
+
+    Self-guarded on the corpus: both non-trivial verdicts must actually occur,
+    or this compares nothing but 「同一小区」.
+    """
+    import csv as csvmod
+    import os
+    import tempfile
+    import synth_campaign as sc
+
+    recs = sc.generate(points=8, repeats=5, radio=True, campaigns=("base", "opt"))
+    md = rpt.build_report_markdown(recs)
+
+    printed, on = {}, False
+    for ln in md.split("\n"):
+        if ln.startswith("#"):
+            on = ln.lstrip("# ").startswith("忙闲可比性")
+            continue
+        if not on or not ln.startswith("|"):
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if cells[0] in ("点位",) or set("".join(cells)) <= set("- :"):
+            continue
+        verdict = ("CELL_CHANGED" if "CELL_CHANGED" in cells[-1]
+                   else "CELL_PARTIAL" if "CELL_PARTIAL" in cells[-1]
+                   else "SAME_CELL" if "同一小区" in cells[-1] else cells[-1])
+        printed[(cells[0], cells[1])] = verdict
+
+    with tempfile.TemporaryDirectory() as d:
+        path = [p for p in rpt.write_csv_tables(recs, os.path.join(d, "c"))
+                if p.endswith("_radio_comparability.csv")][0]
+        with open(path, encoding="utf-8-sig", newline="") as f:
+            exported = {(r["point_id"], r["carrier"]): r["verdict"]
+                        for r in csvmod.DictReader(f)}
+
+    assert set(printed) == set(exported), (
+        "places on the page %s, places in the file %s"
+        % (sorted(set(printed) - set(exported))[:3],
+           sorted(set(exported) - set(printed))[:3]))
+    for k in sorted(printed):
+        assert printed[k] == exported[k], (
+            "%s reads %s on the page and %s in the file"
+            % (k, printed[k], exported[k]))
+    got = set(printed.values())
+    assert {"CELL_CHANGED", "CELL_PARTIAL"} <= got, (
+        "corpus produced only %s — the verdicts that matter are untested" % got)
+
+
 def test_every_exported_table_says_whether_its_numbers_are_fabricated():
     """The red synthetic-data banner reached markdown and HTML and stopped there:
     write_csv_tables never called count_synthetic at all (D-303, §2.7).

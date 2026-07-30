@@ -1863,7 +1863,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     # The sample denominator behind every median above (D-96) — external analysis
     # without it re-creates the survivor bias the rollup exists to expose.
-    vcells = validity_rollup.analyze(records)["cells"]
+    validity = validity_rollup.analyze(records)
+    vcells = validity["cells"]
     p = prefix + "_validity.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = _TaggedWriter(f, synthetic)
@@ -1877,6 +1878,25 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         c["valid_low_confidence"], c["invalid"], c["unknown"],
                         _cell(c["valid_rate"]), _cell(c["below_min_rate"]),
                         ";".join(f"{r}:{n}" for r, n in c["reasons"].items()), _mixed(cell)])
+    written.append(p)
+
+    # The validity section's second table, unexported for the same reason radio's
+    # was (D-304): "did collection hold up across the trip days" is the signal
+    # D-145 wants read on the evening of day one, and it was page-only. Written
+    # under the same condition the section renders it, so the CSV bundle never
+    # carries a table the report does not show.
+    # The file is always written and the rows are conditional, not the other way
+    # round: a header with no rows says "no multi-day trend to show", while a
+    # missing file reads as "did the export break?" — the same reason the band
+    # distribution prints a zero-cell band instead of omitting it.
+    p = prefix + "_validity_trend.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = _TaggedWriter(f, synthetic)
+        w.writerow(["day", "attempted", "usable", "valid_rate"])
+        if len(validity["trend"]) > 1:
+            for t in validity["trend"]:
+                w.writerow([t["day"], t["attempted"], t["usable"],
+                            _cell(t["valid_rate"])])
     written.append(p)
 
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]
@@ -1945,7 +1965,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # verdict and the two medians are what produced it, so all three ride the
     # same row — reading the band without them cannot tell a weak cell from an
     # unmeasured one, which is the whole distinction this section carries.
-    rcells = radio_rollup.analyze(records, min_samples)["cells"]
+    radio = radio_rollup.analyze(records, min_samples)
+    rcells = radio["cells"]
     p = prefix + "_radio.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = _TaggedWriter(f, synthetic)
@@ -1961,6 +1982,29 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         "/".join(sorted(c["cell_keys"])), c["n"], c["n_with_radio"],
                         _cell(c["sampled_n_median"]), c["stale_samples"],
                         c["low_confidence"], c["thin_samples"], _bad(c)])
+    written.append(p)
+
+    # The radio section renders TWO tables and only the first was exported: the
+    # busy/idle comparability verdict lived on the page alone (D-304). It is not
+    # a footnote — 「CELL_CHANGED——该点位忙闲差不可单独归因于时段」 disqualifies one
+    # of the two remaining comparison axes for that place, and an analyst diffing
+    # busy against idle in _heat.csv had no column saying so. Keyed by place, not
+    # by cell, so it cannot ride on _radio.csv's rows.
+    p = prefix + "_radio_comparability.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = _TaggedWriter(f, synthetic)
+        w.writerow(["point_id", "carrier", "bands", "shared_cells", "verdict"])
+        for pl in radio["places"]:
+            # `changed` and `partial` are mutually exclusive by construction
+            # (one needs an empty intersection, the other a non-empty one), so
+            # the order is not load-bearing; what matters is that both surfaces
+            # read the same two fields, which a guard reconciles word for word.
+            verdict = ("CELL_CHANGED" if pl["changed"]
+                       else "CELL_PARTIAL" if pl["partial"] else "SAME_CELL")
+            w.writerow([pl["place"].get("point_id"), pl["place"].get("carrier"),
+                        "; ".join("%s:%s" % (b, "/".join(k))
+                                  for b, k in sorted(pl["bands"].items())),
+                        "/".join(pl["shared_cells"]), verdict])
     written.append(p)
 
     # The headline "did it get better" payloads (survey gap 6): before/after delta
