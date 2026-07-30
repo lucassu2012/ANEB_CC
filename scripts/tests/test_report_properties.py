@@ -488,20 +488,64 @@ def _columns(line):
     return len(_UNESCAPED_PIPE.split(line.strip().strip("|")))
 
 
+def _hostile_label_knobs():
+    """Every label dimension the fixture can stamp onto a record, read out of
+    its signature instead of typed here — a dimension added later is swept on
+    its own, which is the whole point (D-275: a criterion beats a list)."""
+    import inspect
+    from synth import kpi_scenario_records
+    return [n for n, p in inspect.signature(kpi_scenario_records).parameters.items()
+            if p.kind is inspect.Parameter.KEYWORD_ONLY and isinstance(p.default, str)]
+
+
 def test_hostile_labels_do_not_break_tables_or_html():
-    """point_id is human-typed. A '|' or newline in one used to split every
-    table in the report at once; HTML must stay escaped (D-128)."""
+    """A '|' or newline in a human-typed label splits the row it lands in, and
+    in a LABEL column that breaks every table at once (D-128).
+
+    The sweep varied point_id only — its docstring said as much — while carrier,
+    time_band, tier, campaign_id and profile_id are just as operator-supplied
+    and just as rendered. Feeding each of them found two live bugs: profile_id
+    reached the order-effect table raw (7 columns vs 8 on a pipe, 1 vs 7 on a
+    newline) and campaign_id reached publish_check's detail column raw (3 vs 4).
+    Both had shipped since those renderers were written. Nothing was subtle
+    about them; the guard simply never fed those dimensions (D-334).
+    """
     from synth import contractify, kpi_scenario_records
-    for pid in ("SZ|CBD-01", "SZ\nCBD", "<script>alert(1)</script>", "深圳-CBD-01",
-                "P" * 200):
-        recs = [contractify(r) for r in
-                kpi_scenario_records(6, aqs=90, kpi={"n1_rtt_p50_ms": 20}, point=pid)]
-        md = rpt.build_report_markdown(recs)
-        for chunk in re.split(r"(?m)^#{2,3} ", md)[1:]:
+    knobs = _hostile_label_knobs()
+    assert len(knobs) >= 5, f"fixture stopped exposing label knobs: {knobs}"
+
+    def _uniform(text, where):
+        """Assert every table in `text` is rectangular; return the number of
+        sections that actually held one — an empty width set satisfies `<= 1`
+        for free, so only the sections with a table are evidence (D-227)."""
+        n = 0
+        for chunk in re.split(r"(?m)^#{2,3} ", text)[1:]:
             widths = {_columns(ln) for ln in chunk.splitlines() if ln.startswith("| ")}
-            assert len(widths) <= 1, (pid, chunk.splitlines()[0], widths)
-        html = rpt.build_report_html(recs, "2026-01-01 00:00:00 +0800")
-        assert "<script>alert(1)</script>" not in html
+            assert len(widths) <= 1, (where, chunk.splitlines()[0], widths)
+            n += 1 if widths else 0
+        return n
+
+    tabled = 0
+    for knob in knobs:
+        for payload in ("SZ|CBD-01", "SZ\nCBD", "<script>alert(1)</script>",
+                        "深圳-CBD-01", "P" * 200):
+            recs = [contractify(r) for r in kpi_scenario_records(
+                6, aqs=90, kpi={"n1_rtt_p50_ms": 20}, **{knob: payload})]
+            tabled += _uniform(rpt.build_report_markdown(recs), (knob, payload))
+            html = rpt.build_report_html(recs, "2026-01-01 00:00:00 +0800")
+            assert "<script>alert(1)</script>" not in html, (knob, payload)
+            # ...and every standalone renderer, not only the ones the report
+            # assembles: publish_check's table appears in no report at all,
+            # which is exactly why its ragged row went unseen. _SWEEP is the
+            # derived list, so a renderer added later is fed too (D-231).
+            for name, render in _SWEEP.items():
+                out = render(recs)
+                if not isinstance(out, str):          # stability renders per KPI
+                    out = "\n".join(out)
+                tabled += _uniform(out, (name, knob, payload))
+    # 325 on the corpora above; the floor is what stops this passing on a
+    # corpus that quietly stopped producing tables at all (D-227)
+    _at_least(tabled, 300, "hostile-label sections that actually held a table")
 
 
 def test_every_markdown_table_has_a_uniform_column_count():

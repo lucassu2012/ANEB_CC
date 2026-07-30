@@ -583,7 +583,12 @@ def render_markdown(rows):
              "| 判定 | 检查项 | 说明 |", "|---|---|---|"]
     icon = {FAIL: "⛔ FAIL", WARN: "⚠ WARN", NA: "➖ N/A", PASS: "✅ PASS"}
     for r in rows:
-        lines.append(f"| {icon[r['severity']]} | {r['item']} | {r['detail']} |")
+        # detail carries record-derived text — campaign ids, cell labels,
+        # conflicting run_ids — so a '|' in a label split this row and the
+        # whole self-check table rendered as garbage (D-128's bug, one surface
+        # later). item is escaped too: same cell, same rule (D-334).
+        lines.append(f"| {icon[r['severity']]} | {cc.md_cell(r['item'])} | "
+                     f"{cc.md_cell(r['detail'])} |")
     fails = sum(1 for r in rows if r["severity"] == FAIL)
     warns = sum(1 for r in rows if r["severity"] == WARN)
     nas = sum(1 for r in rows if r["severity"] == NA)

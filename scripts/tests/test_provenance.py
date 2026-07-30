@@ -80,6 +80,29 @@ def test_render_markdown_shows_files_and_counts():
     assert "aneb-campaign-analysis/1.0" in md
 
 
+def test_a_pipe_in_an_input_filename_does_not_split_the_provenance_table():
+    """The first column of the provenance table is a basename, and a basename
+    may legally contain '|' on POSIX. Every other label column in the toolkit
+    goes through cc.md_cell; this one did not, so a file named `a|b.jsonl`
+    would add a column to the very table that exists to make the report
+    auditable (D-334, same shape as D-128).
+
+    No such file has to exist — compute() takes paths and file_sha256 returns
+    None for anything unreadable. The escape is a RENDERING concern only: the
+    sidecar JSON is data and must still carry the real name (D-128's rule,
+    per surface).
+    """
+    import re
+    stamp = "2026-01-01 00:00:00 +0800"
+    m = prov.compute(["/data/a|b.jsonl", "/data/plain.jsonl"], {}, {}, stamp)
+    md = prov.render_markdown(m)
+    rows = [ln for ln in md.splitlines() if ln.startswith("| ")]
+    unescaped = re.compile(r"(?<!\\)\|")
+    widths = {len(unescaped.split(ln.strip().strip("|"))) for ln in rows}
+    assert widths == {2}, (widths, rows)
+    assert any(i["file"] == "a|b.jsonl" for i in m["inputs"]), m["inputs"]
+
+
 def test_write_sidecar_roundtrip():
     with tempfile.TemporaryDirectory() as d:
         m = prov.compute([], {"kept": 1}, {"attr_kpi": "n1_rtt_p50_ms"}, generated_at="T")

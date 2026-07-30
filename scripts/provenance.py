@@ -24,6 +24,8 @@ import hashlib
 import json
 import os
 
+import campaign_common as cc
+
 TOOL_VERSION = "aneb-campaign-analysis/1.0"
 _SHORT = 12   # chars of sha256 shown inline (full hash kept in the sidecar JSON)
 
@@ -101,7 +103,9 @@ def render_markdown(prov):
     for inp in prov["inputs"]:
         sha = inp["sha256"]
         short = (sha[:_SHORT] + "…") if sha else "（不可读）"
-        lines.append(f"| {inp['file']} | `{short}` |")
+        # a basename may legally contain '|' on POSIX, and this is a table cell
+        # like any other — the sidecar JSON still carries the raw name (D-334)
+        lines.append(f"| {cc.md_cell(inp['file'])} | `{short}` |")
     lines.append("")
     return "\n".join(lines)
 

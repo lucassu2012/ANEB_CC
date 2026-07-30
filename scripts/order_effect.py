@@ -215,7 +215,10 @@ def render_markdown(res):
         if reconciled is False:
             notes.append("ROUNDING_UNRECONCILED")
         lines.append(
-            f"| {p['profile_id']} | {pos_txt} | {spread_s} | "
+            # md_cell, like every other label column: D-128 escaped point_id
+            # because a '|' or newline splits the row, and profile_id is the
+            # same kind of value reaching the same kind of cell (D-334)
+            f"| {cc.md_cell(p['profile_id'])} | {pos_txt} | {spread_s} | "
             f"{pct_s} | {overall_s} | "
             f"{verdict} | {'; '.join(notes) or '—'} |")
     return "\n".join(lines)
