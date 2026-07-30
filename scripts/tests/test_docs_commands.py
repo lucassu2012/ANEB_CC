@@ -54,6 +54,9 @@ _FLAG = re.compile(r"(?<![\w-])(--[a-zA-Z][\w-]*)")
 
 
 def test_a_fenced_command_never_names_a_config_the_repo_does_not_ship():
+    # ⚠ SOLE targeted guard (D-321's census): pointing a fenced --config at a
+    #   file the repo does not ship fails this test and nothing else. The scan
+    #   below checks the SCRIPT exists, never the file it is handed.
     """§0 of the runbook tells the operator, in as many words, not to hand-copy
     the grid — use the shipped file, at ../docs/campaign_grid_shenzhen.json.
     §3's daily coverage command then handed them `--config campaign_grid.json`,

@@ -17,6 +17,10 @@ from synth import make_record
 
 
 def test_the_per_run_copies_of_the_numeric_guards_match_the_shared_ones():
+    # ⚠ SOLE targeted guard on THREE behaviours, measured not assumed (D-321's
+    #   census): dropping the finiteness check in analyze_results.fnum, in its
+    #   median_or_none, or in dashboard.fnum fails this test and nothing else.
+    #   Remove it and a NaN reaches a printed median again, exit 0, no warning.
     """fnum exists THREE times: campaign_common, analyze_results, dashboard.
     Both CLIs commit to stdlib only in their docstrings and nothing imports
     them, so each carries its own copy. D-148 taught the campaign layer to
@@ -53,6 +57,9 @@ def test_the_per_run_copies_of_the_numeric_guards_match_the_shared_ones():
 
 
 def test_the_two_html_escapers_agree():
+    # ⚠ SOLE targeted guard (D-321's census): adding quote=False to either
+    #   esc() copy fails this test and nothing else in the suite. Remove it and
+    #   attribute context goes unescaped on one output surface only.
     """§2.14 says EVERY group of same-named implementations needs something
     forcing them to agree, and D-315 guarded two of the three: esc() was waved
     through as "byte-identical in both files today". Byte-identical is exactly

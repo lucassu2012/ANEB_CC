@@ -15,6 +15,11 @@ from synth import validity_records, make_record
 
 
 def test_one_shenzhen_field_day_is_one_trend_row():
+    # ⚠ SOLE targeted guard on TWO behaviours (D-321's census): bucketing the
+    #   trend by UTC again, and freezing the shared offset in a default argument
+    #   so it moves the heading but not the numbers. Each fails this test and
+    #   nothing else. Note the archived-threshold perturbation does NOT cover
+    #   the second — it is satisfied by any change to the report at all.
     """The UTC day rolls over at 08:00 CST, and the idle band explicitly covers
     local hours 0..7 — a deep-night idle baseline is a thing an operator goes
     out to collect. Bucketing by UTC therefore put a 03:00 session on the

@@ -1791,6 +1791,10 @@ _SECTION_NEEDS_INPUT_THE_REPORT_NEVER_PASSES = {
 
 
 def test_every_section_the_report_can_render_has_been_looked_at():
+    # ⚠ SOLE targeted guard (D-321's census): renaming a section heading the
+    #   report can print fails this test and nothing else — the content guards
+    #   below it match headings as substrings and sail past a rename. Remove
+    #   this and the next gated section arrives unpinned, silently.
     """Both sides derived, neither hand-listed (D-275).
 
     What sections exist: scraped from the modules campaign_report actually
