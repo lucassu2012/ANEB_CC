@@ -1876,6 +1876,39 @@ def test_the_producers_additive_scoring_blocks_do_not_move_the_report():
             "the report: %s" % diff[:3])
 
 
+def test_every_kpi_this_layer_reads_is_produced_by_the_rehearsal():
+    """Closing the other half of D-309's question, at the level where the numbers
+    live. Measured against ResultReporter: the app writes twenty KPI fields, the
+    rehearsal produces sixteen, and this layer reads four — and all four are both
+    produced by the app and exercised by the rehearsal (D-310). The four the app
+    writes that the rehearsal skips are alternate variants (…_incl_coalesced,
+    …_incl_resume, t5_resume_p95_ms, u1_goodput_excl_slow_start_mbps) that
+    nothing here reads, so no consumer is starved.
+
+    What is worth holding is the direction that would break silently: add one of
+    those variants to the read set and the rehearsal cannot feed it, so the heat
+    card for it renders empty and every rehearsal still passes. Both sides are
+    derived — the readers from the constants, the corpus from the generator — so
+    neither is a list to maintain.
+    """
+    import synth_campaign as sc
+
+    readers = set(attribution.ATTRIBUTABLE_KPIS) | set(rpt.DEFAULT_KPI_HEAT)
+    assert len(readers) >= 4, ("the read set collapsed to %s; this guard would "
+                               "be asserting almost nothing" % sorted(readers))
+
+    produced = set()
+    for rec in sc.generate(points=2, repeats=5, campaigns=("base",)):
+        for sc_obj in rec.get("scenarios") or []:
+            produced |= set(sc_obj.get("kpi") or {})
+
+    missing = sorted(readers - produced)
+    assert not missing, (
+        "the report reads %s, and the rehearsal corpus never produces them — "
+        "their sections would render empty and every rehearsal would still "
+        "pass" % missing)
+
+
 def test_every_exported_table_says_whether_its_numbers_are_fabricated():
     """The red synthetic-data banner reached markdown and HTML and stopped there:
     write_csv_tables never called count_synthetic at all (D-303, §2.7).
