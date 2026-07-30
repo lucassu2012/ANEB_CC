@@ -50,6 +50,16 @@ def esc(s):
     return html.escape(str(s))
 
 
+# The boundary-of-claim line, in ONE place because both surfaces owe the reader
+# the same sentence (D-262). D-140 already found that notices living in the
+# markdown preamble never reach the HTML and fixed the corpus warnings; this
+# banner was the same shape, still markdown-only — so the page most likely to be
+# forwarded to a stakeholder stated the boundary only in its footer (D-323).
+CLAIM_SCOPE_NOTE = ("claim_scope: `application_end_to_end_to_probe_node` — "
+                    "应用层端到指定节点路径；**不表述为** MOS / 无线层评级 / "
+                    "运营商全网 SLA。")
+
+
 # ---------------------------------------------------------------- inventory
 
 # The subset of VALUE_RANGES that lives on a scenario's kpi map. The rest sit on
@@ -1135,8 +1145,7 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             "",
         ]
     parts += [
-        "> claim_scope: `application_end_to_end_to_probe_node` — 应用层端到指定节点路径；"
-        "**不表述为** MOS / 无线层评级 / 运营商全网 SLA。",
+        "> " + CLAIM_SCOPE_NOTE,
         f"> 输入记录：{inv['records']}；含 run.aqs：{inv['aqs_present']}；"
         f"含 campaign 标签：{inv['with_campaign']}。样本地板 min_samples={min_samples}。",
         "",
@@ -1572,6 +1581,10 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # same corpus-wide notices the markdown carries — they used to exist only in
     # the markdown preamble, which the md->html conversion drops (D-140)
     warn += "".join(f"<p class='warn'>⚠ {_md_inline(w)}</p>" for w in corpus_warnings(inv))
+    # Rendered through _md_inline for the same reason the corpus warnings above
+    # are: the constant is written once, in markdown, and each surface renders
+    # it its own way (D-262/D-323).
+    claim_note = _md_inline(CLAIM_SCOPE_NOTE)
     # Same unmissable synthetic-data banner as the markdown report (D-116).
     n_synth = cc.count_synthetic(records)
     synth_banner = ("" if not n_synth else
@@ -1609,6 +1622,7 @@ footer{{margin-top:36px;font-size:12px;color:#5f6368;border-top:1px solid #ddd;p
 </style></head><body><div class="wrap">
 <h1>ANEB 战役级综合报告</h1>
 {synth_banner}
+<p class="note">{claim_note}</p>
 <p class="note">生成时间：{esc(generated_at)} · 记录 {inv['records']} · 含 AQS {inv['aqs_present']} · 含标签 {inv['with_campaign']} · min_samples={min_samples}</p>
 {warn}
 <h2>点位 × 忙闲 × 运营商 热力卡（AQS 中位；* = 样本不足 low_conf）</h2>

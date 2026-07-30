@@ -2743,6 +2743,12 @@ def test_a_judgement_sentence_never_reaches_only_one_surface():
         ("本轮不足以判定好坏", "pilot"),   # the round is unusable, D-313
         ("UTC+", "wide"),                  # which day the trend bucketed by, D-318
         ("失效原因分布", "pilot"),         # why the attempts were lost, D-319
+        # The boundary of claim. A full sweep of every judgement-bearing
+        # sentence found exactly one that reached the markdown and not the
+        # HTML, and it was this one — the sentence whose whole job is to stop
+        # the report being read as an operator-network or MOS rating, missing
+        # from the surface most likely to be forwarded (D-323).
+        ("不表述为", "wide"),
     ]
     for phrase, corpus in sentences:
         md, html = rendered[corpus]
