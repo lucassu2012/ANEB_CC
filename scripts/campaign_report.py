@@ -639,6 +639,30 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         bullets.append(f"**序位效应**：{osum['judged']} 处均未见序位偏倚"
                        f"（反平衡奏效）{conf_note}。")
 
+    # Radio context is the first-choice covariate since the three-tier
+    # decomposition was cancelled (D-305): without it, a bad cell cannot be told
+    # apart from a weak-signal cell. The gate has said so since D-305 and the
+    # section says 「采集缺口，不是「信号良好」」 — the summary said nothing, so a
+    # PO reading only the top never learned the campaign collected none of it
+    # (D-339, same shape as D-338's order effect).
+    _radio = radio_rollup.analyze(records, min_samples)
+    _rcells = _radio["cells"]
+    if not _radio["any_block"]:
+        bullets.append("**无线上下文**：本轮语料**完全没有**——**无从核对**结论里是否"
+                       "混着信号差异（**采集缺口，不是「信号良好」**；生产侧接线规格见 "
+                       "`docs/RADIO_CONTEXT_WIRING_SPEC.md`）。")
+    elif not _radio["any_radio"]:
+        bullets.append("**无线上下文**：全部无线样本标 stale 已排除——"
+                       "**排除不等于没问题**，须核对采集侧的取样新鲜度窗口。")
+    else:
+        _thin = [c for c in _rcells if c["stale_samples"] or c["thin_samples"]]
+        if _thin:
+            bullets.append(f"**无线上下文**：{len(_thin)}/{len(_rcells)} 个格的无线证据 "
+                           "stale 或过薄——**这些格不足以据此排除信号因素**。")
+        else:
+            bullets.append(f"**无线上下文**：{len(_rcells)} 个格均有可用无线证据"
+                           "（可据此排除信号因素）。")
+
     tr = transport_rollup.analyze(records, min_samples)
     # Δ<0 alone is not "cellular is worse" — it is a difference that may be
     # smaller than the repeat spread. On the rehearsal grid every one of the

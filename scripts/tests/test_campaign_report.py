@@ -827,6 +827,33 @@ def test_rollup_csvs_mark_pooled_campaigns():
             assert all(r["mixed_campaigns"] == "SYNTH-base/SYNTH-opt" for r in rows), table
 
 
+def test_the_summary_and_the_gate_answer_radio_context_the_same_way():
+    """Radio context is the first-choice covariate since the three-tier
+    decomposition was cancelled (D-48/D-305): without it a bad cell cannot be
+    told apart from a weak-signal cell. The gate has said so since D-305 and
+    the section says 「采集缺口，不是「信号良好」」 — the summary said nothing at
+    all, so a PO reading only the top never learned the campaign collected none
+    of it (D-339, the same shape as D-338).
+    """
+    import publish_check as pc
+    from test_radio_rollup import _radio, _rec
+
+    none_ctx = [_rec(radios=[None, None]) for _ in range(6)]
+    summary = _section(rpt.build_report_markdown(none_ctx), "摘要")
+    gate = [r for r in pc.check(none_ctx) if r["item"] == "无线上下文"][0]
+    assert gate["severity"] == pc.WARN, gate
+    assert "无线上下文" in summary and "无从核对" in summary, summary
+    assert "采集缺口" in summary, "absence must not read as 「signal was fine」"
+
+    # …and the half that matters: a corpus that DID collect it is not nagged
+    good = [_rec(radios=[_radio(), _radio()]) for _ in range(6)]
+    summary2 = _section(rpt.build_report_markdown(good), "摘要")
+    gate2 = [r for r in pc.check(good) if r["item"] == "无线上下文"][0]
+    assert gate2["severity"] == pc.PASS, gate2
+    assert "均有可用无线证据" in summary2, summary2
+    assert "采集缺口" not in summary2, summary2
+
+
 def test_the_summary_and_the_gate_answer_order_effect_the_same_way():
     """publish_check gated on order effect and the summary never mentioned it,
     so the gate could WARN 「疑似位置-KPI 相关」 against a summary that said
