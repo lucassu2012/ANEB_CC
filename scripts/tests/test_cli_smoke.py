@@ -42,6 +42,51 @@ def _fixture(d):
     return path
 
 
+def test_a_mistyped_output_path_does_not_answer_with_a_traceback():
+    """Input robustness has had five passes; the output side had none. All four
+    destination flags answered a missing directory with a raw traceback, and
+    since markdown is written before CSV, `--md ok.md --csv nope/c` left half a
+    deliverable set behind one (D-306). Mistyping the destination is an
+    end-of-field-day mistake, not an exotic one.
+
+    The flag list is read out of --help rather than typed here: a future flag
+    that says it writes somewhere fails this until it is covered. COLUMNS is
+    widened so argparse does not wrap the help text out of reach.
+    """
+    env = dict(os.environ, COLUMNS="200", PYTHONIOENCODING="utf-8")
+    helptext = subprocess.run(
+        [sys.executable, os.path.join(SCRIPTS, "campaign_report.py"), "--help"],
+        capture_output=True, text=True, encoding="utf-8", cwd=SCRIPTS,
+        env=env).stdout
+    # argparse puts the help on the NEXT line whenever the invocation is longer
+    # than max_help_position — `--provenance PROVENANCE` is — so continuation
+    # lines have to be folded back into their flag before looking for "write".
+    entries, current = {}, None
+    for line in helptext.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("--"):
+            current = stripped.split()[0].split("=")[0]
+            entries[current] = stripped
+        elif current and line.startswith("  ") and stripped:
+            entries[current] += " " + stripped
+    flags = {f for f, text in entries.items() if "write" in text}
+    assert flags == {"--md", "--html", "--csv", "--provenance"}, (
+        "the set of writing flags changed: %s — cover the new one here"
+        % sorted(flags))
+
+    for flag in sorted(flags):
+        with tempfile.TemporaryDirectory() as d:
+            src = _fixture(d)
+            target = os.path.join(d, "nope", "out")
+            r = _run("campaign_report.py", src, flag, target)
+            assert r.returncode == 2, (flag, r.returncode, r.stderr[:400])
+            assert "Traceback" not in r.stderr, (flag, r.stderr[:400])
+            assert "输出路径不可用" in r.stderr, (flag, r.stderr[:400])
+            left = sorted(os.listdir(d))
+            assert left == [os.path.basename(src)], (
+                "%s produced files before refusing: %s" % (flag, left))
+
+
 def test_report_cli_runs():
     with tempfile.TemporaryDirectory() as d:
         r = _run("campaign_report.py", _fixture(d))

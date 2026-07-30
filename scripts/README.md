@@ -232,6 +232,13 @@ advisory 交 schema 属主）。exit 0/1/2（2=无语料或 schema 不可读→N
 **`campaign_report.py` 默认在入口跑同一检查**（违规拒绝出报告，`--skip-contract-check`
 为显式逃生门）。
 
+**`campaign_report.py` 自身的退出码**（均已实测）：`0`=已产出；`1`=契约门 FAIL、拒绝出
+报告；`2`=用法/环境问题——空语料（`NOT_EXECUTED`）、`--campaign` 打错（会列出语料里实际
+有哪些战役）、**输出路径不可用**（目录不存在，或把目录当成了文件名）。**输出路径在读语料
+之前就检**（D-306）：此前四个输出旗标遇到打错的路径都抛 Python 栈回溯，而 md 先于 csv 写
+出，`--md ok.md --csv nope/c` 会先落一份 markdown 再崩——**退出时磁盘上不会再留下半套交付
+物**。
+
 ### `validate_spec_scoring.py` — spec 评分包门（D-102，`spec-scoring-unit`，需 pyyaml）
 补齐无-Android 路径的评分规则包守卫（权威对拍 `SpecScoringParityTest.kt` 受 Android
 工具链门控）：weights 每表 Σ=1.0(±1e-9)+version_id；anchors 各表 points 按值严格升序、

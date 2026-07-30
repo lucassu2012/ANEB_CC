@@ -24,6 +24,7 @@ Usage:
 import argparse
 import csv
 import html
+import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -2186,6 +2187,38 @@ def contract_gate(records):
     return errors
 
 
+def _preflight_outputs(args):
+    """Every destination this run will write to, checked before it does any work.
+
+    Mistyping the output path is an end-of-field-day mistake, and all four flags
+    answered it with a raw traceback (D-306). Worse, markdown is written before
+    CSV, so `--md ok.md --csv nope/c` produced half a deliverable set and then a
+    stack trace — the operator cannot tell from that what exists on disk.
+
+    Only the enumerable mistakes are caught here: a directory that is not there,
+    and a directory handed over where a filename belongs. A directory that
+    exists but cannot be written is not decidable in advance on Windows, so it
+    is left to the write itself rather than probed with a scratch file.
+    """
+    problems = []
+    for flag, path in (("--md", args.md), ("--html", args.html),
+                       ("--provenance", args.provenance)):
+        if not path:
+            continue
+        parent = os.path.dirname(path)
+        if parent and not os.path.isdir(parent):
+            problems.append(f"{flag} {path}：目录 `{parent}` 不存在")
+        elif os.path.isdir(path):
+            problems.append(f"{flag} {path}：这是一个目录，不是文件名")
+    # --csv takes a PREFIX, so only its directory is a path; an existing
+    # directory as the prefix is legal (files land beside it) and not flagged.
+    if args.csv:
+        parent = os.path.dirname(args.csv)
+        if parent and not os.path.isdir(parent):
+            problems.append(f"--csv {args.csv}：目录 `{parent}` 不存在")
+    return problems
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="ANEB campaign-level comprehensive report")
     ap.add_argument("inputs", nargs="+", help="results JSONL files / globs")
@@ -2206,6 +2239,13 @@ def main(argv):
                     help="bypass the input contract gate (emergency escape hatch; "
                          "the report loses its 'validated input' claim)")
     args = ap.parse_args(argv)
+
+    bad_outputs = _preflight_outputs(args)
+    if bad_outputs:
+        for b in bad_outputs:
+            print("输出路径不可用：" + b, file=sys.stderr)
+        print("（先建好目录或改路径再跑；本次未产出任何文件）", file=sys.stderr)
+        return 2
 
     cc.force_utf8_stdout()
     from datetime import datetime, timezone
