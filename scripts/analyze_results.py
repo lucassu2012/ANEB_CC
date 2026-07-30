@@ -12,6 +12,7 @@ is still evolving (kpi_set / aqs_version are read from the records themselves).
 import json
 import sys
 import glob
+import math
 import statistics
 from collections import defaultdict
 
@@ -33,11 +34,26 @@ def load_records(patterns):
 
 
 def fnum(v):
-    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    """Numeric-or-None guard. Mirrors campaign_common.fnum, including D-148's
+    rejection of NaN/±Infinity — which this copy did not have.
+
+    Python's json module accepts the bare NaN/Infinity literals even though the
+    JSON spec forbids them, so a producer or a converting tool can put one in a
+    corpus. Measured here before fixing: one NaN in one scenario's t1_ttft_ms
+    made this tool print `| t1_ttft_ms | nan | 20 |` — the median of twenty
+    samples destroyed by one of them, exit 0, no warning (D-314).
+    """
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    return v if math.isfinite(v) else None
 
 
 def median_or_none(vals):
-    vals = [v for v in vals if v is not None]
+    # Defence in depth, as campaign_common._finite is for the campaign layer: no
+    # path may smuggle a non-finite value into a sort, because NaN does not just
+    # spoil its own row, it poisons its neighbours' median (D-148/D-314).
+    vals = [v for v in vals
+            if v is not None and not (isinstance(v, float) and not math.isfinite(v))]
     return statistics.median(vals) if vals else None
 
 

@@ -16,6 +16,38 @@ import dashboard as db
 from synth import make_record
 
 
+def test_the_per_run_copies_of_the_numeric_guards_match_the_shared_ones():
+    """analyze_results.py is a standalone CLI — its docstring says stdlib only,
+    and nothing imports it — so it carries its own fnum and median. D-148 taught
+    the campaign layer to reject NaN and Infinity, and that fix never reached
+    this copy: one NaN in one scenario made the tool print
+    `| t1_ttft_ms | nan | 20 |`, the median of twenty samples destroyed by one
+    of them, exit 0 and no warning (D-314).
+
+    The duplication stays — making the tool depend on campaign_common would
+    change what it is — but the divergence is pinned here. Both implementations
+    must answer the same on every value, so fixing only one of them fails.
+    """
+    import math
+    import analyze_results as ar
+    import campaign_common as cc
+
+    values = [0, 1, -1, 2.5, float("nan"), float("inf"), float("-inf"),
+              True, False, None, "5", []]
+    assert any(isinstance(v, float) and not math.isfinite(v) for v in values), \
+        "no non-finite value in the battery; this guard checks nothing"
+
+    for v in values:
+        a, b = ar.fnum(v), cc.fnum(v)
+        assert a == b or (a is None and b is None), (v, a, b)
+
+    poisoned = [10, 20, float("nan"), 40, 50]
+    got = ar.median_or_none(poisoned)
+    assert got == cc.median(poisoned), (got, cc.median(poisoned))
+    assert got is not None and math.isfinite(got), (
+        "one NaN still poisons the median of the values around it: %r" % got)
+
+
 def _rec(*, kpi=None, hist=None, aqs=90):
     rec = make_record(aqs=aqs, scenarios=[("s1_chat", dict(kpi or {}))])
     if hist is not None:
