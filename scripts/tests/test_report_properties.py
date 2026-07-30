@@ -2709,6 +2709,51 @@ def _html_section_keys(html):
             for m in re.finditer(r"<h[1-6][^>]*>(.*?)</h[1-6]>", html, re.S)}
 
 
+def test_a_judgement_sentence_never_reaches_only_one_surface():
+    """The section-level check below is keyed loosely on purpose, so a SENTENCE
+    inside a section can go markdown-only and sail past it. The sentences that
+    matter most for that are the ones carrying a judgement rather than a number
+    — 「本轮不足以判定好坏」 tells the reader the whole round is unusable, and a
+    reader who only got the HTML would never see it (D-322).
+
+    This list is hand-written and carries the blind spot D-275 warns about. The
+    derived check is the section-level one; this covers the layer beneath it,
+    where no derivation was available — "which sentences carry a judgement" is
+    not something the source can be asked.
+
+    Measured but NOT covered here: the provenance line's 「去重丢」 count. It is
+    produced by load_records, so an in-process render never sees it; a CLI run
+    listing one file twice showed it on both surfaces, but that was a probe, not
+    a guard.
+    """
+    import synth_campaign as _sc
+
+    stamp = "2026-01-01 00:00:00 +0800"
+    corpora = {
+        # one tier, three repeats: every heat cell falls below the sample floor,
+        # which is what makes the whole-round caveat render at all (D-313)
+        "pilot": _sc.generate(points=6, repeats=3, campaigns=("base",),
+                              tiers=("metro",)),
+        "wide": _sc.generate(points=6, repeats=5, campaigns=("base", "opt")),
+    }
+    rendered = {k: (rpt.build_report_markdown(v), rpt.build_report_html(v, stamp))
+                for k, v in corpora.items()}
+
+    sentences = [
+        ("本轮不足以判定好坏", "pilot"),   # the round is unusable, D-313
+        ("UTC+", "wide"),                  # which day the trend bucketed by, D-318
+        ("失效原因分布", "pilot"),         # why the attempts were lost, D-319
+    ]
+    for phrase, corpus in sentences:
+        md, html = rendered[corpus]
+        assert phrase in md, (
+            "%r does not render on the %s corpus, so comparing the surfaces "
+            "proves nothing about it" % (phrase, corpus))
+        assert phrase in html, (
+            "%r reaches the markdown and not the HTML: a reader handed the page "
+            "never sees it (§2.6)" % phrase)
+
+
 def test_every_markdown_section_reaches_the_html():
     """§2.6: the delivery surfaces carry the same information. What stood behind
     it was a marker-level check (`test_every_attribution_marker_reaches_all_three
