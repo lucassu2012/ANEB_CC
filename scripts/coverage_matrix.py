@@ -47,13 +47,43 @@ def observed_cells(records):
     return counts
 
 
+def repeat_spread(records):
+    """{cell -> (distinct run.repeat_index, records whose index is missing)}.
+
+    D3 asks for 11 REPEATS per cell; this matrix counted RECORDS. Twelve records
+    that are three repeats re-run four times read as COVERED, identically to
+    twelve distinct ones — measured, not argued. run_id de-duplication cannot
+    see it either: a crash-and-retry writes a NEW run_id carrying the SAME
+    repeat_index (D-340).
+
+    Same usable-record filter as observed_cells, word for word, or the two
+    numbers on one row would not be comparable. A missing index counts as
+    unknown, never as one more repeat (R-10).
+    """
+    seen, unknown = defaultdict(set), defaultdict(int)
+    for rec in records:
+        if cc.run_aqs(rec) is None:
+            continue
+        key = tuple(cc.campaign_labels(rec)[d] for d in CELL_DIMS)
+        ri = cc.run_obj(rec).get("repeat_index")
+        if isinstance(ri, int) and not isinstance(ri, bool):
+            seen[key].add(ri)
+        else:
+            unknown[key] += 1
+    return {k: (len(seen.get(k) or ()), unknown.get(k, 0))
+            for k in set(seen) | set(unknown)}
+
+
 def analyze(records, target=None, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """target: {'point_id':[...], 'carrier':[...], 'time_band':[...]} or None."""
     observed = observed_cells(records)
+    spread = repeat_spread(records)
 
     if not target or not all(target.get(d) for d in CELL_DIMS):
         # Descriptive mode: no target grid — report what was observed, no invention.
         cells = [{"cell": dict(zip(CELL_DIMS, k)), "samples": observed[k],
+                  "distinct_repeats": spread.get(k, (0, 0))[0],
+                  "repeats_unknown": spread.get(k, (0, 0))[1],
                   "status": "COVERED" if observed[k] >= min_samples else "UNDER_SAMPLED"}
                  for k in sorted(observed)]
         return {"has_target": False, "min_samples": min_samples, "planned_total": None,
@@ -71,7 +101,10 @@ def analyze(records, target=None, min_samples=cc.DEFAULT_MIN_SAMPLES):
         else:
             status = "COVERED"
             covered += 1
-        cells.append({"cell": dict(zip(CELL_DIMS, key)), "samples": n, "status": status})
+        d_rep, u_rep = spread.get(key, (0, 0))
+        cells.append({"cell": dict(zip(CELL_DIMS, key)), "samples": n,
+                      "distinct_repeats": d_rep, "repeats_unknown": u_rep,
+                      "status": status})
     off_plan = [{"cell": dict(zip(CELL_DIMS, k)), "samples": observed[k]}
                 for k in sorted(observed) if k not in planned_set]
     total = len(planned)
@@ -104,11 +137,29 @@ def render_markdown(res):
         lines.append("_无联合单元。_")
         return "\n".join(lines)
 
-    lines += ["| 点位 | 运营商 | 时段 | 样本 | 状态 |", "|---|---|---|---|---|"]
+    # 「不同重复」 beside 「样本」: D3 asks for 11 REPEATS and this table counted
+    # RECORDS, so twelve records that are three repeats re-run four times read
+    # exactly like twelve distinct ones (D-340).
+    lines += ["| 点位 | 运营商 | 时段 | 样本 | 不同重复 | 状态 |",
+              "|---|---|---|---|---|---|"]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}   # labels are human-typed
+        d_rep, u_rep = c.get("distinct_repeats"), c.get("repeats_unknown")
+        # None is not zero on any surface — the guard that exists to stop that
+        # caught this column the moment it was written (R-10)
+        rep = (cc.fmt_num(None, 0) if d_rep is None else f"{d_rep}") \
+            + (f"(+{u_rep} 无编号)" if u_rep else "")
+        # a record with no repeat_index is not a repeat we can vouch for, so it
+        # is never folded into the distinct count — but it still counts toward
+        # `samples`, which is why the reuse test allows for it. And when the
+        # sample count is not a number, reuse is not judgeable: say nothing
+        # rather than compare against a stand-in zero.
+        if (isinstance(c.get("samples"), int) and d_rep is not None
+                and c["samples"] > d_rep + (u_rep or 0)):
+            rep += " **REPEATS_REUSED**"
         lines.append(f"| {cl['point_id']} | {cl['carrier']} | {cl['time_band']} | "
-                     f"{c['samples']} | {_STATUS_LABEL.get(c['status'], c['status'])} |")
+                     f"{c['samples']} | {rep} | "
+                     f"{_STATUS_LABEL.get(c['status'], c['status'])} |")
     if res["off_plan"]:
         lines += ["", "### 计划外已测单元（不在目标网格；疑似误标或未规划点位）", "",
                   "| 点位 | 运营商 | 时段 | 样本 |", "|---|---|---|---|"]
