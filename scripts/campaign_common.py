@@ -366,6 +366,20 @@ def load_records(patterns, dedupe=True, stats=None, quiet=False):
                                     st["duplicates"] += 1
                                     if seen[rid] != canon and rid not in st["conflicts"]:
                                         st["conflicts"].append(rid)
+                                        # Malformed lines and unreadable files
+                                        # already print here; a CONFLICT did
+                                        # not, so the thirteen section CLIs
+                                        # that never ask for stats analysed a
+                                        # corpus where two runs disagree under
+                                        # one id and said nothing (D-331).
+                                        # Benign re-exports stay quiet on
+                                        # purpose: D-09 dual-write makes them
+                                        # expected, and warning would be noise.
+                                        if not quiet:
+                                            print(f"conflicting run_id {rid} in "
+                                                  f"{path}:{lineno} — same id, "
+                                                  "different body; kept the first",
+                                                  file=sys.stderr)
                                     continue
                                 seen[rid] = canon
                         records.append(rec)

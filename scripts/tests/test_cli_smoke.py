@@ -119,6 +119,44 @@ def test_the_documented_batch_workflow_creates_its_output_directory():
             "a prefix flag must not create the parent it was pointed at")
 
 
+def test_a_section_cli_says_when_two_runs_disagree():
+    """Thirteen section CLIs never ask load_records for its counters. Malformed
+    lines and unreadable files still reach them, because the loader prints one
+    line per skip — but a CONFLICTING run_id printed nothing, so those tools
+    computed medians over a corpus where two runs disagree about what happened
+    and said not a word (D-331).
+
+    Fixed where it is known rather than in thirteen places (§2.14). Exit codes
+    are untouched: this only tells, it does not gate.
+    """
+    from synth import make_record
+
+    recs = [make_record(aqs=90, run_id="R-1"), make_record(aqs=80, run_id="R-2")]
+    clash = json.loads(json.dumps(recs[0]))
+    clash["run"]["aqs"]["score"] = 11          # same id, different body
+
+    with tempfile.TemporaryDirectory() as d:
+        # A BENIGN re-export, not a corpus without duplicates: the half most
+        # easily got wrong is warning on D-09 dual-write, and a corpus with no
+        # repeat at all would never exercise it.
+        clean_p = os.path.join(d, "clean.jsonl")
+        _write_jsonl(clean_p, list(recs) + [json.loads(json.dumps(recs[0]))])
+        clean = _run("stability.py", clean_p)
+
+        dirty_p = os.path.join(d, "dirty.jsonl")
+        _write_jsonl(dirty_p, list(recs) + [clash])
+        dirty = _run("stability.py", dirty_p)
+
+    assert "conflicting run_id" not in clean.stderr, (
+        "the warning fires without a conflict, so seeing it on the dirty "
+        "corpus would prove nothing: %s" % clean.stderr[:200])
+    assert "conflicting run_id R-1" in dirty.stderr, (
+        "a section CLI analysed a corpus with two disagreeing runs and said "
+        "nothing: %r" % dirty.stderr[:300])
+    assert dirty.returncode == clean.returncode, (
+        "telling the operator must not change whether the tool succeeds")
+
+
 def test_a_file_that_cannot_be_read_stops_the_report():
     """The report's front door refuses a damaged corpus, citing corpus_health's
     ERROR classification — and listed two of its three. load_records catches
