@@ -119,6 +119,37 @@ def test_the_documented_batch_workflow_creates_its_output_directory():
             "a prefix flag must not create the parent it was pointed at")
 
 
+def test_a_duplicated_corpus_says_what_it_dropped():
+    """Both per-run CLIs now de-duplicate by run.run_id (D-315). Dropping half
+    the input without a word is the same fault as counting it twice, so each
+    must say so on the surface its reader actually looks at: stdout for
+    analyze_results, the page itself for dashboard — stdout scrolls away and
+    the html is the deliverable.
+    """
+    from synth import make_record
+
+    recs = [make_record(aqs=90, run_id="R-1"), make_record(aqs=80, run_id="R-2")]
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "dup.jsonl")
+        _write_jsonl(path, list(recs) + [recs[0]])  # R-1 written twice
+
+        r = _run("analyze_results.py", path)
+        assert r.returncode == 0, r.stderr
+        assert "records: **2**" in r.stdout, r.stdout[:300]
+        assert "dropped 1 repeat run_id" in r.stdout, (
+            "analyze_results dropped a record without saying so: %r"
+            % r.stdout[:300])
+
+        out = os.path.join(d, "d.html")
+        r = _run("dashboard.py", path, "-o", out)
+        assert r.returncode == 0, r.stderr
+        assert "records=2" in r.stdout, r.stdout[:300]
+        assert "dropped=1" in r.stdout, r.stdout[:300]
+        page = open(out, encoding="utf-8").read()
+        assert "去重丢 1" in page, (
+            "dashboard dropped a record and the page does not say so")
+
+
 def test_report_cli_runs():
     with tempfile.TemporaryDirectory() as d:
         r = _run("campaign_report.py", _fixture(d))

@@ -17,8 +17,22 @@ import statistics
 from collections import defaultdict
 
 
-def load_records(patterns):
-    records = []
+def load_records(patterns, stats=None):
+    """Load JSONL records, de-duplicating by `run.run_id` (first wins).
+
+    Mirrors campaign_common.load_records' rule. Measured before this was added:
+    listing the same file twice — trivial with overlapping globs, or with D-09
+    dual-write files — turned a 20-run corpus into `records: 40` and doubled
+    every per-scenario n. Nothing was wrong on screen; the numbers were simply
+    inflated, which is the exact failure the campaign loader exists to prevent
+    (D-315). A record with no run_id cannot be deduped: it is always kept, never
+    merged under a fabricated key (R-10).
+
+    Pass a dict as `stats` to receive {'read', 'dropped'} so the caller can say
+    what it dropped — dropping silently is the same fault in the other
+    direction.
+    """
+    records, seen, read, dropped = [], set(), 0, 0
     for pat in patterns:
         for path in glob.glob(pat):
             with open(path, encoding="utf-8") as f:
@@ -27,9 +41,20 @@ def load_records(patterns):
                     if not line:
                         continue
                     try:
-                        records.append(json.loads(line))
+                        rec = json.loads(line)
                     except json.JSONDecodeError as e:
                         print(f"<!-- skip {path}:{lineno}: {e} -->", file=sys.stderr)
+                        continue
+                    read += 1
+                    rid = (rec.get("run") or {}).get("run_id") if isinstance(rec, dict) else None
+                    if rid is not None:
+                        if rid in seen:
+                            dropped += 1
+                            continue
+                        seen.add(rid)
+                    records.append(rec)
+    if stats is not None:
+        stats["read"], stats["dropped"] = read, dropped
     return records
 
 
@@ -67,8 +92,13 @@ def main(argv):
         print(__doc__)
         return 1
 
-    recs = load_records(argv)
-    print(f"# ANEB results summary\n\nrecords: **{len(recs)}**\n")
+    stats = {}
+    recs = load_records(argv, stats)
+    dup = stats.get("dropped", 0)
+    # Say what was dropped. A loader that silently discards half its input is
+    # the mirror image of one that silently counts it twice (D-315).
+    note = f" (read {stats['read']} lines, dropped {dup} repeat run_id)" if dup else ""
+    print(f"# ANEB results summary\n\nrecords: **{len(recs)}**{note}\n")
     if not recs:
         return 0
 

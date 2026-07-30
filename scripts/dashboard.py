@@ -22,6 +22,7 @@ import argparse
 import glob
 import html
 import json
+import math
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -36,8 +37,20 @@ GRADE_COLORS = {  # four-level grading, KpiGrading.kt
 VALIDITY_COLORS = {"valid": "#137333", "degraded": "#b06000", "invalid": "#c5221f"}
 
 
-def load_records(patterns):
-    records, files = [], []
+def load_records(patterns, stats=None):
+    """Load JSONL records, de-duplicating by `run.run_id` (first wins).
+
+    Mirrors campaign_common.load_records' rule. Measured before this was added:
+    listing the same file twice — trivial with overlapping globs, or with D-09
+    dual-write files — turned a 20-run corpus into `records=40` and doubled
+    every count and n on the page, with nothing on screen to say so (D-315). A
+    record with no run_id cannot be deduped: it is always kept, never merged
+    under a fabricated key (R-10).
+
+    Pass a dict as `stats` to receive {'read', 'dropped'}; the caller prints it,
+    because dropping silently is the same fault in the other direction.
+    """
+    records, files, seen, read, dropped = [], [], set(), 0, 0
     for pat in patterns:
         paths = glob.glob(pat) or ([pat] if not any(c in pat for c in "*?[") else [])
         for path in paths:
@@ -48,14 +61,34 @@ def load_records(patterns):
                     if not line:
                         continue
                     try:
-                        records.append(json.loads(line))
+                        rec = json.loads(line)
                     except json.JSONDecodeError as e:
                         print(f"skip {path}:{lineno}: {e}", file=sys.stderr)
+                        continue
+                    read += 1
+                    rid = (rec.get("run") or {}).get("run_id") if isinstance(rec, dict) else None
+                    if rid is not None:
+                        if rid in seen:
+                            dropped += 1
+                            continue
+                        seen.add(rid)
+                    records.append(rec)
+    if stats is not None:
+        stats["read"], stats["dropped"] = read, dropped
     return records, files
 
 
 def fnum(v):
-    return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    """Numeric-or-None, rejecting NaN/±Infinity like campaign_common.fnum.
+
+    Python's json module accepts the bare NaN/Infinity literals the JSON spec
+    forbids, and one of them does not merely spoil its own cell — it poisons the
+    median of every good value beside it (D-148). Measured before this was
+    added: one NaN in one scenario's kpi rendered as `nan` on the page (D-315).
+    """
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    return v if math.isfinite(v) else None
 
 
 def esc(s):
@@ -217,7 +250,7 @@ def grade_cell(val, grade, n):
             f"<span class='sub'>{g} · n={n}</span></td>")
 
 
-def build_html(d, files, generated_at):
+def build_html(d, files, generated_at, dedupe_note=""):
     runs = d["runs"]
     aqs_pts = [(r["run_id"], r["aqs"]) for r in sorted(
         runs, key=lambda r: (r["t"] is None, r["t"] or 0)) if r["aqs"] is not None]
@@ -315,7 +348,7 @@ td .sub{{display:block;font-size:10px;opacity:.75;font-weight:400}}
 footer{{margin-top:36px;font-size:12px;color:#5f6368;border-top:1px solid #ddd;padding-top:12px}}
 </style></head><body><div class="wrap">
 <h1>ANEB 数据看板</h1>
-<p class="note">生成时间：{esc(generated_at)} · 输入文件：{esc(', '.join(files) or '（无）')}</p>
+<p class="note">生成时间：{esc(generated_at)} · 输入文件：{esc(', '.join(files) or '（无）')}{esc(dedupe_note)}</p>
 {warn}
 <div class="cards">{card_html}</div>
 <h2>AQS 时间线</h2><div class="panel">{svg_line_chart(aqs_pts)}</div>
@@ -335,13 +368,20 @@ def main(argv):
     ap.add_argument("-o", "--output", default="dashboard.html")
     args = ap.parse_args(argv)
 
-    recs, files = load_records(args.inputs)
+    stats = {}
+    recs, files = load_records(args.inputs, stats)
     d = extract(recs)
     now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
-    out = build_html(d, files, now)
+    # On the page, not only on stdout: stdout scrolls away and the html is the
+    # deliverable. Same wording and same spot as the campaign report's
+    # provenance line, so the two surfaces read alike (D-315).
+    dup = stats.get("dropped", 0)
+    note = f" · 读 {stats['read']} 行 → 保留 {len(recs)} 条（去重丢 {dup}）" if dup else ""
+    out = build_html(d, files, now, note)
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(out)
-    print(f"records={len(recs)} files={len(files)} -> {args.output}")
+    drop_note = f" dropped={dup}" if dup else ""
+    print(f"records={len(recs)} files={len(files)}{drop_note} -> {args.output}")
     return 0
 
 

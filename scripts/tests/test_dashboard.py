@@ -17,16 +17,19 @@ from synth import make_record
 
 
 def test_the_per_run_copies_of_the_numeric_guards_match_the_shared_ones():
-    """analyze_results.py is a standalone CLI — its docstring says stdlib only,
-    and nothing imports it — so it carries its own fnum and median. D-148 taught
-    the campaign layer to reject NaN and Infinity, and that fix never reached
-    this copy: one NaN in one scenario made the tool print
-    `| t1_ttft_ms | nan | 20 |`, the median of twenty samples destroyed by one
-    of them, exit 0 and no warning (D-314).
+    """fnum exists THREE times: campaign_common, analyze_results, dashboard.
+    Both CLIs commit to stdlib only in their docstrings and nothing imports
+    them, so each carries its own copy. D-148 taught the campaign layer to
+    reject NaN and Infinity and reached neither: one NaN in one scenario made
+    analyze_results report a KPI with median=nan over n=20 — the median of
+    twenty samples destroyed by one of them, exit 0 and no warning (D-314) —
+    and rendered as `nan` on the dashboard page (D-315).
 
-    The duplication stays — making the tool depend on campaign_common would
-    change what it is — but the divergence is pinned here. Both implementations
-    must answer the same on every value, so fixing only one of them fails.
+    The duplication stays: making either CLI depend on campaign_common would
+    change what its docstring says it is. The divergence is pinned instead. All
+    three must answer the same on every value, so fixing only one of them fails.
+    Compared by repr because NaN is not equal to itself, and an equality test
+    that quietly passes on two NaNs would be a guard that lies.
     """
     import math
     import analyze_results as ar
@@ -38,14 +41,49 @@ def test_the_per_run_copies_of_the_numeric_guards_match_the_shared_ones():
         "no non-finite value in the battery; this guard checks nothing"
 
     for v in values:
-        a, b = ar.fnum(v), cc.fnum(v)
-        assert a == b or (a is None and b is None), (v, a, b)
+        got = {"campaign_common": cc.fnum(v), "analyze_results": ar.fnum(v),
+               "dashboard": db.fnum(v)}
+        assert len(set(repr(x) for x in got.values())) == 1, (v, got)
 
     poisoned = [10, 20, float("nan"), 40, 50]
     got = ar.median_or_none(poisoned)
     assert got == cc.median(poisoned), (got, cc.median(poisoned))
     assert got is not None and math.isfinite(got), (
         "one NaN still poisons the median of the values around it: %r" % got)
+
+
+def test_every_loader_drops_the_same_repeat_run_id():
+    """load_records exists three times too. The campaign one de-duplicates by
+    run.run_id because a run counted twice "silently INFLATES apparent
+    confidence" — and neither CLI copy did. Measured: the same file listed twice
+    (trivial with overlapping globs, or with D-09 dual-write files) took a
+    20-run corpus to `records=40` on both, doubling every n on the page, with
+    nothing on either surface to say so (D-315).
+
+    Pinned by behaviour rather than by implementation: give all three a corpus
+    whose first run_id repeats and they must return the same count.
+    """
+    import json
+    import os
+    import tempfile
+    import analyze_results as ar
+    import campaign_common as cc
+
+    recs = [make_record(aqs=90, run_id="R-1"), make_record(aqs=80, run_id="R-2")]
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "c.jsonl")
+        with open(p, "w", encoding="utf-8") as f:
+            for r in list(recs) + [recs[0]]:  # R-1 written twice
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        with open(p, encoding="utf-8") as f:
+            assert sum(1 for _ in f) == 3, \
+                "corpus does not repeat a run_id; this guard checks nothing"
+        n = {"campaign_common": len(cc.load_records([p], quiet=True)[0]),
+             "analyze_results": len(ar.load_records([p])),
+             "dashboard": len(db.load_records([p])[0])}
+
+    assert n["campaign_common"] == 2, n  # the reference behaviour, restated
+    assert len(set(n.values())) == 1, n
 
 
 def _rec(*, kpi=None, hist=None, aqs=90):
