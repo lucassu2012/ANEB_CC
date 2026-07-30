@@ -53,6 +53,47 @@ _CMD = re.compile(r"^python\s+(\S+\.py)\s*(.*)$")
 _FLAG = re.compile(r"(?<![\w-])(--[a-zA-Z][\w-]*)")
 
 
+def test_a_fenced_command_never_names_a_config_the_repo_does_not_ship():
+    """§0 of the runbook tells the operator, in as many words, not to hand-copy
+    the grid — use the shipped file, at ../docs/campaign_grid_shenzhen.json.
+    §3's daily coverage command then handed them `--config campaign_grid.json`,
+    a name that exists nowhere in the repo. One document, an instruction half
+    and an executable half, and the wrong one was the half that gets typed at
+    the end of a field day, when the coverage check is what decides tomorrow's
+    route (D-320, the shape of D-311 recurring).
+
+    The scan above it checks that the SCRIPT in a fenced command exists and had
+    never looked at the file the script is handed — a rule naming one thing
+    while the guard compares another (D-246).
+
+    Scoped to --config, which in this repo always names a shipped grid
+    definition. Operator-authored inputs (labeled/*.jsonl, --map map.json, -o
+    targets) are theirs to create and are deliberately not checked.
+    """
+    docs = [os.path.join(REPO, "docs", "M2_CAMPAIGN_RUNBOOK.md"),
+            os.path.join(REPO, "docs", "M2_GRID_DESIGN_PROPOSAL.md"),
+            os.path.join(SCRIPTS, "README.md")]
+    seen, missing = 0, []
+    for doc in docs:
+        with open(doc, encoding="utf-8") as f:
+            body = f.read()
+        for block in _FENCE.findall(body):
+            for m in re.finditer(r"--config\s+(\S+)", block):
+                arg = m.group(1)
+                if not arg.endswith(".json") or any(c in arg for c in "*?<>"):
+                    continue
+                seen += 1
+                # fenced commands are written to run from scripts/
+                if not os.path.exists(os.path.join(SCRIPTS, arg)):
+                    missing.append("%s -> %s" % (os.path.basename(doc), arg))
+    assert seen >= 1, (
+        "no --config with a .json argument in any fenced command; this guard "
+        "checks nothing")
+    assert not missing, (
+        "a fenced command hands a config file the repo does not ship; the "
+        "operator types it and gets a file-not-found: %s" % missing)
+
+
 def test_the_runbook_never_tells_the_operator_to_run_a_tier_that_does_not_exist():
     """D-48 abandoned the three-tier deployment for a single E-01 instance, and
     the PO reconfirmed it on 2026-07-29 (reuse the existing server, Shenzhen

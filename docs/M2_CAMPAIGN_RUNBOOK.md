@@ -171,7 +171,7 @@ python annotate_campaign.py raw/SZ-CBD-01/*.jsonl --out-dir labeled \
 ## 3. 覆盖检查（外场期间每日收工跑）
 
 ```
-python coverage_matrix.py labeled/*.jsonl --config campaign_grid.json
+python coverage_matrix.py labeled/*.jsonl --config ../docs/campaign_grid_shenzhen.json
 ```
 
 未测/欠采格 = 明日路线；**计划外**格 = 疑似误标，回查台账。
