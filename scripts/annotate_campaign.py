@@ -30,7 +30,11 @@ import campaign_common as cc
 
 CAMPAIGN_KEYS = ("campaign_id", "tier", "point_id", "carrier", "time_band",
                  "server_tier_endpoint")
-DEFAULT_TZ_OFFSET_H = 8  # China Standard Time; records carry no tz, so state it explicitly
+# One definition, in campaign_common: the validity trend needs the same offset
+# to decide when a day starts, and two copies of "when is it local" is how one
+# Shenzhen field day ended up on two rows (D-318). The name stays exported here
+# because --tz-offset, the function defaults and the docs all reference it.
+DEFAULT_TZ_OFFSET_H = cc.DEFAULT_TZ_OFFSET_H
 # 忙时(busy) local-hour set: morning + afternoon/evening peaks. Approximation, flagged inferred.
 DEFAULT_BUSY_HOURS = frozenset(range(8, 12)) | frozenset(range(14, 23))
 

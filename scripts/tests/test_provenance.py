@@ -218,6 +218,7 @@ _GATE_KEY = {
         "segment_outlier_target_false_alarm",
     ("attribution", "MIN_CELLS_TO_SCREEN"): "segment_min_cells_to_screen",
     ("buffering_rollup", "HOTSPOT_SHARE"): "buffering_hotspot_share",
+    ("campaign_common", "DEFAULT_TZ_OFFSET_H"): "local_day_utc_offset_h",
     ("campaign_common", "EPOCH_MS_MIN"): None,      # archived as a pair, below
     ("campaign_common", "EPOCH_MS_MAX"): None,
     ("campaign_common", "NON_KPI_RANGES"): "value_ranges_non_kpi",
@@ -358,6 +359,10 @@ _PERTURB = {
     "stability_max_stable_rows": (stability, "DEFAULT_MAX_STABLE_ROWS", 3),
     "stability_kpis": (stability, "DEFAULT_STABILITY_KPIS", ("t1_ttft_ms",)),
     "validity_min_rate": (validity_rollup, "DEFAULT_MIN_RATE", 0.999),
+    # 0 = UTC, which is exactly what this used to be: the perturbation puts the
+    # report back on the day boundary that split one Shenzhen field day across
+    # two trend rows (D-318)
+    "local_day_utc_offset_h": (campaign_common, "DEFAULT_TZ_OFFSET_H", 0),
     "buffering_hotspot_share": (buffering_rollup, "HOTSPOT_SHARE", 1.0),
     "clock_hotspot_share": (trust_rollup, "CLOCK_HOTSPOT_SHARE", 0.99),
     "aqs_grade_bands": (campaign_common, "AQS_GRADE_BANDS",

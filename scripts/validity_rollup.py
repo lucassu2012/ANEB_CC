@@ -26,7 +26,7 @@ import argparse
 import re
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import campaign_common as cc
 
@@ -95,14 +95,32 @@ def validity_cells(records, min_rate=None):
     return cells, corpus_reasons
 
 
-def validity_trend(records):
-    """Per-UTC-day usable-rate. A decaying rate is a harness regression signal."""
+def validity_trend(records, tz_offset_h=None):
+    """Per-LOCAL-day usable-rate. A decaying rate is a harness regression signal.
+
+    Local, not UTC, and at the same offset annotate_campaign uses for the time
+    band — otherwise one report carries two answers to "when". Measured while
+    this still bucketed by UTC: the UTC day rolls over at 08:00 CST, so a
+    Shenzhen field day running 03:00 to 20:00 local came out as TWO rows, one of
+    them holding the single deep-night idle session. Worse than a mis-dated row:
+    the table only renders when there is more than one row, so the timezone
+    artefact manufactured a trend out of a single field day — in a table whose
+    whole purpose is to make a decaying rate visible (D-318).
+    """
+    # Read live, not as a default argument: a default is evaluated once at
+    # definition time, so the shared constant would be frozen at import and
+    # changing it would move the printed heading while leaving the buckets at
+    # +8 — load-bearing in appearance only (D-264/D-318).
+    if tz_offset_h is None:
+        tz_offset_h = cc.DEFAULT_TZ_OFFSET_H
     days = defaultdict(Counter)
+    shift = timedelta(hours=tz_offset_h)
     for rec in records:
         ms = cc.run_started_ms(rec)
         if ms is None:
             continue
-        day = datetime.fromtimestamp(ms / 1000.0, timezone.utc).strftime("%Y-%m-%d")
+        day = (datetime.fromtimestamp(ms / 1000.0, timezone.utc)
+               + shift).strftime("%Y-%m-%d")
         for scn in cc.iter_scenarios(rec):
             days[day][cc.scenario_validity(scn)] += 1
     out = []
@@ -184,7 +202,7 @@ def render_markdown(res):
         lines += [f"- `{r}` × {n}" for r, n in res["corpus_reasons"].items()]
         lines.append("")
     if len(res["trend"]) > 1:
-        lines += ["### 有效率趋势（按 UTC 日）", "",
+        lines += [f"### 有效率趋势（按本地日，UTC+{cc.DEFAULT_TZ_OFFSET_H}）", "",
                   "| 日期 | 尝试 | 可用 | 有效率 |", "|---|---|---|---|"]
         for t in res["trend"]:
             lines.append(f"| {t['day']} | {t['attempted']} | {t['usable']} | "

@@ -1921,7 +1921,9 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     p = prefix + "_validity_trend.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = _TaggedWriter(f, synthetic)
-        w.writerow(["day", "attempted", "usable", "valid_rate"])
+        # local_day, not day: the CSV travels without the heading that says
+        # which day it is, and UTC-vs-local is exactly what went wrong (D-318).
+        w.writerow(["local_day", "attempted", "usable", "valid_rate"])
         if len(validity["trend"]) > 1:
             for t in validity["trend"]:
                 w.writerow([t["day"], t["attempted"], t["usable"],
@@ -2126,6 +2128,12 @@ def effective_thresholds():
         "buffering_hotspot_share": buffering_rollup.HOTSPOT_SHARE,
         "clock_hotspot_share": trust_rollup.CLOCK_HOTSPOT_SHARE,
         "aqs_grade_bands": [[b, g] for b, g in cc.AQS_GRADE_BANDS],
+        # Records carry no timezone, so this offset decides two printed things:
+        # which runs are busy and which are idle, and which day a run's validity
+        # counts toward. A re-run at a different offset moves rows between days
+        # — archived so that disagreement is explainable rather than spooky
+        # (D-318).
+        "local_day_utc_offset_h": cc.DEFAULT_TZ_OFFSET_H,
         # The radio bands decide the 弱/中/良 printed for every cellular cell,
         # and they are a COPY of the app's constants (spec/ has no home for them
         # yet). A re-run disagreeing with an archived report over a signal band

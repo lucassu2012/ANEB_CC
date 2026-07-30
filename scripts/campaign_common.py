@@ -97,6 +97,14 @@ _CARRIER_ALIASES = {
 
 DEFAULT_MIN_SAMPLES = 5   # per-tier / per-cell sample floor for low_confidence
 
+# Records carry no timezone, so the toolkit states its own offset instead of
+# guessing. China Standard Time; the pilot is Shenzhen only (D-48). It lives
+# here rather than in annotate_campaign because more than one module has to
+# agree on when a day starts: the time band was derived at +8 while the validity
+# trend bucketed by UTC, which split one Shenzhen field day across two rows and
+# manufactured a trend out of a single day (D-318).
+DEFAULT_TZ_OFFSET_H = 8
+
 # run.started_at_epoch_ms carries real weight: it orders before/after (D-161),
 # bounds the reported collection window (D-138), decides the tier-simultaneity
 # verdict (D-155) and drives --infer-time-band (D-153). Nothing ever checked its
