@@ -119,6 +119,42 @@ def test_the_documented_batch_workflow_creates_its_output_directory():
             "a prefix flag must not create the parent it was pointed at")
 
 
+def test_the_publish_gate_reports_integrity_from_the_command_line():
+    """The unit guard exercises check(); whether main() actually hands it the
+    loader's counters is a different surface. The mutation removing
+    `stats=stats` from main survived the whole suite — the CLI would have
+    printed 未核算 forever while the function stayed perfectly correct, which
+    is the shape D-237/D-238 named: the thing tested is not the thing shipped
+    (D-325).
+
+    Scoped to the integrity row on purpose: 未核算 is legitimate on other items
+    (a corpus with nothing to compare really did not run those), so asserting
+    on the whole page would fail for the wrong reason.
+    """
+    from synth import make_record
+
+    recs = [make_record(aqs=90, run_id="R-1"), make_record(aqs=80, run_id="R-2")]
+    # Same run_id, genuinely DIFFERENT body. The first attempt set scenarios to
+    # [] on a record whose scenarios were already empty, so the two serialised
+    # identically and the gate correctly called it a benign re-export — the
+    # fixture had not built what it claimed, and the assertion below said so.
+    clash = json.loads(json.dumps(recs[0]))
+    clash["run"]["aqs"]["score"] = 11
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "dup.jsonl")
+        _write_jsonl(path, list(recs) + [clash])
+        r = _run("publish_check.py", path)
+
+    line = [l for l in r.stdout.splitlines() if "语料完整性" in l]
+    assert len(line) == 1, (
+        "expected exactly one integrity row on the page, got %d" % len(line))
+    row = line[0]
+    assert "未核算" not in row, (
+        "the CLI never handed the loader's counters to the gate: %r" % row)
+    assert "R-1" in row, (
+        "the row does not name the conflicting run_id: %r" % row)
+
+
 def test_a_duplicated_corpus_says_what_it_dropped():
     """Both per-run CLIs now de-duplicate by run.run_id (D-315). Dropping half
     the input without a word is the same fault as counting it twice, so each

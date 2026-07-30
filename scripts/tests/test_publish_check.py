@@ -633,6 +633,44 @@ def test_the_publish_gate_and_the_summary_tell_the_same_story():
             "corpora — one side of the agreement was never exercised")
 
 
+def test_the_gate_notices_two_runs_disagreeing_under_one_id():
+    """load_records calls a repeated run_id carrying a DIFFERENT body "a real
+    data-integrity fault ... must never be averaged together", and the report
+    prints it on its integrity line. The gate could not see it: check() was
+    handed records and never the loader's counters, so the one signal saying
+    two runs disagree about what happened lived on the page and nowhere in the
+    checklist that exists because the page gets skipped (D-325, D-305's shape).
+
+    Three states, because the middle one is the trap: no counters is N/A, not a
+    quiet PASS.
+    """
+    from synth import make_record
+
+    recs = [make_record(aqs=90, run_id="R-1"), make_record(aqs=80, run_id="R-2")]
+
+    def item(rows):
+        hits = [r for r in rows if r["item"] == "语料完整性"]
+        assert len(hits) == 1, ("the integrity item appears %d times" % len(hits))
+        return hits[0]
+
+    assert item(pc.check(recs))["severity"] == pc.NA, (
+        "handed no counters, the gate must say it did not run the check")
+
+    # load_records' own key names (campaign_common: lines/kept/duplicates), not
+    # the read/dropped the per-run loaders use — reading one loader's counters
+    # with the other's vocabulary is what D-325 tripped over.
+    clean = {"lines": 2, "kept": 2, "duplicates": 0, "conflicts": [], "malformed": 0}
+    assert item(pc.check(recs, stats=clean))["severity"] == pc.PASS
+
+    bad = {"lines": 3, "kept": 2, "duplicates": 1, "conflicts": ["R-1"],
+           "malformed": 0}
+    row = item(pc.check(recs, stats=bad))
+    assert row["severity"] == pc.WARN, row
+    assert "R-1" in row["detail"], (
+        "the warning does not name the offending run_id, leaving the operator "
+        "nowhere to start: %r" % row["detail"])
+
+
 def test_a_check_with_nothing_to_run_on_never_renders_as_pass():
     """A green tick against a check that never ran is the lie D-163 and D-198
     took out of 批化失真 / 测量可信度 / 样本充分性 and left standing everywhere

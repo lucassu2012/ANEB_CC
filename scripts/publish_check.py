@@ -51,14 +51,31 @@ def _row(sev, item, detail):
     return {"severity": sev, "item": item, "detail": detail}
 
 
+def st_int(stats, key):
+    """A loader counter, or a KeyError — never a plausible-looking default.
+
+    `stats.get(key, 0)` disguises a mistyped key as a value of zero. It did
+    exactly that here: the integrity row printed 「读 2 行」 for a three-line
+    corpus because `read` is the per-run loaders' name and campaign_common
+    calls it `lines` (D-325).
+    """
+    return int(stats[key])
+
+
 def _cell_key(cell):
     """Hashable identity of an attribution cell, for de-duplicating across the
     per-KPI sweeps (D-191). Sorted so two dicts with the same content agree."""
     return tuple(sorted((cell.get("cell") or {}).items()))
 
 
-def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
-    """Return a list of {severity, item, detail} rows, most severe first."""
+def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
+    """Return a list of {severity, item, detail} rows, most severe first.
+
+    `stats` is load_records' integrity counters. Without them the corpus
+    integrity item reaches N/A, not PASS — this gate exists because the manual
+    checklist gets skipped, and a green tick against a check that never ran is
+    the lie the severities were separated to prevent (D-229).
+    """
     if not records:
         return [_row(FAIL, "语料", "无记录——没有可发布的内容")]
 
@@ -79,6 +96,42 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         rows.append(_row(FAIL, "输入契约", f"{len(errors)} 条违规，例：{errors[0]}"))
     else:
         rows.append(_row(PASS, "输入契约", f"{len(records)} 条记录全部合规"))
+
+    # load_records calls a repeated run_id with a DIFFERENT body "a real
+    # data-integrity fault ... must never be averaged together", and the report
+    # prints it on its integrity line. The gate could not see it: check() was
+    # handed records only, so the one signal that says two runs disagree about
+    # what happened lived on the page and nowhere in the checklist that exists
+    # because the page gets skipped (D-325, the shape of D-305).
+    if stats is None:
+        # 未核算 is not a wording choice: an existing guard asserts the
+        # biconditional 「未核算 in detail」 <=> 「severity is N/A」, so that
+        # neither half can drift into an N/A that reads like a clean result
+        # (D-229). It caught this row the first time it ran.
+        rows.append(_row(NA, "语料完整性", "未提供加载统计——本次未核算"
+                                           "（NOT_EXECUTED，不等于通过）"))
+    else:
+        integrity = []
+        if stats.get("conflicts"):
+            ids = ", ".join(str(c) for c in list(stats["conflicts"])[:3])
+            integrity.append(f"同一 run_id 两个不同 body × {len(stats['conflicts'])}"
+                             f"（{ids}）——保留了先到的那条，须说明为何有两份")
+        if st_int(stats, "malformed"):
+            integrity.append(f"坏行 × {stats['malformed']}——已跳过，未计入任何中位数")
+        if integrity:
+            rows.append(_row(WARN, "语料完整性", "；".join(integrity)))
+        else:
+            # load_records' own key names — `lines`/`kept`/`duplicates`, not the
+            # `read`/`dropped` the per-run loaders use. Reading one loader's dict
+            # with the other's vocabulary printed a plausible-looking 「读 2 行」
+            # that was really len(records) coming back from a .get() default:
+            # the divergence D-315 pinned at the function level, one layer down
+            # in the field names (D-325).
+            dup = st_int(stats, "duplicates")
+            tail = f"，去重丢 {dup} 条（body 相同的良性重导）" if dup else ""
+            rows.append(_row(PASS, "语料完整性",
+                             f"读 {st_int(stats, 'lines')} 行、"
+                             f"保留 {st_int(stats, 'kept')} 条{tail}，无冲突无坏行"))
 
     inv = rpt.inventory(records)
     # A non-empty run.campaign block is not a usable label set. The staged C1
@@ -531,8 +584,9 @@ def main(argv):
     args = ap.parse_args(argv)
 
     cc.force_utf8_stdout()
-    recs, files = cc.load_records(args.inputs)
-    rows = check(recs, args.min_samples)
+    stats = {}
+    recs, files = cc.load_records(args.inputs, stats=stats)
+    rows = check(recs, args.min_samples, stats=stats)
     print(render_markdown(rows))
     print(f"\n<!-- records={len(recs)} files={len(files)} -->", file=sys.stderr)
     return 1 if any(r["severity"] == FAIL for r in rows) else 0
