@@ -127,6 +127,15 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
             integrity.append(f"读不了的文件 × {stats['unreadable_files']}"
                              "——整个文件的记录都不在语料里，每个分母都少了一截，"
                              "须查清是哪份、为何读不了")
+        # The seventh counter, and the one this item still had not named. A
+        # record with no run_id cannot be de-duplicated — R-10 forbids merging
+        # under a fabricated key — so repeats among them stay invisible and
+        # inflate whatever denominator they land in. Not a bug to fix: a fact
+        # the operator has to know (D-329).
+        if st_int(stats, "no_run_id"):
+            integrity.append(f"无 run_id 的记录 × {stats['no_run_id']}"
+                             "——无法去重（R-10 不允许归并到臆造的键下），"
+                             "它们之间若有重复也看不见，对应分母可能虚高")
         if integrity:
             rows.append(_row(WARN, "语料完整性", "；".join(integrity)))
         else:

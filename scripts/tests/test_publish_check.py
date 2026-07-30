@@ -633,6 +633,58 @@ def test_the_publish_gate_and_the_summary_tell_the_same_story():
             "corpora — one side of the agreement was never exercised")
 
 
+# A loader counter the integrity item deliberately ignores, with the reason.
+# Empty today: every counter load_records produces is named in the item.
+_COUNTER_NOT_THE_GATES_BUSINESS = {}
+
+
+def test_the_integrity_item_accounts_for_every_counter_the_loader_produces():
+    """Counting what a rule covers, as a guard instead of by hand.
+
+    The item is called 语料完整性 and reads load_records' counters. Twice the
+    count came up short and both times it was found by hand: conflicts and
+    malformed shipped without unreadable_files (D-328), and that shipped
+    without no_run_id (D-329). The loader's key set is derivable, so derive it
+    — a criterion beats a list (D-275), and this one retires a manual step that
+    had already failed twice.
+    """
+    import inspect
+    import os
+    import tempfile
+    import campaign_common as cc
+
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "c.jsonl")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("{}\n")          # valid JSON, no run body, no run_id
+        stats = {}
+        cc.load_records([p], stats=stats, quiet=True)
+
+    produced = set(stats)
+    assert len(produced) >= 7, (
+        "load_records handed back only %s — the key set is not being filled, "
+        "so this guard would pass on nothing" % sorted(produced))
+
+    # Matched on a READ of the key, not on the key name appearing anywhere.
+    # The first version used a bare substring and a mutation removing the only
+    # read of `lines` survived it — a comment inside check() happens to list
+    # the key names, and a guard a comment can satisfy is barely a guard
+    # (§2.12).
+    src = inspect.getsource(pc.check)
+
+    def is_read(k):
+        return any(form % k in src for form in (
+            'stats["%s"]', "stats['%s']",
+            'stats.get("%s"', "stats.get('%s'",
+            'st_int(stats, "%s")', "st_int(stats, '%s')"))
+
+    unnamed = sorted(k for k in produced
+                     if not is_read(k) and k not in _COUNTER_NOT_THE_GATES_BUSINESS)
+    assert not unnamed, (
+        "the loader reports these and the integrity item never reads them, "
+        "so the operator is not told: %s" % unnamed)
+
+
 def test_the_gate_notices_two_runs_disagreeing_under_one_id():
     """load_records calls a repeated run_id carrying a DIFFERENT body "a real
     data-integrity fault ... must never be averaged together", and the report
@@ -660,7 +712,7 @@ def test_the_gate_notices_two_runs_disagreeing_under_one_id():
     # the read/dropped the per-run loaders use — reading one loader's counters
     # with the other's vocabulary is what D-325 tripped over.
     clean = {"lines": 2, "kept": 2, "duplicates": 0, "conflicts": [],
-             "malformed": 0, "unreadable_files": 0}
+             "malformed": 0, "unreadable_files": 0, "no_run_id": 0}
     assert item(pc.check(recs, stats=clean))["severity"] == pc.PASS
 
     bad = dict(clean, lines=3, duplicates=1, conflicts=["R-1"])
@@ -678,6 +730,14 @@ def test_the_gate_notices_two_runs_disagreeing_under_one_id():
     row = item(pc.check(recs, stats=unread))
     assert row["severity"] == pc.WARN, row
     assert "读不了的文件" in row["detail"], row
+
+    # Records with no run_id cannot be de-duplicated at all (R-10 forbids a
+    # fabricated key), so repeats among them stay invisible. Not a bug to fix —
+    # a fact the operator has to be handed (D-329).
+    anon = dict(clean, no_run_id=2)
+    row = item(pc.check(recs, stats=anon))
+    assert row["severity"] == pc.WARN, row
+    assert "无 run_id 的记录" in row["detail"], row
 
 
 def test_a_check_with_nothing_to_run_on_never_renders_as_pass():
