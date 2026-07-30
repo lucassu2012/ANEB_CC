@@ -93,6 +93,43 @@ def test_the_trend_heading_names_the_offset_it_bucketed_by():
         "the heading still claims UTC days while the buckets are local")
 
 
+def test_the_reason_histogram_names_why_attempts_were_lost():
+    """When the valid rate is low, this section is the actionable half — it says
+    WHY the attempts were lost. It had no golden and no test: the snapshot
+    corpus sets validity="invalid" without invalid_reasons, so corpus_reasons
+    stays empty and the section never renders, which is how a heading behind a
+    render gate ends up unpinned (D-319, same shape as D-318).
+
+    NOT a sole guard, and the audit said so: suppressing the section or
+    truncating the reason tokens is also caught by test_invalid_reasons_
+    histogram, test_reason_splitting_handles_separators and
+    test_markdown_renders_denominator_note. The counting was already covered —
+    what was missing was anything naming the rendered section, and that hole is
+    closed by test_every_section_the_report_can_render_has_been_looked_at, not
+    by this. This one earns its place only by checking heading and both counts
+    together, the way a reader meets them.
+    """
+    recs = []
+    for i in range(4):
+        r = make_record(aqs=90, scenarios=[("s1_chat", {"t1_ttft_ms": 800})])
+        scn = r["scenarios"][0]
+        if i < 3:
+            scn["validity"] = "invalid"
+            scn["invalid_reasons"] = ("STREAM_ABORTED;RETRY_EXHAUSTED" if i
+                                      else "STREAM_ABORTED")
+        recs.append(r)
+
+    res = vr.analyze(recs)
+    assert res["corpus_reasons"], (
+        "no reasons collected, so the section does not render and every "
+        "assertion below would pass on a report that never mentions it")
+
+    md = vr.render_markdown(res)
+    assert "### 失效原因分布" in md, md
+    assert "`STREAM_ABORTED` × 3" in md, md
+    assert "`RETRY_EXHAUSTED` × 2" in md, md
+
+
 def test_all_valid_cell():
     res = vr.analyze(validity_records(5, validity="valid"))
     c = res["cells"][0]

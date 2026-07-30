@@ -1777,6 +1777,88 @@ def test_every_table_on_the_page_has_a_csv_that_reproduces_it():
                        % stale)
 
 
+# A section behind a render gate can sit unpinned for months: the snapshot
+# corpus never triggers it, so no golden holds its wording and no failure ever
+# points at it. That is how the validity trend kept a heading claiming UTC days
+# over local buckets (D-318) and how the reason histogram had neither golden nor
+# test (D-319). Headings here are the ones no corpus in this suite can reach,
+# each with the reason — the judgement is visible, not silent.
+_SECTION_NEEDS_INPUT_THE_REPORT_NEVER_PASSES = {
+    "采样量核算": "the sample-plan block. campaign_report calls "
+              "stability.render_markdown(sc, k) with no plan, so this renders "
+              "only from the stability CLI with --plan; test_stability owns it",
+}
+
+
+def test_every_section_the_report_can_render_has_been_looked_at():
+    """Both sides derived, neither hand-listed (D-275).
+
+    What sections exist: scraped from the modules campaign_report actually
+    composes — found by asking the source which ones it calls render_markdown
+    on, so a new section joins this check by being wired in, not by someone
+    remembering. What has been looked at: the golden snapshot plus every test
+    source in this directory.
+
+    Headings are compared on the part before the first bracket or colon. The
+    literal in the source is often an f-string prefix that no rendered page ever
+    shows verbatim — matching the whole thing produced three false alarms by
+    hand before this was written, and a guard that cries wolf gets ignored.
+
+    This checks that somebody has looked at a section, not that its wording is
+    right. Wording is the golden's job; this is what tells you a section never
+    reached the golden in the first place.
+    """
+    import glob
+    import re
+
+    scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    here = os.path.dirname(os.path.abspath(__file__))
+
+    with open(os.path.join(scripts_dir, "campaign_report.py"), encoding="utf-8") as f:
+        composer = f.read()
+    mods = sorted(set(re.findall(r"\b(\w+)\.render_markdown\(", composer)))
+    assert len(mods) >= 6, (
+        "only %d composed modules found; the scan is broken, not the report: %s"
+        % (len(mods), mods))
+    mods.append("campaign_report")
+
+    head_re = re.compile(r'["\'](#{2,4} )([^"\'{]+)')
+    headings = {}
+    for mod in mods:
+        path = os.path.join(scripts_dir, mod + ".py")
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            for lineno, line in enumerate(f, 1):
+                for m in head_re.finditer(line):
+                    text = m.group(2).strip()
+                    if len(text) >= 2:
+                        headings.setdefault(text, "%s.py:%d" % (mod, lineno))
+    assert len(headings) >= 10, (
+        "only %d headings scraped; the regex is broken" % len(headings))
+
+    looked_at = []
+    for path in sorted(glob.glob(os.path.join(here, "test_*.py"))) + [
+            os.path.join(here, "fixtures", "report_snapshot.md")]:
+        with open(path, encoding="utf-8") as f:
+            looked_at.append(f.read())
+    blob = "\n".join(looked_at)
+
+    unpinned = []
+    for text, where in sorted(headings.items()):
+        key = re.split(r"[（(：:]", text)[0].strip()
+        if len(key) < 3:
+            key = text.strip()
+        if key in _SECTION_NEEDS_INPUT_THE_REPORT_NEVER_PASSES:
+            continue
+        if key not in blob:
+            unpinned.append("%s (%s)" % (key, where))
+    assert not unpinned, (
+        "the report can print these sections and no golden or test in this "
+        "directory has ever mentioned them — a wrong heading or a vanished "
+        "table there fails nothing: %s" % unpinned)
+
+
 def test_the_comparability_verdict_is_the_same_word_on_both_surfaces():
     """D-304 gave the busy/idle comparability verdict a CSV. Existence is not
     agreement: the export reads `changed` and `partial` a second time, and a

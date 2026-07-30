@@ -12,7 +12,8 @@ report shows the survivors' count; nothing showed the attempts. This does.
 Per (point, carrier, time_band, profile):
     valid / valid_low_confidence / invalid / unknown counts, valid_rate,
     and the invalid_reasons histogram explaining WHY attempts were lost.
-Plus a corpus-level reasons histogram and a per-UTC-day validity trend
+Plus a corpus-level reasons histogram and a per-LOCAL-day validity trend
+(UTC+8, the offset annotate_campaign derives the time band at — D-318)
 (a collapsing valid_rate over time is a regression signal in the harness,
 not in the network under test).
 
