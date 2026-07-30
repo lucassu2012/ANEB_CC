@@ -53,6 +53,47 @@ _CMD = re.compile(r"^python\s+(\S+\.py)\s*(.*)$")
 _FLAG = re.compile(r"(?<![\w-])(--[a-zA-Z][\w-]*)")
 
 
+def test_the_runbook_never_tells_the_operator_to_run_a_tier_that_does_not_exist():
+    """D-48 abandoned the three-tier deployment for a single E-01 instance, and
+    the PO reconfirmed it on 2026-07-29 (reuse the existing server, Shenzhen
+    only). The runbook's rehearsal section knew that — it says so in as many
+    words — while §2, the part with the commands the operator actually types,
+    still walked them through metro → regional → core and gave three annotate
+    lines. Following it means driving a trip against mirror endpoints that do
+    not exist and labelling metro rounds as backbone ones (D-311).
+
+    Only fenced commands are scanned: the paragraph documenting how to restore a
+    multi-tier procedure later is prose and should stay. When multi-tier does
+    come back this guard fails, which is the point — updating it should be a
+    decision, not a side effect.
+    """
+    path = os.path.join(REPO, "docs", "M2_CAMPAIGN_RUNBOOK.md")
+    with open(path, encoding="utf-8-sig") as fh:
+        text = fh.read()
+    tiers, unlabelled = [], []
+    for block in _FENCE.findall(text):
+        for line in block.replace("\\\n", " ").split("\n"):
+            found = re.findall(r"--set\s+tier=(\S+)", line)
+            tiers += found
+            # "省掉它标签就是缺失而不是声明" — a command that names the point but
+            # not the tier produces exactly the ambiguity the runbook warns
+            # about. Checked per command, because the first cut only asked
+            # whether ANY command still labelled a tier: deleting the label from
+            # the field procedure left the rehearsal's copy behind and the guard
+            # passed (found in this decision's own mutation audit).
+            if "--set point_id=" in line and not found:
+                unlabelled.append(line.strip()[:90])
+    assert tiers, ("no `--set tier=` in any fenced command — either the runbook "
+                   "stopped labelling the tier, or this scan broke")
+    assert not unlabelled, (
+        "these commands label the point but not the tier, so the corpus cannot "
+        "say whether it is metro or unfilled: %s" % unlabelled)
+    wrong = sorted({t for t in tiers if t != "metro"})
+    assert not wrong, (
+        "the runbook tells the operator to run tier(s) %s, and the deployment is "
+        "a single E-01 instance (D-48) — those endpoints do not exist" % wrong)
+
+
 def _commands():
     """(doc, script_path, [flags]) for every documented python invocation."""
     out = []
