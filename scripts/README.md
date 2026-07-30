@@ -239,6 +239,12 @@ advisory 交 schema 属主）。exit 0/1/2（2=无语料或 schema 不可读→N
 出，`--md ok.md --csv nope/c` 会先落一份 markdown 再崩——**退出时磁盘上不会再留下半套交付
 物**。
 
+**输出路径的两种策略（有意不同，D-307）**：`annotate_campaign.py --out-dir` 命名的是**目录**，
+不存在就**建**（runbook §2 的批量补注正依赖这一点）；`campaign_report.py` 的 `--md`/`--html`/
+`--provenance`（文件）与 `--csv`（前缀）命名的**不是目录**，父目录不存在就**拒绝**——替一个打错
+的父目录建目录，等于把交付物撒到没人会去找的地方。全仓只有这两个 CLI 带路径型写出旗标，
+其余只写 stdout。
+
 ### `validate_spec_scoring.py` — spec 评分包门（D-102，`spec-scoring-unit`，需 pyyaml）
 补齐无-Android 路径的评分规则包守卫（权威对拍 `SpecScoringParityTest.kt` 受 Android
 工具链门控）：weights 每表 Σ=1.0(±1e-9)+version_id；anchors 各表 points 按值严格升序、

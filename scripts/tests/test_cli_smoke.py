@@ -87,6 +87,38 @@ def test_a_mistyped_output_path_does_not_answer_with_a_traceback():
                 "%s produced files before refusing: %s" % (flag, left))
 
 
+def test_the_documented_batch_workflow_creates_its_output_directory():
+    """Two tools, two policies, and only one of them was ever decided out loud.
+
+    D-306's sweep for siblings found exactly one other CLI with a path-valued
+    write flag: `annotate_campaign --out-dir`, which creates its destination
+    (annotate_campaign.py's os.makedirs) while campaign_report's file and prefix
+    flags refuse a missing parent. The difference is right — a flag naming a
+    DIRECTORY may make it, a flag naming a FILE or a PREFIX must not scatter
+    output into a mistyped parent — but the runbook's own step depends on the
+    creating half and nothing checked it. Delete that makedirs and the
+    documented workflow dies with the traceback D-306 just removed (D-307).
+
+    Both halves are pinned here so neither drifts toward the other.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        src = _fixture(d)
+        outdir = os.path.join(d, "labeled")          # deliberately absent
+        r = _run("annotate_campaign.py", src, "--out-dir", outdir,
+                 "--set", "campaign_id=SZ-2026-07")
+        assert r.returncode == 0, (r.returncode, r.stderr[:400])
+        assert os.path.isdir(outdir), "the documented step did not create its dir"
+        assert os.listdir(outdir) == [os.path.basename(src)], os.listdir(outdir)
+
+    with tempfile.TemporaryDirectory() as d:
+        src = _fixture(d)
+        r = _run("campaign_report.py", src, "--csv",
+                 os.path.join(d, "nope", "c"))
+        assert r.returncode == 2, (r.returncode, r.stderr[:400])
+        assert not os.path.isdir(os.path.join(d, "nope")), (
+            "a prefix flag must not create the parent it was pointed at")
+
+
 def test_report_cli_runs():
     with tempfile.TemporaryDirectory() as d:
         r = _run("campaign_report.py", _fixture(d))
