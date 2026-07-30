@@ -28,11 +28,15 @@ def load_records(patterns, stats=None):
     (D-315). A record with no run_id cannot be deduped: it is always kept, never
     merged under a fabricated key (R-10).
 
-    Pass a dict as `stats` to receive {'read', 'dropped'} so the caller can say
-    what it dropped — dropping silently is the same fault in the other
-    direction.
+    Pass a dict as `stats` to receive the counters, under campaign_common's key
+    names and with its meanings: lines (non-blank lines seen, malformed
+    included), kept, malformed, duplicates, no_run_id. Reading one loader's
+    counters with another's vocabulary is a live trap — it printed a plausible
+    「读 2 行」 for a three-line corpus once, because `.get()` turned a mistyped
+    key into a default (D-325). Copies may stay; divergence may not (§2.14).
     """
-    records, seen, read, dropped = [], set(), 0, 0
+    records, seen = [], set()
+    st = {"lines": 0, "kept": 0, "malformed": 0, "duplicates": 0, "no_run_id": 0}
     for pat in patterns:
         for path in glob.glob(pat):
             with open(path, encoding="utf-8") as f:
@@ -40,21 +44,27 @@ def load_records(patterns, stats=None):
                     line = line.strip()
                     if not line:
                         continue
+                    # counted where campaign_common counts it: a line seen,
+                    # malformed included, before any parse can reject it
+                    st["lines"] += 1
                     try:
                         rec = json.loads(line)
                     except json.JSONDecodeError as e:
+                        st["malformed"] += 1
                         print(f"<!-- skip {path}:{lineno}: {e} -->", file=sys.stderr)
                         continue
-                    read += 1
                     rid = (rec.get("run") or {}).get("run_id") if isinstance(rec, dict) else None
-                    if rid is not None:
+                    if rid is None:
+                        st["no_run_id"] += 1
+                    else:
                         if rid in seen:
-                            dropped += 1
+                            st["duplicates"] += 1
                             continue
                         seen.add(rid)
                     records.append(rec)
+                    st["kept"] += 1
     if stats is not None:
-        stats["read"], stats["dropped"] = read, dropped
+        stats.update(st)
     return records
 
 
@@ -94,10 +104,12 @@ def main(argv):
 
     stats = {}
     recs = load_records(argv, stats)
-    dup = stats.get("dropped", 0)
+    # Direct subscript, not .get with a default: a mistyped key must be visible,
+    # not quietly replaced by a plausible number (D-325).
+    dup = stats["duplicates"]
     # Say what was dropped. A loader that silently discards half its input is
     # the mirror image of one that silently counts it twice (D-315).
-    note = f" (read {stats['read']} lines, dropped {dup} repeat run_id)" if dup else ""
+    note = f" (read {stats['lines']} lines, dropped {dup} repeat run_id)" if dup else ""
     print(f"# ANEB results summary\n\nrecords: **{len(recs)}**{note}\n")
     if not recs:
         return 0

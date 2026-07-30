@@ -47,10 +47,15 @@ def load_records(patterns, stats=None):
     record with no run_id cannot be deduped: it is always kept, never merged
     under a fabricated key (R-10).
 
-    Pass a dict as `stats` to receive {'read', 'dropped'}; the caller prints it,
-    because dropping silently is the same fault in the other direction.
+    Pass a dict as `stats` to receive the counters, under campaign_common's key
+    names and with its meanings: lines (non-blank lines seen, malformed
+    included), kept, malformed, duplicates, no_run_id. Reading one loader's
+    counters with another's vocabulary is a live trap — it printed a plausible
+    「读 2 行」 for a three-line corpus once (D-325). Copies may stay;
+    divergence may not (§2.14).
     """
-    records, files, seen, read, dropped = [], [], set(), 0, 0
+    records, files, seen = [], [], set()
+    st = {"lines": 0, "kept": 0, "malformed": 0, "duplicates": 0, "no_run_id": 0}
     for pat in patterns:
         paths = glob.glob(pat) or ([pat] if not any(c in pat for c in "*?[") else [])
         for path in paths:
@@ -60,21 +65,27 @@ def load_records(patterns, stats=None):
                     line = line.strip()
                     if not line:
                         continue
+                    # counted where campaign_common counts it: a line seen,
+                    # malformed included, before any parse can reject it
+                    st["lines"] += 1
                     try:
                         rec = json.loads(line)
                     except json.JSONDecodeError as e:
+                        st["malformed"] += 1
                         print(f"skip {path}:{lineno}: {e}", file=sys.stderr)
                         continue
-                    read += 1
                     rid = (rec.get("run") or {}).get("run_id") if isinstance(rec, dict) else None
-                    if rid is not None:
+                    if rid is None:
+                        st["no_run_id"] += 1
+                    else:
                         if rid in seen:
-                            dropped += 1
+                            st["duplicates"] += 1
                             continue
                         seen.add(rid)
                     records.append(rec)
+                    st["kept"] += 1
     if stats is not None:
-        stats["read"], stats["dropped"] = read, dropped
+        stats.update(st)
     return records, files
 
 
@@ -375,8 +386,10 @@ def main(argv):
     # On the page, not only on stdout: stdout scrolls away and the html is the
     # deliverable. Same wording and same spot as the campaign report's
     # provenance line, so the two surfaces read alike (D-315).
-    dup = stats.get("dropped", 0)
-    note = f" · 读 {stats['read']} 行 → 保留 {len(recs)} 条（去重丢 {dup}）" if dup else ""
+    # Direct subscript, not .get with a default: a mistyped key must be visible,
+    # not quietly replaced by a plausible number (D-325).
+    dup = stats["duplicates"]
+    note = f" · 读 {stats['lines']} 行 → 保留 {stats['kept']} 条（去重丢 {dup}）" if dup else ""
     out = build_html(d, files, now, note)
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(out)

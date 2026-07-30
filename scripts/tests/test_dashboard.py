@@ -108,6 +108,35 @@ def test_every_loader_drops_the_same_repeat_run_id():
     assert n["campaign_common"] == 2, n  # the reference behaviour, restated
     assert len(set(n.values())) == 1, n
 
+    # Same counters under the same NAMES with the same meanings. The per-run
+    # loaders used to call them read/dropped while campaign_common calls them
+    # lines/kept/duplicates, and reading one dict with the other's vocabulary
+    # made .get() hand back a plausible default instead of failing (D-325).
+    # Subset, not equality: the per-run loaders do not catch OSError, and
+    # inventing an always-zero unreadable_files would claim a capability they
+    # do not have. The trap is a name meaning the same thing on only one side.
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "c.jsonl")
+        with open(p, "w", encoding="utf-8") as f:
+            for r in list(recs) + [recs[0]]:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        s_cc, s_ar, s_db = {}, {}, {}
+        cc.load_records([p], stats=s_cc, quiet=True)
+        ar.load_records([p], stats=s_ar)
+        db.load_records([p], stats=s_db)
+
+    assert set(s_ar) == set(s_db), (sorted(s_ar), sorted(s_db))
+    assert set(s_ar) <= set(s_cc), (
+        "per-run loaders invented counter names campaign_common does not use: "
+        "%s" % sorted(set(s_ar) - set(s_cc)))
+    shared = sorted(set(s_ar) & set(s_cc))
+    assert len(shared) >= 5, shared
+    for k in shared:
+        assert s_cc[k] == s_ar[k] == s_db[k], (
+            "counter %r disagrees across the loaders: cc=%r ar=%r db=%r"
+            % (k, s_cc[k], s_ar[k], s_db[k]))
+    assert s_cc["lines"] == 3 and s_cc["duplicates"] == 1, s_cc
+
 
 def _rec(*, kpi=None, hist=None, aqs=90):
     rec = make_record(aqs=aqs, scenarios=[("s1_chat", dict(kpi or {}))])
