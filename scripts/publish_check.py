@@ -39,6 +39,7 @@ import buffering_rollup
 import campaign_common as cc
 import campaign_report as rpt
 import order_effect
+import radio_rollup
 import transport_rollup
 import trust_rollup
 import validity_rollup
@@ -263,6 +264,46 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         rows.append(_row(PASS, "层级同时性", f"{judged} 个格的三层级测量在门限内"))
     else:
         rows.append(_row(NA, "层级同时性", "无多层级格——层级同时性**未核算**"))
+
+    # The radio covariate. PLAN_ALIGNMENT §7.3 named it the first substitute for
+    # the cancelled three-tier decomposition, radio_rollup reads it, the report
+    # prints it — and the gate had never heard of it: `radio` matched nothing in
+    # this file (D-305). Two rows, both always emitted (D-150): is the context
+    # there at all, and does the busy/idle comparison survive what it says.
+    radio = radio_rollup.analyze(records, min_samples)
+    rcells = radio["cells"]
+    if not radio["any_block"]:
+        # Same shape as 同一客户端 above: not merely unchecked but uncheckable
+        # until the producer writes it, so it can never reach PASS (D-156).
+        rows.append(_row(WARN, "无线上下文",
+                         "语料无无线上下文——**无从核对**结论里是否混着信号差异；"
+                         "生产侧接线规格见 `docs/RADIO_CONTEXT_WIRING_SPEC.md`"))
+    elif not radio["any_radio"]:
+        rows.append(_row(WARN, "无线上下文",
+                         "全部无线样本标 stale 已排除——**排除不等于没问题**，"
+                         "须核对采集侧的取样新鲜度窗口"))
+    else:
+        thin = [c for c in rcells if c["stale_samples"] or c["thin_samples"]]
+        if thin:
+            rows.append(_row(WARN, "无线上下文",
+                             f"{len(thin)}/{len(rcells)} 个格的无线证据 stale 或过薄"
+                             "——该格的信号档不足以据此排除信号因素"))
+        else:
+            rows.append(_row(PASS, "无线上下文",
+                             f"{len(rcells)} 个格均有可用无线证据"))
+
+    # 三级归因取消后，忙闲是仅剩的两个对照轴之一；换了小区的点位那条轴就没了。
+    places = radio["places"]
+    moved = [p for p in places if p["changed"] or p["partial"]]
+    if moved:
+        rows.append(_row(WARN, "忙闲同小区",
+                         f"{len(moved)}/{len(places)} 个点位忙闲挂的不是同一小区"
+                         "——**该点位的忙闲差不可单独归因于时段**，不得表述为忙时劣化"))
+    elif places:
+        rows.append(_row(PASS, "忙闲同小区", f"{len(places)} 个点位忙闲同小区"))
+    else:
+        rows.append(_row(NA, "忙闲同小区",
+                         "无点位在两个时段都留下小区标识——忙闲可比性**未核算**"))
 
     # A veto caps the score at 70/54 — the grade-band edges — so a low grade can
     # mean the sessions failed rather than the network being slow (D-154)

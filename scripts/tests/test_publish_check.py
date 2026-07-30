@@ -98,6 +98,39 @@ def test_distortion_hotspot_is_warn():
     assert _sev(pc.check(recs), "批化失真") == pc.WARN
 
 
+def test_the_publish_gate_knows_about_the_radio_covariate():
+    """Every other analysis module has a gate item. radio_rollup had none — the
+    word `radio` matched nothing in publish_check.py — although PLAN_ALIGNMENT
+    §7.3 names the radio context the first substitute for the cancelled
+    three-tier decomposition, and 「该点位忙闲差不可单独归因于时段」 disqualifies
+    one of the two comparison axes that survived it (D-305).
+
+    Both rows must appear on every corpus shape (D-150), 无线上下文 can never
+    reach PASS while the producer writes nothing (the shape of D-156), and the
+    comparability row must fire where the rehearsal plants a cell change.
+    """
+    import radio_rollup
+
+    bare = _clean()                  # fixture carries no network_snapshot.radio
+    rows = pc.check(bare)
+    assert _sev(rows, "无线上下文") == pc.WARN
+    assert _sev(rows, "忙闲同小区") == pc.NA
+
+    withradio = sc.generate(points=8, repeats=5, radio=True,
+                            campaigns=("base", "opt"))
+    places = radio_rollup.analyze(withradio)["places"]
+    moved = [p for p in places if p["changed"] or p["partial"]]
+    assert moved, "the rehearsal plants no cell change; this half asserts nothing"
+    rows2 = pc.check(withradio)
+    assert _sev(rows2, "忙闲同小区") == pc.WARN
+    assert _sev(rows2, "无线上下文") in (pc.WARN, pc.PASS)
+
+    for label, rs in (("no radio", rows), ("with radio", rows2)):
+        names = [r["item"] for r in rs]
+        for item in ("无线上下文", "忙闲同小区"):
+            assert names.count(item) == 1, (label, item, names.count(item))
+
+
 def test_mixed_versions_are_warn_not_fail():
     """The tool cannot know whether a kpi_set bump changed the metric
     definitions, so this needs a human, not a machine verdict (D-137)."""
