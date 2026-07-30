@@ -1619,6 +1619,34 @@ def campaigns_by_cell(records, dims=HEAT_DIMS):
     return {k: sorted(v) for k, v in acc.items() if len(v) > 1}
 
 
+class _TaggedWriter:
+    """A csv.writer that appends the fabricated-data flag to every row.
+
+    CSV is the surface with no banner over it — the analyst sees columns and
+    nothing else, which is why mixed_campaigns had to become one (D-141). The
+    synthetic warning never followed: markdown and HTML print it in red at the
+    top, write_csv_tables never called count_synthetic at all. What evidence the
+    files did carry was incidental, from `SYNTH-` happening to prefix the ids in
+    the data — and two tables key on neither point nor campaign, so nothing in
+    them could hint at it however the corpus was labelled (D-303, §2.7).
+
+    The first row each block writes is its header, which is where the column's
+    name goes; every row after it gets the value.
+    """
+
+    def __init__(self, fh, synthetic):
+        self._w = csv.writer(fh)
+        self._synthetic = synthetic
+        self._header_written = False
+
+    def writerow(self, row):
+        if self._header_written:
+            tag = self._synthetic
+        else:
+            tag, self._header_written = "synthetic", True
+        self._w.writerow(list(row) + [tag])
+
+
 def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                      before_id=None, after_id=None):
     """Dump the campaign tables as CSV for external analysis (Excel/pandas).
@@ -1629,6 +1657,9 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         return "" if v is None else v
 
     written = []
+    # Corpus-level, computed once: a corpus mixing real and fabricated records is
+    # already a publish_check FAIL (D-124), so there is no per-row case to split.
+    synthetic = bool(cc.count_synthetic(records))
     heat = heat_cells(records, min_samples)
     # cells pooling more than one campaign, for the rollup tables that do
     # not track it themselves (D-147)
@@ -1656,7 +1687,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     p = prefix + "_heat.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         # mixed_campaigns must reach the CSV too: an analyst working from the
         # tables sees only columns — without it, a pooled median arrives looking
         # like an ordinary trustworthy number (D-141)
@@ -1696,7 +1727,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # settled (D-148).
     p = prefix + "_kpi_heat.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["kpi", "point_id", "carrier", "time_band", "median", "grade",
                     "grade_tie", "n", "low_confidence", "mixed_campaigns",
                     "implausible_values"])
@@ -1718,7 +1749,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     p = prefix + "_attribution.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "kpi", "access",
                     "regional_incr", "core_incr", "end_to_end_core", "coverage",
                     "low_confidence", "not_computable_reason", "incomparability",
@@ -1749,7 +1780,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # is a column, not a banner — CSV is where the analyst actually computes.
     p = prefix + "_segment_profile.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["kpi", "segment", "n_cells", "not_computable", "typical", "mad",
                     "rel_mad_percent", "basis", "uniform", "high_cells", "low_cells"])
         for k in attribution.ATTRIBUTABLE_KPIS:
@@ -1768,7 +1799,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     p = prefix + "_stability.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         # campaign_id leads the key (D-145): without it two campaigns emit rows
         # identical in every other column and an analyst cannot tell them apart
         w.writerow(["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id",
@@ -1795,7 +1826,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # with the profile-level verdict repeated — so a pivot reproduces the table.
     p = prefix + "_order_effect.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["profile_id", "kpi", "order_index", "position_median", "position_n",
                     "position_low_confidence", "spread", "spread_pct", "overall_median",
                     "threshold_pct", "order_effect_suspected", "not_computable_reason",
@@ -1835,7 +1866,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     vcells = validity_rollup.analyze(records)["cells"]
     p = prefix + "_validity.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["point_id", "carrier", "time_band", "profile_id", "attempted", "valid",
                     "valid_low_confidence", "invalid", "unknown", "valid_rate",
                     "below_min_rate", "reasons", "mixed_campaigns"])
@@ -1851,7 +1882,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_subscores.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["point_id", "carrier", "time_band", "runs", "dragging_dim",
                     "dragging_median", "spread", "low_confidence", "dim_medians",
                     # markdown has carried this since D-179 and the CSV did not:
@@ -1870,7 +1901,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     ucells = trust_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_trust.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["point_id", "carrier", "time_band", "scenarios", "clock_annotated",
                     "clock_suspect", "clock_suspect_share", "abs_drift_ppm_median",
                     "stream_counted", "stream_bad", "parse_per_event_us_median",
@@ -1888,7 +1919,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     tcells = transport_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_transport.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         # the delta's noise scale belongs on the surface analysts compute on —
         # a bare Δ column is an invitation to rank cells by repeat jitter (D-180)
         w.writerow(["point_id", "carrier", "time_band", "transport", "n", "aqs_median",
@@ -1917,7 +1948,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     rcells = radio_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_radio.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["point_id", "carrier", "time_band", "band", "rsrp_median_dbm",
                     "sinr_median_db", "rats", "serving_cells", "n", "n_with_radio",
                     "sampled_n_median", "stale_samples", "low_confidence",
@@ -1938,7 +1969,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         before_id, after_id = auto_compare_ids(inventory(records))
     p = prefix + "_comparison.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["point_id", "carrier", "time_band", "before_id", "after_id",
                     "before", "after", "delta", "noise", "within_noise",
                     # without these an n=3-vs-n=3 delta publishes as a clean
@@ -1965,7 +1996,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if len(tres["campaigns"]) >= trend.MIN_CAMPAIGNS_FOR_TREND:
         p = prefix + "_trend.csv"
         with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-            w = csv.writer(f)
+            w = _TaggedWriter(f, synthetic)
             # the direction is only as good as its noise scale — ship both or the
             # analyst computing on this file re-derives an unqualified verdict
             w.writerow(["point_id", "carrier", "time_band", "campaign_id", "order_index",
@@ -1989,7 +2020,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     bcells = buffering_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_buffering.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
-        w = csv.writer(f)
+        w = _TaggedWriter(f, synthetic)
         w.writerow(["point_id", "carrier", "time_band", "n", "modal_attribution",
                     "score_median", "sawtooth_median", "near_zero_median",
                     "suspect_share", "distortion_hotspot", "low_confidence",

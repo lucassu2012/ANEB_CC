@@ -256,6 +256,15 @@ stdout。被上述战役级工具 import。
 `娣卞湷-CBD-01`（已实测）。pandas 会自动剥除 BOM；用 Python 直读请指定
 `encoding="utf-8-sig"`（用 `utf-8` 会让 BOM 混进第一个列名）。
 
+## CSV 的 `synthetic` 列（D-303）
+
+每张导出表的**最后一列**恒为 `synthetic`（`True`/`False`，语料级）。红色合成数据横幅
+只印在 md/HTML 顶部，而 **CSV 只有列、没有横幅可看**——分析员是在这些文件上做计算的。
+此前 CSV 里能看出「数字是虚构的」全靠 `point_id`/`campaign_id` 恰好带 `SYNTH-` 前缀，
+纯属偶然：`_order_effect.csv` 按 profile×KPI×序位组织、`_segment_profile.csv` 按 KPI×段
+组织，**两张表无论语料怎么标都不可能带出这个信息**；单战役工作流下 `_comparison.csv`
+也同样没有。真实语料读 `False`——**留空会被读成「不知道」，那是 R-10 反过来犯**。
+
 ## 口径红线
 
 - `claim_scope` 恒为 `application_end_to_end_to_probe_node`：**应用层端到指定节点路径**，

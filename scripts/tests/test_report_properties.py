@@ -1693,6 +1693,67 @@ def test_the_printed_tables_and_the_exported_tables_carry_the_same_numbers():
                   "checked nothing")
 
 
+def test_every_exported_table_says_whether_its_numbers_are_fabricated():
+    """The red synthetic-data banner reached markdown and HTML and stopped there:
+    write_csv_tables never called count_synthetic at all (D-303, §2.7).
+
+    What the files did carry was incidental — `SYNTH-` prefixes inside point and
+    campaign ids — and measuring it showed the hole: order_effect keys on
+    profile and KPI, segment_profile on KPI and segment, so neither could ever
+    hint at it; and under the runbook's own single-campaign workflow comparison
+    lost its evidence too. An analyst handed the CSVs opens columns of numbers
+    with no banner above them, which is exactly why mixed_campaigns had to become
+    a column (D-141).
+
+    The subject is enumerated from what write_csv_tables actually writes, so a
+    table added later is covered without editing a list here (D-275). Both
+    polarities: a fabricated corpus must say True, a real one must say False —
+    a blank would read as "unknown", the R-10 mistake in reverse.
+    """
+    import copy
+    import csv as csvmod
+    import os
+    import tempfile
+    import synth_campaign as sc
+
+    def check(recs, expected, label):
+        seen = 0
+        with tempfile.TemporaryDirectory() as d:
+            paths = rpt.write_csv_tables(recs, os.path.join(d, "c"))
+            assert len(paths) >= 10, (label, len(paths))
+            for p in paths:
+                with open(p, encoding="utf-8-sig", newline="") as f:
+                    rows = list(csvmod.DictReader(f))
+                    f.seek(0)
+                    header = next(csvmod.reader(f))
+                name = os.path.basename(p)
+                assert "synthetic" in header, (
+                    "%s carries no synthetic column: an analyst computing on it "
+                    "has nothing telling them these numbers are %s"
+                    % (name, "fabricated" if expected == "True" else "real"))
+                for r in rows:
+                    assert r["synthetic"] == expected, (
+                        "%s in %s says synthetic=%r, corpus says %r"
+                        % (label, name, r["synthetic"], expected))
+                    seen += 1
+        return seen
+
+    fake = sc.generate(points=8, repeats=5, campaigns=("base", "opt"))
+    assert cc.count_synthetic(fake) == len(fake)
+    rows_fake = check(fake, "True", "fabricated corpus")
+    assert rows_fake >= 100, rows_fake
+
+    real = copy.deepcopy(fake)
+    for r in real:
+        r.pop("synthetic", None)
+        labels = r.setdefault("run", {}).setdefault("campaign", {})
+        for k in ("campaign_id", "point_id"):
+            if isinstance(labels.get(k), str):
+                labels[k] = labels[k].replace("SYNTH-", "FIELD-")
+    assert cc.count_synthetic(real) == 0, "the corpus is still marked synthetic"
+    assert check(real, "False", "real corpus") >= 100
+
+
 def test_no_column_claims_significance_in_a_section_that_disclaims_it():
     """The segment-profile section says 「描述性筛查、不是显著性检验」 in its banner
     and then headed its two output columns 「显著高」/「显著低」 (D-301). A reader
