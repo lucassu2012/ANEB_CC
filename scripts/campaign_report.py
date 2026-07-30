@@ -290,6 +290,25 @@ def _unlocated_note(n, what="格"):
             if n else "")
 
 
+def _confidence_caveat(scored, min_samples):
+    """How much of the surveyed population is below the sample floor.
+
+    D-300 put the population on the headline; a day cut short then showed the
+    other half of the same problem. Every cell at n=3 produced a first line
+    word-for-word identical to a full n=11 round — 「32 个格中无 fair/poor」 —
+    and nothing said that not one of those 32 numbers meets the floor. The count
+    is stated rather than a threshold invented: `low_confidence` is already
+    decided per cell by heat_cells, this only refuses to keep it quiet (D-313).
+    """
+    low = sum(1 for c in scored if c.get("low_confidence"))
+    if not low:
+        return ""
+    if low == len(scored):
+        return (f"——但这 **{low} 个格全部 low_confidence**（每格 n<{min_samples}），"
+                "**本轮不足以判定好坏**，先把样本补够再读这一条")
+    return f"——其中 **{low} 个格 low_confidence**，不要据它们判定好坏"
+
+
 _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
               "core_backbone_incr": "核心骨干"}
 
@@ -416,7 +435,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     "**它不是一个地点**，据此派不出人；先用 `annotate_campaign.py` "
                     "补注 `point_id` 再看本条）" + veto_note)
         bullets.append(f"**体验最差格**：{len(bad_cells)}/{len(scored)} 个格"
-                       f" AQS 达 fair/poor{tail}。")
+                       f" AQS 达 fair/poor{tail}{_confidence_caveat(scored, min_samples)}。")
     else:
         # The population, on the report's first line. Day one of a field trip may
         # come back with a single cell, and 「无 fair/poor 格」 over a set of one
@@ -424,9 +443,18 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # transport section (「没有可比的格」≠「比过了没问题」) and D-297 for the
         # stability ratio. No threshold is invented here: print the denominator
         # and let the reader see that 共 1 个格 is not a finding (D-300).
+        #
+        # The denominator alone was not enough. A day cut short gives every cell
+        # n=3, and this line then read identically to a full n=11 round — same
+        # words, same reassurance, not one cell meeting the sample floor. The
+        # naming site also skipped D-168's 「n=… low_conf」 mark, which the other
+        # branch has carried since (D-313).
+        best = scored[0]
+        mark = f"，n={best['n']} low_conf" if best["low_confidence"] else ""
         bullets.append(f"**体验最差格**：{len(scored)} 个格中无 fair/poor（最低 "
-                       f"{_cell_label(scored[0]['cell'])}="
-                       f"{cc.fmt_num(scored[0]['aqs_median'], 1)}）。")
+                       f"{_cell_label(best['cell'])}="
+                       f"{cc.fmt_num(best['aqs_median'], 1)}{mark}）"
+                       f"{_confidence_caveat(scored, min_samples)}。")
 
     # The report is titled "heat card AND ATTRIBUTION"; the summary told the
     # reader which cells are bad but never which path segment caused it — the

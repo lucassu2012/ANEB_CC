@@ -1876,6 +1876,48 @@ def test_the_producers_additive_scoring_blocks_do_not_move_the_report():
             "the report: %s" % diff[:3])
 
 
+def test_a_round_below_the_sample_floor_does_not_read_like_a_clean_survey():
+    """D-300 put the population on the headline. A day cut short showed the other
+    half: in the pilot's shape a heat cell's n IS the repeat count, so three
+    repeats make every cell low-confidence — and the first line still read
+    「32 个格中无 fair/poor」, word for word what a full eleven-repeat round
+    prints. Same words, same reassurance, not one of those 32 numbers meeting
+    the floor (D-313).
+
+    The two rounds must not be indistinguishable at the headline, and the count
+    is read back out of heat_cells rather than typed here.
+    """
+    import synth_campaign as sc
+
+    def headline(reps):
+        recs = sc.generate(points=8, repeats=reps, campaigns=("base",),
+                           tiers=("metro",))
+        cells = rpt.heat_cells(recs)
+        low = sum(1 for c in cells if c["low_confidence"])
+        line = [l for l in rpt.render_summary_markdown(recs).splitlines()
+                if l.startswith("- **体验最差格")][0]
+        return line, cells, low
+
+    thin, thin_cells, thin_low = headline(3)
+    full, full_cells, full_low = headline(11)
+    assert thin_low == len(thin_cells), (
+        "the cut-short corpus is not actually below the floor (%d/%d low) — this "
+        "guard would be asserting nothing" % (thin_low, len(thin_cells)))
+    assert full_low == 0, ("the full corpus is itself low-confidence (%d cells); "
+                           "the contrast is gone" % full_low)
+
+    assert thin != full, (
+        "a round where every cell is below the sample floor prints the same "
+        "headline as a full one: %s" % thin)
+    assert str(thin_low) in thin and "low_confidence" in thin, thin
+    assert "low_confidence" not in full, full
+    # …and the cell it names carries its own mark (D-168). Asserted separately:
+    # the count above is satisfied by the population sentence alone, so dropping
+    # the mark at the naming site would slip past it.
+    assert "low_conf）" in thin, thin
+    assert "low_conf）" not in full, full
+
+
 def test_every_kpi_this_layer_reads_is_produced_by_the_rehearsal():
     """Closing the other half of D-309's question, at the level where the numbers
     live. Measured against ResultReporter: the app writes twenty KPI fields, the
