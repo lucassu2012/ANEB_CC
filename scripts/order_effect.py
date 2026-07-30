@@ -191,6 +191,42 @@ def analyze(records, kpi=DEFAULT_KPI, min_samples=cc.DEFAULT_MIN_SAMPLES,
     }
 
 
+def summarize(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
+    """Corpus-level order-effect verdict, over every ORDER_SENSITIVE_KPIS entry.
+
+    One source for both front doors. publish_check computed this inline and the
+    report summary did not compute it at all — so the gate could WARN 「疑似位置-
+    KPI 相关」 while the one section decision-makers read closely never mentioned
+    order effect existed. Two front doors disagreeing about what the reader has
+    to know is D-330's shape; keeping the partition here means they cannot drift
+    apart either (§2.14, D-338).
+
+    `confounded` profiles are held out of `judged` exactly as not-computable is:
+    positions fed by different cells cannot support a verdict in either
+    direction (D-335).
+    """
+    biased, judged, confounded, balance_ok = [], 0, [], 0
+    no_evidence, never_rotated = True, False
+    for k in ORDER_SENSITIVE_KPIS:
+        res = analyze(records, kpi=k, min_samples=min_samples)
+        no_evidence = no_evidence and res["no_order_evidence"]
+        never_rotated = never_rotated or res["rotation_warning"]
+        for p in res["profiles"]:
+            if p.get("position_cell_imbalance"):
+                confounded.append(dict(p, kpi=k))
+                continue
+            if p.get("position_cell_imbalance") is False:
+                balance_ok += 1
+            if p["order_effect_suspected"] is None:
+                continue
+            judged += 1
+            if p["order_effect_suspected"]:
+                biased.append(dict(p, kpi=k))
+    return {"biased": biased, "judged": judged, "confounded": confounded,
+            "balance_ok": balance_ok, "no_evidence": no_evidence,
+            "never_rotated": never_rotated}
+
+
 def render_markdown(res):
     lines = [
         f"## 序位效应诊断（{res['kpi']}；拉丁方反平衡是否奏效）",

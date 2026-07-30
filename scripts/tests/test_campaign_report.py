@@ -827,6 +827,43 @@ def test_rollup_csvs_mark_pooled_campaigns():
             assert all(r["mixed_campaigns"] == "SYNTH-base/SYNTH-opt" for r in rows), table
 
 
+def test_the_summary_and_the_gate_answer_order_effect_the_same_way():
+    """publish_check gated on order effect and the summary never mentioned it,
+    so the gate could WARN 「疑似位置-KPI 相关」 against a summary that said
+    nothing at all — two front doors disagreeing about what the reader has to
+    know (D-330's shape, D-338).
+
+    Both now read order_effect.summarize(), so this pins the agreement rather
+    than the wording.
+    """
+    import publish_check as pc
+    from synth import order_records
+    rot = "s1_chat,s2_rag|s2_rag,s1_chat"
+    # a real position effect on one point: cells balanced, so it IS judgeable
+    recs = (order_records(5, value=100.0, order_index=0, point="P1", scenario_order=rot)
+            + order_records(5, value=140.0, order_index=1, point="P1", scenario_order=rot))
+    summary = _section(rpt.build_report_markdown(recs), "摘要")
+    rows = pc.check(recs)
+    gate = [r for r in rows if r["item"] == "序位效应"][0]
+    assert gate["severity"] == pc.WARN, gate
+    assert "疑似序位偏倚" in summary, summary
+    assert "均未见序位偏倚" not in summary
+
+
+def test_the_summary_will_not_call_a_confounded_corpus_free_of_order_bias():
+    """The confounded profiles are held out of the judged count (D-335). If the
+    summary then reported 「N 处均未见序位偏倚」 it would be asserting exactly
+    what the section refuses to assert."""
+    from synth import order_records
+    rot = "s1_chat,s2_rag|s2_rag,s1_chat"
+    recs = (order_records(5, value=100.0, order_index=0, point="P-a", scenario_order=rot)
+            + order_records(5, value=100.0, order_index=1, point="P-b", scenario_order=rot))
+    summary = _section(rpt.build_report_markdown(recs), "摘要")
+    assert "均未见序位偏倚" not in summary, summary
+    assert "无法校验" in summary, summary
+    assert "不可单独归因" in summary or "位次与单元不平衡" in summary, summary
+
+
 def test_the_two_pooling_caveats_reach_the_html_page_too():
     """D-335 and D-336 each added a sentence that qualifies a verdict. Both went
     into a render_markdown(), and the HTML report derives md-only sections from

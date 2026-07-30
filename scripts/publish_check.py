@@ -537,32 +537,13 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
         rows.append(_row(PASS, "介质效应量",
                          f"{len(treal)}/{len(tneg)} 个负 Δ 超出噪声尺度"))
 
-    biased, judged, confounded = [], 0, []
-    # `is False`, not truthiness: None means fewer than two positions carried
-    # values, and "could not be compared" must never be counted as "balanced"
-    # (R-10 / §2.2)
-    balance_ok = 0
-    no_evidence, never_rotated = True, False
-    for k in order_effect.ORDER_SENSITIVE_KPIS:
-        res = order_effect.analyze(records, kpi=k, min_samples=min_samples)
-        no_evidence = no_evidence and res["no_order_evidence"]
-        never_rotated = never_rotated or res["rotation_warning"]
-        for p in res["profiles"]:
-            # Positions fed by different cells: the difference is not
-            # attributable to order in either direction, so it is not a verdict
-            # — same standing as not-computable. Counting it as judged would
-            # let a confounded corpus PASS as 均未见序位偏倚, which is the
-            # report's own markdown refusing to say (D-335).
-            if p.get("position_cell_imbalance"):
-                confounded.append(p)
-                continue
-            if p.get("position_cell_imbalance") is False:
-                balance_ok += 1
-            if p["order_effect_suspected"] is None:
-                continue                      # not computable — not "no effect"
-            judged += 1
-            if p["order_effect_suspected"]:
-                biased.append(p)
+    # Partitioned in order_effect.summarize() so this gate and the report
+    # summary cannot answer the same question differently (D-338). Confounded
+    # profiles are held out of `judged` there, for the reason D-335 gives.
+    osum = order_effect.summarize(records, min_samples)
+    biased, judged = osum["biased"], osum["judged"]
+    confounded, balance_ok = osum["confounded"], osum["balance_ok"]
+    no_evidence, never_rotated = osum["no_evidence"], osum["never_rotated"]
     # Three different corpora used to collapse into one message. A corpus that
     # HAS scenario_order and proves the Latin square never rotated is a stronger
     # and quite different finding from one that carries no order evidence at

@@ -609,6 +609,36 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
             + f"{unstable_unloc}{nocv_note}。" if unstable else
             f"**复测稳定性**：{measured} 个单元全部达门{nocv_note}。")
 
+    # The report gives order effect three sections and publish_check gates on
+    # it, while the one section decision-makers read closely never mentioned it
+    # existed — so the gate could WARN 「疑似位置-KPI 相关」 against a summary
+    # that said nothing at all. Same partition as the gate, from one function,
+    # so the two front doors cannot answer differently (D-338).
+    osum = order_effect.summarize(records, min_samples)
+    conf_note = (f"；另有 **{len(osum['confounded'])} 处位次与单元不平衡**，"
+                 "其位次差**不可单独归因于序位**，已排除在上述判定之外"
+                 if osum["confounded"] else "")
+    if osum["no_evidence"]:
+        bullets.append("**序位效应**：语料无 `run.scenario_order`——"
+                       "**无法校验**拉丁方反平衡是否奏效（覆盖缺口，非「无偏倚」）。")
+    elif osum["never_rotated"]:
+        bullets.append("**序位效应**：全语料只有**一种轮次**——**拉丁方未轮转**，"
+                       "反平衡在构造上不成立，位次差无法与场景差分离"
+                       f"{conf_note}。")
+    elif not osum["judged"]:
+        why = ("所有 profile 的位次与单元不平衡" if osum["confounded"]
+               else "各 profile 在场位次不足 2")
+        bullets.append(f"**序位效应**：已轮转，但{why}——**本轮无法校验**是否残留序位偏倚。")
+    elif osum["biased"]:
+        named = [f"{p['profile_id']}/{p['kpi']}（极差 {cc.fmt_num(p['spread_pct'], 1)}%）"
+                 for p in sorted(osum["biased"], key=lambda p: -(p["spread_pct"] or 0))]
+        bullets.append(f"**疑似序位偏倚**：{len(osum['biased'])}/{osum['judged']} 处"
+                       f"位置-KPI 相关 —— {_top(named)}"
+                       f"（反平衡可能失效，**本报告的 KPI 中位数据此存疑**）{conf_note}。")
+    else:
+        bullets.append(f"**序位效应**：{osum['judged']} 处均未见序位偏倚"
+                       f"（反平衡奏效）{conf_note}。")
+
     tr = transport_rollup.analyze(records, min_samples)
     # Δ<0 alone is not "cellular is worse" — it is a difference that may be
     # smaller than the repeat spread. On the rehearsal grid every one of the
