@@ -827,6 +827,35 @@ def test_rollup_csvs_mark_pooled_campaigns():
             assert all(r["mixed_campaigns"] == "SYNTH-base/SYNTH-opt" for r in rows), table
 
 
+def test_order_effect_csv_carries_the_pooling_premise():
+    """CSV is the surface with no banner above it — the export block says so in
+    its own comment. Once the markdown started refusing to call a confounded
+    spread an order effect, a CSV still exporting order_effect_suspected=True
+    and nothing else would put two surfaces in open disagreement (§2.6/D-335).
+    """
+    import os
+    import tempfile
+    from synth import order_records
+    rot = "s1_chat,s2_rag|s2_rag,s1_chat"
+    recs = (order_records(5, value=40.0, order_index=0, point="P-fast",
+                          scenario_order=rot)
+            + order_records(5, value=120.0, order_index=1, point="P-slow",
+                            scenario_order=rot))
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        rows = _rollup_csv(prefix, "order_effect")
+    assert rows, "order_effect produced no rows"
+    mine = [r for r in rows if r["kpi"] == "t1_ttft_ms"]
+    assert mine, [r["kpi"] for r in rows]
+    for r in mine:
+        assert r["position_cell_imbalance"] == "True", r
+        assert "P-fast" in r["position_cells_uneven"], r["position_cells_uneven"]
+        # the raw statistic is still exported — the premise qualifies it, it
+        # does not erase what was measured
+        assert r["order_effect_suspected"] == "True", r
+
+
 def test_single_campaign_rollup_csvs_are_unmarked():
     """A flag that fires on clean corpora trains people to ignore it (D-134)."""
     import os

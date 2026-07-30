@@ -237,6 +237,7 @@ _NOT_A_REPORT_GATE = {
         "the same two media as `transport_media`, in the normaliser that maps a "
         "raw string onto them; the archived key is the one the section reads",
     ("buffering_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
+    ("order_effect", "CELL_DIMS"): "the cell key: structural, not a level",
     ("transport_rollup", "CELL_DIMS"): "the cell key: structural, not a level",
     ("trend", "CELL_DIMS"): "the cell key: structural, not a level",
     ("trust_rollup", "CELL_DIMS"): "the cell key: structural, not a level",

@@ -36,6 +36,77 @@ def test_order_effect_detected_when_position_matters():
     assert p["order_effect_suspected"] is True
 
 
+_FAST, _SLOW = 40.0, 120.0
+_ROT = "s1_chat,s2_rag|s2_rag,s1_chat"
+
+
+def _cell_skewed(**kw):
+    """Position #0 fed only by a fast point, #1 only by a slow one. Inside each
+    point every position reads the same value, so there is NO order effect at
+    all — only a difference in which cell supplied which position."""
+    return (order_records(5, value=_FAST, order_index=0, point="P-fast", **kw)
+            + order_records(5, value=_SLOW, order_index=1, point="P-slow", **kw))
+
+
+def test_a_cell_effect_is_not_reported_as_an_order_effect():
+    """analyze() pools every cell into one per-profile comparison, on purpose:
+    sample size is the point. But pooling has a premise — that each position
+    drew on the same cells — and nothing checked it. A two-point corpus with no
+    order effect whatsoever came out as 疑似序位偏倚 at spread_pct 100.0 with
+    '—' in the 备注 column (D-335).
+
+    scenario_order rotates here on purpose: the corpus that first showed this
+    also tripped the 未轮转 warning, which could be mistaken for a caveat — but
+    that warning fires on a perfectly counterbalanced corpus too, so it
+    discriminates nothing. Rotating removes the alternative explanation.
+
+    The raw statistic still says what it measured; it is the VERDICT that must
+    not claim attribution the numbers cannot support (§2.12).
+    """
+    res = oe.analyze(_cell_skewed(scenario_order=_ROT), kpi="t1_ttft_ms")
+    assert res["rotation_warning"] is False, "otherwise this proves nothing"
+    p = res["profiles"][0]
+    assert p["order_effect_suspected"] is True         # the measurement stands
+    assert p["position_cell_imbalance"] is True
+    assert p["position_cells_uneven"], "the flag must carry its own evidence"
+    md = oe.render_markdown(res)
+    assert "不可单独归因" in md
+    assert "CELL_CONFOUNDED" in md
+    assert "**疑似序位偏倚**" not in md, "a confounded row must not claim a verdict"
+    # …and above the table, not only inside a 备注 cell. Asserted present here
+    # because the balanced test only asserts it ABSENT, and a mutation that
+    # deleted the section line outright survived on that pair alone (D-335).
+    assert "单元不平衡" in md, "the premise has to be stated above the table too"
+
+
+def test_a_counterbalanced_two_cell_corpus_is_not_flagged():
+    """The half that matters. A premise check that fires on a correct corpus is
+    worse than none — everyone learns to ignore it. Same two points, but each
+    one feeds BOTH positions."""
+    recs = (order_records(5, value=_FAST, order_index=0, point="P-fast", scenario_order=_ROT)
+            + order_records(5, value=_FAST, order_index=1, point="P-fast", scenario_order=_ROT)
+            + order_records(5, value=_SLOW, order_index=0, point="P-slow", scenario_order=_ROT)
+            + order_records(5, value=_SLOW, order_index=1, point="P-slow", scenario_order=_ROT))
+    res = oe.analyze(recs, kpi="t1_ttft_ms")
+    p = res["profiles"][0]
+    assert p["position_cell_imbalance"] is False
+    assert p["position_cells_uneven"] == []
+    assert p["order_effect_suspected"] is False
+    md = oe.render_markdown(res)
+    assert "CELL_CONFOUNDED" not in md
+    assert "单元不平衡" not in md
+
+
+def test_one_position_cannot_be_called_balanced():
+    """With a single position there is nothing to compare, and R-10 forbids
+    calling that 'fine': False would let publish_check count it as a premise
+    that held."""
+    recs = order_records(5, value=_FAST, order_index=0, point="P-fast")
+    p = oe.analyze(recs, kpi="t1_ttft_ms")["profiles"][0]
+    assert p["position_cell_imbalance"] is None
+    assert p["position_cells_uneven"] == []
+
+
 def test_threshold_is_configurable():
     recs = (order_records(5, value=100, order_index=0)
             + order_records(5, value=112, order_index=1))

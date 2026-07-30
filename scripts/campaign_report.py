@@ -1880,7 +1880,12 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # analyst computes 「无明显序位效应」 over a corpus where
                     # counterbalancing never happened (D-164/D-197).
                     "distinct_rounds", "rotation_warning", "no_order_evidence",
-                    "rotates_within_run"])
+                    "rotates_within_run",
+                    # …and for the same reason, whether the positions being
+                    # compared were even fed by the same cells. Without this the
+                    # CSV says order_effect_suspected=True while the markdown
+                    # says 不可单独归因 — three surfaces, one fact (D-335/§2.6).
+                    "position_cell_imbalance", "position_cells_uneven"])
         # every KPI the section covers, not just analyze()'s default one: the
         # report renders one 序位效应 section per ORDER_SENSITIVE_KPIS entry, and
         # a CSV carrying one of the three loses two thirds of the section while
@@ -1894,7 +1899,9 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         _cell(pr["order_effect_suspected"]),
                         pr["not_computable_reason"] or "", pr["low_confidence"], _bad(pr),
                         ores["distinct_rounds"], ores["rotation_warning"],
-                        ores["no_order_evidence"], ores["rotates_within_run"]]
+                        ores["no_order_evidence"], ores["rotates_within_run"],
+                        _cell(pr["position_cell_imbalance"]),
+                        "; ".join(pr["position_cells_uneven"])]
                 # a profile whose every reading was refused has no positions at
                 # all; it still gets its row, for the same reason analyze() does
                 positions = sorted(pr["positions"].items()) or [(None, None)]

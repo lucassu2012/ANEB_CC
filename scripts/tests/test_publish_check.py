@@ -36,6 +36,68 @@ def _detail(rows, item):
     raise AssertionError(f"no such check item: {item}")
 
 
+_OE_ROT = "s1_chat,s2_rag|s2_rag,s1_chat"
+
+
+def test_a_confounded_profile_never_counts_as_no_order_bias():
+    """The gate's happy path prints 「N 处均未见序位偏倚」. A profile whose
+    positions were fed by different cells cannot support that sentence in
+    either direction — the report's own markdown refuses to claim it — so it
+    must be excluded from the count and named on its own line, exactly as
+    not-computable already is (D-335).
+    """
+    from synth import order_records
+    recs = (order_records(5, value=40.0, order_index=0, point="P-fast",
+                          scenario_order=_OE_ROT)
+            + order_records(5, value=120.0, order_index=1, point="P-slow",
+                            scenario_order=_OE_ROT))
+    rows = pc.check(recs)
+    assert _sev(rows, "序位效应·单元混杂") == pc.WARN, _detail(rows, "序位效应·单元混杂")
+    # the headline item must not be a PASS built on the excluded profile
+    assert _sev(rows, "序位效应") != pc.PASS, _detail(rows, "序位效应")
+    assert "均未见序位偏倚" not in _detail(rows, "序位效应")
+
+
+def test_a_confounded_profile_with_no_spread_is_still_not_a_pass():
+    """The branch the test above never reached. A confounded profile that also
+    happens to show no spread lands in the PASS arm — 「N 处均未见序位偏倚」 —
+    which is the gate asserting a premise it could not check.
+
+    Found by mutation: dropping the `continue` that excludes confounded
+    profiles SURVIVED, because the other fixture's profile had a spread and so
+    fell into the WARN arm regardless. A guard whose corpus never reaches the
+    branch it names is not guarding it (D-335).
+    """
+    from synth import order_records
+    recs = (order_records(5, value=100.0, order_index=0, point="P-a",
+                          scenario_order=_OE_ROT)
+            + order_records(5, value=100.0, order_index=1, point="P-b",
+                            scenario_order=_OE_ROT))
+    p = __import__("order_effect").analyze(recs, kpi="t1_ttft_ms")["profiles"][0]
+    assert p["position_cell_imbalance"] is True and p["spread"] == 0, p
+    assert p["order_effect_suspected"] is False, "otherwise this is the other test"
+
+    rows = pc.check(recs)
+    assert _sev(rows, "序位效应") != pc.PASS, _detail(rows, "序位效应")
+    assert "均未见序位偏倚" not in _detail(rows, "序位效应")
+    assert _sev(rows, "序位效应·单元混杂") == pc.WARN
+
+
+def test_a_counterbalanced_corpus_passes_the_pooling_premise():
+    """And it has to be a PASS with a count, not an N/A: an item that can only
+    ever say 「未核算」 teaches the reader nothing and hides a regression."""
+    from synth import order_records
+    recs = []
+    for point, value in (("P-fast", 40.0), ("P-slow", 120.0)):
+        for idx in (0, 1):
+            recs += order_records(5, value=value, order_index=idx, point=point,
+                                  scenario_order=_OE_ROT)
+    rows = pc.check(recs)
+    assert _sev(rows, "序位效应·单元混杂") == pc.PASS, _detail(rows, "序位效应·单元混杂")
+    assert any(ch.isdigit() for ch in _detail(rows, "序位效应·单元混杂")), \
+        "a PASS with no count is not evidence that anything was compared"
+
+
 def _clean():
     """Labelled, contract-complete, WITH scenarios, no seeded problems.
 

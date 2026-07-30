@@ -39,12 +39,22 @@ DEFAULT_THRESHOLD_PCT = 10.0
 # KPIs where a position dependence would meaningfully bias the campaign medians.
 ORDER_SENSITIVE_KPIS = ("t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps")
 
+# Same triple, same meaning, as every other rollup (§2.14). This module groups
+# by profile_id and pools every cell together on purpose — sample size is the
+# whole point — but pooling has a premise, and this is what checks it (D-335).
+CELL_DIMS = ("point_id", "carrier", "time_band")
+
 
 def collect_positions(records, kpi):
     """{profile_id -> {order_index -> [values]}} plus scenario_order counts.
 
     Fifth return: {profile_id -> Counter} of readings refused as impossible."""
     cells = defaultdict(lambda: defaultdict(list))
+    # profile -> order_index -> Counter(cell key). The verdict below is a
+    # difference of medians ACROSS positions, pooled over every cell; if one
+    # position was fed by cells another position never saw, that difference is
+    # a cell effect wearing an order effect's clothes (D-335).
+    cell_mix = defaultdict(lambda: defaultdict(Counter))
     implausible = defaultdict(Counter)
     orders = Counter()
     rounds = Counter()
@@ -75,7 +85,9 @@ def collect_positions(records, kpi):
             if not cc.keep_value(kpi, val, implausible[pid]):
                 continue
             cells[pid][idx].append(val)
-    return cells, orders, rounds, rotating_runs, implausible
+            labels = cc.campaign_labels(rec)
+            cell_mix[pid][idx][tuple(labels[d] for d in CELL_DIMS)] += 1
+    return cells, orders, rounds, rotating_runs, implausible, cell_mix
 
 
 def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
@@ -117,19 +129,48 @@ def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
     }
 
 
+def position_cell_spread(mix):
+    """Did every execution position draw on the same SET of cells?
+
+    `mix`: {order_index -> Counter(cell key)}. Returns (imbalanced, uneven),
+    where `uneven` names the cells missing from at least one position — the
+    evidence and the flag come out of the same computation, so they cannot
+    drift apart.
+
+    None when there is nothing to compare (fewer than two positions carried
+    values): not checkable is not the same as fine (R-10).
+
+    SETS, not distributions, on purpose. An unequal split (7 samples here, 4
+    there) confounds too, but a cell one position never saw at all is
+    unarguable, and a premise check that cries wolf gets ignored. The stronger
+    test is left undone knowingly, not overlooked (D-335).
+    """
+    seen = [frozenset(c) for c in mix.values() if c]
+    if len(seen) < 2:
+        return None, []
+    union = set().union(*seen)
+    common = set(seen[0]).intersection(*seen[1:])
+    uneven = sorted("/".join(str(x) for x in k) for k in (union - common))
+    return bool(uneven), uneven
+
+
 def analyze(records, kpi=DEFAULT_KPI, min_samples=cc.DEFAULT_MIN_SAMPLES,
             threshold_pct=None):
     # resolved here as well: the result dict publishes `threshold_pct` and the
     # renderer prints it as the gate in force (D-204)
     threshold_pct = DEFAULT_THRESHOLD_PCT if threshold_pct is None else threshold_pct
-    cells, orders, rounds, rotating_runs, implausible = collect_positions(records, kpi)
+    (cells, orders, rounds, rotating_runs, implausible,
+     cell_mix) = collect_positions(records, kpi)
     profiles = []
     # a profile whose every reading was refused still gets a row: it has no
     # verdict, and "no verdict because the numbers were impossible" is the thing
     # worth telling the operator
     for pid in sorted(set(cells) | {p for p, c in implausible.items() if c}):
+        imbalanced, uneven = position_cell_spread(cell_mix.get(pid) or {})
         profiles.append({"profile_id": pid,
                          "implausible_values": dict(sorted((implausible.get(pid) or {}).items())),
+                         "position_cell_imbalance": imbalanced,
+                         "position_cells_uneven": uneven,
                          **analyze_profile(cells.get(pid) or {}, min_samples, threshold_pct)})
     distinct = len([k for k in orders if k != "absent"])
     return {
@@ -171,6 +212,18 @@ def render_markdown(res):
                      "（`s1,s2,s3|s2,s3,s1` 形状），反平衡在构造上成立。")
         lines.append("")
 
+    # Pooling every cell into one per-profile comparison is deliberate — sample
+    # size is the point — but it has a premise, and until D-335 nothing checked
+    # it. Said once above the table as well as per row: a premise that only
+    # appears inside a 备注 cell is a premise most readers never see (§2.6).
+    mixed = [p for p in res["profiles"] if p.get("position_cell_imbalance")]
+    if mixed:
+        lines.append(f"> ⚠ {len(mixed)} 个 profile 的**执行位次与单元不平衡**"
+                     "（有单元未出现在每个位次）——本诊断把所有单元汇池比较，"
+                     "该前提不成立时位次差**不可单独归因于序位**（可能是点位/运营商/"
+                     "时段差穿了序位的外衣，也可能反过来掩盖真效应）。见备注列。")
+        lines.append("")
+
     if not res["profiles"]:
         lines.append("_无可诊断样本（记录缺 order_index 或该 KPI）。_")
         return "\n".join(lines)
@@ -204,7 +257,20 @@ def render_markdown(res):
             verdict = "**疑似序位偏倚**"
         else:
             verdict = "无明显效应"
+        # A cell that one position never saw makes the position difference
+        # unattributable in EITHER direction: a slow point feeding only #1
+        # invents an order effect, and it can equally mask a real one. Printing
+        # a verdict the numbers cannot support is worse than printing none
+        # (§2.12) — the 极差 columns still show exactly what was measured.
+        if p.get("position_cell_imbalance"):
+            verdict = "**不可单独归因(单元混杂)**"
         notes = []
+        if p.get("position_cell_imbalance"):
+            uneven = p["position_cells_uneven"]
+            shown = "、".join(cc.md_cell(c) for c in uneven[:3])
+            notes.append("**CELL_CONFOUNDED:" + shown
+                         + (f" 等 {len(uneven)} 个" if len(uneven) > 3 else "")
+                         + " 未出现在每个位次**")
         if p["not_computable_reason"]:
             notes.append(p["not_computable_reason"])
         if p.get("implausible_values"):

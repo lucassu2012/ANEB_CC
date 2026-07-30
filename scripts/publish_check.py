@@ -537,13 +537,27 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
         rows.append(_row(PASS, "介质效应量",
                          f"{len(treal)}/{len(tneg)} 个负 Δ 超出噪声尺度"))
 
-    biased, judged = [], 0
+    biased, judged, confounded = [], 0, []
+    # `is False`, not truthiness: None means fewer than two positions carried
+    # values, and "could not be compared" must never be counted as "balanced"
+    # (R-10 / §2.2)
+    balance_ok = 0
     no_evidence, never_rotated = True, False
     for k in order_effect.ORDER_SENSITIVE_KPIS:
         res = order_effect.analyze(records, kpi=k, min_samples=min_samples)
         no_evidence = no_evidence and res["no_order_evidence"]
         never_rotated = never_rotated or res["rotation_warning"]
         for p in res["profiles"]:
+            # Positions fed by different cells: the difference is not
+            # attributable to order in either direction, so it is not a verdict
+            # — same standing as not-computable. Counting it as judged would
+            # let a confounded corpus PASS as 均未见序位偏倚, which is the
+            # report's own markdown refusing to say (D-335).
+            if p.get("position_cell_imbalance"):
+                confounded.append(p)
+                continue
+            if p.get("position_cell_imbalance") is False:
+                balance_ok += 1
             if p["order_effect_suspected"] is None:
                 continue                      # not computable — not "no effect"
             judged += 1
@@ -561,13 +575,32 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
         rows.append(_row(WARN, "序位效应", "全语料只有一种轮次——**拉丁方未轮转**，"
                                            "反平衡在构造上不成立，位次差无法与场景差分离"))
     elif not judged:
-        rows.append(_row(WARN, "序位效应", "已轮转，但各 profile 在场位次不足 2——"
+        # "nothing was judgeable" has two quite different causes, and naming the
+        # wrong one is worse than naming none (§2.12)
+        why = ("所有 profile 的执行位次与单元不平衡" if confounded
+               else "各 profile 在场位次不足 2")
+        rows.append(_row(WARN, "序位效应", f"已轮转，但{why}——"
                                            "**本轮无法校验**是否残留序位偏倚"))
     elif biased:
         rows.append(_row(WARN, "序位效应", f"{len(biased)}/{judged} 处疑似位置-KPI 相关"
                                            "（反平衡可能失效，须复核）"))
     else:
         rows.append(_row(PASS, "序位效应", f"{judged} 处均未见序位偏倚"))
+
+    # Said separately rather than folded into the verdict above: these profiles
+    # were EXCLUDED from that count, and a reader who is told "3/8 suspected"
+    # has no way to learn that four more were unjudgeable unless it is its own
+    # line (D-335, same reason as D-330's front door).
+    if confounded:
+        rows.append(_row(WARN, "序位效应·单元混杂",
+                         f"{len(confounded)} 处执行位次与单元不平衡——位次差"
+                         "**不可单独归因于序位**，已排除在上一条判定之外"))
+    elif balance_ok:
+        rows.append(_row(PASS, "序位效应·单元混杂",
+                         f"{balance_ok} 处各位次由同一组单元供样，汇池前提成立"))
+    else:
+        rows.append(_row(NA, "序位效应·单元混杂",
+                         "无位次≥2 的 profile——汇池前提**本轮未核算**"))
 
     # N/A above PASS: "no answer" is closer to the reader's problem than "fine"
     rank = {FAIL: 0, WARN: 1, NA: 2, PASS: 3}
