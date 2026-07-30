@@ -52,6 +52,22 @@ def test_the_per_run_copies_of_the_numeric_guards_match_the_shared_ones():
         "one NaN still poisons the median of the values around it: %r" % got)
 
 
+def test_the_two_html_escapers_agree():
+    """§2.14 says EVERY group of same-named implementations needs something
+    forcing them to agree, and D-315 guarded two of the three: esc() was waved
+    through as "byte-identical in both files today". Byte-identical is exactly
+    when a divergence is easiest to introduce and hardest to notice — dropping
+    quote=True in one of them leaves attribute context unescaped on one surface
+    only, and nothing on the page looks wrong until it does (D-317).
+    """
+    import campaign_report as cr
+
+    for s in ["<b>", "a&b", '"q"', "'q'", "plain", 5, None, "点位 SZ-01"]:
+        assert cr.esc(s) == db.esc(s), (s, cr.esc(s), db.esc(s))
+    assert db.esc('"') != '"', \
+        "esc does not escape quotes at all; this battery checks nothing"
+
+
 def test_every_loader_drops_the_same_repeat_run_id():
     """load_records exists three times too. The campaign one de-duplicates by
     run.run_id because a run counted twice "silently INFLATES apparent
