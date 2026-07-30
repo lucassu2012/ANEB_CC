@@ -118,6 +118,15 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
                              f"（{ids}）——保留了先到的那条，须说明为何有两份")
         if st_int(stats, "malformed"):
             integrity.append(f"坏行 × {stats['malformed']}——已跳过，未计入任何中位数")
+        # corpus_health calls this ERROR ("makes aggregates WRONG") and the item
+        # written one decision ago checked conflicts and malformed but not this
+        # — a rule naming three things whose guard compared two (D-246, D-328).
+        # load_records catches OSError and continues, so an unreadable file
+        # takes a whole file's records out of every denominator, silently.
+        if st_int(stats, "unreadable_files"):
+            integrity.append(f"读不了的文件 × {stats['unreadable_files']}"
+                             "——整个文件的记录都不在语料里，每个分母都少了一截，"
+                             "须查清是哪份、为何读不了")
         if integrity:
             rows.append(_row(WARN, "语料完整性", "；".join(integrity)))
         else:

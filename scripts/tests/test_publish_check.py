@@ -659,16 +659,25 @@ def test_the_gate_notices_two_runs_disagreeing_under_one_id():
     # load_records' own key names (campaign_common: lines/kept/duplicates), not
     # the read/dropped the per-run loaders use — reading one loader's counters
     # with the other's vocabulary is what D-325 tripped over.
-    clean = {"lines": 2, "kept": 2, "duplicates": 0, "conflicts": [], "malformed": 0}
+    clean = {"lines": 2, "kept": 2, "duplicates": 0, "conflicts": [],
+             "malformed": 0, "unreadable_files": 0}
     assert item(pc.check(recs, stats=clean))["severity"] == pc.PASS
 
-    bad = {"lines": 3, "kept": 2, "duplicates": 1, "conflicts": ["R-1"],
-           "malformed": 0}
+    bad = dict(clean, lines=3, duplicates=1, conflicts=["R-1"])
     row = item(pc.check(recs, stats=bad))
     assert row["severity"] == pc.WARN, row
     assert "R-1" in row["detail"], (
         "the warning does not name the offending run_id, leaving the operator "
         "nowhere to start: %r" % row["detail"])
+
+    # A file that could not be read takes ALL of its records out of every
+    # denominator, and load_records swallows the OSError and carries on.
+    # corpus_health calls it ERROR; the item first shipped without it, checking
+    # two of the three things it claimed to cover (D-328).
+    unread = dict(clean, unreadable_files=1)
+    row = item(pc.check(recs, stats=unread))
+    assert row["severity"] == pc.WARN, row
+    assert "读不了的文件" in row["detail"], row
 
 
 def test_a_check_with_nothing_to_run_on_never_renders_as_pass():
