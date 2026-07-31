@@ -122,6 +122,53 @@ def test_single_position_not_computable_not_no_effect():
     assert p["low_confidence"] is True
 
 
+def test_one_sample_per_position_is_not_a_verdict():
+    """D-354, measured on the FIRST real forensic corpus: one run rotates three
+    orders, so every profile has three positions holding exactly one sample each.
+    The spread between those positions IS the run-to-run noise — there is no
+    within-position variability to judge it against — yet the threshold fired and
+    the summary announced 「疑似序位偏倚 8/9 … 本报告的 KPI 中位数据此存疑」, putting the
+    whole report's medians in doubt on a comparison that cannot discriminate.
+
+    Same arithmetic floor the stability section applies to CV (needs n>=2). The
+    `low_confidence` flag was already true and did not help: flagging a verdict
+    is not the same as declining to issue one (D-313).
+
+    The other half is pinned too — replicated positions with a real spread must
+    still be called out, or this fix would have silenced the check.
+    """
+    single = oe.analyze_profile({0: [50.0], 5: [52.7], 7: [39.0]})
+    assert single["order_effect_suspected"] is None, single
+    assert single["not_computable_reason"] == "UNREPLICATED_POSITIONS"
+    assert single["spread_pct"] > 10, "the spread is still reported, just not judged"
+
+    replicated = oe.analyze_profile({0: [50.0, 51.0], 5: [52.7, 53.0], 7: [39.0, 38.5]})
+    assert replicated["order_effect_suspected"] is True, replicated
+    assert replicated["not_computable_reason"] is None
+
+
+def test_summary_names_the_real_reason_it_could_not_judge():
+    """The summary used to pick between two reasons with an if/else, so a third
+    one printed a FALSE explanation: 「各 profile 在场位次不足 2」 about profiles that
+    had three positions and no replication inside them. The reason now comes out
+    of the analysis instead of being guessed (D-354)."""
+    from synth import make_record
+
+    rec = make_record(campaign={"campaign_id": "c", "tier": "metro", "point_id": "P1",
+                                "carrier": "ctcc", "time_band": "busy"},
+                      aqs=88, scenarios=[])
+    rec["run"]["mode"] = "forensic"
+    rec["run"]["scenario_order"] = "s1,s2,s3|s2,s3,s1|s3,s1,s2"
+    rec["scenarios"] = [
+        {"profile_id": "s1_chat", "profile_version": "0.2.1", "order_index": i,
+         "kpi": {"t1_ttft_ms": v}}
+        for i, v in ((0, 50.0), (5, 52.7), (7, 39.0))
+    ]
+    s = oe.summarize([rec])
+    assert s["judged"] == 0 and not s["biased"]
+    assert s["unjudged_reasons"] == {"UNREPLICATED_POSITIONS": 1}, s["unjudged_reasons"]
+
+
 def test_low_confidence_below_sample_floor():
     recs = (order_records(2, value=100, order_index=0)
             + order_records(2, value=100, order_index=1))

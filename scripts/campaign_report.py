@@ -348,6 +348,15 @@ def _scorer_caveat(scored):
             "**分数自己声明了不确定**，本行的分级不得当作定论")
 
 
+# Why an order-effect verdict could not be issued, in the reader's words. Keyed by
+# the code order_effect puts in `not_computable_reason`; an unmapped code prints
+# itself rather than being silently generalised (D-354).
+_ORDER_UNJUDGED_WHY = {
+    "NEED_2_POSITIONS": "各 profile 在场位次不足 2",
+    "UNREPLICATED_POSITIONS": "每个位次仅 1 个样本——位次差与运行间噪声不可分离",
+    "MEDIAN_NEAR_ZERO": "总体中位≈0，百分比无意义",
+}
+
 _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
               "core_backbone_incr": "核心骨干"}
 
@@ -655,9 +664,18 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                        "反平衡在构造上不成立，位次差无法与场景差分离"
                        f"{conf_note}。")
     elif not osum["judged"]:
-        why = ("所有 profile 的位次与单元不平衡" if osum["confounded"]
-               else "各 profile 在场位次不足 2")
-        bullets.append(f"**序位效应**：已轮转，但{why}——**本轮无法校验**是否残留序位偏倚。")
+        # The reasons come from the analysis, not from an if/else here. With two
+        # reasons a guess happened to be right; when D-354 added a third
+        # (positions present but each holding one sample) the guess printed
+        # 「位次不足 2」 about a profile with three positions — a false
+        # explanation of a true refusal, which is worse than the refusal alone.
+        # An unrecognised code prints itself rather than being dropped (R-10).
+        why = "、".join(_ORDER_UNJUDGED_WHY.get(code, code)
+                        for code in sorted(osum.get("unjudged_reasons") or ()))
+        if osum["confounded"] and not why:
+            why = "所有 profile 的位次与单元不平衡"
+        bullets.append(f"**序位效应**：已轮转，但{why or '无可判定对象'}"
+                       "——**本轮无法校验**是否残留序位偏倚。")
     elif osum["biased"]:
         named = [f"{p['profile_id']}/{p['kpi']}（极差 {cc.fmt_num(p['spread_pct'], 1)}%）"
                  for p in sorted(osum["biased"], key=lambda p: -(p["spread_pct"] or 0))]

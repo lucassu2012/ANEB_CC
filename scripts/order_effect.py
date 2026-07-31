@@ -118,14 +118,32 @@ def analyze_profile(positions, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # A near-zero overall median makes a percentage meaningless, not infinite.
     spread_pct = ((spread / abs(overall) * 100.0)
                   if overall is not None and abs(overall) > 1e-9 else None)
+    # Every position holding a single sample means the spread IS the run-to-run
+    # noise: there is no within-position variability to judge it against, so the
+    # threshold comparison decides nothing. Measured on the first real forensic
+    # corpus (D-354): one run, three positions per profile at n=1 each, and the
+    # summary announced 「疑似序位偏倚 8/9 … 本报告的 KPI 中位数据此存疑」 — the whole
+    # report's medians called into doubt by a comparison that cannot
+    # discriminate. This is the arithmetic floor the stability section already
+    # applies to CV (needs n>=2), for the same reason, said the same way (§2.14).
+    # `low_confidence` alone did not stop it: flagging a verdict is not the same
+    # as declining to issue one (D-313).
+    unreplicated = all(p["n"] < 2 for p in pos.values())
+    if unreplicated:
+        reason = "UNREPLICATED_POSITIONS"
+    elif spread_pct is None:
+        reason = "MEDIAN_NEAR_ZERO"
+    else:
+        reason = None
     return {
         "positions": pos,
         "spread": spread,
         "spread_pct": spread_pct,
         "overall_median": overall,
-        "order_effect_suspected": (spread_pct > threshold_pct) if spread_pct is not None else None,
+        "order_effect_suspected": (None if reason is not None
+                                   else spread_pct > threshold_pct),
         "low_confidence": any(p["low_confidence"] for p in pos.values()),
-        "not_computable_reason": None if spread_pct is not None else "MEDIAN_NEAR_ZERO",
+        "not_computable_reason": reason,
     }
 
 
@@ -207,6 +225,7 @@ def summarize(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """
     biased, judged, confounded, balance_ok = [], 0, [], 0
     no_evidence, never_rotated = True, False
+    unjudged = Counter()
     for k in ORDER_SENSITIVE_KPIS:
         res = analyze(records, kpi=k, min_samples=min_samples)
         no_evidence = no_evidence and res["no_order_evidence"]
@@ -218,13 +237,19 @@ def summarize(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             if p.get("position_cell_imbalance") is False:
                 balance_ok += 1
             if p["order_effect_suspected"] is None:
+                # WHY it could not be judged, counted rather than guessed at by
+                # the caller. The summary used to pick between two reasons with
+                # an if/else, so the moment a third existed it printed a false
+                # explanation — 「位次不足 2」 about a profile that had three
+                # positions and no replication inside them (D-354).
+                unjudged[p["not_computable_reason"] or "UNKNOWN"] += 1
                 continue
             judged += 1
             if p["order_effect_suspected"]:
                 biased.append(dict(p, kpi=k))
     return {"biased": biased, "judged": judged, "confounded": confounded,
             "balance_ok": balance_ok, "no_evidence": no_evidence,
-            "never_rotated": never_rotated}
+            "never_rotated": never_rotated, "unjudged_reasons": dict(unjudged)}
 
 
 def render_markdown(res):
