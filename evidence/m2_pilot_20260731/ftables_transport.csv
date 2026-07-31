@@ -1,0 +1,2 @@
+﻿point_id,carrier,time_band,transport,n,aqs_median,low_confidence,cellular_minus_wifi,noise,within_noise,mixed_campaigns,implausible_values,synthetic
+SZ-PILOT-01,ctcc,busy,cellular,4,90.6394515886524,True,,,,,,False

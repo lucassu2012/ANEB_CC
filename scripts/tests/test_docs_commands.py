@@ -309,11 +309,15 @@ def test_the_numbers_the_proposal_quotes_from_the_layer_still_hold():
 
 
 def test_every_default_the_readme_states_is_the_one_the_code_uses():
-    """The README is this layer's front door, and it states six defaults as
+    """The README is this layer's front door, and it states seven defaults as
     plain fact. Every one of them is a tunable — the CV gate, the plan target,
-    the order-effect threshold, the validity floor, the sample floor, and the
-    shape of the synthetic grid. Retune any and the front door starts lying
-    (D-275).
+    the order-effect threshold, the warm-up threshold, the validity floor, the
+    sample floor, and the shape of the synthetic grid. Retune any and the front
+    door starts lying (D-275).
+
+    The seventh arrived with round_effect (D-356) and this guard caught it the
+    moment the prose was written — which is the point: the count is the tripwire,
+    so a default cannot be documented without being reconciled.
 
     The sites are enumerated FROM the document: every 「默认」 followed by a
     number must be registered here. The four non-numeric mentions (stdout, an
@@ -323,6 +327,7 @@ def test_every_default_the_readme_states_is_the_one_the_code_uses():
     """
     import campaign_common as cc
     import order_effect
+    import round_effect
     import stability
     import synth_campaign as sc
     import validity_rollup
@@ -338,13 +343,14 @@ def test_every_default_the_readme_states_is_the_one_the_code_uses():
         ("--plan [PCT]", [stability.DEFAULT_TARGET_EFFECT_PCT]),
         ("生成 M2 规模网格", [len(recs), scenarios]),
         ("spread_pct = ", [order_effect.DEFAULT_THRESHOLD_PCT]),
+        ("首轮劣势%", [round_effect.DEFAULT_WARMUP_PCT]),
         ("低于门默认", [validity_rollup.DEFAULT_MIN_RATE * 100]),
         ("样本 < `min_samples`", [cc.DEFAULT_MIN_SAMPLES]),
     ]
 
     sites = [ln for ln in lines if re.search(r"默认\s*\d", ln)]
-    assert len(sites) == 6, (
-        f"{len(sites)} numeric defaults in the README, 6 registered — a new "
+    assert len(sites) == 7, (
+        f"{len(sites)} numeric defaults in the README, 7 registered — a new "
         f"one was written into the prose without being reconciled: {sites}")
 
     for ln in sites:

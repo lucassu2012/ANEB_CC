@@ -1,0 +1,10 @@
+﻿campaign_id,point_id,carrier,time_band,tier,profile_id,kpi,n,median,mean,cv_percent,unstable,low_confidence,cv_not_computable_reason,implausible_values,synthetic
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s1_chat,t1_ttft_ms,12,48.4421665,47.74069600000001,9.496958068739197,False,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s2_coding_agent,t1_ttft_ms,12,48.4833645,50.548102416666666,10.923144160522986,True,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s3_multimodal,t1_ttft_ms,12,48.335021,49.95485583333333,10.925460613467674,True,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s1_chat,n1_rtt_p50_ms,12,55.1205,55.73108333333334,7.05997007683708,False,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s2_coding_agent,n1_rtt_p50_ms,12,59.624,57.53975,9.556926046402793,False,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s3_multimodal,n1_rtt_p50_ms,12,58.3125,57.364749999999994,6.375435217742549,False,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s1_chat,u1_goodput_mbps,12,0.15495541270199376,0.15625370076878095,4.655126414540484,False,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s2_coding_agent,u1_goodput_mbps,12,10.9178192695109,11.238597520252476,10.342533818589365,True,False,,,False
+m2-pilot-forensic-20260731,SZ-PILOT-01,ctcc,busy,metro,s3_multimodal,u1_goodput_mbps,12,17.157167242251568,17.247832672119873,9.179386623153386,False,False,,,False

@@ -1387,6 +1387,37 @@ def test_lookalike_labels_are_reported_not_merged():
     assert "同名异写" not in rpt.build_report_markdown(clean)
 
 
+def test_the_report_carries_the_warm_up_section_in_both_shapes():
+    """The 预热效应 section and its summary bullet, on both corpus shapes.
+
+    D-356 added it because D-355 measured what a single-round corpus cannot see:
+    quick mode always samples the cold round, and every absolute number in such a
+    report is a cold-start number. The single-round branch is the one that matters
+    — it is the ordinary case, and its whole job is to say so rather than stay
+    silent (R-10).
+    """
+    single = aqs_records(88, 3, point="P1", carrier="ctcc", time_band="busy")
+    for rec in single:
+        rec["scenarios"] = [{"profile_id": "s1_chat", "profile_version": "0.2.1",
+                             "repeat_index": 0, "kpi": {"t1_ttft_ms": 50.0}}]
+    md = rpt.build_report_markdown(single)
+    assert "## 预热效应" in md, "the section heading vanished"
+    assert "只有一轮" in md and "冷启动口径" in md, md[:400]
+    assert "**预热效应**：语料**只有一轮**" in md, "the summary bullet is missing"
+
+    # …and the multi-round shape, where the section must judge instead of excuse.
+    multi = aqs_records(88, 3, point="P1", carrier="ctcc", time_band="busy")
+    for i, rec in enumerate(multi):
+        rec["scenarios"] = [
+            {"profile_id": "s1_chat", "profile_version": "0.2.1",
+             "repeat_index": rnd, "kpi": {"t1_ttft_ms": v}}
+            for rnd, v in ((0, 55.0 + i), (1, 47.0 + i), (2, 47.5 + i))
+        ]
+    md2 = rpt.build_report_markdown(multi)
+    assert "疑似预热效应" in md2, md2[:600]
+    assert "只有一轮" not in md2
+
+
 def test_summary_says_when_the_scorer_refused_to_vouch():
     """D-352, found on the first real corpus: every quick-mode run reports
     `run.aqs.low_confidence=true`, so the heat card said SCORER_LOW_CONF:11/11

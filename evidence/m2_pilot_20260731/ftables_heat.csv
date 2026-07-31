@@ -1,0 +1,2 @@
+﻿point_id,carrier,time_band,aqs_median,stdev,grade,n,low_confidence,mixed_campaigns,veto_n,scorer_low_conf_n,tier_mix,missing_tiers,incomparability,severe_incomparability,synthetic
+SZ-PILOT-01,ctcc,busy,90.6394515886524,0.7312961549203285,excellent,4,True,,0,4,metro4,,SCORER_LOW_CONF:4/4;low_conf,,False

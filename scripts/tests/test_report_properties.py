@@ -35,6 +35,7 @@ import coverage_matrix
 import order_effect
 import publish_check as pc
 import radio_rollup
+import round_effect
 import stability
 import subscore_rollup
 import transport_rollup
@@ -142,6 +143,7 @@ _SWEEP = {
     "publish_check": lambda r: pc.render_markdown(pc.check(r)),
     "coverage_matrix": lambda r: coverage_matrix.render_markdown(coverage_matrix.analyze(r)),
     "radio_rollup": lambda r: radio_rollup.render_markdown(radio_rollup.analyze(r)),
+    "round_effect": lambda r: round_effect.render_markdown(round_effect.analyze(r)),
 }
 
 # Reached through build_report_markdown rather than called here (D-231).
@@ -1344,6 +1346,7 @@ _CSV_FOR_SECTION = {
     "buffering_rollup": "buffering",
     "order_effect": "order_effect",
     "radio_rollup": "radio",
+    "round_effect": "round_effect",
     "stability": "stability",
     "subscore_rollup": "subscores",
     "transport_rollup": "transport",
@@ -1421,6 +1424,7 @@ _KPI_SET_FOR_CSV = {
     "segment_profile": lambda: attribution.ATTRIBUTABLE_KPIS,
     "stability": lambda: stability.DEFAULT_STABILITY_KPIS,
     "order_effect": lambda: order_effect.ORDER_SENSITIVE_KPIS,
+    "round_effect": lambda: round_effect.ROUND_KPIS,
 }
 
 

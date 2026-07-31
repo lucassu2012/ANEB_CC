@@ -1,0 +1,5 @@
+﻿kpi,point_id,carrier,time_band,median,grade,grade_tie,n,low_confidence,mixed_campaigns,implausible_values,synthetic
+t1_ttft_ms,SZ-PILOT-01,ctcc,busy,48.335021,excellent,,36,False,,,False
+n1_rtt_p50_ms,SZ-PILOT-01,ctcc,busy,57.4995,good,,36,False,,,False
+u1_goodput_mbps,SZ-PILOT-01,ctcc,busy,10.9178192695109,good,,36,False,,,False
+t2_itl_p95_ms,SZ-PILOT-01,ctcc,busy,28.6950525,excellent,,36,False,,,False

@@ -33,6 +33,7 @@ import campaign_common as cc
 import attribution
 import buffering_rollup
 import order_effect
+import round_effect
 import provenance as prov_mod
 import radio_rollup
 import stability
@@ -685,6 +686,30 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     else:
         bullets.append(f"**序位效应**：{osum['judged']} 处均未见序位偏倚"
                        f"（反平衡奏效）{conf_note}。")
+
+    # Warm-up is the other half of the order-effect question, and on a
+    # single-round corpus — the ordinary case — it is the one that changes how
+    # every absolute number above is read. Four states, one per corpus shape, so
+    # this line says something whatever the data looks like (D-338's contract).
+    wsum = round_effect.summarize(records)
+    if wsum["single_round"]:
+        bullets.append("**预热效应**：语料**只有一轮**（quick 每场景一遍）——**无法校验**；"
+                       "而单轮模式测到的永远是第一轮，故本报告**绝对值均为冷启动口径**"
+                       "（取证语料实测首轮时延高 8–12%、吞吐低 10–16%，D-355）。")
+    elif not wsum["judged"]:
+        why = "、".join(_ORDER_UNJUDGED_WHY.get(c, c)
+                        for c in sorted(wsum["unjudged_reasons"] or ()))
+        bullets.append(f"**预热效应**：有多轮语料，但{why or '无可判定对象'}——"
+                       "**本轮无法校验**首轮是否更差。")
+    elif wsum["suspected"]:
+        named = [f"{e['kpi']}（首轮劣 {cc.fmt_num(e['first_round_penalty_pct'], 1)}%）"
+                 for e in sorted(wsum["suspected"],
+                                 key=lambda e: -(e["first_round_penalty_pct"] or 0))]
+        bullets.append(f"**疑似预热效应**：{len(wsum['suspected'])}/{wsum['judged']} 个 KPI "
+                       f"首轮系统性更差 —— {_top(named)}"
+                       "（首轮读数偏保守；**跨格比较不受影响**，每格一样冷）。")
+    else:
+        bullets.append(f"**预热效应**：{wsum['judged']} 个 KPI 均未见首轮劣化。")
 
     # Radio context is the first-choice covariate since the three-tier
     # decomposition was cancelled (D-305): without it, a bad cell cannot be told
@@ -1371,6 +1396,15 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         parts.append("")
         parts.append("_无 `order_index` 证据，无法校验反平衡是否奏效。_")
         parts.append("")
+    # The other half of the same question. order_effect groups by ABSOLUTE
+    # order_index, so in a three-round Latin square a profile's three positions
+    # sit in three different ROUNDS — its verdict is right and reads as a
+    # position bias. This section slices by round instead, which is what tells
+    # warm-up from carryover; and on the ordinary single-round corpus it says the
+    # thing that matters most, that every absolute number above is a cold-start
+    # number (D-355/D-356).
+    parts.append(round_effect.render_markdown(round_effect.analyze(records)))
+    parts.append("")
     # The denominator behind every median above: how many attempts were made,
     # and where the dropped (INVALID, null-KPI) ones went. (D-96)
     parts.append(validity_rollup.render_markdown(validity_rollup.analyze(records)))
@@ -2075,6 +2109,31 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             "; ".join(t.get("cells") or []),
                             _cell(vts.get("days_share_cells")),
                             _cell(vts.get("undated_scenarios"))])
+    written.append(p)
+
+    # Warm-up, long format like _order_effect.csv: one row per KPI per round, with
+    # the KPI-level verdict repeated so a pivot reproduces the table. The
+    # corpus-level round count rides along on every row for the same reason the
+    # rotation columns do next door — the CSV travels without the banner that says
+    # a single-round corpus cannot be checked at all (D-356).
+    wres = round_effect.analyze(records)
+    p = prefix + "_round_effect.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = _TaggedWriter(f, synthetic)
+        w.writerow(["kpi", "round", "round_median", "round_n",
+                    "first_round_penalty_pct", "threshold_pct", "warm_up_suspected",
+                    "not_computable_reason", "low_confidence",
+                    "unknown_round_scenarios", "distinct_rounds"])
+        for e in wres["kpis"]:
+            rows = sorted(e["rounds"].items()) or [(None, {"median": None, "n": 0})]
+            for rnd, p_ in rows:
+                w.writerow([e["kpi"], _cell(rnd), _cell(p_["median"]), p_["n"],
+                            _cell(e["first_round_penalty_pct"]),
+                            _cell(wres["threshold_pct"]),
+                            _cell(e["warm_up_suspected"]),
+                            _cell(e["not_computable_reason"]),
+                            e["low_confidence"], e["unknown_round_n"],
+                            wres["distinct_rounds"]])
     written.append(p)
 
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]

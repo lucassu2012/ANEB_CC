@@ -1,0 +1,10 @@
+﻿kpi,round,round_median,round_n,first_round_penalty_pct,threshold_pct,warm_up_suspected,not_computable_reason,low_confidence,unknown_round_scenarios,distinct_rounds,synthetic
+t1_ttft_ms,0,51.746156,12,9.540862096962273,10.0,False,,False,0,3,False
+t1_ttft_ms,1,47.3515415,12,9.540862096962273,10.0,False,,False,0,3,False
+t1_ttft_ms,2,47.126729,12,9.540862096962273,10.0,False,,False,0,3,False
+n1_rtt_p50_ms,0,60.204499999999996,12,12.929138510741051,10.0,True,,False,0,3,False
+n1_rtt_p50_ms,1,53.0085,12,12.929138510741051,10.0,True,,False,0,3,False
+n1_rtt_p50_ms,2,53.615,12,12.929138510741051,10.0,True,,False,0,3,False
+u1_goodput_mbps,0,10.263230910823946,12,11.572059260684838,10.0,True,,False,0,3,False
+u1_goodput_mbps,1,11.957101368158696,12,11.572059260684838,10.0,True,,False,0,3,False
+u1_goodput_mbps,2,11.255541208422084,12,11.572059260684838,10.0,True,,False,0,3,False
