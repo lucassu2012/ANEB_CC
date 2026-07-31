@@ -250,6 +250,10 @@ def test_a_named_outlier_that_is_itself_under_sampled_says_so():
     disclosed. Both halves pinned: the count appears in 参与单元, and a named
     cell that is under-sampled carries `*`.
     """
+    # ⚠ SOLE targeted guard (D-362's census) on handover §2.15's second half —
+    # and on BOTH of its halves at once: muting the `*` and muting the 参与单元
+    # count each break this test and nothing else. Two promises resting on one
+    # test is thinner than it reads; split it before trusting either half alone.
     recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 5, point="P1")
             + tier_records("metro", "n1_rtt_p50_ms", 21, 5, point="P2")
             + tier_records("metro", "n1_rtt_p50_ms", 20, 5, point="P3")

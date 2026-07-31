@@ -1400,6 +1400,10 @@ def test_a_per_kpi_cell_says_what_its_median_is_a_median_of():
     §2.6 exists to stop — and on the clean half, where one profile fed the cell
     and there is nothing to warn about.
     """
+    # ⚠ SOLE targeted guard (D-362's census) on handover §2.15's first half: the
+    # only test that fails when profile_span_text stops reporting a spread, and
+    # the only one that fails when the caveat leaves the markdown card. Replace
+    # before removing.
     def corpus(per_profile):
         out = []
         for r in aqs_records(88, 3, point="P1", carrier="ctcc", time_band="busy"):
@@ -1422,6 +1426,16 @@ def test_a_per_kpi_cell_says_what_its_median_is_a_median_of():
     assert "0.14–16.43" in md, md
     html = rpt.build_report_html(spread, "2026-01-01 00:00:00 +0800")
     assert "0.14–16.43" in html, "the HTML pivot dropped the span"
+
+    # The span is a number; the sentence telling the reader what to DO with it is
+    # a separate promise, and the D-362 audit found it asymmetrically guarded:
+    # deleting it from the HTML broke two targeted tests, deleting it from the
+    # markdown broke only the snapshot. That is the weaker half by far — the
+    # snapshot fails on any wording change, so the routine "review the diff, then
+    # regenerate" would retire this promise without anyone deciding to. Note the
+    # md→html test cannot cover it either: with nothing in the markdown it is
+    # vacuously satisfied (the untested direction is where the judgement lives).
+    assert md.count(rpt.KPI_HEAT_SPAN_CAVEAT) == 1, "the pooling caveat left the markdown card"
 
     # …the clean half: one profile in the cell has no span to report, and saying
     # nothing is right — a marker that fires on every cell teaches the reader to
