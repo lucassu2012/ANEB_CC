@@ -153,6 +153,12 @@ adb logcat -v time -s AnebProbe:I > campaign_logcat.txt     # 另起一个窗口
 判完成看 `RUN_END run_id=<id> status=completed` 与 `REPORT http=200`；
 `status=aborted:*` 的那一轮**没有上报**，不进语料，直接重跑（新 `run_id`，是新样本不是重复）。
 
+> ⚠ **中止的那一轮，语料里永远看不见**：它死在上报之前，服务端一行都没有——分析层
+> 因此**无法**告诉你「这 11 条是几次尝试换来的」。`run.status` 的 aborted 显性化（D-152）
+> 只覆盖**上报成功但标记异常**的 run，覆盖不到**没上报**的。所以**中止次数要记进台账**：
+> 每格记「完成 N / 尝试 M」，M>N 时在报告的采集概况里如实写出原因（如本轮实测的
+> `bound_network_lost`）。不记，这件事就随 logcat 一起消失了。
+
 **补注**（把真机拉下来的原始 JSONL 打上战役标签；`SZ-PILOT-01` 为占位，真名下来后改）：
 
 ```
