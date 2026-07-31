@@ -223,14 +223,59 @@ def test_homogeneous_cell_not_flagged():
 
 
 def test_mixed_profile_version_flagged():
-    """D-32: s1@0.2 and s1@0.3 are different measurements — pooling must be visible."""
+    """D-32: s1@0.2 and s1@0.3 are different measurements — pooling must be visible.
+
+    The expected value changed at D-351 and this docstring records why rather than
+    letting the edit look like a rename: the entry now NAMES the offending profile
+    ("s1_chat:0.2/0.3"), because versions are compared within a profile_id. Held
+    flat, the marker fired on a single real run whose three profiles carry their
+    own versions — see test_one_run_is_never_mixed_with_itself.
+    """
     recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 3, profile_version="0.2")
             + tier_records("metro", "n1_rtt_p50_ms", 20, 3, profile_version="0.3")
             + tier_records("core", "n1_rtt_p50_ms", 60, 5, profile_version="0.2"))
     c = attribution.attribute(recs)["cells"][0]
-    assert c["mixed_profile_versions"] == ["0.2", "0.3"]
+    assert c["mixed_profile_versions"] == ["s1_chat:0.2/0.3"]
     assert "MIXED_PROFILE_VERSION" in attribution.render_markdown(
         attribution.attribute(recs))
+
+
+def test_one_run_is_never_mixed_with_itself():
+    """D-351, measured on the first real corpus: one run carries s1@0.2.1,
+    s2@0.2.1 and s3@0.3.0 — three profiles at their own versions. The flat
+    version set called that heat cell MIXED_PROFILE_VERSION at n=1, i.e. a single
+    run incomparable with itself. A marker that fires on every honest corpus
+    teaches the operator to ignore markers.
+
+    Guarded on the HEAT card, not the attribution matrix: attribution groups by
+    profile_id, so it never showed the defect. The surface that groups by the
+    thing which makes a check safe is the surface that hides it.
+    """
+    import json as _json
+
+    import campaign_report as rpt
+    from synth import make_record
+
+    rec = make_record(campaign={"campaign_id": "pilot", "tier": "metro",
+                                "point_id": "P1", "carrier": "ctcc",
+                                "time_band": "busy"},
+                      aqs=89.3, scenarios=[])
+    rec["scenarios"] = [
+        {"profile_id": "s1_chat", "profile_version": "0.2.1", "kpi": {}},
+        {"profile_id": "s2_coding_agent", "profile_version": "0.2.1", "kpi": {}},
+        {"profile_id": "s3_multimodal", "profile_version": "0.3.0", "kpi": {}},
+    ]
+    cell = rpt.heat_cells([rec])[0]
+    assert cell["n"] == 1
+    assert cell["mixed_profile_versions"] == [], cell["mixed_profile_versions"]
+
+    # …and the half that matters: a profile that really IS at two versions in one
+    # heat cell is still caught, and names itself.
+    second = _json.loads(_json.dumps(rec))
+    second["run"]["run_id"] = "second-run"
+    second["scenarios"][0]["profile_version"] = "0.2.2"
+    cell2 = rpt.heat_cells([rec, second])[0]
+    assert cell2["mixed_profile_versions"] == ["s1_chat:0.2.1/0.2.2"], cell2
 
 
 def test_mixed_histogram_edges_flagged():
@@ -277,7 +322,7 @@ def test_mixed_flag_does_not_suppress_the_numbers():
     c = attribution.attribute(recs)["cells"][0]
     assert c["access_component"] == 20
     assert c["regional_backbone_incr"] == 15
-    assert c["mixed_profile_versions"] == ["0.2", "0.3"]
+    assert c["mixed_profile_versions"] == ["s1_chat:0.2/0.3"]   # named since D-351
 
 
 def test_chinese_and_carrier_aliases_normalized():

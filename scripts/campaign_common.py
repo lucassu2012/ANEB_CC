@@ -561,8 +561,13 @@ def resolve_transport(rec):
 
 
 def homogeneity_acc():
-    """Fresh per-cell comparability accumulator (see note_homogeneity/mixed_flags)."""
-    return {"profile_versions": set(), "histogram_edges": set(),
+    """Fresh per-cell comparability accumulator (see note_homogeneity/mixed_flags).
+
+    `profile_versions` is a MAPPING profile_id -> {versions}: two versions are only
+    comparable when they version the same profile. Held flat, a single run flagged
+    itself as mixed (D-351).
+    """
+    return {"profile_versions": {}, "histogram_edges": set(),
             "modes": set(), "profile_sources": set(), "campaigns": set(),
             "transports": set()}
 
@@ -612,10 +617,16 @@ def mixed_transports(acc):
 
 
 def note_homogeneity(acc, scn):
-    """Record one scenario's comparability signatures into a cell accumulator."""
+    """Record one scenario's comparability signatures into a cell accumulator.
+
+    The version is filed UNDER its profile_id: s1_chat@0.2.1 and s3_multimodal@0.3.0
+    are two profiles at their own versions, not one profile at two versions.
+    """
     pv = scenario_profile_version(scn)
     if pv is not None:
-        acc["profile_versions"].add(pv)
+        pid = scn.get("profile_id")
+        pid = pid.strip() if isinstance(pid, str) and pid.strip() else "?"
+        acc["profile_versions"].setdefault(pid, set()).add(pv)
     eg = histogram_edges(scn)
     if eg is not None:
         acc["histogram_edges"].add(eg)
@@ -624,11 +635,23 @@ def note_homogeneity(acc, scn):
 def mixed_flags(acc):
     """(mixed_profile_versions:list, mixed_histogram_edges:bool) for a cell.
 
-    Empty list / False when the cell is homogeneous — i.e. safe to pool.
+    Empty list / False when the cell is homogeneous — i.e. safe to pool. Each
+    entry names the offending profile: "s1_chat:0.2.1/0.2.2".
+
+    Versions are compared WITHIN a profile_id. The flat version set this replaces
+    fired on the first real corpus, where one run carrying s1@0.2.1, s2@0.2.1 and
+    s3@0.3.0 was marked MIXED_PROFILE_VERSION — a single run declared incomparable
+    with itself, on a heat cell of n=1. Every honest real corpus has independently
+    versioned profiles, so the marker would have fired forever, and a marker that
+    always fires teaches the operator to ignore markers (D-290's lesson, D-351).
+    The attribution matrix never showed it because its cell key already carries
+    profile_id — same defect, invisible on the surface that happened to group by it.
     """
     acc = acc or {}
-    pvs = sorted(acc.get("profile_versions") or [])
-    return (pvs if len(pvs) > 1 else []), len(acc.get("histogram_edges") or []) > 1
+    pvs = acc.get("profile_versions") or {}
+    mixed = [f"{pid}:{'/'.join(sorted(vs))}"
+             for pid, vs in sorted(pvs.items()) if len(vs) > 1]
+    return mixed, len(acc.get("histogram_edges") or []) > 1
 
 
 def scenario_buffering(scn):
