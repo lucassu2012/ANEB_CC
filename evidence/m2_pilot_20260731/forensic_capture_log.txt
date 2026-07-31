@@ -1,0 +1,11 @@
+﻿
+15:24:23  forensic batch start target=3
+15:24:25  attempt 1 : forensic run started
+15:30:36  attempt 1 : COMPLETED (1/3) run_id=019fb70f-5dcf-769d-8845-6ae38cae3d84
+15:30:46  attempt 2 : forensic run started
+15:36:56  attempt 2 : COMPLETED (2/3) run_id=019fb715-2cdb-7979-b7f2-f324a395805e
+15:37:07  attempt 3 : forensic run started
+15:43:17  attempt 3 : COMPLETED (3/3) run_id=019fb71a-fbe5-7b24-b860-97f24579caf9
+15:43:25  FORENSIC BATCH DONE completed=3 attempts=3
+15:43:33  wrap-up: wifi_on=1 stayon=0
+15:43:33  wrap-up:   mCurrentFocus=Window{bef519c u0 NotificationShade}
