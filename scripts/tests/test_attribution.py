@@ -240,6 +240,43 @@ def test_mixed_profile_version_flagged():
         attribution.attribute(recs))
 
 
+def test_a_named_outlier_that_is_itself_under_sampled_says_so():
+    """D-361: the cross-cell screen weights a cell measured once exactly like a
+    cell measured eleven times — it can move the threshold AND be the cell the
+    screen names, sending an operator to investigate a single noisy reading.
+    Measured on the pilot: 3 of the 6 participating cells held one sample each.
+
+    Numbers are unchanged (dropping cells would hide real ones); the basis is
+    disclosed. Both halves pinned: the count appears in 参与单元, and a named
+    cell that is under-sampled carries `*`.
+    """
+    recs = (tier_records("metro", "n1_rtt_p50_ms", 20, 5, point="P1")
+            + tier_records("metro", "n1_rtt_p50_ms", 21, 5, point="P2")
+            + tier_records("metro", "n1_rtt_p50_ms", 20, 5, point="P3")
+            + tier_records("metro", "n1_rtt_p50_ms", 21, 5, point="P4")
+            # the outlier, measured ONCE - exactly the cell an operator must not
+            # be sent to chase without a re-measure
+            + tier_records("metro", "n1_rtt_p50_ms", 400, 1, point="P9"))
+    prof = attribution.segment_profile(attribution.attribute(recs))
+    access = [s for s in prof["segments"] if s["segment"] == "access_component"][0]
+    assert access["low_conf_cells"] >= 1, access
+    md = attribution.render_segment_profile_markdown(prof)
+    assert "其中 1 个样本不足" in md, md[:900]
+    named = [ln for ln in md.splitlines() if ln.startswith("| 接入")][0]
+    assert "P9" in named and "*" in named.split("|")[6], named
+
+    # …and the clean half: when every participating cell is well sampled, no
+    # count and no star — a mark that shows up always is a mark nobody reads.
+    clean = (tier_records("metro", "n1_rtt_p50_ms", 20, 5, point="P1")
+             + tier_records("metro", "n1_rtt_p50_ms", 21, 5, point="P2")
+             + tier_records("metro", "n1_rtt_p50_ms", 20, 5, point="P3")
+             + tier_records("metro", "n1_rtt_p50_ms", 400, 5, point="P9"))
+    md2 = attribution.render_segment_profile_markdown(
+        attribution.segment_profile(attribution.attribute(clean)))
+    assert "样本不足" not in [ln for ln in md2.splitlines()
+                              if ln.startswith("| 接入")][0]
+
+
 def test_one_run_is_never_mixed_with_itself():
     """D-351, measured on the first real corpus: one run carries s1@0.2.1,
     s2@0.2.1 and s3@0.3.0 — three profiles at their own versions. The flat

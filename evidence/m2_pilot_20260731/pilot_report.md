@@ -17,7 +17,7 @@
 
 ## 溯源 / provenance（可复现性）
 
-> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-07-31 17:22:54 +0800 · 读 12 行 → 保留 12 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": "m2-pilot-20260731", "before": null, "after": null}。
+> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-07-31 17:35:42 +0800 · 读 12 行 → 保留 12 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": "m2-pilot-20260731", "before": null, "after": null}。
 
 > **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
 
@@ -232,9 +232,11 @@
 
 > **注意**：`未见单点异常` 只表示**没有单元越过筛查阈值**，**不等于各单元相同**——单元间到底有多齐，看 `离差/典型` 一列。该列小且无异常，才说得上是路径共性。
 
+> **参与单元里若有「样本不足」的**（`参与单元` 列会写出个数）：那些单元**等权**参与离差与筛查——一个只测过一次的单元既能把阈值拉动，也可能**自己被点名**。被点名的单元若本身样本不足，`偏高/偏低` 里会带 `*`：**先补测它，再去现场查**。
+
 | 段 | 参与单元 | 典型值(中位) | 离差(MAD) | 离差/典型 | 偏高 | 偏低 | 判读 |
 |---|---|---|---|---|---|---|---|
-| 接入(metro) | 6 | 63.8 | 1.2 | 1.9% | — | — | **未见单点异常**（K=6×1.4826×MAD；干净网格误报 对称4.7%/右偏9.4%）→ 最大单项落在该段分布内，不宜单独归因于该单元 |
+| 接入(metro) | 6，其中 3 个样本不足 | 63.8 | 1.2 | 1.9% | — | — | **未见单点异常**（K=6×1.4826×MAD；干净网格误报 对称4.7%/右偏9.4%）→ 最大单项落在该段分布内，不宜单独归因于该单元 |
 | 区域骨干+ | 0（另 6 不可计算） | — | — | — | — | — | 可比单元不足(<2)，无法比较 |
 | 核心骨干+ | 0（另 6 不可计算） | — | — | — | — | — | 可比单元不足(<2)，无法比较 |
 
@@ -267,9 +269,11 @@
 
 > **注意**：`未见单点异常` 只表示**没有单元越过筛查阈值**，**不等于各单元相同**——单元间到底有多齐，看 `离差/典型` 一列。该列小且无异常，才说得上是路径共性。
 
+> **参与单元里若有「样本不足」的**（`参与单元` 列会写出个数）：那些单元**等权**参与离差与筛查——一个只测过一次的单元既能把阈值拉动，也可能**自己被点名**。被点名的单元若本身样本不足，`偏高/偏低` 里会带 `*`：**先补测它，再去现场查**。
+
 | 段 | 参与单元 | 典型值(中位) | 离差(MAD) | 离差/典型 | 偏高 | 偏低 | 判读 |
 |---|---|---|---|---|---|---|---|
-| 接入(metro) | 6 | 53.13 | 1.45 | 2.73% | — | — | **未见单点异常**（K=6×1.4826×MAD；干净网格误报 对称4.7%/右偏9.4%）→ 最大单项落在该段分布内，不宜单独归因于该单元 |
+| 接入(metro) | 6，其中 3 个样本不足 | 53.13 | 1.45 | 2.73% | — | — | **未见单点异常**（K=6×1.4826×MAD；干净网格误报 对称4.7%/右偏9.4%）→ 最大单项落在该段分布内，不宜单独归因于该单元 |
 | 区域骨干+ | 0（另 6 不可计算） | — | — | — | — | — | 可比单元不足(<2)，无法比较 |
 | 核心骨干+ | 0（另 6 不可计算） | — | — | — | — | — | 可比单元不足(<2)，无法比较 |
 

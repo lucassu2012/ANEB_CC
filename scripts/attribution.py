@@ -404,8 +404,18 @@ def segment_profile(result):
         pairs = [(c, c[field]) for c in result["cells"] if c.get(field) is not None]
         vals = [v for _, v in pairs]
         missing = len(result["cells"]) - len(pairs)
+        # How many participating cells are below the sample floor. They enter the
+        # spread and the screen with FULL weight, so a cell measured once can both
+        # move the threshold and be named by it — and the operator is then sent to
+        # investigate a single noisy reading. Measured on the pilot: 3 of the 6
+        # participating cells held one sample each. The numbers are not changed
+        # (dropping cells would hide real ones); the basis is disclosed instead
+        # (D-361 — the D-354 shape, on the cross-cell screen rather than on
+        # execution positions).
+        low_conf_cells = sum(1 for c, _ in pairs if c.get("low_confidence"))
         typical, spread = cc.median(vals), cc.mad(vals)
         row = {"segment": field, "label": label, "n_cells": len(pairs),
+               "low_conf_cells": low_conf_cells,
                "not_computable": missing, "typical": typical, "mad": spread,
                # spread relative to the typical value: "no cell exceeded the
                # screen" says nothing about how alike the cells are, and a
@@ -427,9 +437,11 @@ def segment_profile(result):
             # A relative tolerance keeps float dust from reading as a finding.
             row["basis"] = "zero_spread"
             tol = 1e-9 * max(1.0, abs(typical))
-            row["high"] = [{"cell": c["cell"], "value": v}
+            row["high"] = [{"cell": c["cell"], "value": v,
+                            "low_confidence": bool(c.get("low_confidence"))}
                            for c, v in pairs if v - typical > tol]
-            row["low"] = [{"cell": c["cell"], "value": v}
+            row["low"] = [{"cell": c["cell"], "value": v,
+                           "low_confidence": bool(c.get("low_confidence"))}
                           for c, v in pairs if typical - v > tol]
             row["uniform"] = not (row["high"] or row["low"])
         elif len(pairs) < MIN_CELLS_TO_SCREEN:
@@ -444,9 +456,11 @@ def segment_profile(result):
             row["false_alarm"] = outlier_false_alarm(len(pairs))
             thr = k * cc.MAD_TO_SIGMA * spread
             row["basis"] = "mad"
-            row["high"] = [{"cell": c["cell"], "value": v}
+            row["high"] = [{"cell": c["cell"], "value": v,
+                            "low_confidence": bool(c.get("low_confidence"))}
                            for c, v in pairs if v - typical > thr]
-            row["low"] = [{"cell": c["cell"], "value": v}
+            row["low"] = [{"cell": c["cell"], "value": v,
+                           "low_confidence": bool(c.get("low_confidence"))}
                           for c, v in pairs if typical - v > thr]
             row["uniform"] = not (row["high"] or row["low"])
         rows.append(row)
@@ -456,6 +470,21 @@ def segment_profile(result):
 
 def _seg_cell_label(cell):
     return "/".join(cc.md_cell(v) for v in cell.values())
+
+
+def _seg_outliers_text(items):
+    """「cell(value)」 list for 偏高/偏低, with `*` on cells that are themselves
+    below the sample floor.
+
+    One formatter for all four sites (two bases × high/low): the promise that a
+    named cell says so is made once in the section's own prose, and four copies
+    of the formatting would be four chances for one of them to stop keeping it
+    (D-361, §2.14).
+    """
+    return "；".join(
+        f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
+        + ("*" if o.get("low_confidence") else "")
+        for o in items) or "—"
 
 
 def _screen_caliber(seg):
@@ -546,6 +575,10 @@ def render_segment_profile_markdown(prof):
         "**不等于各单元相同**——单元间到底有多齐，看 `离差/典型` 一列。"
         "该列小且无异常，才说得上是路径共性。",
         "",
+        "> **参与单元里若有「样本不足」的**（`参与单元` 列会写出个数）：那些单元**等权**"
+        "参与离差与筛查——一个只测过一次的单元既能把阈值拉动，也可能**自己被点名**。"
+        "被点名的单元若本身样本不足，`偏高/偏低` 里会带 `*`：**先补测它，再去现场查**。",
+        "",
         # NOT 显著高/显著低: this section says two lines above that it is a
         # descriptive screen and not a significance test, and a reader scanning
         # columns never reaches that caveat. The basis of each flag travels in
@@ -569,22 +602,21 @@ def render_segment_profile_markdown(prof):
             # pointed at a screen that no longer exists (D-301).
             verdict = ("过半单元取值相同，下列单元与之不同"
                        "（判据是**与共同取值不等**，不是阈值筛查）")
-            high = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
-                             for o in s["high"]) or "—"
-            low = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
-                            for o in s["low"]) or "—"
+            high, low = _seg_outliers_text(s["high"]), _seg_outliers_text(s["low"])
         elif s["uniform"]:
             verdict = (f"**未见单点异常**（{_screen_caliber(s)}）"
                        "→ 最大单项落在该段分布内，不宜单独归因于该单元")
             high = low = "—"
         else:
             verdict = f"**存在单点异常**（{_screen_caliber(s)}）→ 值得去看的具体单元"
-            high = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
-                             for o in s["high"]) or "—"
-            low = "；".join(f"{_seg_cell_label(o['cell'])}({cc.fmt_num(o['value'], 1)})"
-                            for o in s["low"]) or "—"
+            high, low = _seg_outliers_text(s["high"]), _seg_outliers_text(s["low"])
         n = f"{s['n_cells']}" + (f"（另 {s['not_computable']} 不可计算）"
                                  if s["not_computable"] else "")
+        # A cell measured once counts here exactly as much as a cell measured
+        # eleven times — it can move the threshold and it can be the cell this
+        # screen names. Disclosed rather than dropped (D-361).
+        if s.get("low_conf_cells"):
+            n += f"，其中 {s['low_conf_cells']} 个样本不足"
         # 离差/典型 is one printed column divided by another, so the reader will
         # divide them. All three share a precision at which that division still
         # lands on the printed ratio (D-221).
