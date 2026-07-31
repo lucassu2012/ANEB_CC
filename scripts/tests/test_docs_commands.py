@@ -894,21 +894,6 @@ def _unverified_tiers_attr_md():
     return attribution.render_markdown(attribution.attribute(recs))
 
 
-def _reused_repeats_coverage_md():
-    """Six records in one cell that are three repeats run twice each — the only
-    shape that raises this marker, and the one the runbook tells the operator
-    means 「这格仍要回去补」 (D-340/D-341)."""
-    import coverage_matrix
-    from synth import aqs_records
-    recs = []
-    for i, ri in enumerate([0, 1, 2, 0, 1, 2]):
-        r = aqs_records(80 + (i % 3), 1, point="P1", carrier="cmcc",
-                        time_band="busy")[0]
-        r["run"]["repeat_index"] = ri
-        recs.append(r)
-    return coverage_matrix.render_markdown(coverage_matrix.analyze(recs))
-
-
 def _single_tier_attr_md():
     """The attribution section as the Shenzhen pilot will render it: one tier."""
     import attribution
@@ -930,10 +915,6 @@ _QUOTE_RENDERERS = {
     # report, and what it means if it does (D-292). That instruction is only
     # worth anything while the tool still prints the string.
     "M2_CAMPAIGN_RUNBOOK.tier_unverified": _unverified_tiers_attr_md,
-    # §3 now tells the operator that a cell carrying this marker still has to be
-    # revisited — the daily check decides tomorrow's route, so the string it
-    # keys on has to keep being printed (D-341).
-    "M2_CAMPAIGN_RUNBOOK.repeats_reused": _reused_repeats_coverage_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_yes": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_anomaly_no": _segment_profile_md,
     "M2_REPORT_TEMPLATE.seg_verdict_col": _segment_profile_md,
@@ -942,10 +923,10 @@ _QUOTE_RENDERERS = {
     # has one. It now opens with what to write instead, keyed off the sentence
     # the section prints — so that sentence has to keep being printed (D-289).
     "M2_REPORT_TEMPLATE.tier_single": _single_tier_attr_md,
-    # The skeleton's 采集概况 chapter told the writer to report per-cell sample
-    # counts, and D-340 showed a count is not coverage. Same renderer as the
-    # runbook entry: one marker, one production, not two implementations.
-    "M2_REPORT_TEMPLATE.repeats_reused": _reused_repeats_coverage_md,
+    # `repeats_reused` (both docs) was withdrawn with its column: the marker keyed
+    # on `run.repeat_index`, which the contract defines only inside a scenario
+    # and no producer writes at run level, so it could never fire on real data
+    # (D-344). The contract scan below is what remains of that lesson.
 }
 
 
@@ -1175,3 +1156,51 @@ def test_every_severity_the_gate_can_emit_is_described_where_the_operator_reads(
             f"{os.path.basename(path)} never lists {sorted(emitted)} within one "
             f"passage (closest span: {'none' if best is None else best + 1} lines)"
             " — they are mentioned, but nowhere described side by side")
+
+
+def test_run_level_reads_stay_inside_the_result_contract():
+    """Every run-level field the analysis layer reads must exist in the contract.
+
+    D-340 built a whole column on `run.repeat_index` — a field the schema
+    defines only inside a scenario (取证模式第几遍, 快测恒 0), which no producer
+    writes at run level and 0 of 4822 real records carried there. On every real
+    cell the column read 「0 个不同重复(+N 无编号)」: inert, and implying the
+    operator forgot to number repeats (D-344). This scan would have caught it
+    the day it was written.
+
+    The allowed set is derived from the schema artifact, not hand-listed
+    (D-275). `campaign` is the one reasoned exemption: the OPTIONAL labelling
+    block lives in docs/CAMPAIGN_LABELS_CONVENTION.md §2.1, deliberately outside
+    the schema's run.properties (additionalProperties admits it).
+
+    Boundary (D-320): only the direct `run_obj(...).get("k")` shape is visible;
+    an aliased `ro = run_obj(rec)` … `ro.get("k")` would escape. None exists
+    today (grepped), and the floor below fails if the direct shape ever stops
+    being the norm — at which point this scan must learn the alias, not be
+    trusted as-is.
+    """
+    import json
+
+    with open(os.path.join(REPO, "spec", "schemas", "result-run.schema.json"),
+              encoding="utf-8-sig") as fh:
+        schema = json.load(fh)
+    allowed = set(schema["properties"]["run"]["properties"]) | {"campaign"}
+
+    pat = re.compile(r'run_obj\([^)]*\)\s*\.get\(\s*"([^"]+)"')
+    hits, offenders = 0, []
+    for name in sorted(os.listdir(SCRIPTS)):
+        if not name.endswith(".py"):
+            continue
+        with open(os.path.join(SCRIPTS, name), encoding="utf-8-sig") as fh:
+            src = fh.read()
+        for m in pat.finditer(src):
+            hits += 1
+            if m.group(1) not in allowed:
+                offenders.append(f"{name}: run.{m.group(1)}")
+    assert hits >= 10, (
+        f"only {hits} run-level reads found — the scan stopped seeing the "
+        "direct run_obj(...).get(...) shape, so its verdict means nothing")
+    assert not offenders, (
+        "run-level fields read but absent from the contract's run.properties "
+        f"(the D-340 shape — a column built on a field nobody produces): "
+        f"{offenders}")

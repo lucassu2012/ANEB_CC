@@ -124,7 +124,7 @@ python radio_rollup.py rehearsal_radio.jsonl
 python annotate_campaign.py pilot_raw.jsonl -o pilot_labelled.jsonl --set campaign_id=pilot --set point_id=SZ-PILOT-01 --set carrier=cmcc --set tier=metro --infer-time-band
 ```
 
-**覆盖检查**（试点网格；读法与 §3 完全一致，`REPEATS_REUSED` 同样要回补）：
+**覆盖检查**（试点网格；读法与 §3 完全一致，重复数同样以台账为准）：
 
 ```
 python coverage_matrix.py pilot_labelled.jsonl --config ../docs/campaign_grid_pilot.json
@@ -201,12 +201,13 @@ python coverage_matrix.py labeled/*.jsonl --config ../docs/campaign_grid_shenzhe
 
 未测/欠采格 = 明日路线；**计划外**格 = 疑似误标，回查台账。
 
-⚠ **别只看「样本」列，要看「不同重复」列**（D-340/D-341）：D3 要的是每格 11 次**不同**重复，
-而样本数只是记录条数。崩溃重跑写的是**新 `run_id`、同 `repeat_index`**，去重看不到它，
-于是 12 条记录若其实是 3 次重复各跑四遍，样本列照样显示 12、状态照样「已覆盖」。
-标了 `REPEATS_REUSED` 的格 = **条数靠重跑凑出来的，这格仍要回去补**；
-计划外表同样有这一列，判「误标还是该保留」时一并看。
-`(+N 无编号)` 是缺 `run.repeat_index` 的记录——它们**不计入**不同重复（查不了 ≠ 算一次）。
+⚠ **样本列是本工具能给的全部重复证据，它查不出「重跑凑数」**（D-344）：契约里没有
+run 级重复编号——`scenario.repeat_index` 是取证模式内的遍数（快测恒 0），与战役重复
+无关；所以「12 条是 12 次重复还是 3 次重复各跑四遍」工具**判不了**，崩溃重跑写的是
+新 `run_id`，去重也看不到（D-340 曾按 `run.repeat_index` 设「不同重复」列，但该字段
+无人生产，真实数据上恒为全体无编号，已撤）。**重复数的可信来源是现场台账**：每格每
+完成一次重复画一道，画满 n=11 才算采满；收工时拿台账对样本列——**两边都到 11 这格
+才从明日路线划掉**，对不上的按台账回去补。
 
 **第一个点位测完当天，另跑一次采样量核算**（这时改采集计划还来得及）：
 
@@ -230,7 +231,6 @@ plan_col_mde_power | 可辨最小差异(80%)
 plan_col_mde_flat  | 可辨最小差异(平)
 noise_marker       | 噪声内
 tier_unverified    | TIER_ENDPOINT_UNVERIFIED
-repeats_reused     | REPEATS_REUSED
 OUTPUT-QUOTES -->
 
 ⚠ **两列 `需 n≥` 不要看错**（D-201）：`需 n≥(平)` 是让目标差异**正好等于**噪声尺度的复测数，
