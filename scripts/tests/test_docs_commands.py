@@ -942,6 +942,10 @@ _QUOTE_RENDERERS = {
     # has one. It now opens with what to write instead, keyed off the sentence
     # the section prints — so that sentence has to keep being printed (D-289).
     "M2_REPORT_TEMPLATE.tier_single": _single_tier_attr_md,
+    # The skeleton's 采集概况 chapter told the writer to report per-cell sample
+    # counts, and D-340 showed a count is not coverage. Same renderer as the
+    # runbook entry: one marker, one production, not two implementations.
+    "M2_REPORT_TEMPLATE.repeats_reused": _reused_repeats_coverage_md,
 }
 
 
