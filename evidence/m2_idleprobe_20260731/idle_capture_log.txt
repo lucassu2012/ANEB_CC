@@ -1,0 +1,20 @@
+﻿
+23:03:45  waiting for the idle band (local hour >= 23)
+23:03:45  idle band open
+23:03:46  preflight focus:   mCurrentFocus=Window{bef519c u0 NotificationShade}
+23:03:46  preflight procs: u0_a237      32660   804 8301160 244960 0                   0 D com.aneb.probe
+23:03:46  resident com.aneb.probe has zero active services (D-347 benign-cached shape) - proceeding; evidence: u0_a237      32660   804 8301160 244960 0                   0 D com.aneb.probe
+23:03:57  idle forensic batch start target=4
+23:03:59  attempt 1 : idle forensic run started
+23:10:39  attempt 1 : COMPLETED (1/4) run_id=019fb8b4-21d7-7ff3-a4d8-b60f953ffec7
+23:10:50  attempt 2 : idle forensic run started
+23:17:20  attempt 2 : COMPLETED (2/4) run_id=019fb8ba-6619-75e6-b2ce-c86e900512cd
+23:17:31  attempt 3 : idle forensic run started
+23:23:51  attempt 3 : COMPLETED (3/4) run_id=019fb8c0-83f3-794b-a346-dc0ef946974d
+23:24:02  attempt 4 : idle forensic run started
+23:30:32  attempt 4 : COMPLETED (4/4) run_id=019fb8c6-7ab9-7b40-8550-f3a3a11aabf6
+23:30:40  IDLE BATCH DONE completed=4 attempts=4
+23:30:50  wrap-up: wifi_on=1 stayon=0
+23:30:50  wrap-up: focus=  mCurrentFocus=Window{bef519c u0 NotificationShade}
+23:30:50  wrap-up: leftover procs=(none)
+23:30:51  wrap-up: host logcat readers stopped

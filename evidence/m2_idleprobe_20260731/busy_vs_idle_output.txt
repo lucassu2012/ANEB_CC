@@ -1,0 +1,17 @@
+busy corpus: 4 completed run(s), time_band=['busy']
+idle corpus: 4 completed run(s), time_band=['idle']
+
+profile            kpi                  busy med   idle med     gap%  busy warm range (n)     idle warm range (n)      verdict
+s1_chat            t1_ttft_ms              47.35      59.61    +25.9  38.95-52.69 (8)         48.16-71.49 (8)          within noise (ranges overlap)
+s1_chat            n1_rtt_p50_ms           53.11      69.50    +30.9  50.88-58.81 (8)         66.99-70.93 (8)          EXCEEDS NOISE: idle worse
+s1_chat            u1_goodput_mbps          0.16       0.13    -19.1  0.15-0.17 (8)           0.11-0.13 (8)            EXCEEDS NOISE: idle worse  [D-363: latency proxy, not throughput]
+s2_coding_agent    t1_ttft_ms              47.34      63.61    +34.4  44.03-59.13 (8)         59.73-66.37 (8)          EXCEEDS NOISE: idle worse
+s2_coding_agent    n1_rtt_p50_ms           52.70      70.52    +33.8  49.29-61.05 (8)         68.25-73.06 (8)          EXCEEDS NOISE: idle worse
+s2_coding_agent    u1_goodput_mbps         11.37       9.66    -15.0  10.29-12.89 (8)         8.31-10.89 (8)           within noise (ranges overlap)
+s3_multimodal      t1_ttft_ms              46.72      62.74    +34.3  44.51-49.12 (8)         58.29-78.89 (8)          EXCEEDS NOISE: idle worse
+s3_multimodal      n1_rtt_p50_ms           54.93      69.16    +25.9  52.59-59.69 (8)         66.40-71.74 (8)          EXCEEDS NOISE: idle worse
+s3_multimodal      u1_goodput_mbps         17.16      16.53     -3.6  13.90-18.48 (8)         15.49-18.53 (8)          within noise (ranges overlap)
+
+Verdict rule, decided a priori: EXCEEDS NOISE only when the two warm
+ranges are fully disjoint. Overlapping ranges at n~8/side prove nothing
+in either direction - that is 'cannot tell', not 'no difference'.
