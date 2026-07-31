@@ -120,6 +120,12 @@ per-KPI 的 sampleCount/lowConfidence 只活在设备上。按 `KpiCalculator` �
 **建议把 per-KPI 的 sampleCount 与 lowConfidence 纳入结果契约**(下一轮契约演进),
 否则「分数自己声明了不确定」这句话读者只能看见、无法据以行动。
 
+**附二:契约里的一处大小写漂移(前门已如实告警,36 次)**。schema 的枚举是大写
+`VALID_LOW_CONFIDENCE`,而生产端写的是小写 `valid_low_confidence`;契约门把它记为
+**advisory(非致命)**而非违规,分析层也已统一小写归一化,故**今天没有下游受影响**。
+但**两个事实源对同一枚举各说各话**是个潜伏陷阱:任何新消费方若照 schema 字面比较,
+会**静默不匹配**。建议下一轮契约演进时二选一对齐(改生产端或改 schema),不要长期并存。
+
 ---
 
 *产物路径与复现命令见 `evidence/m2_pilot_20260731/pilot_report.md` 的「溯源 / provenance」段（含输入 sha256 与全部生效门限）。*
