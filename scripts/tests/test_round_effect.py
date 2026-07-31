@@ -11,14 +11,20 @@ from synth import make_record
 
 
 def _rounds(kpi, per_round, drop_round=False):
-    """One record whose scenarios carry the given {round: [values]} for `kpi`."""
+    """One record whose scenarios carry the given {round: [values]} for `kpi`.
+
+    Profile is s2_coding_agent: neutral under the D-366 ruling — s1_chat's u1
+    readings are ruled out of cross-profile pools, so an s1 fixture would hand
+    the u1 direction test an empty pool instead of a verdict.
+    """
     rec = make_record(campaign={"campaign_id": "c", "tier": "metro", "point_id": "P1",
                                 "carrier": "ctcc", "time_band": "busy"},
                       aqs=88, scenarios=[])
     scns = []
     for rnd, values in sorted(per_round.items()):
         for v in values:
-            scn = {"profile_id": "s1_chat", "profile_version": "0.2.1", "kpi": {kpi: v}}
+            scn = {"profile_id": "s2_coding_agent", "profile_version": "0.2.1",
+                   "kpi": {kpi: v}}
             if not drop_round:
                 scn["repeat_index"] = rnd
             scns.append(scn)

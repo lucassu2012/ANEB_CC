@@ -1152,7 +1152,10 @@ KPI_HEAT_SPAN_CAVEAT = (
     "`profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile "
     "汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat"
     "（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 "
-    "**谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。")
+    "**谁都不代表**。s1_chat 现已按 PO 拍板**排除**出 U1 的跨 profile 汇池"
+    "（D-366：2KB 在 ~2 个 RTT 内传完，量的是时延不是带宽；被排除的读数以 "
+    "RULED_OUT 计数如实交代，不静默）。跨度大就别把中位当作「该格的该 KPI」，"
+    "改看下方「复测稳定性」段的逐 profile 行。")
 
 
 def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
@@ -1161,6 +1164,9 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
     gfield = kpi_grade_field(kpi_key)
     buckets = defaultdict(lambda: {"vals": [], "grades": Counter(),
                                    "implausible": Counter(),
+                                   # scenarios removed by PO ruling (D-366),
+                                   # counted per profile so no pool shrinks silently
+                                   "ruled_out": Counter(),
                                    # per-profile values, kept so the cell can say
                                    # what its median is a median OF (D-360)
                                    "by_profile": defaultdict(list)})
@@ -1178,10 +1184,17 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
             # with it — that grade was computed FROM this value, so keeping it
             # would let the impossible reading vote on the cell's grade through
             # the one door the value itself was just refused at.
+            pid = scn.get("profile_id")
+            # PO ruling D-366: a profile whose burst cannot measure this KPI is
+            # excluded from the cross-profile pool — counted, never silent. On
+            # the pilot this was s1_chat's 11 u1 readings: authoritative grade
+            # poor 11/11, buried under the pooled modal good 22/33 (D-363).
+            if cc.kpi_profile_excluded(kpi_key, pid):
+                buckets[key]["ruled_out"][pid] += 1
+                continue
             if not cc.keep_value(kpi_key, v, buckets[key]["implausible"]):
                 continue
             buckets[key]["vals"].append(v)
-            pid = scn.get("profile_id")
             buckets[key]["by_profile"][
                 pid.strip() if isinstance(pid, str) and pid.strip() else "?"].append(v)
             g = (scn.get("kpi") or scn.get("kpis") or {}).get(gfield)
@@ -1201,6 +1214,7 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "low_confidence": len(b["vals"]) < min_samples,
             "mixed_campaigns": mixed_by_cell.get(key, []),
             "implausible_values": dict(sorted(b["implausible"].items())),
+            "ruled_out": dict(sorted(b["ruled_out"].items())),
             # What the median is a median OF. This card pools every profile in the
             # cell, and the profiles do not measure the same thing: measured on the
             # first real corpus, u1_goodput came out 0.14 / 10.05 / 16.43 Mbps for
@@ -1235,6 +1249,9 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
         if c.get("implausible_values"):
             notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
                 f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
+        if c.get("ruled_out"):
+            notes.append("RULED_OUT:" + "; ".join(
+                f"{p}×{n}" for p, n in sorted(c["ruled_out"].items())) + "（D-366）")
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"
@@ -1572,6 +1589,9 @@ def _heat_grid_html(cells, value_key="aqs_median", agree=None):
             span = profile_span_text(c)
             if span != "—":
                 sd += f" · profile {span}"
+            if c.get("ruled_out"):
+                sd += " · 除" + ";".join(
+                    f"{p}×{n}" for p, n in sorted(c["ruled_out"].items())) + "(D-366)"
             shown = (cc.fmt_num_agreeing(c[value_key], agree, digits=2)
                      if agree is not None else cc.fmt_num(c[value_key], 2))
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{shown}</b>"
@@ -2001,7 +2021,11 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # them (D-360, same failure D-148 fixed for GRADE_TIE).
                     "profile_span", "profile_medians", "grade",
                     "grade_tie", "n", "low_confidence", "mixed_campaigns",
-                    "implausible_values"])
+                    "implausible_values",
+                    # PO-ruled exclusions (D-366): which profile's readings this
+                    # cell's pool refused and how many — without the column, a
+                    # CSV analyst sees a shrunken n with no explanation
+                    "ruled_out"])
         for k in DEFAULT_KPI_HEAT:
             for c in kpi_heat_cells(records, k, min_samples):
                 bp = c.get("by_profile") or {}
@@ -2018,7 +2042,9 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             # computing on this file has nothing else to tell them
                             # this cell's n excludes readings that were refused
                             "; ".join(f"{r}×{n}" for r, n
-                                      in sorted((c.get("implausible_values") or {}).items()))])
+                                      in sorted((c.get("implausible_values") or {}).items())),
+                            "; ".join(f"{p}×{n}" for p, n
+                                      in sorted((c.get("ruled_out") or {}).items()))])
     written.append(p)
 
     p = prefix + "_attribution.csv"
@@ -2211,7 +2237,8 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w.writerow(["kpi", "round", "round_median", "round_n",
                     "first_round_penalty_pct", "threshold_pct", "warm_up_suspected",
                     "not_computable_reason", "low_confidence",
-                    "unknown_round_scenarios", "distinct_rounds"])
+                    "unknown_round_scenarios", "ruled_out_scenarios",
+                    "distinct_rounds"])
         for e in wres["kpis"]:
             rows = sorted(e["rounds"].items()) or [(None, {"median": None, "n": 0})]
             for rnd, p_ in rows:
@@ -2221,6 +2248,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(e["warm_up_suspected"]),
                             _cell(e["not_computable_reason"]),
                             e["low_confidence"], e["unknown_round_n"],
+                            e.get("ruled_out_n", 0),
                             wres["distinct_rounds"]])
     written.append(p)
 
@@ -2450,6 +2478,12 @@ def effective_thresholds():
         "attribution_group_by": list(attribution.DEFAULT_GROUP_BY),
         "stability_group_by": list(stability.STAB_GROUP_BY),
         "heat_kpis": list(DEFAULT_KPI_HEAT),
+        # PO ruling D-366: which (KPI, profile) pairs every cross-profile pool
+        # refuses. It moves the u1 card's median, modal grade and n on any real
+        # corpus, so a re-run disagreeing with an archived report needs this
+        # archived to be explainable.
+        "kpi_profile_exclusions": {k: list(v) for k, v
+                                   in sorted(cc.KPI_PROFILE_EXCLUSIONS.items())},
         "stability_kpis": list(stability.DEFAULT_STABILITY_KPIS),
         "attribution_kpis": list(attribution.ATTRIBUTABLE_KPIS),
         # Everything below decides what the report SAYS and was missing from a

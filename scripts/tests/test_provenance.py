@@ -310,6 +310,7 @@ _GATE_KEY = {
     # exempt until D-266 gave it a reader in the summary; archived once the
     # perturbation guard showed it moving printed numbers (D-267)
     ("campaign_common", "GRADE_ORDER"): "grade_order",
+    ("campaign_common", "KPI_PROFILE_EXCLUSIONS"): "kpi_profile_exclusions",
     # exempt as "structural" until source-level mutation reached them: setattr
     # cannot touch a captured default, so the perturbation that would have
     # noticed never ran on either one (D-269)
@@ -434,6 +435,10 @@ _PERTURB = {
     # which grades rank below good, so removing one changes which cells the
     # report calls the city's worst (D-267)
     "grade_order": (campaign_common, "GRADE_ORDER", ["excellent", "good", "fair"]),
+    # {} = un-exclude everything: the ruled-out profile's readings re-enter the
+    # u1 pool, moving the card's n, median, span and dropping the RULED_OUT
+    # note (D-366)
+    "kpi_profile_exclusions": (campaign_common, "KPI_PROFILE_EXCLUSIONS", {}),
     # drop the last dimension of each cell key: measured at 418 and 494 printed
     # numerals moved, and reachable by setattr only because D-269 stopped both
     # from being captured in a signature

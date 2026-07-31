@@ -17,9 +17,9 @@
 
 ## 溯源 / provenance（可复现性）
 
-> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-07-31 22:53:47 +0800 · 读 12 行 → 保留 12 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": "m2-pilot-20260731", "before": null, "after": null}。
+> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-08-01 01:08:54 +0800 · 读 12 行 → 保留 12 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": "m2-pilot-20260731", "before": null, "after": null}。
 
-> **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
+> **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "kpi_profile_exclusions": {"u1_goodput_mbps": ["s1_chat"]}, "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
 
 | 输入文件 | sha256 |
 |---|---|
@@ -60,7 +60,7 @@
 
 ### 分 KPI 热力卡：`t1_ttft_ms`（中位；分级=上报 KpiGrading 众数）
 
-> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。s1_chat 现已按 PO 拍板**排除**出 U1 的跨 profile 汇池（D-366：2KB 在 ~2 个 RTT 内传完，量的是时延不是带宽；被排除的读数以 RULED_OUT 计数如实交代，不静默）。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
 
 | 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
 |---|---|---|---|---|---|---|---|
@@ -69,7 +69,7 @@
 
 ### 分 KPI 热力卡：`n1_rtt_p50_ms`（中位；分级=上报 KpiGrading 众数）
 
-> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。s1_chat 现已按 PO 拍板**排除**出 U1 的跨 profile 汇池（D-366：2KB 在 ~2 个 RTT 内传完，量的是时延不是带宽；被排除的读数以 RULED_OUT 计数如实交代，不静默）。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
 
 | 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
 |---|---|---|---|---|---|---|---|
@@ -78,16 +78,16 @@
 
 ### 分 KPI 热力卡：`u1_goodput_mbps`（中位；分级=上报 KpiGrading 众数）
 
-> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。s1_chat 现已按 PO 拍板**排除**出 U1 的跨 profile 汇池（D-366：2KB 在 ~2 个 RTT 内传完，量的是时延不是带宽；被排除的读数以 RULED_OUT 计数如实交代，不静默）。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
 
 | 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
 |---|---|---|---|---|---|---|---|
-| SZ-PILOT-01 | ctcc | busy | 10.05 | 0.14–16.43（3 个 profile） | good | 33 | — |
-| SZ-PILOT-01 | ctcc | idle | 11.18 | 0.14–17.07（3 个 profile） | good | 3 | low_conf |
+| SZ-PILOT-01 | ctcc | busy | 13.24 | 10.05–16.43（2 个 profile） | good | 22 | RULED_OUT:s1_chat×11（D-366） |
+| SZ-PILOT-01 | ctcc | idle | 14.12 | 11.18–17.07（2 个 profile） | good | 2 | RULED_OUT:s1_chat×1（D-366）; low_conf |
 
 ### 分 KPI 热力卡：`t2_itl_p95_ms`（中位；分级=上报 KpiGrading 众数）
 
-> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。s1_chat 现已按 PO 拍板**排除**出 U1 的跨 profile 汇池（D-366：2KB 在 ~2 个 RTT 内传完，量的是时延不是带宽；被排除的读数以 RULED_OUT 计数如实交代，不静默）。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
 
 | 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
 |---|---|---|---|---|---|---|---|

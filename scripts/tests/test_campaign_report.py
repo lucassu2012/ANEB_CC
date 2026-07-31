@@ -1417,15 +1417,21 @@ def test_a_per_kpi_cell_says_what_its_median_is_a_median_of():
 
     spread = corpus([("s1_chat", 0.14), ("s2_coding_agent", 10.05),
                      ("s3_multimodal", 16.43)])
+    # PO ruling D-366 (approving F option 1): s1_chat is ruled out of u1's
+    # cross-profile pool — counted, never silent. The span now describes what
+    # actually remains in the pool, and the exclusion reaches all three surfaces.
     cell = rpt.kpi_heat_cells(spread, "u1_goodput_mbps")[0]
-    assert set(cell["by_profile"]) == {"s1_chat", "s2_coding_agent", "s3_multimodal"}
-    assert rpt.profile_span_text(cell).startswith("0.14–16.43")
+    assert set(cell["by_profile"]) == {"s2_coding_agent", "s3_multimodal"}
+    assert cell["ruled_out"] == {"s1_chat": 3}, cell["ruled_out"]
+    assert rpt.profile_span_text(cell).startswith("10.05–16.43")
 
     md = rpt.render_kpi_heatcard_markdown(
         rpt.kpi_heat_cells(spread, "u1_goodput_mbps"), "u1_goodput_mbps")
-    assert "0.14–16.43" in md, md
+    assert "10.05–16.43" in md, md
+    assert "RULED_OUT:s1_chat×3" in md, md
     html = rpt.build_report_html(spread, "2026-01-01 00:00:00 +0800")
-    assert "0.14–16.43" in html, "the HTML pivot dropped the span"
+    assert "10.05–16.43" in html, "the HTML pivot dropped the span"
+    assert "除s1_chat×3(D-366)" in html, "the HTML pivot hid the ruled-out count"
 
     # The span is a number; the sentence telling the reader what to DO with it is
     # a separate promise, and the D-362 audit found it asymmetrically guarded:
@@ -1442,7 +1448,9 @@ def test_a_per_kpi_cell_says_what_its_median_is_a_median_of():
     # skip it (D-290/D-351). Pinned on BOTH rendered surfaces (D-364): the HTML
     # span-suppression branch had no negative-side guard, so an unconditional
     # " · profile —" on every single-profile cell was uncatchable.
-    single = corpus([("s1_chat", 0.14)])
+    # s2, not s1: an s1-only corpus is now the ALL-RULED-OUT shape (tested below),
+    # not the clean one.
+    single = corpus([("s2_coding_agent", 10.05)])
     # " · profile " with both spaces: the bare "· profile" also matches the
     # stability table's "· profile_id=s1_chat" labels — the too-wide-word trap
     # the handover warns about, demonstrated live by this assertion's v1.
@@ -1453,6 +1461,13 @@ def test_a_per_kpi_cell_says_what_its_median_is_a_median_of():
     assert rpt.profile_span_text(only) == "—"
     assert "个 profile" not in rpt.render_kpi_heatcard_markdown(
         rpt.kpi_heat_cells(single, "u1_goodput_mbps"), "u1_goodput_mbps")
+
+    # …and the all-ruled-out shape: every reading excluded must NOT vanish into
+    # 「无数据」 silence — the cell stays, empty but explained (R-10/D-366).
+    gone = rpt.kpi_heat_cells(corpus([("s1_chat", 0.14)]), "u1_goodput_mbps")
+    assert gone and gone[0]["n"] == 0 and gone[0]["ruled_out"] == {"s1_chat": 3}, gone
+    md_gone = rpt.render_kpi_heatcard_markdown(gone, "u1_goodput_mbps")
+    assert "RULED_OUT:s1_chat×3" in md_gone, md_gone
 
 
 def test_the_report_carries_the_warm_up_section_in_both_shapes():

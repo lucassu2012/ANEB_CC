@@ -97,6 +97,23 @@ _CARRIER_ALIASES = {
 
 DEFAULT_MIN_SAMPLES = 5   # per-tier / per-cell sample floor for low_confidence
 
+# PO ruling D-366 (2026-07-31, approving DECISION_REQUEST item F option 1):
+# s1_chat's 2KB upload finishes inside ~2 RTT, so its u1_goodput_mbps is a
+# round-trip count wearing Mbps units, not a throughput measurement (D-363).
+# The device-side AQS never pooled it (AqsInputMapper contract: U1 <- S3 only);
+# this is the ANALYSIS-side half of the same ruling: cross-profile pools of the
+# named KPI must not include the named profile. Exclusions are counted and
+# disclosed, never silent (R-10/2.3). Per-profile surfaces (stability rows,
+# order_effect's self-comparison) keep showing it — the value is honest about
+# latency, it just is not throughput.
+KPI_PROFILE_EXCLUSIONS = {"u1_goodput_mbps": ("s1_chat",)}
+
+
+def kpi_profile_excluded(kpi_key, profile_id):
+    """True when the PO ruling D-366 removes this profile from cross-profile
+    pools of this KPI. One predicate for every pooling site (2.14)."""
+    return profile_id in KPI_PROFILE_EXCLUSIONS.get(kpi_key, ())
+
 # Records carry no timezone, so the toolkit states its own offset instead of
 # guessing. China Standard Time; the pilot is Shenzhen only (D-48). It lives
 # here rather than in annotate_campaign because more than one module has to

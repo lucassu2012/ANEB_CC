@@ -53,26 +53,31 @@ MIN_PER_ROUND = 2
 
 
 def round_values(records, kpi):
-    """({round_index -> [values]}, [values with no round]) for one KPI.
+    """({round_index -> [values]}, [values with no round], ruled_out_n) for one KPI.
 
     A scenario carrying no `repeat_index` is NOT silently treated as round 0: it
-    lands in the unknown bucket and is reported, never merged (R-10).
+    lands in the unknown bucket and is reported, never merged (R-10). A scenario
+    the PO ruling excludes from this KPI's cross-profile pool (D-366: s1_chat's
+    2KB burst is a latency proxy, not throughput) is counted, never silent.
     """
-    rounds, unknown = defaultdict(list), []
+    rounds, unknown, ruled_out = defaultdict(list), [], 0
     for rec in records:
         for scn in cc.iter_scenarios(rec):
             v = cc.scenario_kpi(scn, kpi)
             if v is None:
+                continue
+            if cc.kpi_profile_excluded(kpi, scn.get("profile_id")):
+                ruled_out += 1
                 continue
             ri = scn.get("repeat_index")
             if isinstance(ri, int) and not isinstance(ri, bool):
                 rounds[ri].append(v)
             else:
                 unknown.append(v)
-    return dict(rounds), unknown
+    return dict(rounds), unknown, ruled_out
 
 
-def analyze_kpi(rounds, unknown, kpi, threshold_pct=DEFAULT_WARMUP_PCT):
+def analyze_kpi(rounds, unknown, kpi, threshold_pct=DEFAULT_WARMUP_PCT, ruled_out=0):
     """Warm-up verdict for one KPI. `rounds`: {round -> [values]}."""
     per_round = {r: {"median": cc.median(v), "n": len(v)}
                  for r, v in sorted(rounds.items())}
@@ -80,6 +85,7 @@ def analyze_kpi(rounds, unknown, kpi, threshold_pct=DEFAULT_WARMUP_PCT):
         "kpi": kpi,
         "rounds": per_round,
         "unknown_round_n": len(unknown),
+        "ruled_out_n": ruled_out,
         "first_round_penalty_pct": None,
         "warm_up_suspected": None,
         "not_computable_reason": None,
@@ -114,9 +120,9 @@ def analyze(records, kpis=ROUND_KPIS, threshold_pct=None):
     threshold_pct = DEFAULT_WARMUP_PCT if threshold_pct is None else threshold_pct
     entries, seen_rounds = [], set()
     for kpi in kpis:
-        rounds, unknown = round_values(records, kpi)
+        rounds, unknown, ruled_out = round_values(records, kpi)
         seen_rounds |= set(rounds)
-        entries.append(analyze_kpi(rounds, unknown, kpi, threshold_pct))
+        entries.append(analyze_kpi(rounds, unknown, kpi, threshold_pct, ruled_out))
     return {"kpis": entries, "distinct_rounds": len(seen_rounds),
             "threshold_pct": threshold_pct}
 
@@ -198,6 +204,8 @@ def render_markdown(res):
             notes.append(e["not_computable_reason"])
         if e["unknown_round_n"]:
             notes.append(f"{e['unknown_round_n']} 个场景无轮次编号（未计入）")
+        if e.get("ruled_out_n"):
+            notes.append(f"RULED_OUT:{e['ruled_out_n']}（D-366）")
         if e["low_confidence"]:
             notes.append("low_conf")
         lines.append(f"| {e['kpi']} | {cells} | "
