@@ -1,0 +1,5 @@
+{
+  "point_id": ["SZ-PILOT-01"],
+  "carrier": ["cmcc"],
+  "time_band": ["busy", "idle"]
+}

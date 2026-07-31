@@ -109,6 +109,31 @@ python radio_rollup.py rehearsal_radio.jsonl
 
 另外重点看：摘要各条信号的读法、稳定性段的省略声明。
 
+## 0.6 真实数据试点（正式外场前，用当前位置单点位跑通全链路）
+
+> 与 §0.5 不同：§0.5 用**合成语料**练手，本节用**真机在当前位置**采一格**真实数据**，
+> 目的是在排正式行程之前，先把「设备 → 落库 → 拉取 → 补注 → 覆盖 → 报告」整条链路
+> 用真数据走通一遍，并让 577 条分析守卫第一次面对真实语料。**不需要外场行程、不需要新决策。**
+
+规模：1 点位 × 现有 SIM × 忙/闲两窗 × n=11 ≈ **22 run ≈ 每窗约 30 分钟**。
+网格用试点专用文件 [`campaign_grid_pilot.json`](campaign_grid_pilot.json)（单点位占位 `SZ-PILOT-01`）。
+
+**补注**（把真机拉下来的原始 JSONL 打上试点标签；`SZ-PILOT-01`/`cmcc` 为占位，按现场实况改真值）：
+
+```
+python annotate_campaign.py pilot_raw.jsonl -o pilot_labelled.jsonl --set campaign_id=pilot --set point_id=SZ-PILOT-01 --set carrier=cmcc --set tier=metro --infer-time-band
+```
+
+**覆盖检查**（试点网格；读法与 §3 完全一致，`REPEATS_REUSED` 同样要回补）：
+
+```
+python coverage_matrix.py pilot_labelled.jsonl --config ../docs/campaign_grid_pilot.json
+```
+
+出报告与发布前复核走 §4/§5 原流程即可。**试点报告的用途**：端到端验证 + 守卫实战 +
+给 PO 一份「真实数据长什么样」的样张；它**不是** M2 验收报告（点位不具代表性），
+但跑通它 = 正式外场当天零意外。
+
 ## 1. 语料进门：契约校验（每批语料先跑，坏语料早死）
 
 ```
