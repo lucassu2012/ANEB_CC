@@ -29,3 +29,6 @@ app/probe/build/
 
 # Kotlin build artifacts
 app/.kotlin/
+
+# PO real calibration data - never committed (spine-1 blueprint 3.3)
+datasets/
