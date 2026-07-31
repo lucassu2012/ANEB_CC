@@ -17,7 +17,7 @@
 
 ## 溯源 / provenance（可复现性）
 
-> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-07-31 14:41:09 +0800 · 读 12 行 → 保留 12 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": "m2-pilot-20260731", "before": null, "after": null}。
+> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-07-31 16:21:25 +0800 · 读 12 行 → 保留 12 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": "m2-pilot-20260731", "before": null, "after": null}。
 
 > **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
 
@@ -39,6 +39,7 @@
 - **有效率**：全部达门（≥80%）。
 - **复测不稳定**：1/9 单元超 CV 门 —— SZ-PILOT-01/ctcc/busy/metro/s2_coding_agent·t1_ttft_ms；另有 **9 个单元 CV 不可计算**（n<2 或均值≤0，**未计入分母**，见稳定性段**备注**列的 `CV 不可计算` 标记）。
 - **序位效应**：全语料只有**一种轮次**——**拉丁方未轮转**，反平衡在构造上不成立，位次差无法与场景差分离。
+- **预热效应**：语料**只有一轮**（quick 每场景一遍）——**无法校验**；而单轮模式测到的永远是第一轮，故本报告**绝对值均为冷启动口径**（取证语料实测首轮时延高 8–12%、吞吐低 10–16%，D-355）。
 - **无线上下文**：本轮语料**完全没有**——**无从核对**结论里是否混着信号差异（**采集缺口，不是「信号良好」**；生产侧接线规格见 `docs/RADIO_CONTEXT_WIRING_SPEC.md`）。
 - **接入介质**：无同格双介质可比，或蜂窝不劣于 wifi。
 - **分数侧归因**（拖累维度）：N1 2 格；最低 SZ-PILOT-01/ctcc/busy·N1=68.1。
@@ -161,6 +162,11 @@
 | s1_chat | #0:0.1(n=12) | — | — | 0.1 | 不可计算 | NEED_2_POSITIONS; low_conf |
 | s2_coding_agent | #1:10.2(n=12) | — | — | 10.2 | 不可计算 | NEED_2_POSITIONS; low_conf |
 | s3_multimodal | #2:16.5(n=12) | — | — | 16.5 | 不可计算 | NEED_2_POSITIONS; low_conf |
+
+## 预热效应（首轮是否系统性更差）
+
+> 本轮语料**只有一轮**（quick 模式每场景只跑一遍）——**预热效应无法校验**。**这不等于没有**：取证语料实测首轮时延高 8–12%、吞吐低 10–16%（D-355），而单轮模式测到的**永远是那一轮**，所以本报告的**绝对值均为冷启动口径**；跨格比较不受影响（每格一样冷）。
+
 
 ## 有效性与失效原因（每格的有效样本分母）
 
