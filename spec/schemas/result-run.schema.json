@@ -173,7 +173,23 @@
             "transport": { "type": ["string", "null"] },
             "capabilities": { "type": ["string", "null"] },
             "interface": { "type": ["string", "null"] },
-            "server_observed_addr": { "type": ["string", "null"], "description": "服务端观察到的客户端源 IP:port(路径对账)" }
+            "server_observed_addr": { "type": ["string", "null"], "description": "服务端观察到的客户端源 IP:port(路径对账)" },
+            "radio": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["rat", "rsrp_dbm", "sinr_db", "pci", "tac", "arfcn", "sampled_n", "stale"],
+              "description": "无线上下文(RADIO_CONTEXT_WIRING_SPEC v1.0):蜂窝场景才写,wifi 场景不写该键;任何不可得项写 null,严禁 0/-1/MAX_VALUE 哨兵(R-10)",
+              "properties": {
+                "rat": { "type": ["string", "null"], "description": "TelephonyManager.dataNetworkType 名称(NR/LTE/…)" },
+                "rsrp_dbm": { "type": ["number", "null"], "description": "LTE RSRP / NR SS-RSRP,场景期间中位,dBm,值域 [-160,-30]" },
+                "sinr_db": { "type": ["number", "null"], "description": "LTE RSSNR / NR SS-SINR,场景期间中位,dB,值域 [-30,45]" },
+                "pci": { "type": ["integer", "null"], "description": "物理小区标识" },
+                "tac": { "type": ["integer", "null"], "description": "跟踪区码" },
+                "arfcn": { "type": ["integer", "null"], "description": "频点号(pci/tac/arfcn 合成服务小区标识,合成规则在分析层)" },
+                "sampled_n": { "type": ["integer", "null"], "description": "两个中位数由几个读数得出(≥0)" },
+                "stale": { "type": "boolean", "description": "是否超出采集侧新鲜度窗口(分析层排除并计数,不静默)" }
+              }
+            }
           }
         },
         "parse": {

@@ -126,8 +126,33 @@ def check_vetoes(doc):
     return errs
 
 
+def check_radio_bands(doc):
+    """Validate a parsed radio_bands.yaml dict (RADIO_CONTEXT_WIRING_SPEC §5.2):
+    four keys present, all numeric, weak < good per component. Returns error
+    strings."""
+    errs = []
+    bands = (doc or {}).get("bands")
+    if not isinstance(bands, dict) or not bands:
+        return ["radio_bands: 'bands' missing or empty"]
+    expected = ("rsrp_weak_dbm", "rsrp_good_dbm", "sinr_weak_db", "sinr_good_db")
+    for key in expected:
+        if key not in bands:
+            errs.append(f"radio_bands: missing '{key}'")
+        elif not _num(bands.get(key)):
+            errs.append(f"radio_bands: {key} not numeric")
+    for extra in sorted(set(bands) - set(expected)):
+        errs.append(f"radio_bands: unexpected key '{extra}' — the four-band "
+                    "contract has no home for it")
+    if all(_num(bands.get(k)) for k in expected):
+        if not bands["rsrp_weak_dbm"] < bands["rsrp_good_dbm"]:
+            errs.append("radio_bands: rsrp_weak_dbm must be < rsrp_good_dbm")
+        if not bands["sinr_weak_db"] < bands["sinr_good_db"]:
+            errs.append("radio_bands: sinr_weak_db must be < sinr_good_db")
+    return errs
+
+
 _CHECKS = (("weights.yaml", check_weights), ("anchors.yaml", check_anchors),
-           ("vetoes.yaml", check_vetoes))
+           ("vetoes.yaml", check_vetoes), ("radio_bands.yaml", check_radio_bands))
 
 
 # Files in the pack that deliberately carry no invariants of their own, each with

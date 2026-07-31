@@ -35,6 +35,65 @@ class BufferingWiringTest {
     private fun stream(expected: Int, events: List<TokenEvent>) =
         ScenarioKpi.StreamTokens(expected, events)
 
+    // ---------- 无线导出(radioExport,D-367) ----------
+
+    private fun radioSample(
+        ts: Long,
+        rsrp: Int? = -100,
+        sinr: Int? = 5,
+        pci: Int? = 1,
+        stale: Boolean = false,
+        rat: String? = "NR",
+    ) = com.aneb.probe.radio.RadioSample(
+        tsNanos = ts, cellTsNanos = ts, stale = stale, subId = 1, subSwitched = false,
+        networkType = rat ?: "unknown", overrideType = null, nrState = "connected",
+        rat = rat, pci = pci, tac = 7, arfcn = 100, rsrp = rsrp, rsrq = null, sinr = sinr,
+        operatorName = null,
+    )
+
+    @Test
+    fun `radioExport 新鲜样本在场时陈旧样本不入池`() {
+        val ex = BufferingWiring.radioExport(
+            listOf(radioSample(10, rsrp = -100), radioSample(20, rsrp = -60, stale = true)),
+            0L, 100L,
+        )
+        assertEquals(-100.0, ex.rsrpMedianDbm!!, 1e-9)
+        assertEquals(false, ex.stale)
+        assertEquals(1, ex.sampledN)
+    }
+
+    @Test
+    fun `radioExport 只有陈旧样本时退用并标 stale`() {
+        val ex = BufferingWiring.radioExport(
+            listOf(radioSample(10, rsrp = -110, stale = true)), 0L, 100L,
+        )
+        assertEquals(-110.0, ex.rsrpMedianDbm!!, 1e-9)
+        assertEquals(true, ex.stale)
+    }
+
+    @Test
+    fun `radioExport 空窗口导出全 null 壳而非省略`() {
+        val ex = BufferingWiring.radioExport(emptyList(), 0L, 100L)
+        assertEquals(0, ex.sampledN)
+        assertEquals(true, ex.stale)
+        assertNull(ex.rat)
+        assertNull(ex.rsrpMedianDbm)
+        assertNull(ex.pci)
+    }
+
+    @Test
+    fun `radioExport 小区标识取众数且窗口外样本不入池`() {
+        val ex = BufferingWiring.radioExport(
+            listOf(
+                radioSample(10, pci = 1), radioSample(20, pci = 1), radioSample(30, pci = 2),
+                radioSample(999, pci = 3), // 窗口外
+            ),
+            0L, 100L,
+        )
+        assertEquals(1, ex.pci)
+        assertEquals(3, ex.sampledN)
+    }
+
     // ---------- 残差构造 ----------
 
     @Test

@@ -44,7 +44,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v14：Profile 3 观察数据落库——新增 adapter_obs（无障碍观察会话快照，只落规格匹配会话；
     //      观察=端到端体验代理≠网络口径，独立于 AQS 各表，恒 LOW/INCONCLUSIVE，additive）
     // v15：adapter_obs 加 sessionSpanMs 列（spine-3 C6 会话时长 ui-proxy，additive ADD COLUMN）
-    version = 15,
+    // v16：scenario_result 增 radio* 八列（RADIO_CONTEXT_WIRING_SPEC v1.0 接线，D-367：
+    //      场景级无线导出进上报体 network_snapshot.radio;全部可空,历史行 NULL,additive）
+    version = 16,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -375,6 +377,37 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v15 → v16 的全部语句（radio_ctx 接线，additive-only，D-367）：scenario_result 加
+         * radio* 八列（场景级无线导出，RADIO_CONTEXT_WIRING_SPEC §3）。ALTER TABLE ADD COLUMN
+         * 逐列追加为末列，与 Entities.kt ScenarioResultEntity 末尾新字段的 KSP 期望 schema
+         * 一致（affinity：String→TEXT、Double→REAL、Int/Boolean→INTEGER；全部**可空、
+         * 无默认值**——R-10：不可得 null 原样落库，禁 0/哨兵）。既有行八列补 NULL
+         * （radioStale=NULL 即「导出未运行」，ResultReporter 据此不为历史行编造 radio 块），
+         * 不触碰其他表/列＝v15 旧数据全存活。
+         */
+        internal val MIGRATION_15_16_SQL: List<String> = listOf(
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioRat` TEXT",
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioRsrpDbm` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioSinrDb` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioPci` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioTac` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioArfcn` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioSampledN` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `radioStale` INTEGER",
+        )
+
+        /**
+         * v15 → v16（radio_ctx 落库，additive）：只加列不动数据。人工验证同 [MIGRATION_14_15]
+         * KDoc（覆盖安装后既有 scenario_result 行可见且 radio* 全 NULL、.schema 输出含八新列、
+         * 跑一次蜂窝场景 SCENARIO_KPI 后新行 radio* 有值、logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_15_16_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -387,6 +420,7 @@ abstract class AnebDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
+                        MIGRATION_15_16,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()

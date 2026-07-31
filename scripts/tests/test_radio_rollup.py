@@ -20,9 +20,6 @@ import radio_rollup as rr
 import synth_campaign as sc
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_BUFFERING_KT = os.path.join(
-    _ROOT, "app", "probe", "src", "main", "java", "com", "aneb", "probe",
-    "scoring", "BufferingDetector.kt")
 
 
 def _rec(point="P1", carrier="cmcc", band="busy", radios=(), tier="metro"):
@@ -48,24 +45,33 @@ def _radio(rsrp=-98, sinr=7, pci=238, rat="NR", n=12, stale=False):
 # --------------------------------------------------------------- the band rule
 
 def test_the_signal_bands_match_the_producer_that_defines_them():
-    """The thresholds live in BufferingDetector.kt and are duplicated in this
-    layer because spec/ has no home for radio constants — the wiring spec asks
-    for that to change. Until it does, the duplication has to be reconciled
-    against the producer, or one report says 弱 while another says 中 about the
-    same reading and neither is wrong on its own terms."""
-    assert os.path.exists(_BUFFERING_KT), (
-        "%s is gone — either the producer moved, in which case this guard must "
-        "follow it, or the band thresholds now come from somewhere unchecked"
-        % _BUFFERING_KT)
-    with io.open(_BUFFERING_KT, encoding="utf-8-sig") as fh:
-        src = fh.read()
-    ours = {"RSRP_WEAK_DBM": cc.RSRP_WEAK_DBM, "RSRP_GOOD_DBM": cc.RSRP_GOOD_DBM,
-            "SINR_WEAK_DB": cc.SINR_WEAK_DB, "SINR_GOOD_DB": cc.SINR_GOOD_DB}
+    """The single source is now spec/scoring/radio_bands.yaml (the wiring spec's
+    §5 handoff, landed by D-367): this layer's copy reconciles against the YAML,
+    and the Kotlin side carries its own parity test against the same file — two
+    spokes, one hub, instead of this layer reaching across the tree into a .kt
+    file. The YAML is the pack's controlled subset (2-space indent, scalar
+    key: value), parsed by line so this suite stays stdlib-only."""
+    yaml_path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))), "spec", "scoring",
+        "radio_bands.yaml")
+    assert os.path.exists(yaml_path), (
+        "%s is gone — the band thresholds now come from somewhere unchecked"
+        % yaml_path)
+    with io.open(yaml_path, encoding="utf-8-sig") as fh:
+        lines = fh.read().splitlines()
+    spec_bands = {}
+    for ln in lines:
+        m = re.match(r"^\s{2}(\w+):\s*(-?[\d.]+)\s*$", ln)
+        if m:
+            spec_bands[m.group(1)] = float(m.group(2))
+    ours = {"rsrp_weak_dbm": cc.RSRP_WEAK_DBM, "rsrp_good_dbm": cc.RSRP_GOOD_DBM,
+            "sinr_weak_db": cc.SINR_WEAK_DB, "sinr_good_db": cc.SINR_GOOD_DB}
+    assert set(spec_bands) == set(ours), (
+        "radio_bands.yaml keys %s != this layer's %s"
+        % (sorted(spec_bands), sorted(ours)))
     for name, mine in sorted(ours.items()):
-        m = re.search(r"const val %s\s*(?::\s*\w+)?\s*=\s*(-?[\d.]+)" % name, src)
-        assert m, "BufferingDetector.kt no longer declares %s" % name
-        assert float(m.group(1)) == mine, (
-            "%s: producer says %s, this layer uses %s" % (name, m.group(1), mine))
+        assert spec_bands[name] == mine, (
+            "%s: spec says %s, this layer uses %s" % (name, spec_bands[name], mine))
 
 
 def test_an_unknown_component_does_not_invent_a_band():

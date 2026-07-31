@@ -438,8 +438,16 @@ class TestEngine(private val context: Context) {
                     // persistScenario 排空，快照式（不消费）取场景窗口内的 R1/jank 联动数据。
                     val buffering = analyzeBuffering(outcome, envBuf, radioBuf)
 
+                    // radio_ctx 接线（D-367）：蜂窝场景才导出（规格 §2——wifi 场景不写
+                    // radio 键，而不是写全 null 壳）；radioBuf 快照式读，同 analyzeBuffering。
+                    val radioExport = if (netSnap?.transport == "cellular") {
+                        BufferingWiring.radioExport(radioBuf, outcome.startedAtNanos, outcome.endedAtNanos)
+                    } else {
+                        null
+                    }
                     val entity = buildScenarioEntity(
                         runId, profile, round, orderIndex, outcome, kpi, track, netSnap, buffering,
+                        radioExport,
                     )
                     val hist = ItlHistogram.of(
                         ScenarioKpi.correctedItlSamplesMs(input.tokenSamples, input.pauseSeqs)
@@ -807,6 +815,7 @@ class TestEngine(private val context: Context) {
         track: OffsetTrack,
         netSnap: com.aneb.probe.net.NetworkSnapshot?,
         buffering: BufferingReport?,
+        radio: BufferingWiring.RadioExport? = null,
     ): ScenarioResultEntity {
         val parse = outcome.streams.mapNotNull { it.result.stream }
         val parseDurTotal = if (parse.isEmpty()) null else parse.sumOf { it.parseDurUs }
@@ -863,6 +872,16 @@ class TestEngine(private val context: Context) {
             netCapabilities = netSnap?.capabilities,
             netInterfaceName = netSnap?.interfaceName,
             serverObservedAddr = outcome.observedAddr,
+            // radio_ctx（D-367）：radio==null（wifi/未知 transport）时八列全 null，
+            // radioStale==null 即「导出未运行」——ResultReporter 据此不写 radio 块
+            radioRat = radio?.rat,
+            radioRsrpDbm = radio?.rsrpMedianDbm,
+            radioSinrDb = radio?.sinrMedianDb,
+            radioPci = radio?.pci,
+            radioTac = radio?.tac,
+            radioArfcn = radio?.arfcn,
+            radioSampledN = radio?.sampledN,
+            radioStale = radio?.stale,
             parseDurUsTotal = parseDurTotal,
             perEventParseUs = if (parseDurTotal != null && eventsTotal > 0) {
                 parseDurTotal.toDouble() / eventsTotal

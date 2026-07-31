@@ -121,10 +121,11 @@ def test_real_spec_scoring_pack_passes():
 
 
 def test_a_spec_file_nobody_validates_is_an_error_not_a_silence():
-    """`_CHECKS` names three files, and this gate is the only thing standing
-    between a spec edit and a shipped scoring rule. The pack is meant to grow —
-    the radio-band handoff proposes a fourth file — and until now a YAML dropped
-    in beside the three would have been validated by nothing while verify_all
+    """This gate is the only thing standing between a spec edit and a shipped
+    scoring rule. The pack is meant to grow — radio_bands.yaml, this test's
+    original stray example, has since landed as the registered fourth file
+    (D-367), which is exactly the growth path working — and a YAML dropped in
+    beside the registered ones would be validated by nothing while verify_all
     went on printing PASS (D-291, the D-287 shape on the spec gate).
 
     Both directions are pinned: unregistered fails, and registering it as
@@ -147,7 +148,7 @@ def test_a_spec_file_nobody_validates_is_an_error_not_a_silence():
         errors, missing = vs.validate_dir(tmp)
         assert (errors, missing) == ([], []), (errors, missing)
 
-        stray = "radio_bands.yaml"
+        stray = "extra_bands.yaml"
         with open(os.path.join(tmp, stray), "w", encoding="utf-8") as fh:
             fh.write('schema_version: "1.0.0"\n')
         errors, _missing = vs.validate_dir(tmp)

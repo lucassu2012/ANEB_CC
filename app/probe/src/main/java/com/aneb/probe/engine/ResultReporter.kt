@@ -165,6 +165,23 @@ object ResultReporter {
             put("capabilities", s.netCapabilities)
             put("interface", s.netInterfaceName)
             put("server_observed_addr", s.serverObservedAddr)
+            // radio_ctx（RADIO_CONTEXT_WIRING_SPEC v1.0，D-367）：radioStale 非 null
+            // = 导出运行过（蜂窝场景恒有，含零样本壳）；wifi 场景与 v16 之前的历史行
+            // radioStale==null → 不写该键（规格 §2：不写全 null 壳）。不可得项写 null，
+            // 禁哨兵（R-10）。
+            val stale = s.radioStale
+            if (stale != null) {
+                put("radio", buildJsonObject {
+                    put("rat", s.radioRat)
+                    put("rsrp_dbm", s.radioRsrpDbm)
+                    put("sinr_db", s.radioSinrDb)
+                    put("pci", s.radioPci)
+                    put("tac", s.radioTac)
+                    put("arfcn", s.radioArfcn)
+                    put("sampled_n", s.radioSampledN)
+                    put("stale", stale)
+                })
+            }
         })
         put("parse", buildJsonObject {
             put("parse_dur_us", s.parseDurUsTotal)

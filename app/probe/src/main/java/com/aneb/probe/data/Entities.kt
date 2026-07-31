@@ -177,6 +177,26 @@ data class ScenarioResultEntity(
     val bufferingBestGridUs: Long? = null,
     /** 批起点与 app_jank 事件重叠率（R-12 设备侧冻结区分） */
     val bufferingJankOverlapRatio: Double? = null,
+    // ---- 场景级无线导出（RADIO_CONTEXT_WIRING_SPEC v1.0，v16 additive 列，D-367） ----
+    // 蜂窝场景由 BufferingWiring.radioExport 回填;wifi 场景与 v16 之前的历史行全 null
+    // (radioStale==null 即「导出从未运行」,ResultReporter 以此决定不写 radio 块)。
+    // 不可得一律 null,禁 0/-1/MAX_VALUE 哨兵(R-10)。
+    /** TelephonyManager.dataNetworkType 名称(NR/LTE/…),基集众数 */
+    val radioRat: String? = null,
+    /** LTE RSRP / NR SS-RSRP 场景中位,dBm */
+    val radioRsrpDbm: Double? = null,
+    /** LTE RSSNR / NR SS-SINR 场景中位,dB */
+    val radioSinrDb: Double? = null,
+    /** 物理小区标识,基集众数 */
+    val radioPci: Int? = null,
+    /** 跟踪区码,基集众数 */
+    val radioTac: Int? = null,
+    /** 频点号,基集众数 */
+    val radioArfcn: Int? = null,
+    /** 两个中位数由几个读数得出 */
+    val radioSampledN: Int? = null,
+    /** 中位数是否只能建立在陈旧样本上(R-02);null=导出未运行 */
+    val radioStale: Boolean? = null,
 )
 
 /**

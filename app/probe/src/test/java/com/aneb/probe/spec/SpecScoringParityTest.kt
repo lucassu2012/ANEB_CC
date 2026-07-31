@@ -167,6 +167,34 @@ class SpecScoringParityTest {
         }
     }
 
+    // ---------- 用例 4:无线分档阈值对拍(RADIO_CONTEXT_WIRING_SPEC §5,D-367) ----------
+
+    @Test
+    fun radio_bands_parity() {
+        val bands = node(loadYaml("radio_bands.yaml"), "bands")
+        // 代码侧全集经反射枚举(BufferingDetector 的 RSRP_/SINR_ double 常量):
+        // 任一侧新增/删除/改值而另一侧未跟进即红(同 veto_constants_parity 套路)。
+        // 分析层的抄本(campaign_common)由其自己的守卫对账同一份 YAML——两辐条一轮毂。
+        val det = com.aneb.probe.scoring.BufferingDetector
+        val consts = det.javaClass.declaredFields
+            .filter {
+                (it.name.startsWith("RSRP_") || it.name.startsWith("SINR_")) &&
+                    it.type == java.lang.Double.TYPE
+            }
+            .associate { f ->
+                f.isAccessible = true
+                f.name.lowercase() to f.getDouble(det)
+            }
+        assertEquals(
+            "BufferingDetector 信号阈值全集漂移(新增/删除 RSRP_/SINR_ 常量须同步 spec/scoring/radio_bands.yaml)",
+            consts.keys.sorted(),
+            bands.keys.sorted(),
+        )
+        for ((key, value) in consts) {
+            assertEquals("[$key] 阈值漂移", value, num(bands, key), 1e-9)
+        }
+    }
+
     // ---------- 用例 4:版本 id 对拍(权重表 version_id + kpi_set_version + spec 起版) ----------
 
     @Test

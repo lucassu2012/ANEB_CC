@@ -124,4 +124,58 @@ object BufferingWiring {
         if (v.isEmpty()) return null
         return v.sorted()[v.size / 2]
     }
+
+    // ------------------------------------------------------------------
+    // 无线上下文导出（RADIO_CONTEXT_WIRING_SPEC v1.0，D-367）
+    // ------------------------------------------------------------------
+
+    /**
+     * 场景级无线导出摘要（上报体 `network_snapshot.radio` 的直接来源）。
+     * 全字段可空 = 不可得写 null，禁哨兵（R-10）；[sampledN] 是两个中位数由几个
+     * 读数得出（规格 §3），[stale] 表示中位数是否只能建立在陈旧样本上。
+     */
+    data class RadioExport(
+        val rat: String?,
+        val rsrpMedianDbm: Double?,
+        val sinrMedianDb: Double?,
+        val pci: Int?,
+        val tac: Int?,
+        val arfcn: Int?,
+        val sampledN: Int,
+        val stale: Boolean,
+    )
+
+    /**
+     * 场景窗口内的完整无线导出（比 [radioSummary] 多小区标识与新鲜度）：
+     * - **新鲜优先**：窗口内有非 stale 样本就只用它们（stale=false）；
+     *   只有陈旧样本时退而用之并标 stale=true——陈旧读数只以带标记的方式入库（R-02）；
+     * - rsrp/sinr 取基集中位；rat/pci/tac/arfcn 取基集**众数**（窗口内切了小区时，
+     *   多数样本所在的小区代表该场景；变更本身另有 CELL_CHANGE 事件与分析层
+     *   `CELL_CHANGED` 标记兜底）；
+     * - [RadioExport.sampledN] = 基集中带 rsrp 或 sinr 读数的样本数；
+     * - 窗口内**无样本** → sampledN=0、stale=true、其余全 null（蜂窝场景仍导出该壳，
+     *   「采不到」是要被看见的事实，不是省略的理由）。
+     */
+    fun radioExport(samples: Iterable<RadioSample>, startNanos: Long, endNanos: Long?): RadioExport {
+        val inWindow = samples.filter { it.tsNanos >= startNanos && (endNanos == null || it.tsNanos <= endNanos) }
+        val fresh = inWindow.filter { !it.stale }
+        val basis = if (fresh.isNotEmpty()) fresh else inWindow
+        val stale = fresh.isEmpty()
+        return RadioExport(
+            rat = modalOrNull(basis.mapNotNull { it.rat }),
+            rsrpMedianDbm = medianOrNull(basis.mapNotNull { it.rsrp?.toDouble() }),
+            sinrMedianDb = medianOrNull(basis.mapNotNull { it.sinr?.toDouble() }),
+            pci = modalOrNull(basis.mapNotNull { it.pci }),
+            tac = modalOrNull(basis.mapNotNull { it.tac }),
+            arfcn = modalOrNull(basis.mapNotNull { it.arfcn }),
+            sampledN = basis.count { it.rsrp != null || it.sinr != null },
+            stale = stale,
+        )
+    }
+
+    /** 众数；并列取值序最小者（确定性，避免迭代序决定导出值）。空集 → null。 */
+    private fun <T : Comparable<T>> modalOrNull(v: List<T>): T? =
+        v.groupingBy { it }.eachCount().entries
+            .maxWithOrNull(compareBy<Map.Entry<T, Int>> { it.value }.thenByDescending { it.key })
+            ?.key
 }

@@ -1,0 +1,18 @@
+# ANEB spec — 无线信号分档阈值(机器可读化导出;RADIO_CONTEXT_WIRING_SPEC §5)
+# 来源(逐字导出): app/probe/src/main/java/com/aneb/probe/scoring/BufferingDetector.kt 常量
+#   RSRP_WEAK_DBM / RSRP_GOOD_DBM / SINR_WEAK_DB / SINR_GOOD_DB。
+# 组合语义(比数值更容易被抄错,故写在这里):
+#   弱 = 任一**已知**分量越线(rsrp < rsrp_weak_dbm 或 sinr < sinr_weak_db);
+#   良 = **已知分量均不越线**(未知分量不阻止「良」,也不为它背书);
+#   两个分量都不可得 = 不定档(null,不是「中」)。
+# 对拍守护:
+#   - Kotlin 侧: SpecScoringParityTest.radio_bands_parity —— 代码侧四常量必须与本文件逐值相等;
+#   - 分析层侧: scripts/tests/test_report_properties.py
+#     test_the_signal_bands_match_the_producer_that_defines_them —— campaign_common 的抄本对账本文件。
+# 门禁: scripts/validate_spec_scoring.py(spec-scoring-unit)—— 四键齐备、均为数、weak < good。
+schema_version: "1.0.0"
+bands:
+  rsrp_weak_dbm: -105.0
+  rsrp_good_dbm: -95.0
+  sinr_weak_db: 0.0
+  sinr_good_db: 10.0
