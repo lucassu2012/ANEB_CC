@@ -1,0 +1,13 @@
+﻿point_id,carrier,time_band,profile_id,kpi,access,regional_incr,core_incr,end_to_end_core,coverage,low_confidence,not_computable_reason,incomparability,tier_time_spread_ms,severe_incomparability,synthetic
+SZ-PILOT-01,ctcc,busy,s1_chat,n1_rtt_p50_ms,65.034,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,busy,s2_coding_agent,n1_rtt_p50_ms,65.072,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,busy,s3_multimodal,n1_rtt_p50_ms,62.549,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,idle,s1_chat,n1_rtt_p50_ms,64.194,,,,metro,True,"TIER_MISSING:regional,core","TIER_MISSING:regional,core;low_conf",,,False
+SZ-PILOT-01,ctcc,idle,s2_coding_agent,n1_rtt_p50_ms,63.409,,,,metro,True,"TIER_MISSING:regional,core","TIER_MISSING:regional,core;low_conf",,,False
+SZ-PILOT-01,ctcc,idle,s3_multimodal,n1_rtt_p50_ms,59.384,,,,metro,True,"TIER_MISSING:regional,core","TIER_MISSING:regional,core;low_conf",,,False
+SZ-PILOT-01,ctcc,busy,s1_chat,t1_ttft_ms,53.261061999999995,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,busy,s2_coding_agent,t1_ttft_ms,54.072188000000004,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,busy,s3_multimodal,t1_ttft_ms,53.00610399999999,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,idle,s1_chat,t1_ttft_ms,47.190270999999996,,,,metro,True,"TIER_MISSING:regional,core","TIER_MISSING:regional,core;low_conf",,,False
+SZ-PILOT-01,ctcc,idle,s2_coding_agent,t1_ttft_ms,59.3185,,,,metro,True,"TIER_MISSING:regional,core","TIER_MISSING:regional,core;low_conf",,,False
+SZ-PILOT-01,ctcc,idle,s3_multimodal,t1_ttft_ms,51.167104,,,,metro,True,"TIER_MISSING:regional,core","TIER_MISSING:regional,core;low_conf",,,False

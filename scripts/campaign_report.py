@@ -311,12 +311,41 @@ def _confidence_caveat(scored, min_samples):
     decided per cell by heat_cells, this only refuses to keep it quiet (D-313).
     """
     low = sum(1 for c in scored if c.get("low_confidence"))
-    if not low:
+    if low and low == len(scored):
+        out = (f"——但这 **{low} 个格全部 low_confidence**（每格 n<{min_samples}），"
+               "**本轮不足以判定好坏**，先把样本补够再读这一条")
+    elif low:
+        out = f"——其中 **{low} 个格 low_confidence**，不要据它们判定好坏"
+    else:
+        out = ""
+    return out + _scorer_caveat(scored)
+
+
+def _scorer_caveat(scored):
+    """The SCORER's own refusal to vouch — a different and stronger statement
+    than the cell-level sample floor above, and it was missing from the one line
+    a decision-maker reads.
+
+    Measured on the first real corpus (D-352): every quick-mode run comes back
+    with `run.aqs.low_confidence=true` (one pass per scenario), so the heat card
+    said `SCORER_LOW_CONF:11/11` while the headline read 「11 个格中无 fair/poor
+    （最低 …=89）」 with a caveat about sample floors only. The floor caveat cannot
+    stand in for this one: a cell can hold 11 samples — clearing the floor, no
+    low_conf mark — while the scorer declined to vouch for every one of them.
+
+    The field already reached the markdown notes, the HTML cells and the CSV; the
+    summary was the single surface without it (the D-330/D-339 shape). No new
+    bullet and no new invariant: this line is already the report's statement
+    about how far its own numbers can be trusted.
+    """
+    runs = sum(c.get("n") or 0 for c in scored)
+    slc = sum(c.get("scorer_low_conf_n") or 0 for c in scored)
+    if not slc:
         return ""
-    if low == len(scored):
-        return (f"——但这 **{low} 个格全部 low_confidence**（每格 n<{min_samples}），"
-                "**本轮不足以判定好坏**，先把样本补够再读这一条")
-    return f"——其中 **{low} 个格 low_confidence**，不要据它们判定好坏"
+    head = (f"；且这 **{runs} 条 run 全部被打分器自评低置信**" if slc >= runs
+            else f"；另有 **{slc}/{runs} 条 run 被打分器自评低置信**")
+    return (head + "（`run.aqs.low_confidence`，热力卡 `SCORER_LOW_CONF`）——"
+            "**分数自己声明了不确定**，本行的分级不得当作定论")
 
 
 _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",

@@ -1,0 +1,9 @@
+﻿kpi,point_id,carrier,time_band,median,grade,grade_tie,n,low_confidence,mixed_campaigns,implausible_values,synthetic
+t1_ttft_ms,SZ-PILOT-01,ctcc,busy,53.261061999999995,excellent,,33,False,,,False
+t1_ttft_ms,SZ-PILOT-01,ctcc,idle,51.167104,excellent,,3,True,,,False
+n1_rtt_p50_ms,SZ-PILOT-01,ctcc,busy,64.129,fair,,33,False,,,False
+n1_rtt_p50_ms,SZ-PILOT-01,ctcc,idle,63.409,fair,,3,True,,,False
+u1_goodput_mbps,SZ-PILOT-01,ctcc,busy,10.046161929925674,good,,33,False,,,False
+u1_goodput_mbps,SZ-PILOT-01,ctcc,idle,11.175838941582262,good,,3,True,,,False
+t2_itl_p95_ms,SZ-PILOT-01,ctcc,busy,29.495208,excellent,,33,False,,,False
+t2_itl_p95_ms,SZ-PILOT-01,ctcc,idle,29.118624999999998,excellent,,3,True,,,False

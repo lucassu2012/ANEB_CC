@@ -1,0 +1,7 @@
+﻿point_id,carrier,time_band,profile_id,attempted,valid,valid_low_confidence,invalid,unknown,valid_rate,below_min_rate,reasons,mixed_campaigns,synthetic
+SZ-PILOT-01,ctcc,busy,s1_chat,11,0,11,0,0,1.0,False,,,False
+SZ-PILOT-01,ctcc,busy,s2_coding_agent,11,0,11,0,0,1.0,False,,,False
+SZ-PILOT-01,ctcc,busy,s3_multimodal,11,0,11,0,0,1.0,False,,,False
+SZ-PILOT-01,ctcc,idle,s1_chat,1,0,1,0,0,1.0,False,,,False
+SZ-PILOT-01,ctcc,idle,s2_coding_agent,1,0,1,0,0,1.0,False,,,False
+SZ-PILOT-01,ctcc,idle,s3_multimodal,1,0,1,0,0,1.0,False,,,False

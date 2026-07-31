@@ -1,0 +1,3 @@
+﻿point_id,carrier,time_band,band,rsrp_median_dbm,sinr_median_db,rats,serving_cells,n,n_with_radio,sampled_n_median,stale_samples,low_confidence,thin_samples,implausible_values,synthetic
+SZ-PILOT-01,ctcc,busy,,,,,,11,0,,0,True,False,,False
+SZ-PILOT-01,ctcc,idle,,,,,,1,0,,0,True,False,,False

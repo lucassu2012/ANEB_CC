@@ -1,0 +1,10 @@
+﻿profile_id,kpi,order_index,position_median,position_n,position_low_confidence,spread,spread_pct,overall_median,threshold_pct,order_effect_suspected,not_computable_reason,low_confidence,implausible_values,distinct_rounds,rotation_warning,no_order_evidence,rotates_within_run,position_cell_imbalance,position_cells_uneven,synthetic
+s1_chat,t1_ttft_ms,0,53.16277049999999,12,False,,,53.16277049999999,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s2_coding_agent,t1_ttft_ms,1,54.6918335,12,False,,,54.6918335,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s3_multimodal,t1_ttft_ms,2,52.912749999999996,12,False,,,52.912749999999996,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s1_chat,n1_rtt_p50_ms,0,64.861,12,False,,,64.861,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s2_coding_agent,n1_rtt_p50_ms,1,64.761,12,False,,,64.761,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s3_multimodal,n1_rtt_p50_ms,2,62.155,12,False,,,62.155,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s1_chat,u1_goodput_mbps,0,0.1423334443234909,12,False,,,0.1423334443234909,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s2_coding_agent,u1_goodput_mbps,1,10.156933442572882,12,False,,,10.156933442572882,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False
+s3_multimodal,u1_goodput_mbps,2,16.46654842341603,12,False,,,16.46654842341603,10.0,,NEED_2_POSITIONS,True,,1,True,False,0,,,False

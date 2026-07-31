@@ -1,0 +1,37 @@
+﻿
+13:50:22  waiting for busy band (local hour >= 14)
+14:00:02  busy band open; starting campaign target=11
+14:00:05  attempt 1 : run started
+14:02:23  attempt 1 : COMPLETED (1/11) run_id=019fb6c2-25c1-72cb-bb50-6df9006cc665
+14:02:33  attempt 2 : run started
+14:04:39  attempt 2 : COMPLETED (2/11) run_id=019fb6c4-69ae-7ccf-9e59-aa7c60feeb3b
+14:04:50  attempt 3 : run started
+14:06:56  attempt 3 : COMPLETED (3/11) run_id=019fb6c6-7edb-7e40-8c90-60089c88f218
+14:07:06  attempt 4 : run started
+14:09:12  attempt 4 : COMPLETED (4/11) run_id=019fb6c8-93e6-7bd4-b75d-b84dd5202f7a
+14:09:23  attempt 5 : run started
+14:11:41  attempt 5 : COMPLETED (5/11) run_id=019fb6ca-a8f5-7241-8ef4-6e053622195e
+14:11:51  attempt 6 : run started
+14:14:09  attempt 6 : COMPLETED (6/11) run_id=019fb6cc-ecfb-7315-b697-074744599368
+14:14:20  attempt 7 : run started
+14:16:38  attempt 7 : COMPLETED (7/11) run_id=019fb6cf-3102-71c3-8d24-6eb6ecea8a1b
+14:16:48  attempt 8 : run started
+14:19:06  attempt 8 : COMPLETED (8/11) run_id=019fb6d1-7511-7872-8605-2f87e0b2c574
+14:19:17  attempt 9 : run started
+14:21:23  attempt 9 : COMPLETED (9/11) run_id=019fb6d3-b95b-7d12-90cb-cf451f851362
+14:21:33  attempt 10 : run started
+14:23:39  attempt 10 : COMPLETED (10/11) run_id=019fb6d5-ce6f-78c0-bf3f-69762e6711a6
+14:23:50  attempt 11 : run started
+14:26:02  attempt 11 : COMPLETED (11/11) run_id=019fb6d7-e3b2-7c33-b9cf-1ecccb551836
+14:26:10  CAMPAIGN DONE completed=11 attempts=11
+14:26:10    019fb6c2-25c1-72cb-bb50-6df9006cc665 completed
+14:26:10    019fb6c4-69ae-7ccf-9e59-aa7c60feeb3b completed
+14:26:10    019fb6c6-7edb-7e40-8c90-60089c88f218 completed
+14:26:10    019fb6c8-93e6-7bd4-b75d-b84dd5202f7a completed
+14:26:10    019fb6ca-a8f5-7241-8ef4-6e053622195e completed
+14:26:10    019fb6cc-ecfb-7315-b697-074744599368 completed
+14:26:10    019fb6cf-3102-71c3-8d24-6eb6ecea8a1b completed
+14:26:10    019fb6d1-7511-7872-8605-2f87e0b2c574 completed
+14:26:10    019fb6d3-b95b-7d12-90cb-cf451f851362 completed
+14:26:10    019fb6d5-ce6f-78c0-bf3f-69762e6711a6 completed
+14:26:10    019fb6d7-e3b2-7c33-b9cf-1ecccb551836 completed

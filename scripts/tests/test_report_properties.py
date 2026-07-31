@@ -2098,8 +2098,16 @@ def test_a_round_below_the_sample_floor_does_not_read_like_a_clean_survey():
     assert thin != full, (
         "a round where every cell is below the sample floor prints the same "
         "headline as a full one: %s" % thin)
-    assert str(thin_low) in thin and "low_confidence" in thin, thin
-    assert "low_confidence" not in full, full
+    # Keyed on the FLOOR phrase, not the bare token. D-352 added a second, quite
+    # different caveat to this same line that cites the contract field by name
+    # (`run.aqs.low_confidence`) — so the bare substring stopped meaning "the
+    # floor caveat fired" and started matching an unrelated honest sentence.
+    # Tightened rather than dropped: what this guard protects is unchanged (D-322).
+    # Both floor branches, and only they: 「N 个格 low_confidence」 (some) and
+    # 「N 个格全部 low_confidence」 (all).
+    _FLOOR = re.compile(r"个格(全部)?\*{0,2} ?low_confidence")
+    assert str(thin_low) in thin and _FLOOR.search(thin), thin
+    assert not _FLOOR.search(full), full
     # …and the cell it names carries its own mark (D-168). Asserted separately:
     # the count above is satisfied by the population sentence alone, so dropping
     # the mark at the naming site would slip past it.

@@ -1,0 +1,3 @@
+﻿point_id,carrier,time_band,runs,dragging_dim,dragging_median,spread,low_confidence,dim_medians,mixed_campaigns,implausible_values,synthetic
+SZ-PILOT-01,ctcc,busy,11,N1,68.11225,31.887749999999997,False,T1:95.94458589999999;T2:97.74677185;T3:100.0;N1:68.11225;N2:84.3385;U1:81.42904014939363;U2:77.8519167,,,False
+SZ-PILOT-01,ctcc,idle,1,N1,68.42725,31.57275,True,T1:95.5511125;T2:98.13860005;T3:100.0;N1:68.42725;N2:88.7335;U1:82.06833783723636;U2:74.7050708,,,False

@@ -1387,6 +1387,35 @@ def test_lookalike_labels_are_reported_not_merged():
     assert "同名异写" not in rpt.build_report_markdown(clean)
 
 
+def test_summary_says_when_the_scorer_refused_to_vouch():
+    """D-352, found on the first real corpus: every quick-mode run reports
+    `run.aqs.low_confidence=true`, so the heat card said SCORER_LOW_CONF:11/11
+    while the summary — the one line a decision-maker reads — carried only the
+    sample-floor caveat and let 「无 fair/poor（最低 …=89）」 stand as a verdict.
+
+    Both halves are pinned, and the clean half is the one that matters: a corpus
+    the scorer DID vouch for must not be nagged, or the caveat becomes noise the
+    reader learns to skip.
+
+    The cell here clears the sample floor (n=6 >= 5), which is the point: the two
+    caveats are different statements, and the floor one cannot stand in.
+    """
+    def corpus(low_conf, n=6):
+        out = []
+        for r in aqs_records(89, n, point="P1", carrier="ctcc", time_band="busy"):
+            r["run"]["aqs"]["low_confidence"] = low_conf
+            out.append(r)
+        return out
+
+    flagged = rpt.build_report_markdown(corpus(True))
+    assert "打分器自评低置信" in flagged
+    assert "6 条 run 全部被打分器自评低置信" in flagged
+    assert "个格 low_confidence" not in flagged, "n=6 clears the floor; only the scorer objected"
+
+    clean = rpt.build_report_markdown(corpus(False))
+    assert "打分器自评低置信" not in clean, "a vouched-for corpus must not be nagged"
+
+
 def test_summary_signal_count_is_the_same_for_every_corpus_shape():
     """Every other signal says something even with no data ("无 transport 证据
     （覆盖缺口）"). The did-it-improve one used to vanish on a single-round
