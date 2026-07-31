@@ -125,6 +125,34 @@ python radio_rollup.py rehearsal_radio.jsonl
 网格就用交付文件 [`campaign_grid_shenzhen.json`](campaign_grid_shenzhen.json)
 （单点位占位 `SZ-PILOT-01`，真名 PO 后补；拿到真名后**网格文件与下面的补注命令同改**）。
 
+### 0.6.1 采集前必做的两件事（实测踩过，D-349）
+
+**① 关掉 WiFi，别只靠 `--es transport cellular`。** 运营商标签 `ctcc` 声称的是「这一格测的是
+中国电信蜂窝」，而 WiFi 在线时系统会把 App 申请的蜂窝网**中途撕掉**——实测第一次 run 在
+第 28 秒死于 `status=aborted:bound_network_lost`，报告体根本没发出（`report=http=null`）。
+关 WiFi 后蜂窝成为默认网（`MOBILE[NR] … VALIDATED`，实测到 E-01 RTT≈44ms），全程稳定。
+
+```
+adb shell settings get global wifi_on     # 先记下原值，测后照原值恢复
+adb shell svc wifi disable
+adb shell "dumpsys connectivity | grep 'Active default network'"   # 确认蜂窝成为默认网
+```
+
+> ⚠ 这是**临时设备设置**，收尾必须恢复（`svc wifi enable` + 核对 `wifi_on` 回到原值），
+> 与 `stayon` 同列（仓根 `CLAUDE.md` 第 4 条）。
+
+**② 别指望事后翻 logcat。** P40 的 main 环缓冲仅 **256 KiB**，而华为 `WifiService`/
+`TrafficMonitor` 每秒刷屏——实测 run 结束**七分钟后**，那一轮的 `AnebProbe` 行已被冲干净，
+`adb logcat -d` 一行都捞不到。采集期间要**实时落盘**：
+
+```
+adb logcat -c
+adb logcat -v time -s AnebProbe:I > campaign_logcat.txt     # 另起一个窗口/进程，全程开着
+```
+
+判完成看 `RUN_END run_id=<id> status=completed` 与 `REPORT http=200`；
+`status=aborted:*` 的那一轮**没有上报**，不进语料，直接重跑（新 `run_id`，是新样本不是重复）。
+
 **补注**（把真机拉下来的原始 JSONL 打上战役标签；`SZ-PILOT-01` 为占位，真名下来后改）：
 
 ```
@@ -312,6 +340,32 @@ WARN=**须由人解释**后才可发布（**具体项以 `publish_check` 的实�
 - [ ] **报告顶端无红色「合成数据警告」**（有 = 混入了彩排语料，立即停止外发）
 - [ ] 归档四件套：report.md + report.html + tables_*.csv + provenance.json
 
+## 6. 设备收尾（当天最后一轮跑完就做，别拖到出报告之后）
+
+仓根 `CLAUDE.md` 第 4 条要求：停掉本次测试起的一切、撤除临时网络规则与设备设置、
+回到华为桌面并**立即复验干净**。这里把它写成可逐条执行的命令（D-349：
+在现场被执行的那份文档才算数）——**每一条都要看回显，不看回显等于没做**：
+
+```
+adb shell am force-stop com.aneb.probe          # 停掉本次起的 App
+adb shell svc wifi enable                       # 恢复 §0.6.1 关掉的 WiFi
+adb shell svc power stayon false                # 撤掉常亮
+adb shell input keyevent KEYCODE_HOME           # 回桌面
+```
+
+**复验（四条都要对上，缺一条就不算干净）**：
+
+```
+adb shell "settings get global wifi_on"                     # 应回到采集前记下的原值
+adb shell "settings get global stay_on_while_plugged_in"    # 应为 0
+adb shell "dumpsys window | grep mCurrentFocus"             # 应是 huawei…launcher
+adb shell "ps -A | grep -iE 'aneb|vpn|tcpdump' | grep -v grep"  # 应无输出
+```
+
+> ⛔ **桌面可见 ≠ 干净**：残留的后台进程、VPN/隧道、临时规则、没关的 `stayon` 都算不干净
+> （仓根 `CLAUDE.md` 第 5 条）。若上面第四条有输出而你无法确认它是谁起的——**不要杀**，
+> 按第 3 条先协调。
+
 ## 已知坑速查
 
 | 症状 | 原因 | 处置 |
@@ -319,6 +373,8 @@ WARN=**须由人解释**后才可发布（**具体项以 `publish_check` 的实�
 | 契约门 4200 条违规 | 喂了 calibration 逐 token 样本 | 换 result-run 语料 |
 | 契约门报 run 缺 7 字段 | 旧版生产者历史语料 | 隔离，不进战役 |
 | 报告全塌 `unlabeled` | 忘了步骤 2 补注 | 先 annotate 再报告 |
+| run 半途死、`status=aborted:bound_network_lost`、`report=http=null` | WiFi 在线时系统撕掉 App 申请的蜂窝网（D-349 实测第 28 秒死） | 按 §0.6.1 关 WiFi 再测；该轮不进语料，直接重跑 |
+| `adb logcat -d` 一行 `AnebProbe` 都没有 | main 环缓冲仅 256 KiB，被华为 WifiService 刷屏冲掉（实测 7 分钟即净） | 采集期间按 §0.6.1 **实时落盘**，别事后翻 |
 | annotate 报 multiple inputs | 多文件共用一个 `-o` | 改用 `--out-dir DIR` 批量 |
 | annotate 告警"正把 point_id 统一打到 N 个文件上" | 语料可能跨多点位 | 确认同点位再继续；否则分目录或用 `--map` |
 | 热力卡只有一两格、样本数异常大 | 多点位被打成同一点位 | 回查步骤 2 的打标口径，重新补注 |
