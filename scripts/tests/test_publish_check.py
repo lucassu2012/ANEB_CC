@@ -518,6 +518,52 @@ def test_cell_counts_are_cells_not_cell_times_kpi():
     assert detail.startswith(f"{len(distinct)} 个格"), (detail, len(distinct))
 
 
+def _with_transport(rec, tp):
+    rec["run"]["transport"] = tp
+    return rec
+
+
+def test_single_tier_corpus_never_claims_three_tiers_were_checked():
+    """D-350: found on the FIRST real pilot corpus, not by reading.
+
+    The report body has said 「本轮含义不同」 on single-tier corpora since D-157, but
+    this gate — the last table an operator reads before publishing — still said
+    「N 个格三层级接入介质一致」 about a corpus carrying exactly one tier. Nothing about
+    tiers had been verified. The WARN branch was worse: it names a 骨干增量 that
+    cannot exist behind one server.
+
+    Both halves are pinned. The three-tier half keeps the fix from becoming a
+    blanket rewording: a corpus that really does pair tiers must still get the
+    tier wording.
+    """
+    from synth import make_record
+
+    def cell(tier, transport, n=5):
+        c = {"campaign_id": "base", "tier": tier, "point_id": "P1",
+             "carrier": "ctcc", "time_band": "busy"}
+        return [contractify(_with_transport(
+            make_record(campaign=dict(c), aqs=80,
+                        scenarios=[("s1_chat", {"n1_rtt_p50_ms": 20})]), transport))
+                for _ in range(n)]
+
+    one_tier = cell("metro", "auto(cellular)")
+    detail = _detail(pc.check(one_tier), "同一接入")
+    assert _sev(pc.check(one_tier), "同一接入") == pc.PASS
+    assert "三层级" not in detail, detail
+    assert "单层级" in detail, detail
+
+    paired = cell("metro", "wifi") + cell("core", "wifi")
+    paired_detail = _detail(pc.check(paired), "同一接入")
+    assert "三层级" in paired_detail, paired_detail
+
+    # …and the mixed-media branch, both ways: single-tier must not promise a
+    # backbone increment it cannot have.
+    mixed_one = cell("metro", "wifi") + cell("metro", "auto(cellular)")
+    mixed_detail = _detail(pc.check(mixed_one), "同一接入")
+    assert _sev(pc.check(mixed_one), "同一接入") == pc.WARN
+    assert "骨干增量" not in mixed_detail, mixed_detail
+
+
 def test_mixed_access_media_across_tiers_is_warned():
     from synth import make_record
     def at(tier, val, transport, n=5):

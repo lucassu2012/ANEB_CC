@@ -260,18 +260,36 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
     # find anywhere, and double the apparent severity. Mixed media, tier timing
     # and endpoint conflicts are properties of the CELL, not of the KPI, so the
     # union of cell keys is what to count (D-191).
-    mixed_tp, tp_cells = set(), set()
+    mixed_tp, tp_cells, paired_tp = set(), set(), 0
     for k in attribution.ATTRIBUTABLE_KPIS:
-        for c in attribution.attribute(records, kpi=k, min_samples=min_samples)["cells"]:
+        res = attribution.attribute(records, kpi=k, min_samples=min_samples)
+        paired_tp += attribution.between_tier_population(res)[0]
+        for c in res["cells"]:
             tp_cells.add(_cell_key(c))
             if c.get("mixed_transports"):
                 mixed_tp.add(_cell_key(c))
+    # Single-tier wording, same as the report body has carried since D-157 — and the
+    # SAME predicate (between_tier_population), not a second one that could drift.
+    # Measured on the first REAL pilot corpus: the body said 「本轮含义不同」 while this
+    # gate — the table an operator reads immediately before publishing — announced
+    # 「3 个格三层级接入介质一致」 about a corpus carrying exactly one tier. Nothing about
+    # tiers had been verified; and the WARN branch would have been worse, naming a
+    # 骨干增量 that cannot exist in a one-server pilot (D-350; the D-330/D-339 shape:
+    # one surface fixed, the other left).
+    single_tier = bool(tp_cells) and paired_tp == 0
     if mixed_tp:
         rows.append(_row(WARN, "同一接入",
-                         f"{len(mixed_tp)} 个格的三层级混用了不同接入介质"
-                         "——该格的骨干增量其实含 wifi/蜂窝差，不可用"))
+                         (f"{len(mixed_tp)} 个格内混用了不同接入介质"
+                          "——本轮单层级，无层级间增量，该格**绝对值不可混池**"
+                          if single_tier else
+                          f"{len(mixed_tp)} 个格的三层级混用了不同接入介质"
+                          "——该格的骨干增量其实含 wifi/蜂窝差，不可用")))
     elif tp_cells:
-        rows.append(_row(PASS, "同一接入", f"{len(tp_cells)} 个格三层级接入介质一致"))
+        rows.append(_row(PASS, "同一接入",
+                         (f"{len(tp_cells)} 个格内接入介质一致（本轮单层级，"
+                          "**层级间**一致性无对象可核）"
+                          if single_tier else
+                          f"{len(tp_cells)} 个格三层级接入介质一致")))
     else:
         rows.append(_row(NA, "同一接入", "无可归因单元——接入介质一致性**未核算**"))
 
