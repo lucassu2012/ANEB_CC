@@ -1,0 +1,79 @@
+# ANEB spec — Profile 2 服务端 token 仿真「标定输入」：GLM glm-4-flash API（D-369）
+# SYSTEM_DEV_PLAN §4.2 Profile 2 / spine-1 主轴（D-345 批复 B 项：先只跑 text）
+#
+# ⚠️ 口径:本文件=**真实 LLM API 直调**采到的 token 流时序,用于**标定 Profile 2 服务端仿真参数**。
+#   - 口径 = API 直调(网络 + 服务端 token 流),**≠** Profile 3 App 画像(spec/portraits/*.yaml,
+#     其 token 字段依 D-348 为 PENDING-BY-CALIBER,与本文件互不解锁)。
+#   - 采集面 = P40 真机 ApiProbe(openai_compat 槽位),经**蜂窝公网**(非受控网络,D-347);
+#     token_intervals 为设备侧到达间隔,含网络+SSE 合帧,非服务端发包间隔。
+#   - n=34,单点位单时窗 → **LOW**;分布已可用,峰值/尾部结论谨慎。
+schema_version: "1.0.0"
+calibration_id: glm-4-flash-api
+target_profile: "Profile 2（服务端 token 仿真）"
+source: "glm-api-capture-2026-07-31"        # D-347(P40 ApiProbe,PO 填 key)
+model: "glm-4-flash"
+protocol: "OpenAI-compatible SSE (openai_compat)"
+corpus: "datasets/raw/aneb_token_obs_openai_compat_00.jsonl 的 07-31 批(n=34)"
+
+# ── 分布(n=34 observation,text workload,payload ~123B 短 prompt)──
+distribution_n34:
+  processing_delay_ms:            # 请求发出 → 服务端开始响应(首 delta 前)
+    min: 549
+    p25: 806
+    median: 900
+    p75: 1009
+    max: 1556
+  itl_ms_pooled:                  # 244 个相邻 token 到达间隔(设备侧,含合帧)
+    p25: 1.21
+    median: 13.64
+    p75: 126.45
+    p90: 149.0
+    p95: 166.5
+    max: 263.2
+  itl_per_obs_median_ms:          # 每条 observation 自己的 ITL 中位(观测间离散)
+    min: 0.75
+    median: 2.85
+    max: 154.41
+  output_tokens:
+    min: 11
+    median: 13
+    max: 20
+  response_artifact_bytes:
+    min: 2059
+    median: 2446
+    max: 3823
+  stream_tps_excl_first:          # (tokens-1)/Σitl,流内速率
+    min: 8.8
+    median: 38.3
+    max: 261.6
+
+# ── 标定结论(真实测量,口径见文件头)──
+findings:
+  itl_bimodal: "**ITL 强双峰**(p25=1.2ms vs p75=126ms):token 成簇到达——SSE 合帧/网络
+    批化把服务端节奏折叠成『簇内 ~1ms + 簇间 ~130-170ms』。Profile 2 仿真若要复现
+    glm-4-flash 的到达形状,须模拟**簇发**(burst)而非匀速流;匀速 40tps 只复现均值不复现形状。"
+  stream_rate: "流速中位 38.3 tps——与服务端仿真现值 rate_tps=40 同量级(D-346『40tps 恒稳』
+    的设计选择获得一个真实锚点);但真实流的瞬时速率跨 8.8~262 tps,恒速仿真是理想化。"
+  first_response: "processing_delay 中位 900ms(549–1556):glm-4-flash 无强制思考段,
+    首响应比 kimi k2.7(median 3063ms)快 3 倍量级——两包对照见 kimi-code-api-k2.7.yaml。"
+  caliber: "API 直调,P40 蜂窝公网,单点位单时窗 n=34;LOW——分布可用作仿真锚,
+    不得当服务端峰值能力或跨网络泛化。"
+
+# ── 语料里的另两批:未归属,显式排除(R-10:不确定的归属不入分布)──
+excluded_batches:
+  - batch: "openai_compat 07-18 15:57 UTC,n=2"
+    why: "决策日志无该批采集记录;PO 口头提及『DeepSeek text 测过』与之相容,但口头≠归档,
+      且 ITL 分布(med 73ms)与 GLM 批(med 13.6ms)显著不同,误并会污染两个分布。
+      归属确认后可另立 deepseek-api 校准包。"
+  - batch: "anthropic 槽位,n=2(07-18 + 07-31 各一)"
+    why: "疑为 kimi k2.7 的 ApiProbe 冒烟(协议吻合),但 ITL 形状(med 2.05ms/max 1358ms)
+      与 PC curl 采的 kimi 包(med 259ms)差一个数量级——面(设备 vs PC)与网络都不同,
+      n=2 不足以裁定;不并入任何包。"
+
+notes:
+  - "34 条全部 text、短 prompt(~123B)、短回复(11–20 token):这是 D-345 批复 B 项
+    『先只跑 text』的口径;长回复/多模态分布待后续批次。"
+  - "标定数据交付 Profile 2 服务端仿真(部署权=Codex,D-35)时经 SERVER_UPDATE_NOTES 流程;
+    改 rate_tps/burst 参数是**测量工作负载变更**,须另立决策,本文件只供锚不改 profile。"
+  - "API key 全程不入库;observation_id/subject_group_id 为 HMAC/时间戳,无敏感信息。"
+  - "CalibrationMetadata/TokenDatasetPreflight 维持刻意不做(D-359 重启条件仍未满足)。"
