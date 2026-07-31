@@ -27,6 +27,36 @@ params:
   downlink_media_bytes_dist: null
   pop_ip_list: null
 
+# ── params_capture_status（D-348：spine-3 方案 B 逐字段门控；PO 2026-07-31 批复）────
+# 逐字段采集态，取代“单串 source_portrait 一翻全翻”：哪个字段采够样本就翻哪个。
+#   PENDING            = 尚未采到，**阻塞** source_portrait 翻转（本方法学够得到，只是没采）
+#   PENDING-BY-CALIBER = 现红线外才够得到（需 root mitm，D-24/D-61），据此不采；**不阻塞**翻转
+#   N/A-BY-CALIBER     = 本方法学口径上永不可得；**不阻塞**翻转
+#   CAPTURED           = 已采到真分布，params 同字段方可非 null（R1/R19c 双向咬合）
+# 翻门判据 = 无 PENDING 字段剩余（check_redline 的 gate_state 逐画像打印）。
+params_capture_status:
+  request_size_bytes_dist:
+    status: PENDING
+    reason: "需 per-direction 上行字节隔离 + 完整流式响应体 + ≥30 turns/≥5 sessions×≥2 网络（蓝图 §5 C2）"
+  token_interval_ms_dist:
+    status: PENDING-BY-CALIBER
+    reason: "明文 token 时间戳仅 root mitm 可得（D-61 免 root 已证不可得），越 D-24 红线故不采；UI cadence 是 ui-proxy≠网络 ITL，禁跨层回填"
+  think_pause_ms_dist:
+    status: PENDING-BY-CALIBER
+    reason: "流内思考停顿与端到端 TTFT 的区分需明文流式 token 时间戳，同 token_interval 的红线外条件"
+  tool_loop_cadence:
+    status: N/A-BY-CALIBER
+    reason: "四者皆消费聊天 App，无工具编排——本方法学口径上永不可得（非“尚未采”）"
+  session_duration_s_dist:
+    status: PENDING
+    reason: "需 a11y 会话开始/结束埋点（非 per-turn 换算），代码未落地（蓝图 §5 C6）"
+  downlink_media_bytes_dist:
+    status: PENDING
+    reason: "需真媒体场景 + 端点级字节隔离；禁文本下行冒充媒体（R15 永久红线）"
+  pop_ip_list:
+    status: PENDING
+    reason: "fit 段已有直采 IP，但 params 门要求跨 ≥2 网络条件的稳定 POP 集合与证据回链复核（蓝图 §1.2/§5 C1）"
+
 # -- params_fit_approx (D-62; methodology: PARAMS_FIT_METHODOLOGY.md) --
 # WARN: approximate / non-simulation-grade; does NOT unlock params gate
 #   (source_portrait stays PENDING-CAPTURE, params all null).

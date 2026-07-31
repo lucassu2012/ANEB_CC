@@ -7,7 +7,17 @@ no device, no PO dependency. Run:  python -m pytest spec/portraits/test_check_re
 
 Guards the guard: if a future refactor weakens an invariant, its RED test fails.
 """
-from check_redline import check_portrait, check_cross_file, PARAM_FIELDS
+from check_redline import (check_portrait, check_cross_file, gate_state, portrait_mode,
+                           PARAM_FIELDS, RULED_STATUS)
+
+
+def _capture_status(overrides=None):
+    """Plan-B status block: everything PENDING except the two by-caliber rulings (D-348)."""
+    st = {k: {"status": RULED_STATUS.get(k, "PENDING"), "reason": "fixture reason"}
+          for k in PARAM_FIELDS}
+    for k, s in (overrides or {}).items():
+        st[k] = {"status": s, "reason": "fixture reason"}
+    return st
 
 
 def _valid_pending():
@@ -24,9 +34,27 @@ def _valid_pending():
         "schema_version": "1.0.0",
         "source_portrait": "PENDING-CAPTURE",
         "params": {k: None for k in PARAM_FIELDS},
+        "params_capture_status": _capture_status(),
         "observed_network_layer": {"endpoints": ["host.example.com"]},
         "params_fit_approx": {"gates_params": False, "source_portrait_unlocked": False, "fields": fields},
     }
+
+
+def _flipped():
+    """A LEGITIMATE plan-B flip: every capturable field CAPTURED with a real value, the two
+    by-caliber rulings left as-is, source_portrait naming a traceable capture.
+
+    This fixture is the half of R19 that matters most: before D-348 a portrait in this state
+    was judged FAIL by R1/R2, so the gate could never open honestly and any real capture would
+    have been forced to weaken the guard instead."""
+    d = _valid_pending()
+    capturable = [k for k in PARAM_FIELDS if k not in RULED_STATUS]
+    d["source_portrait"] = "x-app-capture-2026-08-15"
+    d["params_capture_status"] = _capture_status({k: "CAPTURED" for k in capturable})
+    for k in capturable:
+        d["params"][k] = {"p50": 1, "p90": 2, "p99": 3, "n": 30}
+    d["params_fit_approx"]["source_portrait_unlocked"] = True
+    return d
 
 
 def _valid_escaped_popip():
@@ -56,6 +84,31 @@ def test_valid_escaped_popip_passes():
     assert check_cross_file({"x": d}) == []
 
 
+def test_a_legitimate_plan_b_flip_passes():
+    """The half of R19 that matters most: a HONEST flip must be allowed through.
+
+    Before D-348 this exact state was judged FAIL by R1 (all-null) and R2 (sentinel only), so
+    the gate could never open honestly — anyone with a real capture would have had to weaken
+    the guard to record it, which is how honesty guards die.
+    """
+    d = _flipped()
+    assert check_portrait("x", d) == []
+    assert check_cross_file({"x": d}) == []
+    assert portrait_mode(d) == "CAPTURED"
+    ready, blockers = gate_state("x", d)
+    assert ready and blockers == []
+
+
+def test_by_caliber_fields_never_block_the_flip():
+    """The plan-A defect this replaces: one permanently-unreachable field freezing the gate
+    forever. token_interval/think_pause (red-line-outside) and tool_loop (never applicable)
+    are excluded from the criterion — while plain PENDING still blocks."""
+    ready, blockers = gate_state("x", _valid_pending())
+    assert not ready
+    assert set(blockers) == set(PARAM_FIELDS) - set(RULED_STATUS)
+    assert not (set(blockers) & set(RULED_STATUS)), "a by-caliber ruling must never block"
+
+
 # ---- RED per-invariant (check_portrait) ----
 
 def test_R1_filled_param_caught():
@@ -63,9 +116,62 @@ def test_R1_filled_param_caught():
     assert _has(check_portrait("x", d), "R1")
 
 
-def test_R2_source_portrait_flipped_caught():
-    d = _valid_pending(); d["source_portrait"] = "doubao-app-capture-2026-07-18"
+def test_R19a_missing_status_block_caught():
+    """No status block = no gate criterion, and "no criterion" reads as "nothing blocking".
+    Absence must be a violation, never a skip."""
+    d = _valid_pending(); del d["params_capture_status"]
+    assert _has(check_portrait("x", d), "R19a")
+
+
+def test_R19b_status_without_reason_caught():
+    d = _valid_pending()
+    d["params_capture_status"]["pop_ip_list"] = {"status": "PENDING", "reason": "  "}
+    assert _has(check_portrait("x", d), "R19b")
+
+
+def test_R19c_captured_without_value_caught():
+    """Claiming a capture the portrait has not got — the direction R1 does not cover."""
+    d = _valid_pending()
+    d["params_capture_status"]["pop_ip_list"] = {"status": "CAPTURED", "reason": "claimed"}
+    assert _has(check_portrait("x", d), "R19c")
+
+
+def test_R19d_ruled_field_promoted_caught():
+    """The 2026-07-31 rulings are frozen machine-side: promoting token_interval to an ordinary
+    PENDING (or to CAPTURED) would quietly re-open a field this methodology cannot reach."""
+    d = _valid_pending()
+    d["params_capture_status"]["token_interval_ms_dist"] = {"status": "PENDING", "reason": "x"}
+    assert _has(check_portrait("x", d), "R19d")
+
+
+def test_a_single_field_may_unlock_on_its_own():
+    """Plan B's whole point (「哪个字段采够样本就翻哪个」): one field reaching its threshold is
+    filled and CAPTURED while every other stays null and blocking, with source_portrait still
+    the sentinel. Under the old all-null R1 this legitimate state was a violation."""
+    d = _valid_pending()
+    d["params_capture_status"]["pop_ip_list"] = {"status": "CAPTURED", "reason": "dual-network POP set"}
+    d["params"]["pop_ip_list"] = ["203.0.113.7", "198.51.100.9"]
+    assert check_portrait("x", d) == []
+    ready, blockers = gate_state("x", d)
+    assert not ready and "pop_ip_list" not in blockers
+
+
+def test_R2_free_form_source_portrait_caught():
+    """R2 changed meaning at D-348 and this test changed with it, deliberately: it used to
+    assert that ANY flip was caught, which is now wrong (an honest flip must be allowed,
+    see test_a_legitimate_plan_b_flip_passes). What R2 still forbids is a source_portrait
+    that is neither the sentinel nor a traceable capture id — an unauditable claim."""
+    d = _valid_pending(); d["source_portrait"] = "captured (see chat log)"
     assert _has(check_portrait("x", d), "R2")
+
+
+def test_R19e_half_flip_caught():
+    """The flip is well-formed but a field is still plain PENDING — the whitewash R19e exists
+    to stop. This is what the old R2 blanket-ban was really protecting against."""
+    d = _valid_pending()
+    d["source_portrait"] = "x-app-capture-2026-08-15"
+    d["params_fit_approx"]["source_portrait_unlocked"] = True
+    assert _has(check_portrait("x", d), "R19e")
 
 
 def test_R3_gates_params_true_caught():

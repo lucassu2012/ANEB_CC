@@ -42,6 +42,20 @@ Invariants:
       confidence in {LOW, INCONCLUSIVE}; caliber none => (none, INCONCLUSIVE), ui-proxy => (ui, LOW),
       direct|order-of-magnitude => (network, LOW). Keeps provenance from drifting off the fit's
       real strength/layer (confidence is LOW-at-best per methodology §1.2).
+  R19 per-field capture_status gate (spine-3 §1.4 plan B, PO-decided 2026-07-31, D-348):
+      a. params_capture_status present, key set EXACTLY the 7 PARAM_FIELDS;
+      b. every entry carries status in CAPTURE_STATUSES + a non-empty reason;
+      c. status == CAPTURED  <=>  params[field] is not null — BOTH directions. Left-to-right stops
+         a flip from whitewashing an uncaptured field; right-to-left stops a distribution appearing
+         with no status behind it;
+      d. the by-caliber rulings are frozen: token_interval / think_pause = PENDING-BY-CALIBER
+         (needs root mitm, outside D-24's red line), tool_loop_cadence = N/A-BY-CALIBER (consumer
+         chat apps orchestrate no tools — this methodology can never capture it);
+      e. no half-flip: once source_portrait leaves PENDING-CAPTURE it must match a traceable
+         capture id AND no field may still read plain PENDING.
+  Mode: source_portrait == "PENDING-CAPTURE" => PENDING mode (R1 all-null applies); anything else
+      => CAPTURED mode, where R1 is replaced by R19c per-field consistency. Without this, a
+      legitimate flip would be judged FAIL by R1/R2 and the gate could never open honestly.
 """
 import sys, os, glob, re
 
@@ -67,6 +81,24 @@ CALIBER_PROVENANCE = {
     "order-of-magnitude": ("network", "LOW"),
     "direct": ("network", "LOW"),
 }
+# R19: per-field capture gate vocabulary (spine-3 plan B). The two "-BY-CALIBER" values are NOT
+# synonyms: N/A means this methodology can never reach it (no future capture changes that);
+# PENDING-BY-CALIBER means reachable only outside the current red line (root mitm), so we decline
+# to capture it — a later PO authorization could still turn it CAPTURED. Only plain PENDING blocks
+# the source_portrait flip; otherwise one permanently-unreachable field freezes the gate forever
+# (that is exactly the plan-A defect this replaces).
+CAPTURE_STATUSES = {"PENDING", "PENDING-BY-CALIBER", "N/A-BY-CALIBER", "CAPTURED"}
+BLOCKING_STATUSES = {"PENDING"}
+# R19d — the 2026-07-31 PO rulings, frozen machine-side so a later edit cannot quietly promote a
+# field the methodology cannot honestly reach.
+RULED_STATUS = {
+    "token_interval_ms_dist": "PENDING-BY-CALIBER",
+    "think_pause_ms_dist": "PENDING-BY-CALIBER",
+    "tool_loop_cadence": "N/A-BY-CALIBER",
+}
+# R19e — a flipped source_portrait must name a traceable capture, e.g. kimi-app-capture-2026-08-15.
+CAPTURE_ID = re.compile(r"^[a-z0-9_]+-app-capture-\d{4}-\d{2}-\d{2}$")
+PENDING_PORTRAIT = "PENDING-CAPTURE"
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 IPV6 = re.compile(r"\b(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}\b")
@@ -76,8 +108,27 @@ def _has_ip(s):
     return bool(IPV4.search(s) or IPV6.search(s))
 
 
+def portrait_mode(d):
+    """PENDING while source_portrait is the sentinel; CAPTURED once it names a capture."""
+    return "PENDING" if d.get("source_portrait") == PENDING_PORTRAIT else "CAPTURED"
+
+
+def gate_state(app, d):
+    """(ready_to_flip, blockers) — the plan-B flip criterion, computed from capture_status.
+
+    Blockers are only the plain-PENDING fields: a field ruled N/A-BY-CALIBER or
+    PENDING-BY-CALIBER is honestly out of reach, and letting it block would freeze the
+    gate forever (the plan-A defect). main() prints this so the status has a consumer
+    an operator acts on, not just a guard that reads it.
+    """
+    st = d.get("params_capture_status", {}) or {}
+    blockers = sorted(k for k in PARAM_FIELDS
+                      if (st.get(k) or {}).get("status") in BLOCKING_STATUSES)
+    return (not blockers), blockers
+
+
 def check_portrait(app, d):
-    """Single-portrait dict -> list of violation strings (pure, no IO). Carries R1-R14."""
+    """Single-portrait dict -> list of violation strings (pure, no IO). Carries R1-R19."""
     v = []
 
     def bad(cond, rule, msg):
@@ -85,23 +136,35 @@ def check_portrait(app, d):
             v.append(f"[{app}] {rule}: {msg}")
 
     params = d.get("params", {}) or {}
-    # R1
-    bad(all(params.get(k) is None for k in PARAM_FIELDS), "R1",
-        f"params not all null: {[k for k in PARAM_FIELDS if params.get(k) is not None]}")
-    # R2
-    bad(d.get("source_portrait") == "PENDING-CAPTURE", "R2",
-        f"source_portrait={d.get('source_portrait')} (must be PENDING-CAPTURE)")
+    mode = portrait_mode(d)
+    st = d.get("params_capture_status") or {}
+    # R1 — no params field may carry a value without a CAPTURED status behind it. This is the
+    # original all-null red line generalised for plan B: before D-348 every status was PENDING,
+    # so "filled requires CAPTURED" and "all null" said the same thing. Stated this way, a field
+    # that genuinely reached its sample threshold can be unlocked ON ITS OWN (plan B's whole
+    # point) while every other field stays null and blocking. The converse direction
+    # (CAPTURED but null) is R19c — one defect, one rule name, never both (§2.14).
+    unbacked = [k for k in PARAM_FIELDS
+                if params.get(k) is not None and (st.get(k) or {}).get("status") != "CAPTURED"]
+    bad(not unbacked, "R1", f"params filled with no CAPTURED status behind them: {unbacked}")
+    # R2 — the sentinel, or a traceable capture id; never a free-form string
+    sp = d.get("source_portrait")
+    bad(sp == PENDING_PORTRAIT or bool(CAPTURE_ID.match(str(sp))), "R2",
+        f"source_portrait={sp} (must be {PENDING_PORTRAIT} or <app>-app-capture-YYYY-MM-DD)")
     # R9
     bad(bool(SEMVER.match(str(d.get("schema_version", "")))), "R9",
         f"schema_version={d.get('schema_version')} not semver")
 
+    v += _check_capture_status(app, d, params, mode)
+
     pf = d.get("params_fit_approx")
     if pf is None:
-        return v  # portrait may predate D-62 fit; R1/R2/R9 still enforced
-    # R3
+        return v  # portrait may predate D-62 fit; R1/R2/R9/R19 still enforced
+    # R3 — the fit segment never gates params (any mode); unlocked tracks the mode so the
+    # two cannot disagree about whether this portrait has flipped.
     bad(pf.get("gates_params") is False, "R3", f"gates_params={pf.get('gates_params')} (must be false)")
-    bad(pf.get("source_portrait_unlocked") is False, "R3",
-        f"source_portrait_unlocked={pf.get('source_portrait_unlocked')} (must be false)")
+    bad(pf.get("source_portrait_unlocked") is (mode == "CAPTURED"), "R3",
+        f"source_portrait_unlocked={pf.get('source_portrait_unlocked')} (must be {mode == 'CAPTURED'} in {mode} mode)")
     fields = pf.get("fields", {}) or {}
     # R10 — exact key set (catches typo drift like pop_ip_lst silently escaping per-field checks)
     bad(set(fields.keys()) == set(PARAM_FIELDS), "R10",
@@ -147,6 +210,50 @@ def check_portrait(app, d):
         if exp is not None:
             bad(sl == exp[0], "R18", f"{name} caliber={cal} requires source_layer={exp[0]} (got {sl})")
             bad(conf == exp[1], "R18", f"{name} caliber={cal} requires confidence={exp[1]} (got {conf})")
+    return v
+
+
+def _check_capture_status(app, d, params, mode):
+    """R19 — per-field capture gate (spine-3 plan B). Split out because it is the one
+    invariant that reads three places at once (status block, params, source_portrait)."""
+    v = []
+
+    def bad(cond, rule, msg):
+        if not cond:
+            v.append(f"[{app}] {rule}: {msg}")
+
+    st = d.get("params_capture_status")
+    # R19a — presence + exact key set. Absent is a violation, not a skip: a portrait with no
+    # status block has no gate criterion at all, and "no criterion" reads as "nothing blocking".
+    bad(isinstance(st, dict), "R19a", "params_capture_status missing (plan-B gate has no criterion)")
+    if not isinstance(st, dict):
+        return v
+    bad(set(st.keys()) == set(PARAM_FIELDS), "R19a",
+        f"params_capture_status key set != 7 PARAM_FIELDS: extra={sorted(set(st)-set(PARAM_FIELDS))} "
+        f"missing={sorted(set(PARAM_FIELDS)-set(st))}")
+
+    for name in PARAM_FIELDS:
+        e = st.get(name) or {}
+        status = e.get("status")
+        # R19b — vocabulary + a reason. A status with no reason is a verdict nobody can audit.
+        bad(status in CAPTURE_STATUSES, "R19b",
+            f"{name} status={status} not in {sorted(CAPTURE_STATUSES)}")
+        bad(bool(str(e.get("reason", "")).strip()), "R19b", f"{name} status carries no reason")
+        # R19c — CAPTURED must be backed by a real value. The other direction (a value with no
+        # CAPTURED behind it) is R1, deliberately not repeated here: two rule names for one
+        # defect make a report where fixing one line clears two findings (§2.14).
+        if status == "CAPTURED":
+            bad(params.get(name) is not None, "R19c",
+                f"{name} status=CAPTURED but params.{name} is null (claims a capture it has not got)")
+        # R19d — frozen PO rulings
+        ruled = RULED_STATUS.get(name)
+        if ruled is not None:
+            bad(status == ruled, "R19d",
+                f"{name} status={status} but the 2026-07-31 ruling fixes it at {ruled}")
+        # R19e — no half-flip
+        if mode == "CAPTURED":
+            bad(status != "PENDING", "R19e",
+                f"{name} still PENDING while source_portrait has flipped (half-flip whitewashes it)")
     return v
 
 
@@ -196,12 +303,18 @@ def main():
         violations += check_portrait(app, d)
     violations += check_cross_file(portraits)
     print(f"Checked {len(files)} portraits: {', '.join(os.path.basename(p) for p in files)}")
+    # Gate state per portrait — what an operator acts on: which fields still block the flip.
+    for app in sorted(portraits):
+        ready, blockers = gate_state(app, portraits[app])
+        print(f"  gate[{app}]: " + ("READY to flip source_portrait (no PENDING fields left)"
+                                    if ready else f"blocked by {len(blockers)}: {', '.join(blockers)}"))
     if violations:
         print(f"\nRED-LINE VIOLATIONS ({len(violations)}):")
         for x in violations:
             print("  -", x)
         return 1
-    print("OK: all red-line invariants hold (R1-R18: params gate intact, no caliber overclaim, provenance consistent).")
+    print("OK: all red-line invariants hold (R1-R19: params gate intact, no caliber overclaim, "
+          "provenance consistent, per-field capture status backs every filled param).")
     return 0
 
 

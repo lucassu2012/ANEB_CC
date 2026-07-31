@@ -80,6 +80,40 @@ value/caliber/keep_pending),D-71 起每个 fit 字段再 additive 补三键 **pr
 的 `test_R18_*`)。形状(键在不在、类型对不对)另由 `portrait.schema.json` + `validate_schema.py` 守(#6):
 **schema 管形状 / redline 管语义**,双门互补。
 
+## Per-field capture gate — plan B (R19, IMPLEMENTED — PO 批复 2026-07-31, D-348)
+
+`source_portrait` 曾是**单个字符串**：要么全 PENDING、要么一翻全翻。缺陷是可算的——
+token/think/tool 三字段在本方法学口径下**永不可得**，单串门于是要么被它们永久卡死，
+要么翻门时把它们一起洗白成"已采"。**两者都错**，所以 PO 选定方案 B：逐字段门控。
+
+每份画像新增 `params_capture_status:`，7 个 param 字段各带 `status` + `reason`：
+
+| status | 含义 | 阻塞翻门? | 能否将来变 CAPTURED |
+|---|---|---|---|
+| `PENDING` | 本方法学够得到，只是尚未采 | **是** | 能（采到即可） |
+| `PENDING-BY-CALIBER` | 仅现红线外够得到（root mitm，D-24/D-61），据此不采 | 否 | 仅当 PO 另行授权越线 |
+| `N/A-BY-CALIBER` | 口径上永不可得 | 否 | **永不** |
+| `CAPTURED` | 已采到真分布 | — | — |
+
+两个 `-BY-CALIBER` **不是同义词**：N/A 是"这条路不存在"，PENDING-BY-CALIBER 是
+"路在红线外，我们选择不走"。二者都不阻塞翻门（否则就是方案 A 的死锁），但**语义必须分开**，
+因为前者永远不会变，后者可能因一纸授权而变。
+
+**本轮定性裁定（D-348，机器冻结在 `check_redline.RULED_STATUS`）**：
+`token_interval_ms_dist` / `think_pause_ms_dist` = `PENDING-BY-CALIBER`；
+`tool_loop_cadence` = `N/A-BY-CALIBER`。改动它们会被 R19d 直接拒绝。
+
+**翻门判据** = 无 `PENDING` 字段剩余；`check_redline` 每次运行逐画像打印门态
+（`gate[<app>]: blocked by N: …` / `READY to flip`），所以这个状态有一个操作者据以行动的读者，
+不是只被守卫读一次的死字段。
+
+**咬合方式（R1 与 R19c 各管一个方向，不重复报同一缺陷）**：
+R1 = 「params 有值 ⇒ 该字段 status 必须是 CAPTURED」（防编造）；
+R19c = 「status 是 CAPTURED ⇒ params 必须有值」（防空口宣称）。
+R1 由此从"全 null"推广为"有值必须有采集背书"——**在方案 B 之前两句话说的是同一件事**，
+而现在前者允许单字段独立解锁，后者不允许。R19e 另外禁止"半翻"：`source_portrait`
+一旦离开 `PENDING-CAPTURE`（须形如 `<app>-app-capture-YYYY-MM-DD`），就不得再有 `PENDING` 字段。
+
 ## PENDING gaps (what is needed to fill)
 
 - token_interval_ms_dist(全 4 App 保持 PENDING):根因是免 root mitm 拿不到明文 token 时序(D-61)。补齐需 root/TLS keylog 抓包解密,或 App 明文 token 事件源。当前仅 doubao(~100ms)/tongyi(~66ms)有 UI-proxy 弱锚(≠网络ITL),deepseek/kimi 连 UI cadence 都为 null。
