@@ -523,6 +523,44 @@ def _with_transport(rec, tp):
     return rec
 
 
+def test_the_gate_makes_a_single_round_corpus_answer_for_its_absolute_numbers():
+    """D-357: the summary and the deliverable skeleton both mention warm-up, but
+    only this gate has teeth — its contract is that every WARN must be answered in
+    the report body before publishing. A single-round corpus (quick mode, the
+    ordinary case) always samples the cold round, so 「TTFT 是 X ms」 written with no
+    qualifier is the exact sentence this row exists to stop (D-355).
+
+    Both halves pinned: a corpus that DID measure several rounds and found no
+    warm-up must come back PASS, or the row is noise on every report.
+    """
+    from synth import make_record
+
+    def corpus(rounds_and_values):
+        out = []
+        for i in range(3):
+            rec = make_record(campaign={"campaign_id": "c", "tier": "metro",
+                                        "point_id": "P1", "carrier": "ctcc",
+                                        "time_band": "busy"}, aqs=88, scenarios=[])
+            rec["scenarios"] = [
+                {"profile_id": "s1_chat", "profile_version": "0.2.1",
+                 "repeat_index": rnd, "kpi": {"t1_ttft_ms": v + i}}
+                for rnd, v in rounds_and_values
+            ]
+            out.append(contractify(rec))
+        return out
+
+    single = corpus([(0, 50.0)])
+    assert _sev(pc.check(single), "预热效应") == pc.WARN
+    assert "冷启动口径" in _detail(pc.check(single), "预热效应")
+
+    warm = corpus([(0, 56.0), (1, 47.0), (2, 47.5)])
+    assert _sev(pc.check(warm), "预热效应") == pc.WARN
+    assert "以后续轮为准" in _detail(pc.check(warm), "预热效应")
+
+    flat = corpus([(0, 50.0), (1, 50.2), (2, 49.9)])
+    assert _sev(pc.check(flat), "预热效应") == pc.PASS, _detail(pc.check(flat), "预热效应")
+
+
 def test_gate_and_summary_explain_an_unjudgeable_order_effect_the_same_way():
     """D-354's second half: the gate had its OWN two-way guess at why nothing was
     judgeable, with a comment saying naming the wrong cause is worse than naming

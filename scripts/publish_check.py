@@ -40,6 +40,7 @@ import campaign_common as cc
 import campaign_report as rpt
 import order_effect
 import radio_rollup
+import round_effect
 import transport_rollup
 import trust_rollup
 import validity_rollup
@@ -592,6 +593,31 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
                                            "（反平衡可能失效，须复核）"))
     else:
         rows.append(_row(PASS, "序位效应", f"{judged} 处均未见序位偏倚"))
+
+    # Warm-up sits here, not only in the summary, because this gate is the one
+    # surface with teeth: its contract is that every WARN must be answered in the
+    # report body before publishing. A single-round corpus is the ordinary case
+    # and its absolute numbers are cold-start numbers — 「TTFT 是 X ms」 without
+    # that qualifier is exactly the sentence this row exists to stop (D-355/D-357).
+    wsum = round_effect.summarize(records)
+    if wsum["single_round"]:
+        rows.append(_row(WARN, "预热效应",
+                         "语料**只有一轮**——**无法校验**首轮是否更差，而单轮模式测到的"
+                         "永远是第一轮：正文中每个**绝对值**都须标明是**冷启动口径**"
+                         "（跨格比较不受影响）"))
+    elif not wsum["judged"]:
+        why = "、".join(rpt._ORDER_UNJUDGED_WHY.get(c, c)
+                        for c in sorted(wsum["unjudged_reasons"] or ()))
+        rows.append(_row(NA, "预热效应",
+                         f"有多轮语料，但{why or '无可判定对象'}——预热效应**本轮未核算**"))
+    elif wsum["suspected"]:
+        named = "、".join(f"{e['kpi']}({cc.fmt_num(e['first_round_penalty_pct'], 1)}%)"
+                          for e in wsum["suspected"])
+        rows.append(_row(WARN, "预热效应",
+                         f"{len(wsum['suspected'])}/{wsum['judged']} 个 KPI 首轮系统性更差"
+                         f"（{named}）——这些 KPI 的**绝对值以后续轮为准**，正文须写明"))
+    else:
+        rows.append(_row(PASS, "预热效应", f"{wsum['judged']} 个 KPI 均未见首轮劣化"))
 
     # Said separately rather than folded into the verdict above: these profiles
     # were EXCLUDED from that count, and a reader who is told "3/8 suspected"
