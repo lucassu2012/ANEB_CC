@@ -574,11 +574,18 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
         rows.append(_row(WARN, "序位效应", "全语料只有一种轮次——**拉丁方未轮转**，"
                                            "反平衡在构造上不成立，位次差无法与场景差分离"))
     elif not judged:
-        # "nothing was judgeable" has two quite different causes, and naming the
-        # wrong one is worse than naming none (§2.12)
-        why = ("所有 profile 的执行位次与单元不平衡" if confounded
-               else "各 profile 在场位次不足 2")
-        rows.append(_row(WARN, "序位效应", f"已轮转，但{why}——"
+        # "nothing was judgeable" has more causes than this gate can enumerate,
+        # and naming the wrong one is worse than naming none (§2.12). It used to
+        # pick between two with an if/else and got a third one wrong the day it
+        # appeared — 「位次不足 2」 about profiles carrying three positions with no
+        # replication inside them. Same reason table as the report summary, from
+        # the same analysis, so the two front doors cannot explain one refusal
+        # two ways (§2.14, D-354).
+        why = "、".join(rpt._ORDER_UNJUDGED_WHY.get(code, code)
+                        for code in sorted(osum.get("unjudged_reasons") or ()))
+        if confounded and not why:
+            why = "所有 profile 的执行位次与单元不平衡"
+        rows.append(_row(WARN, "序位效应", f"已轮转，但{why or '无可判定对象'}——"
                                            "**本轮无法校验**是否残留序位偏倚"))
     elif biased:
         rows.append(_row(WARN, "序位效应", f"{len(biased)}/{judged} 处疑似位置-KPI 相关"

@@ -523,6 +523,36 @@ def _with_transport(rec, tp):
     return rec
 
 
+def test_gate_and_summary_explain_an_unjudgeable_order_effect_the_same_way():
+    """D-354's second half: the gate had its OWN two-way guess at why nothing was
+    judgeable, with a comment saying naming the wrong cause is worse than naming
+    none — and it named the wrong one the day a third cause appeared. Both front
+    doors now read the same reason table off the same analysis (§2.14, D-338).
+    """
+    import campaign_report as rpt
+    from synth import make_record
+
+    rec = make_record(campaign={"campaign_id": "c", "tier": "metro", "point_id": "P1",
+                                "carrier": "ctcc", "time_band": "busy"},
+                      aqs=88, scenarios=[])
+    rec["run"]["mode"] = "forensic"
+    rec["run"]["scenario_order"] = "s1,s2,s3|s2,s3,s1|s3,s1,s2"
+    rec["scenarios"] = [
+        {"profile_id": "s1_chat", "profile_version": "0.2.1", "order_index": i,
+         "kpi": {"t1_ttft_ms": v}}
+        for i, v in ((0, 50.0), (5, 52.7), (7, 39.0))
+    ]
+    recs = [contractify(rec)]
+
+    detail = _detail(pc.check(recs), "序位效应")
+    assert "位次不足 2" not in detail, detail   # the false explanation
+    assert "每个位次仅 1 个样本" in detail, detail
+
+    summary = rpt.render_summary_markdown(recs)
+    line = [l for l in summary.splitlines() if "序位效应" in l][0]
+    assert "每个位次仅 1 个样本" in line, line
+
+
 def test_single_tier_corpus_never_claims_three_tiers_were_checked():
     """D-350: found on the FIRST real pilot corpus, not by reading.
 
