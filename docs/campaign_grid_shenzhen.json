@@ -1,14 +1,5 @@
-{
-  "point_id": [
-    "SZ-CBD-01",
-    "SZ-CBD-02",
-    "SZ-RES-01",
-    "SZ-RES-02",
-    "SZ-HUB-01",
-    "SZ-HUB-02",
-    "SZ-PARK-01",
-    "SZ-PARK-02"
-  ],
-  "carrier": ["cmcc", "cucc"],
-  "time_band": ["busy", "idle"]
+﻿{
+  "point_id": ["SZ-PILOT-01"],
+  "carrier": ["ctcc"],
+  "time_band": ["busy"]
 }

@@ -730,9 +730,9 @@ def test_the_shipped_grid_config_is_one_the_tool_accepts():
     joint = 1
     for dim in cm.CELL_DIMS:
         joint *= len(grid[dim])
-    assert joint == 32, (
-        f"the shipped grid declares {joint} joint cells; the proposal's budget "
-        "is computed for 8 points x 2 carriers x 2 bands")
+    assert joint == 1, (
+        f"the shipped grid declares {joint} joint cells; PO's 2026-07-31 reply "
+        "fixed this round at 1 point (current location) x ctcc x busy (D-345)")
 
 
 _TIER_CLAIM_MARKS = ("三级差分", "三层级", "三级归因")

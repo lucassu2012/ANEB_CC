@@ -430,7 +430,7 @@ D-240 加了第二列 MDE 而 README 与手册各只讲了一半（D-245）。
 | 项 | 交付物 | 待谁 |
 |---|---|---|
 | C1 标签生产接线 | [`CAMPAIGN_LABELS_WIRING_SPEC.md`](CAMPAIGN_LABELS_WIRING_SPEC.md) | spec 属主 / P1 lane |
-| C3 目标网格定值 —— **已定值并随仓库交付** | [`campaign_grid_shenzhen.json`](campaign_grid_shenzhen.json)；D1–D4 的论证见 [`M2_GRID_DESIGN_PROPOSAL.md`](M2_GRID_DESIGN_PROPOSAL.md) v2.1（D3 = 每格 11 次，2026-07-30 依授权决策） | **不再阻塞任何工作**：runbook §0 与 §3 已直接指向该文件。余 PO 事后确认取值——n=11 是依授权拍定的，不是 PO 独立批复（D-311 / D-312 / D-320） |
+| C3 目标网格定值 —— **已定值并随仓库交付，且 PO 已批复** | [`campaign_grid_shenzhen.json`](campaign_grid_shenzhen.json)；D1–D4 的论证见 [`M2_GRID_DESIGN_PROPOSAL.md`](M2_GRID_DESIGN_PROPOSAL.md) v2.2（2026-07-31 PO 批复：1 点位=当前位置 × ctcc × 忙时，n=11 维持，D-345） | **不再阻塞任何工作**：runbook §0 与 §3 已直接指向该文件。无待确认项——四项均为 PO 2026-07-31 逐项批复（D-311 / D-312 / D-320 / D-345） |
 | 设备标识字段（`MIXED_DEVICE` 的前提） | 同规格 §9（D-156） | spec 属主 / P1 lane |
 | `validity` 枚举与实际输出大小写不一致 | 同规格 §10（D-190）——**今天没有数字因此出错**，但契约与现实不符时 schema 就不能再用来判断取值合不合法 | spec 属主 |
 
