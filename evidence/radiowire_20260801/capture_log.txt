@@ -1,0 +1,13 @@
+﻿
+01:53:00  wifi_on before: 1
+01:53:02  install: Performing Streamed Install Success
+01:53:11  net: Active default network: 225
+01:53:15  WARMUP(discarded per D-366) : started
+01:55:35  WARMUP(discarded per D-366) : RUN_END run_id=019fb94f-1c9c-7f69-a8f5-f837391abf50 status=completed
+01:55:46  COUNTED(verification sample) : started
+01:57:56  COUNTED(verification sample) : RUN_END run_id=019fb951-67e2-7cdb-8096-0f1ea2c799b8 status=completed
+01:57:56  LEDGER warmup_discarded=01:53:15  WARMUP(discarded per D-366) : started 01:55:35  WARMUP(discarded per D-366) : RUN_END run_id=019fb94f-1c9c-7f69-a8f5-f837391abf50 status=completed 019fb94f-1c9c-7f69-a8f5-f837391abf50|completed counted=01:55:46  COUNTED(verification sample) : started 01:57:56  COUNTED(verification sample) : RUN_END run_id=019fb951-67e2-7cdb-8096-0f1ea2c799b8 status=completed 019fb951-67e2-7cdb-8096-0f1ea2c799b8|completed
+01:58:05  wrap-up: wifi_on=1 stayon=0
+01:58:06  wrap-up: focus=  mCurrentFocus=Window{67dee6c u0 com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher}
+01:58:06  wrap-up: leftover=(none)
+01:58:06  DONE
