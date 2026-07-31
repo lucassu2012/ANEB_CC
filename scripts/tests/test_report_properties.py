@@ -1785,15 +1785,20 @@ def test_the_printed_tables_and_the_exported_tables_carry_the_same_numbers():
     ties = 0
     for k, m in sorted(kpi_md.items()):
         c = kpi_csv[k]
+        # Column order changed at D-360 (profile span inserted after the median),
+        # and this guard caught it by comparing a span against a grade — which is
+        # what a positional map is FOR. The span joins the reconciliation rather
+        # than being skipped: it is a value a reader takes off the page.
         for name, printed, exported, digits in (
                 ("median", m[3], c["median"], 2),
-                ("grade", m[4], c["grade"], 0),
-                ("n", m[5], c["n"], 0)):
+                ("profile_span", m[4], c["profile_span"], 0),
+                ("grade", m[5], c["grade"], 0),
+                ("n", m[6], c["n"], 0)):
             assert same(printed, exported, digits), (
                 "kpi %s %s: printed %r, exported %r" % (k, name, printed, exported))
         if c["grade"] == "" and c["grade_tie"]:
             # R-10 both ways: no grade printed, and the reason named beside it
-            assert m[4] == cc.fmt_num(None, 0), (k, m[4])
+            assert m[5] == cc.fmt_num(None, 0), (k, m[5])
             assert "GRADE_TIE" in m[-1], (k, m[-1])
             ties += 1
     assert ties, ("no tied grade in this corpus — the R-10 half of this guard "

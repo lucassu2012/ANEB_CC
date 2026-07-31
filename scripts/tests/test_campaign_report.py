@@ -1387,6 +1387,52 @@ def test_lookalike_labels_are_reported_not_merged():
     assert "同名异写" not in rpt.build_report_markdown(clean)
 
 
+def test_a_per_kpi_cell_says_what_its_median_is_a_median_of():
+    """D-360, read off the first real report: the per-KPI card pools every profile
+    in a cell, and the profiles do not measure the same thing. Real numbers —
+    u1_goodput 0.14 (s1_chat uploads ~2KB of text), 10.05 (s2), 16.43 (s3) — and
+    the card printed 「10.05 good」, a value characterising none of them. The AQS
+    card one screen up carries sd for exactly this reason (D-144); this one
+    carried nothing, and MIXED_CAMPAIGN flags the same defect on another axis.
+
+    No threshold invented: the span is printed and the reader judges. Guarded on
+    all three surfaces, because a fact that reaches only markdown is the shape
+    §2.6 exists to stop — and on the clean half, where one profile fed the cell
+    and there is nothing to warn about.
+    """
+    def corpus(per_profile):
+        out = []
+        for r in aqs_records(88, 3, point="P1", carrier="ctcc", time_band="busy"):
+            r["scenarios"] = [
+                {"profile_id": pid, "profile_version": "0.2.1", "repeat_index": 0,
+                 "kpi": {"u1_goodput_mbps": v, "u1_grade": "good"}}
+                for pid, v in per_profile
+            ]
+            out.append(r)
+        return out
+
+    spread = corpus([("s1_chat", 0.14), ("s2_coding_agent", 10.05),
+                     ("s3_multimodal", 16.43)])
+    cell = rpt.kpi_heat_cells(spread, "u1_goodput_mbps")[0]
+    assert set(cell["by_profile"]) == {"s1_chat", "s2_coding_agent", "s3_multimodal"}
+    assert rpt.profile_span_text(cell).startswith("0.14–16.43")
+
+    md = rpt.render_kpi_heatcard_markdown(
+        rpt.kpi_heat_cells(spread, "u1_goodput_mbps"), "u1_goodput_mbps")
+    assert "0.14–16.43" in md, md
+    html = rpt.build_report_html(spread, "2026-01-01 00:00:00 +0800")
+    assert "0.14–16.43" in html, "the HTML pivot dropped the span"
+
+    # …the clean half: one profile in the cell has no span to report, and saying
+    # nothing is right — a marker that fires on every cell teaches the reader to
+    # skip it (D-290/D-351).
+    single = corpus([("s1_chat", 0.14)])
+    only = rpt.kpi_heat_cells(single, "u1_goodput_mbps")[0]
+    assert rpt.profile_span_text(only) == "—"
+    assert "个 profile" not in rpt.render_kpi_heatcard_markdown(
+        rpt.kpi_heat_cells(single, "u1_goodput_mbps"), "u1_goodput_mbps")
+
+
 def test_the_report_carries_the_warm_up_section_in_both_shapes():
     """The 预热效应 section and its summary bullet, on both corpus shapes.
 

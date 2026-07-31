@@ -55,12 +55,14 @@
 
 ### 分 KPI 热力卡：`n1_rtt_p50_ms`（中位；分级=上报 KpiGrading 众数）
 
-| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |
-|---|---|---|---|---|---|---|
-| P1 | cmcc | busy | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
-| P1 | cmcc | idle | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
-| P2 | cmcc | busy | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
-| P2 | cmcc | idle | 38 | good | 36 | MIXED_CAMPAIGN:base/opt |
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+
+| 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
+|---|---|---|---|---|---|---|---|
+| P1 | cmcc | busy | 38 | — | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P1 | cmcc | idle | 38 | — | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | busy | 38 | — | good | 36 | MIXED_CAMPAIGN:base/opt |
+| P2 | cmcc | idle | 38 | — | good | 36 | MIXED_CAMPAIGN:base/opt |
 
 ## 复测稳定性（CV 门 ≤10%，对齐 M1 验收）
 

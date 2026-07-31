@@ -1130,12 +1130,27 @@ def kpi_grade_field(kpi_key):
     return kpi_key.split("_")[0] + "_grade"
 
 
+# One sentence, both surfaces. The markdown card prints it as a blockquote and the
+# HTML card — which is rendered natively, not converted from the markdown — prints
+# the same string above its grid. Two copies would be two chances to drift, and
+# the guards that exist for exactly that (D-140/D-337) caught the first attempt
+# where only markdown had it (D-360).
+KPI_HEAT_SPAN_CAVEAT = (
+    "`profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile "
+    "汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat"
+    "（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 "
+    "**谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。")
+
+
 def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
     """Heat cells for one raw KPI: median value + modal AUTHORITATIVE grade (from the
     record's *_grade field, not the AQS presentation bands) per (point,carrier,time_band)."""
     gfield = kpi_grade_field(kpi_key)
     buckets = defaultdict(lambda: {"vals": [], "grades": Counter(),
-                                   "implausible": Counter()})
+                                   "implausible": Counter(),
+                                   # per-profile values, kept so the cell can say
+                                   # what its median is a median OF (D-360)
+                                   "by_profile": defaultdict(list)})
     for rec in records:
         labels = cc.campaign_labels(rec)
         key = tuple(labels[d] for d in HEAT_DIMS)
@@ -1153,6 +1168,9 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
             if not cc.keep_value(kpi_key, v, buckets[key]["implausible"]):
                 continue
             buckets[key]["vals"].append(v)
+            pid = scn.get("profile_id")
+            buckets[key]["by_profile"][
+                pid.strip() if isinstance(pid, str) and pid.strip() else "?"].append(v)
             g = (scn.get("kpi") or scn.get("kpis") or {}).get(gfield)
             if isinstance(g, str):
                 buckets[key]["grades"][g] += 1
@@ -1170,6 +1188,17 @@ def kpi_heat_cells(records, kpi_key, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "low_confidence": len(b["vals"]) < min_samples,
             "mixed_campaigns": mixed_by_cell.get(key, []),
             "implausible_values": dict(sorted(b["implausible"].items())),
+            # What the median is a median OF. This card pools every profile in the
+            # cell, and the profiles do not measure the same thing: measured on the
+            # first real corpus, u1_goodput came out 0.14 / 10.05 / 16.43 Mbps for
+            # s1_chat / s2_coding_agent / s3_multimodal — s1 uploads ~2KB of text,
+            # so its "goodput" is a setup-time artefact. The pooled median printed
+            # 10.05 「good」, a number characterising none of the three. The AQS card
+            # one screen up carries sd for exactly this reason (D-144) and this one
+            # carried nothing; MIXED_CAMPAIGN flags the same defect on another
+            # dimension. No threshold invented: the spread is printed and the
+            # reader judges (D-360).
+            "by_profile": {p: cc.median(vs) for p, vs in sorted(b["by_profile"].items())},
         })
     return cells
 
@@ -1179,8 +1208,11 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
     if not cells:
         lines.append(f"_无 `{kpi_key}` 数据。_")
         return "\n".join(lines)
-    lines += ["| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |",
-              "|---|---|---|---|---|---|---|"]
+    lines += [
+        "> " + KPI_HEAT_SPAN_CAVEAT,
+        "",
+        "| 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |",
+        "|---|---|---|---|---|---|---|---|"]
     for c in cells:
         notes = []
         if c["grade_tie"]:
@@ -1196,8 +1228,22 @@ def render_kpi_heatcard_markdown(cells, kpi_key):
         lines.append(
             f"| {cc.md_cell(c['cell']['point_id'])} | {cc.md_cell(c['cell']['carrier'])} "
             f"| {cc.md_cell(c['cell']['time_band'])} | "
-            f"{cc.fmt_num(c['median'], 2)} | {c['grade'] or '—'} | {c['n']} | {note} |")
+            f"{cc.fmt_num(c['median'], 2)} | {profile_span_text(c)} | "
+            f"{c['grade'] or '—'} | {c['n']} | {note} |")
     return "\n".join(lines)
+
+
+def profile_span_text(cell):
+    """「min–max (N 个 profile)」, or 「—」 when one profile fed the cell.
+
+    Single source for the three surfaces: markdown, the HTML pivot and the CSV
+    each need this same fact, and three formatters would be three chances to
+    disagree about what the cell pooled (§2.14, D-360).
+    """
+    meds = [m for m in (cell.get("by_profile") or {}).values() if m is not None]
+    if len(meds) < 2:
+        return "—"
+    return f"{cc.fmt_num(min(meds), 2)}–{cc.fmt_num(max(meds), 2)}（{len(meds)} 个 profile）"
 
 
 # ---------------------------------------------------------------- assembly
@@ -1506,6 +1552,13 @@ def _heat_grid_html(cells, value_key="aqs_median", agree=None):
                    if c.get("scorer_low_conf_n") else "")
             sd = (f" · sd={cc.fmt_num(c['stdev'], 1)}"
                   if c.get("stdev") is not None else " · sd—")
+            # Per-KPI cards pool every profile in the cell, and the profiles do
+            # not measure the same thing — the span says what the median is a
+            # median of. The AQS card has no such split (one score per run), so
+            # it prints nothing here (D-360).
+            span = profile_span_text(c)
+            if span != "—":
+                sd += f" · profile {span}"
             shown = (cc.fmt_num_agreeing(c[value_key], agree, digits=2)
                      if agree is not None else cc.fmt_num(c[value_key], 2))
             tds.append(f"<td style='background:{bg};color:{fg}'><b>{shown}</b>"
@@ -1663,7 +1716,12 @@ def build_report_html(records, generated_at, min_samples=cc.DEFAULT_MIN_SAMPLES,
     for k in DEFAULT_KPI_HEAT:
         kc = kpi_heat_cells(records, k, min_samples)
         if kc:
+            # The markdown card carries a caveat about what the pooled median is
+            # a median OF; the HTML renders these cards natively, so without this
+            # the page shows the number and drops the sentence that qualifies it
+            # (D-360 — caught by the same guards D-140/D-337 left behind).
             kpi_grids += (f"<h2>分 KPI 热力卡：{esc(k)}（中位 + 上报分级）</h2>"
+                          + f"<p class='warn'>{_md_inline(KPI_HEAT_SPAN_CAVEAT)}</p>"
                           + _heat_grid_html(kc, "median"))
 
     attr_sections = ""
@@ -1921,13 +1979,23 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
     p = prefix + "_kpi_heat.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = _TaggedWriter(f, synthetic)
-        w.writerow(["kpi", "point_id", "carrier", "time_band", "median", "grade",
+        w.writerow(["kpi", "point_id", "carrier", "time_band", "median",
+                    # what the median is a median OF: this card pools every
+                    # profile in the cell and they do not measure the same thing
+                    # (u1_goodput came out 0.14 vs 16.43 Mbps on real data). The
+                    # markdown carries the span; an analyst computing on the CSV
+                    # would otherwise pivot on a number characterising none of
+                    # them (D-360, same failure D-148 fixed for GRADE_TIE).
+                    "profile_span", "profile_medians", "grade",
                     "grade_tie", "n", "low_confidence", "mixed_campaigns",
                     "implausible_values"])
         for k in DEFAULT_KPI_HEAT:
             for c in kpi_heat_cells(records, k, min_samples):
+                bp = c.get("by_profile") or {}
                 w.writerow([k, c["cell"]["point_id"], c["cell"]["carrier"],
                             c["cell"]["time_band"], _cell(c["median"]),
+                            profile_span_text(c),
+                            "; ".join(f"{p}={_cell(m)}" for p, m in sorted(bp.items())),
                             # grade is None on a tie: no winner is the honest
                             # answer, and grade_tie says which grades tied
                             _cell(c["grade"]), "/".join(c.get("grade_tie") or []),
