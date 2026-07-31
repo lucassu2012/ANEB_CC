@@ -132,7 +132,7 @@ data class VetoRule(val kpiId: String, val op: String, val threshold: Double, va
 
 ## 2. Token 类测试 Profile（完整范例）
 
-`id = "token_experience"`，`version = "token-profile@0.3.0"`，绑定 `behavior_model_id` 见 §3。
+`id = "token_experience"`，`version = "token-profile@0.4.0"`，绑定 `behavior_model_id` 见 §3。
 
 ### 2.1 Facet-1｜业务类型 + 子场景表
 

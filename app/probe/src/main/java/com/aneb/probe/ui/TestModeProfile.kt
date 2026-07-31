@@ -290,14 +290,16 @@ object TestModeProfiles {
         business = "从真实 AI 交互视角评估体验：首字快不快、吐字稳不稳、卡顿多不多——直接对应" +
             "“用起来爽不爽”。",
         metrics = listOf(
-            ModeMetric("Token 速率", "tok/s", dynamic = true),
+            // D-346：token 速率服务端定速（~40tps）恒稳，标 dynamic 是误导性动态提示；
+            // 真波动信号 = ITL 与滚动卡顿（spine-4 §0 红线，2026-07-31 PO 批复 D-tok）。
+            ModeMetric("Token 速率", "tok/s", dynamic = false),
             ModeMetric("字间时延 ITL", "ms", dynamic = true),
             ModeMetric("首字时延 TTFT", "ms", dynamic = false),
-            ModeMetric("卡顿", "次", dynamic = false),
+            ModeMetric("卡顿", "次", dynamic = true),
         ),
         conclusion = "多场景 KPI 加权 → AQS 分与分级（优/良/可/差）+ 取证明细视图。",
         // ── v2 4-facet（PROFILE_FRAMEWORK §2）────────────────────────────
-        version = "token-profile@0.3.0",
+        version = "token-profile@0.4.0",
         businessType = BusinessType(
             summary = "用户在 kimi/deepseek/qwen 对话框的多模态互动——上行 KB 文本、MB 文档、" +
                 "10MB 图、100MB 视频（大小可调、可多次）；下行返回文本/文档/图片/视频。ANEB 为模拟" +
@@ -449,9 +451,12 @@ object TestModeProfiles {
             ),
         ),
         live = listOf(
+            // D-346：ITL 波形上位中心动态、滚动卡顿入列；tps 降级为稳态读数但保留展示
+            //（定速值仍有信息量，只是不再冒充波动主角）。
+            LiveMetric("itl", "字间时延 ITL", "ms", "itlRecentMs", LiveRender.WAVEFORM, windowMs = 2000, refreshMs = 200),
+            LiveMetric("stall", "卡顿", "次", "stallCount", LiveRender.RUNNING_NUMBER, windowMs = 0, refreshMs = 200),
             LiveMetric("tps", "Token 速率", "tok/s", "tokenRatePerSec", LiveRender.RUNNING_NUMBER, windowMs = 1000, refreshMs = 200),
             LiveMetric("rtt", "RTT", "ms", "rttMs", LiveRender.WAVEFORM, windowMs = 2000, refreshMs = 200),
-            LiveMetric("itl", "字间时延 ITL", "ms", "itlRecentMs", LiveRender.WAVEFORM, windowMs = 2000, refreshMs = 200),
             LiveMetric("up", "上行速率", "Mbps", "liveUpMbps", LiveRender.GAUGE, windowMs = 0, refreshMs = 300),
             LiveMetric("aqs", "AQS 运行分", "", "aqsRunning", LiveRender.RUNNING_NUMBER, windowMs = 0, refreshMs = 0),
         ),

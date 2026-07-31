@@ -7,13 +7,13 @@
       "tagline": "AI 流式交互取证 → AQS 分",
       "business": "从真实 AI 交互视角评估体验：首字快不快、吐字稳不稳、卡顿多不多——直接对应“用起来爽不爽”。",
       "metrics": [
-        { "name": "Token 速率", "unit": "tok/s", "dynamic": true },
+        { "name": "Token 速率", "unit": "tok/s", "dynamic": false },
         { "name": "字间时延 ITL", "unit": "ms", "dynamic": true },
         { "name": "首字时延 TTFT", "unit": "ms", "dynamic": false },
-        { "name": "卡顿", "unit": "次", "dynamic": false }
+        { "name": "卡顿", "unit": "次", "dynamic": true }
       ],
       "conclusion": "多场景 KPI 加权 → AQS 分与分级（优/良/可/差）+ 取证明细视图。",
-      "version": "token-profile@0.3.0",
+      "version": "token-profile@0.4.0",
       "businessType": {
         "summary": "用户在 kimi/deepseek/qwen 对话框的多模态互动——上行 KB 文本、MB 文档、10MB 图、100MB 视频（大小可调、可多次）；下行返回文本/文档/图片/视频。ANEB 为模拟（非真实 API 接入），stimulus 由服务端行为模型确定性生成。",
         "subScenarios": [
@@ -233,9 +233,10 @@
         }
       ],
       "live": [
+        { "id": "itl", "label": "字间时延 ITL", "unit": "ms", "source": "itlRecentMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 },
+        { "id": "stall", "label": "卡顿", "unit": "次", "source": "stallCount", "render": "RUNNING_NUMBER", "windowMs": 0, "refreshMs": 200 },
         { "id": "tps", "label": "Token 速率", "unit": "tok/s", "source": "tokenRatePerSec", "render": "RUNNING_NUMBER", "windowMs": 1000, "refreshMs": 200 },
         { "id": "rtt", "label": "RTT", "unit": "ms", "source": "rttMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 },
-        { "id": "itl", "label": "字间时延 ITL", "unit": "ms", "source": "itlRecentMs", "render": "WAVEFORM", "windowMs": 2000, "refreshMs": 200 },
         { "id": "up", "label": "上行速率", "unit": "Mbps", "source": "liveUpMbps", "render": "GAUGE", "windowMs": 0, "refreshMs": 300 },
         { "id": "aqs", "label": "AQS 运行分", "unit": "", "source": "aqsRunning", "render": "RUNNING_NUMBER", "windowMs": 0, "refreshMs": 0 }
       ],

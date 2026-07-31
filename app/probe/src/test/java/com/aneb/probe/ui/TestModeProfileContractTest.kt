@@ -102,7 +102,24 @@ class TestModeProfileContractTest {
     fun `token profile has six sub-scenarios and thirteen metric specs`() {
         assertEquals(6, token.businessType!!.subScenarios.size)
         assertEquals(13, token.metricSpecs.size)
-        assertEquals("token-profile@0.3.0", token.version)
+        assertEquals("token-profile@0.4.0", token.version)
+    }
+
+    // ---------- D-346：token 动态口径定稿（2026-07-31 PO 批复 D-tok）----------
+
+    @Test
+    fun `token dynamic metrics are itl and stall never the paced token rate`() {
+        // token 速率服务端定速（~40tps）恒稳——标 dynamic 是误导性动态提示，用户会看它"卡住"。
+        // 真波动信号 = ITL（T2）与滚动卡顿（T3）；吞吐随带宽变、ITL 随拥塞抖 → 才配当动态主角
+        //（spine-4 §0 红线：波动指标 = 随网络变化的量）。
+        val dyn = token.metrics.filter { it.dynamic }.map { it.name }.toSet()
+        assertEquals(setOf("字间时延 ITL", "卡顿"), dyn)
+        // facet3 与 metrics 同口径：live 首位（中心动态）是 ITL 波形，不是定速 tps；
+        // 卡顿有 live 条目且源于真实遥测字段；tps 降级但仍在列（稳态读数不删）。
+        assertEquals("itl", token.live.first().id)
+        assertEquals(LiveRender.WAVEFORM, token.live.first().render)
+        assertTrue(token.live.any { it.id == "stall" && it.source == "stallCount" })
+        assertTrue("tps 保留为稳态读数", token.live.any { it.id == "tps" })
     }
 
     // ---------- facet3：live 源字段无空 ----------
