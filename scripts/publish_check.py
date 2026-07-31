@@ -600,7 +600,15 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
     # and its absolute numbers are cold-start numbers — 「TTFT 是 X ms」 without
     # that qualifier is exactly the sentence this row exists to stop (D-355/D-357).
     wsum = round_effect.summarize(records)
-    if wsum["single_round"]:
+    if wsum.get("no_round_labels"):
+        # Not quick mode's single round: quick writes repeat_index=0 too, so a
+        # corpus with NO labels is a producer regression or a foreign corpus
+        # wearing a plausible explanation (D-364).
+        rows.append(_row(WARN, "预热效应",
+                         f"场景**缺失轮次编号**（`repeat_index` 未写，{wsum['unknown_round_n']} 个"
+                         "场景有数无编号）——预热效应**无法核算**，且这**不是** quick 模式的"
+                         "正常形状（quick 也写 `repeat_index=0`）：先查生产端/语料来源"))
+    elif wsum["single_round"]:
         rows.append(_row(WARN, "预热效应",
                          "语料**只有一轮**——**无法校验**首轮是否更差，而单轮模式测到的"
                          "永远是第一轮：正文中每个**绝对值**都须标明是**冷启动口径**"

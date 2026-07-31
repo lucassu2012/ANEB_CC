@@ -16,7 +16,7 @@
 ## A. M2 外场网格（卡住：第一份真实热力卡报告 = M2 验收）
 
 出处 `docs/M2_GRID_DESIGN_PROPOSAL.md` v2.0（已定：深圳试点、单实例 E-01、每格 n=11）。
-下面三项批复后，把点位名填进 `docs/campaign_grid_shenzhen.json` §6 即可开工。
+下面三项批复后，把点位名填进 `docs/campaign_grid_shenzhen.json` 的 `point_id`（论证见提案 §6）即可开工。
 
 | # | 决策 | 建议默认 | 认可? | 若改 |
 |---|---|---|---|---|

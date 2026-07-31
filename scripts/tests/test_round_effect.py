@@ -32,7 +32,11 @@ def _entry(res, kpi):
 
 def test_first_round_penalty_is_flagged_on_latency():
     """D-355's shape: round 0 slower than the rounds after it."""
-    recs = _rounds("t1_ttft_ms", {0: [52.0, 51.5], 1: [47.0, 47.4], 2: [47.2, 46.9]})
+    # 52.75 vs median(47.2, 47.05)=47.125 -> +11.9%. The original fixture gave
+    # 9.81% — just UNDER the 10% gate — and asserted True anyway; it was wrong
+    # from birth and nobody knew, because run_all's hand-written module list
+    # never included this file (D-364).
+    recs = _rounds("t1_ttft_ms", {0: [53.0, 52.5], 1: [47.0, 47.4], 2: [47.2, 46.9]})
     e = _entry(re_.analyze(recs), "t1_ttft_ms")
     assert e["warm_up_suspected"] is True, e
     assert e["first_round_penalty_pct"] > 10
@@ -96,6 +100,39 @@ def test_a_scenario_without_a_round_is_not_counted_as_round_zero():
     assert e["rounds"] == {}, e
     assert e["unknown_round_n"] == 2
     assert e["not_computable_reason"] == "SINGLE_ROUND"
+
+
+def test_a_label_less_corpus_is_not_blamed_on_quick_mode():
+    """D-364: distinct_rounds==0 with values present means the corpus has NO
+    repeat_index at all — a producer regression or a foreign corpus, not quick
+    mode (quick writes repeat_index=0 too). The old single banner attributed it
+    to 「quick 模式每场景只跑一遍」 and dropped the unknown-round note: a
+    forensic corpus that lost its labels read as 「单轮、冷启动口径」 — a
+    plausible lie about WHY warm-up cannot be checked."""
+    recs = _rounds("t1_ttft_ms", {0: [50.0, 50.5]}, drop_round=True)
+    s = re_.summarize(recs)
+    assert s["no_round_labels"] is True and s["unknown_round_n"] == 2, s
+    md = re_.render_markdown(re_.analyze(recs))
+    assert "缺失轮次编号" in md and "repeat_index" in md, md
+    assert "quick 模式每场景只跑一遍" not in md, md
+
+    # ...and the genuine single round keeps its banner, does not borrow this one.
+    s2 = re_.summarize(_rounds("t1_ttft_ms", {0: [50.0, 51.0]}))
+    assert s2["no_round_labels"] is False and s2["single_round"] is True, s2
+
+    # Both front doors translate every code this module can emit (D-354's map
+    # gained the round codes in D-364; the emitted set is derived from source,
+    # not hand-listed, so a new code without a translation fails here).
+    import inspect
+    import re as regex
+    import campaign_report as rpt
+    emitted = set(regex.findall(r'not_computable_reason"\]\s*=\s*"(\w+)"',
+                                inspect.getsource(re_)))
+    assert emitted, "the derived emitted-code set went empty — fix the scan"
+    missing = emitted - set(rpt._ORDER_UNJUDGED_WHY)
+    assert not missing, (
+        f"round_effect emits {missing} with no reader-words translation — "
+        "the raw identifier would print into PO-facing prose on both front doors")
 
 
 def test_summary_and_section_agree():

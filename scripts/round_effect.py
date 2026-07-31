@@ -130,9 +130,18 @@ def summarize(records, threshold_pct=None):
     for e in res["kpis"]:
         if e["not_computable_reason"]:
             reasons[e["not_computable_reason"]] += 1
+    # max, not sum: every KPI counts the same label-less scenarios, so summing
+    # would multiply one missing label by the number of KPIs.
+    unknown = max((e["unknown_round_n"] for e in res["kpis"]), default=0)
     return {
         "distinct_rounds": res["distinct_rounds"],
         "single_round": res["distinct_rounds"] < 2,
+        # Zero rounds seen but values exist = the corpus has NO repeat_index at
+        # all. That is a producer regression or a foreign corpus, NOT quick mode
+        # (quick writes repeat_index=0 too) — consumers must not attribute it to
+        # quick's single round (D-364).
+        "no_round_labels": res["distinct_rounds"] == 0 and unknown > 0,
+        "unknown_round_n": unknown,
         "judged": len(judged),
         "suspected": [e for e in judged if e["warm_up_suspected"]],
         "unjudged_reasons": dict(reasons),
@@ -142,6 +151,21 @@ def summarize(records, threshold_pct=None):
 def render_markdown(res):
     lines = ["## 预热效应（首轮是否系统性更差）", ""]
     if res["distinct_rounds"] < 2:
+        unknown = max((e["unknown_round_n"] for e in res["kpis"]), default=0)
+        if res["distinct_rounds"] == 0:
+            # Attributing a label-less corpus to quick mode would be a plausible
+            # lie about WHY warm-up cannot be checked (D-364): a forensic corpus
+            # that lost its labels would read as "quick 单轮、冷启动口径".
+            if unknown:
+                lines += [
+                    f"> 本轮语料的场景**全部缺失轮次编号**（`repeat_index` 未写，{unknown} 个"
+                    "场景有数无编号）——**预热效应无法核算**。这**不是** quick 模式的正常形状"
+                    "（quick 也写 `repeat_index=0`）：先查生产端/语料来源，再谈冷启动口径。",
+                    "",
+                ]
+            else:
+                lines += ["> 无任何带轮次的 KPI 数据——预热效应无法核算。", ""]
+            return "\n".join(lines)
         lines += [
             "> 本轮语料**只有一轮**（quick 模式每场景只跑一遍）——**预热效应无法校验**。"
             "**这不等于没有**：取证语料实测首轮时延高 8–12%、吞吐低 10–16%（D-355），"
@@ -149,6 +173,8 @@ def render_markdown(res):
             "跨格比较不受影响（每格一样冷）。",
             "",
         ]
+        if unknown:
+            lines += [f"> 另有 {unknown} 个场景无轮次编号（未计入）。", ""]
         return "\n".join(lines)
     lines += [
         f"> 判据：首轮中位与**其后各轮中位的中位数**相比差 >{cc.fmt_num(res['threshold_pct'], 1)}%"

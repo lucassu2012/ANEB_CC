@@ -349,13 +349,18 @@ def _scorer_caveat(scored):
             "**分数自己声明了不确定**，本行的分级不得当作定论")
 
 
-# Why an order-effect verdict could not be issued, in the reader's words. Keyed by
-# the code order_effect puts in `not_computable_reason`; an unmapped code prints
-# itself rather than being silently generalised (D-354).
+# Why an order-effect or round-effect verdict could not be issued, in the
+# reader's words. Keyed by the code the module puts in `not_computable_reason`;
+# an unmapped code prints itself rather than being silently generalised (D-354).
+# The round_effect codes were missing until D-364: a 2-round n=1-per-round
+# corpus printed the raw identifier UNREPLICATED_ROUNDS into PO-facing prose
+# on both front doors.
 _ORDER_UNJUDGED_WHY = {
     "NEED_2_POSITIONS": "各 profile 在场位次不足 2",
     "UNREPLICATED_POSITIONS": "每个位次仅 1 个样本——位次差与运行间噪声不可分离",
     "MEDIAN_NEAR_ZERO": "总体中位≈0，百分比无意义",
+    "SINGLE_ROUND": "该 KPI 只有一轮有数",
+    "UNREPLICATED_ROUNDS": "每轮样本不足 2 个——轮次差与运行间噪声不可分离",
 }
 
 _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
@@ -689,10 +694,18 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     # Warm-up is the other half of the order-effect question, and on a
     # single-round corpus — the ordinary case — it is the one that changes how
-    # every absolute number above is read. Four states, one per corpus shape, so
+    # every absolute number above is read. Five states, one per corpus shape, so
     # this line says something whatever the data looks like (D-338's contract).
+    # The label-less state comes first: attributing a corpus with NO
+    # repeat_index at all to "quick 模式" is a plausible lie about WHY warm-up
+    # cannot be checked (D-364) — quick mode writes repeat_index=0 too.
     wsum = round_effect.summarize(records)
-    if wsum["single_round"]:
+    if wsum.get("no_round_labels"):
+        bullets.append("**预热效应**：场景**缺失轮次编号**（`repeat_index` 未写，"
+                       f"{wsum['unknown_round_n']} 个场景有数无编号）——**无法核算**；"
+                       "这**不是** quick 模式的正常形状（quick 也写 `repeat_index=0`），"
+                       "先查生产端/语料来源，再谈冷启动口径。")
+    elif wsum["single_round"]:
         bullets.append("**预热效应**：语料**只有一轮**（quick 每场景一遍）——**无法校验**；"
                        "而单轮模式测到的永远是第一轮，故本报告**绝对值均为冷启动口径**"
                        "（取证语料实测首轮时延高 8–12%、吞吐低 10–16%，D-355）。")
@@ -2039,20 +2052,27 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
 
     # Which segment is a point's own problem vs the path's (D-146). The verdict
     # is a column, not a banner — CSV is where the analyst actually computes.
+    # Which is exactly why D-361's disclosures must live here too (D-364): the
+    # printed pages said "6，其中 3 个样本不足" and starred the n=1 outlier while
+    # this table carried neither, so an analyst filtering high_cells was sent to
+    # chase a single noisy reading — the failure D-361 was landed to prevent,
+    # surviving on one of three surfaces (§2.6). Cells use the SAME formatter as
+    # the page (§2.14): one place makes the star promise.
     p = prefix + "_segment_profile.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
         w = _TaggedWriter(f, synthetic)
-        w.writerow(["kpi", "segment", "n_cells", "not_computable", "typical", "mad",
-                    "rel_mad_percent", "basis", "uniform", "high_cells", "low_cells"])
+        w.writerow(["kpi", "segment", "n_cells", "low_conf_cells", "not_computable",
+                    "typical", "mad", "rel_mad_percent", "basis", "uniform",
+                    "high_cells", "low_cells"])
         for k in attribution.ATTRIBUTABLE_KPIS:
             attr = attribution.attribute(records, kpi=k, min_samples=min_samples)
             if not attr["cells"]:
                 continue
             for s in attribution.segment_profile(attr)["segments"]:
                 def _cells(items):
-                    return "; ".join("/".join(str(v) for v in o["cell"].values())
-                                     for o in (items or []))
-                w.writerow([k, s["segment"], s["n_cells"], s["not_computable"],
+                    return attribution._seg_outliers_text(items) if items else ""
+                w.writerow([k, s["segment"], s["n_cells"], s["low_conf_cells"],
+                            s["not_computable"],
                             _cell(s["typical"]), _cell(s["mad"]), _cell(s["rel_mad"]),
                             s["basis"], _cell(s["uniform"]),
                             _cells(s["high"]), _cells(s["low"])])

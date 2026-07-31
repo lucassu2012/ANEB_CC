@@ -1,7 +1,7 @@
-﻿kpi,segment,n_cells,not_computable,typical,mad,rel_mad_percent,basis,uniform,high_cells,low_cells,synthetic
-n1_rtt_p50_ms,access_component,6,0,63.801500000000004,1.2425000000000033,1.9474463766525916,mad,True,,,False
-n1_rtt_p50_ms,regional_backbone_incr,0,6,,,,insufficient,,,,False
-n1_rtt_p50_ms,core_backbone_incr,0,6,,,,insufficient,,,,False
-t1_ttft_ms,access_component,6,0,53.133582999999994,1.452542000000001,2.7337550339866996,mad,True,,,False
-t1_ttft_ms,regional_backbone_incr,0,6,,,,insufficient,,,,False
-t1_ttft_ms,core_backbone_incr,0,6,,,,insufficient,,,,False
+﻿kpi,segment,n_cells,low_conf_cells,not_computable,typical,mad,rel_mad_percent,basis,uniform,high_cells,low_cells,synthetic
+n1_rtt_p50_ms,access_component,6,3,0,63.801500000000004,1.2425000000000033,1.9474463766525916,mad,True,,,False
+n1_rtt_p50_ms,regional_backbone_incr,0,0,6,,,,insufficient,,,,False
+n1_rtt_p50_ms,core_backbone_incr,0,0,6,,,,insufficient,,,,False
+t1_ttft_ms,access_component,6,3,0,53.133582999999994,1.452542000000001,2.7337550339866996,mad,True,,,False
+t1_ttft_ms,regional_backbone_incr,0,0,6,,,,insufficient,,,,False
+t1_ttft_ms,core_backbone_incr,0,0,6,,,,insufficient,,,,False

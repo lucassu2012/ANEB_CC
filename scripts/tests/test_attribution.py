@@ -277,8 +277,34 @@ def test_a_named_outlier_that_is_itself_under_sampled_says_so():
              + tier_records("metro", "n1_rtt_p50_ms", 400, 5, point="P9"))
     md2 = attribution.render_segment_profile_markdown(
         attribution.segment_profile(attribution.attribute(clean)))
-    assert "样本不足" not in [ln for ln in md2.splitlines()
-                              if ln.startswith("| 接入")][0]
+    clean_row = [ln for ln in md2.splitlines() if ln.startswith("| 接入")][0]
+    assert "样本不足" not in clean_row
+    # D-364's audit: an unconditional-star mutation survived because this half
+    # never asserted the star's ABSENCE — the mark that shows up always.
+    assert "*" not in clean_row.split("|")[6], clean_row
+
+    # ...and the CSV, the surface the analyst computes on (D-364): count column
+    # plus the same star vocabulary as the page, both halves.
+    import campaign_report as rpt
+    import csv as csvmod
+    import os
+    import tempfile
+
+    def _csv_access_row(corpus, tag):
+        with tempfile.TemporaryDirectory() as d:
+            rpt.write_csv_tables(corpus, os.path.join(d, tag))
+            with open(os.path.join(d, tag) + "_segment_profile.csv",
+                      encoding="utf-8-sig") as f:
+                return [r for r in csvmod.DictReader(f)
+                        if r["kpi"] == "n1_rtt_p50_ms"
+                        and r["segment"] == "access_component"][0]
+
+    row = _csv_access_row(recs, "c")
+    assert row["low_conf_cells"] == "1", row
+    assert "P9" in row["high_cells"] and "*" in row["high_cells"], row
+    row2 = _csv_access_row(clean, "k")
+    assert row2["low_conf_cells"] == "0", row2
+    assert "P9" in row2["high_cells"] and "*" not in row2["high_cells"], row2
 
 
 def test_one_run_is_never_mixed_with_itself():

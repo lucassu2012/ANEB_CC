@@ -1439,8 +1439,16 @@ def test_a_per_kpi_cell_says_what_its_median_is_a_median_of():
 
     # …the clean half: one profile in the cell has no span to report, and saying
     # nothing is right — a marker that fires on every cell teaches the reader to
-    # skip it (D-290/D-351).
+    # skip it (D-290/D-351). Pinned on BOTH rendered surfaces (D-364): the HTML
+    # span-suppression branch had no negative-side guard, so an unconditional
+    # " · profile —" on every single-profile cell was uncatchable.
     single = corpus([("s1_chat", 0.14)])
+    # " · profile " with both spaces: the bare "· profile" also matches the
+    # stability table's "· profile_id=s1_chat" labels — the too-wide-word trap
+    # the handover warns about, demonstrated live by this assertion's v1.
+    html_single = rpt.build_report_html(single, "2026-01-01 00:00:00 +0800")
+    assert " · profile " not in html_single, \
+        "single-profile HTML cell wears the always-on span mark"
     only = rpt.kpi_heat_cells(single, "u1_goodput_mbps")[0]
     assert rpt.profile_span_text(only) == "—"
     assert "个 profile" not in rpt.render_kpi_heatcard_markdown(

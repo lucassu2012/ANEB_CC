@@ -13,11 +13,15 @@ context, never as the comparison.
 """
 import io
 import json
+import os
 import statistics as st
 from collections import defaultdict
 
-PATH = (r"C:\Users\lucas\AppData\Local\Temp\claude\E--G-Project-ANEB"
-        r"\c7bc03db-540e-4578-af6b-69d4fc5aa1cf\scratchpad\all_today4.jsonl")
+# The archived dual-arm corpus in THIS directory (D-364: the first version
+# pointed at a session-scratchpad file that dies with the session, contradicting
+# the README's "只读本目录的语料、可复跑" promise; numbers verified identical).
+PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                    "transport_probe_labelled.jsonl")
 KPIS = ("t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps")
 HIGHER_BETTER = {"u1_goodput_mbps"}
 

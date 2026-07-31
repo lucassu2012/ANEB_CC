@@ -17,7 +17,7 @@
 
 ## 溯源 / provenance（可复现性）
 
-> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-07-31 16:17:31 +0800 · 读 4 行 → 保留 4 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": null, "before": null, "after": null}。
+> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-07-31 22:54:41 +0800 · 读 4 行 → 保留 4 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": "m2-pilot-forensic-20260731", "before": null, "after": null}。
 
 > **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
 
@@ -59,27 +59,35 @@
 
 ### 分 KPI 热力卡：`t1_ttft_ms`（中位；分级=上报 KpiGrading 众数）
 
-| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |
-|---|---|---|---|---|---|---|
-| SZ-PILOT-01 | ctcc | busy | 48.34 | excellent | 36 | — |
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+
+| 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
+|---|---|---|---|---|---|---|---|
+| SZ-PILOT-01 | ctcc | busy | 48.34 | 48.34–48.48（3 个 profile） | excellent | 36 | — |
 
 ### 分 KPI 热力卡：`n1_rtt_p50_ms`（中位；分级=上报 KpiGrading 众数）
 
-| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |
-|---|---|---|---|---|---|---|
-| SZ-PILOT-01 | ctcc | busy | 57.5 | good | 36 | — |
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+
+| 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
+|---|---|---|---|---|---|---|---|
+| SZ-PILOT-01 | ctcc | busy | 57.5 | 55.12–59.62（3 个 profile） | good | 36 | — |
 
 ### 分 KPI 热力卡：`u1_goodput_mbps`（中位；分级=上报 KpiGrading 众数）
 
-| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |
-|---|---|---|---|---|---|---|
-| SZ-PILOT-01 | ctcc | busy | 10.92 | good | 36 | — |
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+
+| 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
+|---|---|---|---|---|---|---|---|
+| SZ-PILOT-01 | ctcc | busy | 10.92 | 0.15–17.16（3 个 profile） | good | 36 | — |
 
 ### 分 KPI 热力卡：`t2_itl_p95_ms`（中位；分级=上报 KpiGrading 众数）
 
-| 点位 | 运营商 | 时段 | 中位 | 分级 | n | 备注 |
-|---|---|---|---|---|---|---|
-| SZ-PILOT-01 | ctcc | busy | 28.7 | excellent | 36 | — |
+> `profile 跨度` 是该格**各 profile 各自中位**的范围。这张卡把一格里的所有 profile 汇成一个中位，而它们**测的不是同一件事**——实测 `u1_goodput_mbps` 在 s1_chat（上行 ~2KB 文本）只有 0.14 Mbps，在 s3_multimodal 有 16.4 Mbps；中位 10.05 **谁都不代表**。跨度大就别把中位当作「该格的该 KPI」，改看下方「复测稳定性」段的逐 profile 行。
+
+| 点位 | 运营商 | 时段 | 中位 | profile 跨度 | 分级 | n | 备注 |
+|---|---|---|---|---|---|---|---|
+| SZ-PILOT-01 | ctcc | busy | 28.7 | 13.05–29.7（3 个 profile） | excellent | 36 | — |
 
 ## 复测稳定性（CV 门 ≤10%，对齐 M1 验收）
 
@@ -208,6 +216,8 @@
 
 > **注意**：`未见单点异常` 只表示**没有单元越过筛查阈值**，**不等于各单元相同**——单元间到底有多齐，看 `离差/典型` 一列。该列小且无异常，才说得上是路径共性。
 
+> **参与单元里若有「样本不足」的**（`参与单元` 列会写出个数）：那些单元**等权**参与离差与筛查——一个只测过一次的单元既能把阈值拉动，也可能**自己被点名**。被点名的单元若本身样本不足，`偏高/偏低` 里会带 `*`：**先补测它，再去现场查**。
+
 | 段 | 参与单元 | 典型值(中位) | 离差(MAD) | 离差/典型 | 偏高 | 偏低 | 判读 |
 |---|---|---|---|---|---|---|---|
 | 接入(metro) | 3 | 58.3 | 1.3 | 2.2% | — | — | 可比单元 <4，**在申明口径下无法筛查**（该规模下没有任何阈值能把误报压到目标）→ 需要更多点位，不是更多复测 |
@@ -239,6 +249,8 @@
 > **这个筛查有多准**（每格 60000 次模拟实测，D-200）：K 的标定目标是——在**同分布的干净网格**（不存在真异常）上，误报至少一个单元的概率 ≤5%。**但时延是右偏的**，右偏数据上实测误报率是 7%（4~5 单元）→ 20%（32 单元）→ 26%（48 单元），**随网格变大而升高**（单元越多，长尾越有机会甩出一个）——**所以 `存在单点异常` 的意思是「值得去看一眼」，不是「已证明异常」**。代价也要说清楚：这个阈值只抓得住**很粗的**异常，一个 +5 稳健 σ 的真异常约有一半会被漏掉（+10 σ 才接近必中）。**少于 4 个可比单元时本段拒绝给阈值筛查结论**——那个规模下没有任何阈值达得到上述口径。（**唯一例外**：过半单元取值完全相同时，MAD 退化为 0，「与共同取值不等」是不需要标定的事实，仍如实列出，判读里会写明判据已变。）（此前阈值是固定 3σ，听着严格，实测在干净网格上误报 20%～65%，**32 单元的时延网格三次里有两次会点名一个没问题的点位**。）
 
 > **注意**：`未见单点异常` 只表示**没有单元越过筛查阈值**，**不等于各单元相同**——单元间到底有多齐，看 `离差/典型` 一列。该列小且无异常，才说得上是路径共性。
+
+> **参与单元里若有「样本不足」的**（`参与单元` 列会写出个数）：那些单元**等权**参与离差与筛查——一个只测过一次的单元既能把阈值拉动，也可能**自己被点名**。被点名的单元若本身样本不足，`偏高/偏低` 里会带 `*`：**先补测它，再去现场查**。
 
 | 段 | 参与单元 | 典型值(中位) | 离差(MAD) | 离差/典型 | 偏高 | 偏低 | 判读 |
 |---|---|---|---|---|---|---|---|

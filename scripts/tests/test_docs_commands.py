@@ -1179,11 +1179,16 @@ def test_run_level_reads_stay_inside_the_result_contract():
     block lives in docs/CAMPAIGN_LABELS_CONVENTION.md §2.1, deliberately outside
     the schema's run.properties (additionalProperties admits it).
 
-    Boundary (D-320): only the direct `run_obj(...).get("k")` shape is visible;
-    an aliased `ro = run_obj(rec)` … `ro.get("k")` would escape. None exists
-    today (grepped), and the floor below fails if the direct shape ever stops
-    being the norm — at which point this scan must learn the alias, not be
-    trusted as-is.
+    Boundary (D-320, redrawn by D-364): three shapes are visible — the direct
+    `run_obj(...).get("k")`, the inline raw-dict chain
+    `(x.get("run") or {}).get("k")`, and a one-line alias assignment
+    (`run = r.get("run") or {}` or `ro = run_obj(rec)`) followed by
+    `alias.get("k")`. The first version claimed "no alias exists today
+    (grepped)" — that grep covered only run_obj aliases, while the raw-dict
+    shape already lived in dashboard/analyze_results/campaign_common (D-364).
+    Still invisible: reads whose FIELD is a variable (`run.get(field)` looping
+    over a tuple) — those field tuples cannot be resolved statically here, so
+    a new one must bring its own contract check.
     """
     import json
 
@@ -1192,20 +1197,30 @@ def test_run_level_reads_stay_inside_the_result_contract():
         schema = json.load(fh)
     allowed = set(schema["properties"]["run"]["properties"]) | {"campaign"}
 
-    pat = re.compile(r'run_obj\([^)]*\)\s*\.get\(\s*"([^"]+)"')
+    pat_direct = re.compile(r'run_obj\([^)]*\)\s*\.get\(\s*"([^"]+)"')
+    pat_inline = re.compile(r'\.get\(\s*"run"\s*\)\s*or\s*\{\}\s*\)\s*\.get\(\s*"([^"]+)"')
+    pat_alias = re.compile(
+        r'^\s*(\w+)\s*=\s*(?:\(?\s*\w+(?:\[[^\]]+\])?\.get\(\s*"run"\s*\)\s*or\s*\{\}\s*\)?'
+        r'|run_obj\([^)]*\))\s*$', re.M)
     hits, offenders = 0, []
     for name in sorted(os.listdir(SCRIPTS)):
         if not name.endswith(".py"):
             continue
         with open(os.path.join(SCRIPTS, name), encoding="utf-8-sig") as fh:
             src = fh.read()
-        for m in pat.finditer(src):
+        fields = [m.group(1) for m in pat_direct.finditer(src)]
+        fields += [m.group(1) for m in pat_inline.finditer(src)]
+        for m in pat_alias.finditer(src):
+            alias = m.group(1)
+            fields += [m2.group(1) for m2 in
+                       re.finditer(rf'\b{re.escape(alias)}\.get\(\s*"([^"]+)"', src)]
+        for field in fields:
             hits += 1
-            if m.group(1) not in allowed:
-                offenders.append(f"{name}: run.{m.group(1)}")
+            if field not in allowed:
+                offenders.append(f"{name}: run.{field}")
     assert hits >= 10, (
         f"only {hits} run-level reads found — the scan stopped seeing the "
-        "direct run_obj(...).get(...) shape, so its verdict means nothing")
+        "shapes it knows, so its verdict means nothing")
     assert not offenders, (
         "run-level fields read but absent from the contract's run.properties "
         f"(the D-340 shape — a column built on a field nobody produces): "

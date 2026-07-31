@@ -16,15 +16,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/
 sys.path.insert(0, HERE)                    # scripts/tests/
 
-TEST_MODULES = ["test_attribution", "test_campaign_report", "test_annotate",
-                "test_stability", "test_corpus_health", "test_order_effect",
-                "test_validity_rollup", "test_validate_results", "test_trend",
-                "test_provenance", "test_subscore_rollup", "test_coverage_matrix",
-                "test_validate_spec_scoring", "test_validate_profiles",
-                "test_buffering_rollup", "test_transport_rollup", "test_trust_rollup",
-                "test_dashboard", "test_synth_campaign", "test_docs_commands",
-                "test_publish_check", "test_chaos_rehearsal", "test_report_properties",
-                "test_report_snapshot", "test_cli_smoke", "test_radio_rollup"]
+# Derived from disk, not hand-listed (D-275/D-364): the hand-written list
+# missed test_round_effect for its entire first day — 9 guards that every
+# "all green" run silently never executed. A list that must be maintained is a
+# list that will be forgotten; enumeration cannot skip a file.
+TEST_MODULES = sorted(
+    f[:-3] for f in os.listdir(os.path.dirname(os.path.abspath(__file__)))
+    if f.startswith("test_") and f.endswith(".py"))
 
 
 def _encodable(ch, enc):
