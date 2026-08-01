@@ -261,3 +261,90 @@ README §5 字段表、`R1-R20` 两处自述串、`DIST_MIN_*` 五处抄本、�
 - 门禁实跑：`python tools/e1/tests/run_tests.py`（47/47）、
   `python spec/adapters/test_validate_adapters.py`（41/41）、
   `python spec/portraits/test_check_redline.py`（38/38）、`validate_adapters.py` / `check_redline.py` 均 exit 0
+
+---
+
+## 8. 特别镜头 B 的对抗验证（**补做**，2026-08-02 夜班 ①a）
+
+§6.2 记的最大缺口：DTO 派生那 28 条**零对抗验证**（两名验证者均死于连接错误），
+而它与 v2 今晚的 `:probe` 改动直接相关。本节把它补上。
+
+**验证形态**：不转述结论。每条各造一个沙箱实验——把 `AdapterSpec.kt` 源做文本突变后重新
+`parse_dtos` / `parse_loader_contract`，再对**真实** spec 文档跑 `check_one`；
+凡第一轮靠「违规数=0」**倒推**出来的，第二轮换一种够得到的量法**直接量派生出的键集**
+（D-394 规矩 c）。**仓库零字节改动**：突变只活在内存与临时目录里，跑完 `git status` 独立核过。
+
+**总判定：28 条 CONFIRMED，0 条 REFUTED，2 处订正（一处是原条目的计数、一处是我自己的量法）。**
+
+### 8.1 §2.2 表逐行复验
+
+| 原判 | 复验 | 依据（实测） |
+|---|---|---|
+| 新增必填 / 可选 / 带默认值字段 ✅ | **CONFIRMED** | 必填无默认→`A2` 缺必填；带默认→JSON 缺席 **0 违规**；JSON 写了也 0 违规 |
+| 类型变更 `String→Int` / `String?→String` / `String→List<String>` ✅ | **CONFIRMED** | 三例各 **1 条 `A4`**，报文点名声明类型 |
+| 新增嵌套 `data class`（同文件 / `List<X>` / `Map<K,List<X>>` / `object` 内）✅ | **CONFIRMED ×4** | 四例内部 `ghost` 键各被 `A1` 咬住，路径逐级正确（`root.adapter.m.k[0]`） |
+| `@SerialName` 重命名 / 字段删除 ✅ | **CONFIRMED，计数订正** | 重命名实测 **三报**（`A1`+`A2`+**`A5`**），原文写「双报」——方向与结论不变，数字订正 |
+| 嵌套类型是 `class`(非 data) / `enum class` / `typealias` / **别的文件** ❌ | **CONFIRMED ×4** | 四例**各 0 违规**；直接量得 `PlainNest not in dtos`、`nest` 的声明类型 `'PlainNest?'` → 落到 `_check_value` 末尾那句注释 |
+| 默认值字符串里带 `//`、`)`、`>` ❌ | **CONFIRMED ×3，并补边界** | 直接量：`allowed` 13→14（**只多了带毒字段自己**），紧随其后的 `after` **既不在 allowed 也不在 required**；**基线 13 个键一个没丢**——损害限于「紧随其后的那一个」，不扩散 |
+| `var` 代替 `val` ❌ | **CONFIRMED，并补出它有两个相反的面** | 直接量 `mut` in_allowed=**False** in_required=**False**。①JSON 写了该键 → 门报 `A1`，**误拒**一份 App 其实接受的文件；②JSON 没写而 DTO 无默认值 → **0 违规静默放行**，而设备上严格解析必抛→fail-safe 空列表。原条目只描述了键集，两个后果**方向相反**，都要记 |
+| 注解里带冒号的字符串 ❌ | **CONFIRMED，带对照组** | 带 `@Deprecated("a:b", level = …)`：in_allowed=True / in_required=**False** / **0 违规**；**去掉该注解的对照组**：in_required=**True** 且 `A2` 开火。差异**只**由那个注解造成 |
+| `parse()` 某条 `require` 被重构走 ❌ | **CONFIRMED，先证明基线逮得住** | 控制组（未突变 + 空白 `id`）→ `A5` 开火；删掉 `require(a.id.isNotBlank())` 后派生 `non_blank=['packageName']`（**少一项但非空**，故「came back empty」自守卫**不开火**），同一份空白 `id` → **0 违规** |
+| `parse()` 新增一条 `require` ❌ | **CONFIRMED（重做后）** | 见 §8.3 的量法自曝 |
+
+### 8.2 「最要紧的一条」：把证据从内部量升级成**操作者看到的那一行**
+
+原镜头给的是 `check_one` 返回空列表（内部量）。本轮在临时沙箱里跑**真的 `main()`**
+（运行时把 `KOTLIN_DTO` / `HERE` / `ASSETS_DIR` 三个模块级常量指向临时副本，D-322 的手法），
+拿到门**印出来**的那一行：
+
+| 场景 | 退出码 | 门印的话 |
+|---|---|---|
+| 对照：未突变、无版本戳 | **0** | `OK: all adapter-spec invariants hold …`（**证明沙箱本身没坏**） |
+| 今天：DTO 无该字段而 JSON 写了 | **1** | 四份**逐一** `A1`（T11 ① 被阻塞的机器可判证据成立） |
+| **`VersionStampDto` 声明在别的文件 + 内部含一个严格解析器必拒的键** | **0** | 逐字印出 `OK: all adapter-spec invariants hold (A1 no key the strict parser would reject …)` |
+| 对照：**唯一差别**=该 DTO 挪回同文件 | **1** | 四份逐一点名 `ghost_key_a_strict_parser_would_reject` |
+
+> 第三行就是这一条的全部分量：**门不是漏了一格，是印了一句当场可证伪的话**——
+> 它说「没有任何一个键会被严格解析器拒绝」，而那个键就在文件里。§2.12「会说谎的守卫」原样形状，
+> 并且**第四行证明差异只由「DTO 声明在哪个文件」造成**，不是别的变量。
+
+### 8.3 本轮的量法自曝（一次）
+
+「`parse()` 新增一条 `require` → 静默不覆盖」第一版突变把**唯一**的 `isNotEmpty` **替换**成
+`size >= 99`，于是 `non_empty` 派生成空、触发的是 `:292` 那道「came back empty」**自守卫**（`A5` 开火）
+——那不是「静默不覆盖」的证据，**是我的突变设计打偏了，它测的是另一件事**。
+改成**保留原有、另加一条**后：派生判据逐项不变（`non_blank=['id','packageName']`、
+`non_empty=['observeEvents']`、`kpi=['delta_cadence','first_delta']`），
+真语料 `observe_events` 长度 **2 < 99**（设备上必抛）而门 **0 违规** → **CONFIRMED**。
+（同族教训见 D-394：突变没打中目标时，守卫的绿与红都不是你以为的那个意思。）
+
+### 8.4 给 v2 的三条落地约束——各配一次**真 `main()` 实跑**
+
+| 落地形态 | 实测 |
+|---|---|
+| `VersionStampDto` = **`AdapterSpec.kt` 同文件内的 `data class`** + `= null` 默认 + 四份 JSON 填干净版本戳 | **exit 0** |
+| 同上但字段**不带默认值**、JSON 未填 | **exit 1，四份全红 `A2`** ——方向是对的，它把 README「先 DTO 后 JSON」的顺序约束变成机器可判 |
+| 序列名改掉（`app_version_name` / `app_version_code` / `stamped_at` / `obtained_via`），文件本身**设备完全接受** | **`R21b`/`R21c`/`R21d`/`R21e` 四条违规**——R21b–e 是**手写字面量**，与 DTO 派生无关，改名即误拒 |
+| 若把 `VersionStampDto` 放**别的文件** | 见 §8.2 第三行：**该段一个键都不查，门照印 OK** |
+
+**结论不变，且证据强度已从「单一来源的沙箱实验」升到「真 `main()` 的四组对照」：**
+序列名照用 `version_name` / `version_code` / `captured_at` / `source`，
+DTO 必须**同文件 `data class`**，字段**带默认值**。
+
+### 8.5 §2.2 末尾那条关于夹具的判断
+
+`test_an_unknown_key_INSIDE_the_future_version_stamp_is_caught` 的夹具
+（`test_validate_adapters.py:262-276` `_future_with_version_dto()`）用 `src += ...` 把新 DTO
+**追加进同一份源码字符串** ⇒ 恰落在能下钻的那一支。**CONFIRMED**（读码核对，非推理）。
+
+### 8.6 四处「refuses to pass vacuously」的行号核对
+
+在**当前**文件上逐行核对，四处全部命中且语义与原文一致：
+`:187`（A2 DTO 缺失）、`:280`（A5 SCHEMA_VERSION 派生不出）、`:292`（A5 require 派生为空）
+三处**拒绝真空通过**；`:259` `# 认不出的类型：不判。凭猜测报违规比漏一格更糟。`
+是**唯一**的例外，也**正是 §8.2 第三行踩中的那处**。
+
+> **入册说明（诚实交代）**：本节写入时 `docs/DECISION_LOG.md` 工作区里有**他会话未提交的
+> D-395/D-396 两行**，按「只 stage 自己的文件」纪律，本轮**不代为暂存该文件**，故本节
+> **暂未取 D 号**——不预占、不引用空号（T14 自己审出的 `D-375` 悬空引用就是这个形状）。
+> 复现入口：夜班 ①a 三轮脚本，路径见提交说明。

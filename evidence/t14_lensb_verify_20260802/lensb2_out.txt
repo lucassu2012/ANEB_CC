@@ -1,0 +1,66 @@
+baseline AdapterDto: allowed=13 required=11
+
+########## F2：默认值字符串里的特殊字符 ##########
+--------------------------------------------------------------------------
+[F2a //] DTO 名单=['AdapterDto', 'AdapterSpec', 'AdapterSpecFileDto', 'CaliberDto', 'CaliberRedlines', 'KpiProxy', 'KpiProxyDto', 'NodeRule', 'NodeRuleDto', 'SendButtonRule', 'SendButtonRuleDto']
+   allowed 总数=14 (baseline 13)  required 总数=11 (baseline 11)
+   key 'u'                          in allowed=True  in required=False
+   key 'after'                      in allowed=False in required=False
+   -> check_one 违规 0 条: []
+--------------------------------------------------------------------------
+[F2b )] DTO 名单=['AdapterDto', 'AdapterSpec', 'AdapterSpecFileDto', 'CaliberDto', 'CaliberRedlines', 'KpiProxy', 'KpiProxyDto', 'NodeRule', 'NodeRuleDto', 'SendButtonRule', 'SendButtonRuleDto']
+   allowed 总数=14 (baseline 13)  required 总数=11 (baseline 11)
+   key 'u'                          in allowed=True  in required=False
+   key 'after'                      in allowed=False in required=False
+   -> check_one 违规 0 条: []
+--------------------------------------------------------------------------
+[F2c >] DTO 名单=['AdapterDto', 'AdapterSpec', 'AdapterSpecFileDto', 'CaliberDto', 'CaliberRedlines', 'KpiProxy', 'KpiProxyDto', 'NodeRule', 'NodeRuleDto', 'SendButtonRule', 'SendButtonRuleDto']
+   allowed 总数=14 (baseline 13)  required 总数=11 (baseline 11)
+   key 'u'                          in allowed=True  in required=False
+   key 'after'                      in allowed=False in required=False
+   -> check_one 违规 0 条: []
+
+########## F3：var 代替 val（两个方向） ##########
+--------------------------------------------------------------------------
+[F3] DTO 名单=['AdapterDto', 'AdapterSpec', 'AdapterSpecFileDto', 'CaliberDto', 'CaliberRedlines', 'KpiProxy', 'KpiProxyDto', 'NodeRule', 'NodeRuleDto', 'SendButtonRule', 'SendButtonRuleDto']
+   allowed 总数=13 (baseline 13)  required 总数=11 (baseline 11)
+   key 'mut'                        in allowed=False in required=False
+   方向①：JSON **写了** mut（App 会接受）
+   -> check_one 违规 1 条: ["A1: root.adapter has key 'mut' that AdapterDto does not declare — the "]
+   方向②：JSON **没写** mut，而 DTO 里它无默认值（App 严格解析必抛）
+   -> check_one 违规 0 条: []
+
+########## F4：注解里带冒号 ##########
+--------------------------------------------------------------------------
+[F4] DTO 名单=['AdapterDto', 'AdapterSpec', 'AdapterSpecFileDto', 'CaliberDto', 'CaliberRedlines', 'KpiProxy', 'KpiProxyDto', 'NodeRule', 'NodeRuleDto', 'SendButtonRule', 'SendButtonRuleDto']
+   allowed 总数=14 (baseline 13)  required 总数=11 (baseline 11)
+   key 'dep'                        in allowed=True  in required=False
+   -> check_one 违规 0 条: []
+   对照：同一字段**不带**那个注解时
+--------------------------------------------------------------------------
+[F4-control] DTO 名单=['AdapterDto', 'AdapterSpec', 'AdapterSpecFileDto', 'CaliberDto', 'CaliberRedlines', 'KpiProxy', 'KpiProxyDto', 'NodeRule', 'NodeRuleDto', 'SendButtonRule', 'SendButtonRuleDto']
+   allowed 总数=14 (baseline 13)  required 总数=12 (baseline 11)
+   key 'dep'                        in allowed=True  in required=True 
+   -> check_one 违规 1 条: ["A2: root.adapter is missing required key 'dep' (AdapterDto declares it"]
+
+########## F5a：删一条 require —— 先证明基线**逮得住**它 ##########
+   控制组（未突变 Kotlin + 空白 id）:
+   -> check_one 违规 1 条: ['A5: adapter.id must be non-blank (parse() requires a.id.isNotBlank())']
+   突变组（删掉 require(a.id.isNotBlank())）:
+   派生出的 non_blank=['packageName']
+   -> check_one 违规 0 条: []
+
+########## F5b（重做）：**新增**一条形状不同的 require，保留原有的 ##########
+   派生出的判据: non_blank=['id', 'packageName'] non_empty=['observeEvents'] kpi=['delta_cadence', 'first_delta']
+   真语料 observe_events 长度=2（< 99，即 App 上必抛）
+   -> check_one 违规 0 条: []
+
+########## F1a 复量：PlainNest 到底在不在 dtos 名单里 ##########
+   dtos 名单=['AdapterDto', 'AdapterSpec', 'AdapterSpecFileDto', 'CaliberDto', 'CaliberRedlines', 'KpiProxy', 'KpiProxyDto', 'NodeRule', 'NodeRuleDto', 'SendButtonRule', 'SendButtonRuleDto']   PlainNest in dtos = False
+   nest 的声明类型 = 'PlainNest?'
+
+########## 「refuses to pass vacuously」四处行号核对 ##########
+   :187  v.append("[%s] A2: DTO %s not found in AdapterSpec.kt — cannot derive the key set; "
+   :259  # 认不出的类型：不判。凭猜测报违规比漏一格更糟。
+   :280  v.append("[%s] A5: cannot derive SCHEMA_VERSION from AdapterSpec.kt — refusing to pass "
+   :292  v.append("[%s] A5: the require() derivation from AdapterSpecLoader.parse() came back "

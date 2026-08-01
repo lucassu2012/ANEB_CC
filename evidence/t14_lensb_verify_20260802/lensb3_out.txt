@@ -1,0 +1,48 @@
+==============================================================================
+[CTRL] 对照：未突变 + 未加版本戳 → 应 exit 0 且印 OK
+  main() 退出码 = 0
+  | Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  |   key sets derived from AdapterSpec.kt (11 DTOs)
+  | OK: all adapter-spec invariants hold (A1 no key the strict parser would reject, A2 required keys present, A3 assets mirror byte-identical and carries nothing extra, A4 every value has the type its DTO declares, A5 the parse() require()s hold, R21 version stamp complete-if-present, R22 status recognised).
+==============================================================================
+[TODAY] 今天：DTO 无该字段、JSON 写了 → 应 exit 1（A1 未知键）
+  main() 退出码 = 1
+  | Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  |   key sets derived from AdapterSpec.kt (11 DTOs)
+  | VIOLATIONS: 4
+  |   - [deepseek.json] A1: root.adapter has key 'validated_against_version' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+  |   - [doubao.json] A1: root.adapter has key 'validated_against_version' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+  |   - [kimi.json] A1: root.adapter has key 'validated_against_version' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+  |   - [tongyi.json] A1: root.adapter has key 'validated_against_version' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+==============================================================================
+[F1d] 【最要紧】VersionStampDto 在别的文件 + 内部含严格解析器必拒的键 → 门印什么？
+  main() 退出码 = 0
+  | Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  |   key sets derived from AdapterSpec.kt (11 DTOs)
+  | OK: all adapter-spec invariants hold (A1 no key the strict parser would reject, A2 required keys present, A3 assets mirror byte-identical and carries nothing extra, A4 every value has the type its DTO declares, A5 the parse() require()s hold, R21 version stamp complete-if-present, R22 status recognised).
+==============================================================================
+[F1d-ctrl] 对照：唯一差别=DTO 挪回同文件 → 应 exit 1，逐份点名 ghost 键
+  main() 退出码 = 1
+  | Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  |   key sets derived from AdapterSpec.kt (12 DTOs)
+  | VIOLATIONS: 4
+  |   - [deepseek.json] A1: root.adapter.validated_against_version has key 'ghost_key_a_strict_parser_would_reject' that VersionStampDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+  |   - [doubao.json] A1: root.adapter.validated_against_version has key 'ghost_key_a_strict_parser_would_reject' that VersionStampDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+  |   - [kimi.json] A1: root.adapter.validated_against_version has key 'ghost_key_a_strict_parser_would_reject' that VersionStampDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+  |   - [tongyi.json] A1: root.adapter.validated_against_version has key 'ghost_key_a_strict_parser_would_reject' that VersionStampDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec list: every app silently drops to generic and adapter_obs stops persisting (D-54). Add the field to the DTO first, then to this file.
+==============================================================================
+[V2-good] v2 正常落地：同文件 data class + `= null` + 四份 JSON 都填干净版本戳 → 应 exit 0
+  main() 退出码 = 0
+  | Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  |   key sets derived from AdapterSpec.kt (12 DTOs)
+  | OK: all adapter-spec invariants hold (A1 no key the strict parser would reject, A2 required keys present, A3 assets mirror byte-identical and carries nothing extra, A4 every value has the type its DTO declares, A5 the parse() require()s hold, R21 version stamp complete-if-present, R22 status recognised).
+==============================================================================
+[V2-nodefault] v2 反面：字段**不带默认值**且 JSON 未填 → 应四份全红（A2）
+  main() 退出码 = 1
+  | Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  |   key sets derived from AdapterSpec.kt (12 DTOs)
+  | VIOLATIONS: 4
+  |   - [deepseek.json] A2: root.adapter is missing required key 'validated_against_version' (AdapterDto declares it with no default)
+  |   - [doubao.json] A2: root.adapter is missing required key 'validated_against_version' (AdapterDto declares it with no default)
+  |   - [kimi.json] A2: root.adapter is missing required key 'validated_against_version' (AdapterDto declares it with no default)
+  |   - [tongyi.json] A2: root.adapter is missing required key 'validated_against_version' (AdapterDto declares it with no default)

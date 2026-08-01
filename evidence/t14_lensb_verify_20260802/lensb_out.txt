@@ -1,0 +1,175 @@
+==============================================================================
+[BASE] 未突变：真语料应零违规
+  期望（原镜头）: 0 违规
+  实测违规数: 0  码: —
+==============================================================================
+[a1] DTO 新增**必填**字段，JSON 未跟进
+  期望（原镜头）: A2 缺必填键
+  实测违规数: 1  码: ['A2']
+     - [doubao.json] A2: root.adapter is missing required key 'new_req' (AdapterDto declares it with no default)
+==============================================================================
+[a2] DTO 新增**带默认值**字段，JSON 未跟进
+  期望（原镜头）: 0 违规（自动放行）
+  实测违规数: 0  码: —
+==============================================================================
+[a3] DTO 新增带默认值字段，JSON 也写了该键
+  期望（原镜头）: 0 违规
+  实测违规数: 0  码: —
+==============================================================================
+[a4] JSON 写了 DTO 没有的键（A1 主线）
+  期望（原镜头）: A1 未知键
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter has key 'some_new_field' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an 
+==============================================================================
+[b1] DTO 声明 Int，JSON 给 String
+  期望（原镜头）: A4 类型不符
+  实测违规数: 1  码: ['A4']
+     - [doubao.json] A4: root.adapter.n must be Int per AdapterSpec.kt, got str
+==============================================================================
+[b2] DTO 声明非空 String，JSON 给 null
+  期望（原镜头）: A4 null 落非空字段
+  实测违规数: 1  码: ['A4']
+     - [doubao.json] A4: root.adapter.s is null but String declares it non-nullable — the strict Json throws and the fail-safe returns an EMPTY spec list
+==============================================================================
+[b3] DTO 声明 List<String>，JSON 给 String
+  期望（原镜头）: A4 必须是数组
+  实测违规数: 1  码: ['A4']
+     - [doubao.json] A4: root.adapter.l must be a JSON array (List<String>), got str
+==============================================================================
+[c1] 嵌套 data class（同文件）内部写未知键
+  期望（原镜头）: A1 咬住内部未知键
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter.nest has key 'ghost' that NestDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY s
+==============================================================================
+[c2] List<嵌套 DTO> 内部未知键
+  期望（原镜头）: A1 咬住
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter.nests[0] has key 'ghost' that NestDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMP
+==============================================================================
+[c3] Map<String, List<嵌套 DTO>> 内部未知键
+  期望（原镜头）: A1 咬住
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter.m.k[0] has key 'ghost' that NestDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY
+==============================================================================
+[c4] 嵌套 data class 声明在 `object` 内部
+  期望（原镜头）: A1 咬住
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter.nest has key 'ghost' that NestDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY s
+==============================================================================
+[d1] @SerialName 重命名（package → package_id）
+  期望（原镜头）: A1 未知键 + A2 缺必填 双报
+  实测违规数: 3  码: ['A1', 'A2', 'A5']
+     - [doubao.json] A1: root.adapter has key 'package' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY s
+     - [doubao.json] A2: root.adapter is missing required key 'package_id' (AdapterDto declares it with no default)
+     - [doubao.json] A5: adapter.package_id must be non-blank (parse() requires a.packageName.isNotBlank())
+==============================================================================
+[d2] DTO 删掉一个字段（launch_hint）
+  期望（原镜头）: A1 未知键
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter has key 'launch_hint' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMP
+==============================================================================
+[F1a] 嵌套类型是普通 `class`（非 data）
+  期望（原镜头）: [BAD] 0 违规，整块静默不查
+  实测违规数: 0  码: —
+==============================================================================
+[F1b] 嵌套类型是 `enum class`
+  期望（原镜头）: [BAD] 0 违规
+  实测违规数: 0  码: —
+==============================================================================
+[F1c] 嵌套类型经 `typealias` 指向
+  期望（原镜头）: [BAD] 0 违规
+  实测违规数: 0  码: —
+==============================================================================
+[F1d] 【最要紧】嵌套 DTO **声明在别的文件**（v2 明天要踩的那处）
+  期望（原镜头）: [BAD] 门印 OK、零违规（严格解析器必拒的键）
+  实测违规数: 0  码: —
+==============================================================================
+[F2a] 默认值字符串里带 `//`
+  期望（原镜头）: [BAD] 下一个字段整个从键集里消失
+  实测违规数: 0  码: —
+==============================================================================
+[F2b] 默认值字符串里带 `)`
+  期望（原镜头）: [BAD] 下一个字段消失
+  实测违规数: 0  码: —
+==============================================================================
+[F2c] 默认值字符串里带 `>`
+  期望（原镜头）: [BAD] 下一个字段消失
+  实测违规数: 0  码: —
+==============================================================================
+[F3] `var` 代替 `val`
+  期望（原镜头）: [BAD] 该字段既不在 allowed 也不在 required
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter has key 'mut' that AdapterDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the fail-safe returns an EMPTY spec 
+==============================================================================
+[F4] 注解里带冒号的字符串 → 必填被判成可选
+  期望（原镜头）: [BAD] 必填字段被判成可选（不报 A2）
+  实测违规数: 0  码: —
+==============================================================================
+[F5a] `parse()` 删掉一条 require（a.id.isNotBlank）
+  期望（原镜头）: [BAD] 判据静默变窄：空白 id 不再被拦
+  实测违规数: 0  码: —
+==============================================================================
+[F5b] `parse()` 新增一条形状不同的 require（size >= 2）
+  期望（原镜头）: [BAD] 派生正则认不出，静默不覆盖
+  实测违规数: 1  码: ['A5']
+     - [doubao.json] A5: the require() derivation from AdapterSpecLoader.parse() came back empty — the shape of parse() changed; fix the derivation rather than trusting a check that now looks at no
+==============================================================================
+[F5c] 对照：require 全删 → 应报「派生坏了」而非放行
+  期望（原镜头）: A5 came back empty（refuses to pass）
+  实测违规数: 1  码: ['A5']
+     - [doubao.json] A5: the require() derivation from AdapterSpecLoader.parse() came back empty — the shape of parse() changed; fix the derivation rather than trusting a check that now looks at no
+==============================================================================
+[V2a] v2 建议①：同文件 data class + `= null` 默认 → 今日四份 JSON 应放行
+  期望（原镜头）: 0 违规
+  实测违规数: 0  码: —
+==============================================================================
+[V2b] v2 建议①反面：同文件但**不带默认值** → 四份 JSON 当场全红
+  期望（原镜头）: A2 缺必填
+  实测违规数: 1  码: ['A2']
+     - [doubao.json] A2: root.adapter is missing required key 'validated_against_version' (AdapterDto declares it with no default)
+==============================================================================
+[V2c] v2 建议①正向：同文件 data class，内部未知键被咬
+  期望（原镜头）: A1 咬住
+  实测违规数: 1  码: ['A1']
+     - [doubao.json] A1: root.adapter.validated_against_version has key 'ghost' that VersionStampDto does not declare — the app parses this file with a strict Json, so an unknown key throws and the
+==============================================================================
+[V2d] v2 建议②：序列名改掉（version_name→app_version_name）→ 一份**设备接受**的合法文件被报四条
+  期望（原镜头）: R21b–e 是手写字面量 → 四条违规
+  实测违规数: 4  码: ['R21b', 'R21c', 'R21d', 'R21e']
+     - [doubao.json] R21b: validated_against_version.version_name must be a non-empty string
+     - [doubao.json] R21c: validated_against_version.version_code must be a positive integer
+     - [doubao.json] R21d: validated_against_version.captured_at must be YYYY-MM-DD
+     - [doubao.json] R21e: validated_against_version.source must say how the value was obtained (the read-only `dumpsys package <pkg>` run that produced it)
+
+==============================================================================
+汇总：
+  BASE   violations=0   codes=—
+  a1     violations=1   codes=['A2']
+  a2     violations=0   codes=—
+  a3     violations=0   codes=—
+  a4     violations=1   codes=['A1']
+  b1     violations=1   codes=['A4']
+  b2     violations=1   codes=['A4']
+  b3     violations=1   codes=['A4']
+  c1     violations=1   codes=['A1']
+  c2     violations=1   codes=['A1']
+  c3     violations=1   codes=['A1']
+  c4     violations=1   codes=['A1']
+  d1     violations=3   codes=['A1', 'A2', 'A5']
+  d2     violations=1   codes=['A1']
+  F1a    violations=0   codes=—
+  F1b    violations=0   codes=—
+  F1c    violations=0   codes=—
+  F1d    violations=0   codes=—
+  F2a    violations=0   codes=—
+  F2b    violations=0   codes=—
+  F2c    violations=0   codes=—
+  F3     violations=1   codes=['A1']
+  F4     violations=0   codes=—
+  F5a    violations=0   codes=—
+  F5b    violations=1   codes=['A5']
+  F5c    violations=1   codes=['A5']
+  V2a    violations=0   codes=—
+  V2b    violations=1   codes=['A2']
+  V2c    violations=1   codes=['A1']
+  V2d    violations=4   codes=['R21b', 'R21c', 'R21d', 'R21e']
