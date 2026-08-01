@@ -191,12 +191,17 @@ class AnebAccessibilityService : AccessibilityService() {
                 } else {
                     s.onContentDelta(now)
                 }
+                // E1 通道 A 的逐事件时戳（T7 记的「ADAPTER_EVT 不带任何时间戳」）。
+                // 传 `now`——即本次 onAccessibilityEvent 入口算的那个 elapsedRealtimeNanos，
+                // 不在这里再取一次：再取会得到一个**晚于**会话状态机所用的时刻，
+                // 两条时间线就此错开，而错开多少没人量得出来。
+                logAdapterEvent(e, pkg, "content", now)
             }
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
                 // send-anchor v2 点击锚点：先事件级诊断打点（DEBUG 门控，供真机反推发送按钮特征），
                 // 再按 send_button 规则用**事件自带**字段匹配（绝不 getSource）；命中→武装 send_anchor。
                 // 无规格 / 规格 send_button 全空 / 不匹配 → 不武装（R-10 诚实缺席），诊断日志仍已打。
-                logClickEvent(e, pkg)
+                logAdapterEvent(e, pkg, "click", now)
                 val rt = specsByPackage[pkg]
                 if (rt != null && rt.sendButtonMatch(e)) {
                     switchSessionIfNeeded(pkg, now).onSendAnchor(now)
@@ -299,15 +304,31 @@ class AnebAccessibilityService : AccessibilityService() {
      * 标签，如「发送」，截断防刷屏）+ 文本**长度** txt_len（不含内容——文本红线不变）+ pkg；
      * 绝不取 event.source（R-16）。CONTENT/TEXT 事件量大不逐条打，仅 CLICKED。
      */
-    private fun logClickEvent(event: AccessibilityEvent, pkg: String) {
+    private fun logAdapterEvent(
+        event: AccessibilityEvent,
+        pkg: String,
+        type: String,
+        tBootNs: Long,
+    ) {
         if (!BuildConfig.DEBUG) return
         val cls = event.className ?: "null"
         val desc = event.contentDescription?.let(::truncateForLog) ?: "null"
         // Log.i 而非 Log.d：华为 EMUI 默认丢弃 D 级日志（真机实证 ADAPTER_EVT 恒不可见）；
         // BuildConfig.DEBUG 门控已保证 release 无输出，I 级仅影响 debug 构建可见性。
+        //
+        // `t_boot_ns` 与 `type=content` 都不是我起的名字——它们是**消费方早已写好的契约**：
+        // `tools/e1/e1_analyze.py` 的 `parse_adapter_events()` **只收带 `t_boot_ns=` 的行**
+        // （没有该字段的行被如实忽略，其 docstring 写着「忽略比『用行到达顺序编个时戳』安全」），
+        // 而该文件第 40 行逐字给出了期望格式：
+        //   `ADAPTER_EVT type=content cls=<cls> txt_len=<n> pkg=<pkg> t_boot_ns=<ns>`。
+        // 若这里另起一个名字（如 obs_ns），字段就没有读者，通道 A 依旧 NOT_EXECUTED——
+        // 那正是 D-276 反复记的那个反面教材：**要一个没人读的字段**。
+        //
+        // 既有字段一个不动（additive）；`type` 由调用方给，click 保持原值。
         Log.i(
             TAG,
-            "ADAPTER_EVT type=click cls=$cls desc=$desc txt_len=${textLenOf(event)} pkg=$pkg",
+            "ADAPTER_EVT type=$type cls=$cls desc=$desc" +
+                " txt_len=${textLenOf(event)} pkg=$pkg t_boot_ns=$tBootNs",
         )
     }
 
