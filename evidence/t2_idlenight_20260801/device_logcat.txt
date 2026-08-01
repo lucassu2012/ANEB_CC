@@ -1,0 +1,625 @@
+--------- beginning of main
+08-01 23:00:31.809 I/AnebProbe( 2751): >>> RUN mode=forensic transport=cellular -> https://120-79-148-0.sslip.io:8443
+08-01 23:00:31.961 I/AnebProbe( 2751): RUN_START run_id=019fbdd7-4e24-718e-b1d9-48558a371c9c mode=forensic transport=cellular server=https://120-79-148-0.sslip.io:8443 inject=none drive_test=false
+08-01 23:00:31.962 I/AnebProbe( 2751): GUARD_OK metadata=private_dns_active=false;active_transports=cellular;active_validated=true;checked_at_nanos=807492351642707
+08-01 23:00:31.963 I/AnebProbe( 2751): NET_BIND transport=cellular snapshot=transports=cellular_validated=true_not_suspended=true_not_metered=false_down_kbps=30000_up_kbps=15000
+08-01 23:00:32.854 I/AnebProbe( 2751): REACH sni=rst sni_ms=null ip=ok ip_ms=236
+08-01 23:00:32.855 I/AnebProbe( 2751): REACH_SWITCH from=sni_host to=bare_ip reason=sni_rst_ip_ok base=https://120.79.148.0:8443
+08-01 23:00:33.131 I/AnebProbe( 2751): PROFILES source=server versions=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0
+08-01 23:00:33.132 I/AnebProbe( 2751): PROFILE_WARN version_mismatch_server=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0_assets=s1_chat@0.2.0;s2_coding_agent@0.2.0;s3_multimodal@0.3.0_(以服务端为准)
+08-01 23:00:33.153 I/AnebProbe( 2751): ORDER round=0 order=s1_chat,s2_coding_agent,s3_multimodal
+08-01 23:00:33.153 I/AnebProbe( 2751): SCENARIO_START scenario=s1_chat#0 round=0 order_index=0
+08-01 23:00:38.998 I/AnebProbe( 2751): CLOCK_SYNC scenario=s1_chat#0 edge=start phase=0 offset_us=-321926394046 err_us=34799 valid_n=17 total_n=20 warmup_n=3
+08-01 23:00:39.145 I/AnebProbe( 2751): UPLOAD scenario=s1_chat#0 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=125.01 goodput_mbps=0.131 server_chunks=1 error=none
+08-01 23:00:54.355 I/AnebProbe( 2751): STREAM scenario=s1_chat#0 stream=0 expected=600 events=600 reads=602 bytes=188850 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=68.77 error=none
+08-01 23:00:54.356 I/AnebProbe( 2751): PARSE scenario=s1_chat#0 stream=0 parse_dur_us=123321 per_event_parse_us=205.54 events=600
+08-01 23:00:59.818 I/AnebProbe( 2751): CLOCK_SYNC scenario=s1_chat#0 edge=end phase=3 offset_us=-321926398883 err_us=33571 valid_n=17 total_n=20 warmup_n=3
+08-01 23:00:59.904 I/AnebProbe( 2751): SKEW scenario=s1_chat#0 start_offset_us=-321926394046 end_offset_us=-321926398883 drift_ppm=-249.53 offset_suspect=true
+08-01 23:00:59.984 I/AnebProbe( 2751): SCENARIO_KPI scenario=s1_chat#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=68.7745(lowconf) t2_ms=32.0429 t2_incl_ms=32.0429 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=75.7800 n2_ms=14.4590 u1_mbps=0.1311(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:00:59.985 I/AnebProbe( 2751): BUFFERING scenario=s1_chat#0 score=0.065 attribution=none samples=599 sawtooth=0.063 near_zero=0.000 lag1=-0.584 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:00:59.986 I/AnebProbe( 2751): SCENARIO_START scenario=s2_coding_agent#0 round=0 order_index=1
+08-01 23:01:05.606 I/AnebProbe( 2751): CLOCK_SYNC scenario=s2_coding_agent#0 edge=start phase=0 offset_us=-321926401185 err_us=29425 valid_n=17 total_n=20 warmup_n=3
+08-01 23:01:06.163 I/AnebProbe( 2751): UPLOAD scenario=s2_coding_agent#0 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=508.72 goodput_mbps=8.245 server_chunks=8 error=none
+08-01 23:01:06.163 I/AnebProbe( 2751): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=3000
+08-01 23:01:18.330 I/AnebProbe( 2751): STREAM scenario=s2_coding_agent#0 stream=0 expected=300 events=300 reads=301 bytes=91566 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=68.70 error=none
+08-01 23:01:18.331 I/AnebProbe( 2751): PARSE scenario=s2_coding_agent#0 stream=0 parse_dur_us=52241 per_event_parse_us=174.14 events=300
+08-01 23:01:18.681 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=0 up_bytes=8192 total_ms=336.89 proc_nominal_ms=200 proc_actual_us=200274 http=200 error=none
+08-01 23:01:19.001 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=1 up_bytes=8192 total_ms=319.87 proc_nominal_ms=200 proc_actual_us=200350 http=200 error=none
+08-01 23:01:19.335 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=2 up_bytes=8192 total_ms=322.74 proc_nominal_ms=200 proc_actual_us=200333 http=200 error=none
+08-01 23:01:19.657 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=3 up_bytes=8192 total_ms=319.58 proc_nominal_ms=200 proc_actual_us=200326 http=200 error=none
+08-01 23:01:20.006 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=4 up_bytes=8192 total_ms=340.80 proc_nominal_ms=200 proc_actual_us=200349 http=200 error=none
+08-01 23:01:20.344 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=5 up_bytes=8192 total_ms=328.85 proc_nominal_ms=200 proc_actual_us=200346 http=200 error=none
+08-01 23:01:20.696 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=6 up_bytes=8192 total_ms=344.24 proc_nominal_ms=200 proc_actual_us=200338 http=200 error=none
+08-01 23:01:21.041 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#0 round=7 up_bytes=8192 total_ms=336.53 proc_nominal_ms=200 proc_actual_us=200342 http=200 error=none
+08-01 23:01:21.042 I/AnebProbe( 2751): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=2000
+08-01 23:01:57.585 I/AnebProbe( 2751): STREAM scenario=s2_coding_agent#0 stream=1 expected=800 events=800 reads=800 bytes=248310 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=66.12 error=none
+08-01 23:01:57.595 I/AnebProbe( 2751): PARSE scenario=s2_coding_agent#0 stream=1 parse_dur_us=101593 per_event_parse_us=126.99 events=800
+08-01 23:02:03.251 I/AnebProbe( 2751): CLOCK_SYNC scenario=s2_coding_agent#0 edge=end phase=7 offset_us=-321926398922 err_us=30115 valid_n=17 total_n=20 warmup_n=3
+08-01 23:02:03.318 I/AnebProbe( 2751): SKEW scenario=s2_coding_agent#0 start_offset_us=-321926401185 end_offset_us=-321926398922 drift_ppm=39.39 offset_suspect=false
+08-01 23:02:03.386 I/AnebProbe( 2751): SCENARIO_KPI scenario=s2_coding_agent#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=66.1210(lowconf) t2_ms=17.4139 t2_incl_ms=17.4139 t3=0.0000 t3_incl=0.0567 t4=0.0000 t5_ms=752.7589 n1_ms=73.2030 n2_ms=15.1270 u1_mbps=8.2448(lowconf) u1_excl_mbps=null u2_ms=143.9005 gaps=0 dup=0
+08-01 23:02:03.386 I/AnebProbe( 2751): BUFFERING scenario=s2_coding_agent#0 score=0.099 attribution=none samples=1098 sawtooth=0.104 near_zero=0.046 lag1=-0.418 batch_count=49 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:02:03.386 I/AnebProbe( 2751): SCENARIO_START scenario=s3_multimodal#0 round=0 order_index=2
+08-01 23:02:08.837 I/AnebProbe( 2751): CLOCK_SYNC scenario=s3_multimodal#0 edge=start phase=0 offset_us=-321926398031 err_us=32461 valid_n=17 total_n=20 warmup_n=3
+08-01 23:02:09.340 I/AnebProbe( 2751): UPLOAD scenario=s3_multimodal#0 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=474.31 goodput_mbps=17.686 server_chunks=16 error=none
+08-01 23:02:09.341 I/AnebProbe( 2751): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:02:16.944 I/AnebProbe( 2751): STREAM scenario=s3_multimodal#0 stream=0 expected=200 events=200 reads=201 bytes=61064 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=65.77 error=none
+08-01 23:02:16.945 I/AnebProbe( 2751): PARSE scenario=s3_multimodal#0 stream=0 parse_dur_us=36797 per_event_parse_us=183.99 events=200
+08-01 23:02:25.365 I/AnebProbe( 2751): DOWNLOAD scenario=s3_multimodal#0 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8416.04 goodput_mbps=11.961 error=none
+08-01 23:02:25.915 I/AnebProbe( 2751): UPLOAD scenario=s3_multimodal#0 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=524.50 goodput_mbps=15.994 server_chunks=16 error=none
+08-01 23:02:25.916 I/AnebProbe( 2751): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:02:33.523 I/AnebProbe( 2751): STREAM scenario=s3_multimodal#0 stream=1 expected=200 events=200 reads=201 bytes=62042 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=64.42 error=none
+08-01 23:02:33.523 I/AnebProbe( 2751): PARSE scenario=s3_multimodal#0 stream=1 parse_dur_us=40739 per_event_parse_us=203.70 events=200
+08-01 23:02:42.357 I/AnebProbe( 2751): DOWNLOAD scenario=s3_multimodal#0 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8838.41 goodput_mbps=11.389 error=none
+08-01 23:02:48.390 I/AnebProbe( 2751): CLOCK_SYNC scenario=s3_multimodal#0 edge=end phase=9 offset_us=-321926398274 err_us=32561 valid_n=17 total_n=20 warmup_n=3
+08-01 23:02:48.412 I/AnebProbe( 2751): SKEW scenario=s3_multimodal#0 start_offset_us=-321926398031 end_offset_us=-321926398274 drift_ppm=-6.08 offset_suspect=false
+08-01 23:02:48.556 I/AnebProbe( 2751): SCENARIO_KPI scenario=s3_multimodal#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=64.4181(lowconf) t2_ms=30.8844 t2_incl_ms=30.8844 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=73.4410 n2_ms=10.2580 u1_mbps=15.9935(lowconf) u1_excl_mbps=25.7455(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:02:48.566 I/AnebProbe( 2751): BUFFERING scenario=s3_multimodal#0 score=0.062 attribution=none samples=398 sawtooth=0.010 near_zero=0.000 lag1=-0.642 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:02:48.566 I/AnebProbe( 2751): ORDER round=1 order=s2_coding_agent,s3_multimodal,s1_chat
+08-01 23:02:48.566 I/AnebProbe( 2751): SCENARIO_START scenario=s2_coding_agent#1 round=1 order_index=3
+08-01 23:02:54.560 I/AnebProbe( 2751): CLOCK_SYNC scenario=s2_coding_agent#1 edge=start phase=0 offset_us=-321926396317 err_us=33620 valid_n=17 total_n=20 warmup_n=3
+08-01 23:02:55.025 I/AnebProbe( 2751): UPLOAD scenario=s2_coding_agent#1 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=448.72 goodput_mbps=9.347 server_chunks=8 error=none
+08-01 23:02:55.025 I/AnebProbe( 2751): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=3000
+08-01 23:03:07.182 I/AnebProbe( 2751): STREAM scenario=s2_coding_agent#1 stream=0 expected=300 events=300 reads=301 bytes=91569 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=62.88 error=none
+08-01 23:03:07.182 I/AnebProbe( 2751): PARSE scenario=s2_coding_agent#1 stream=0 parse_dur_us=51400 per_event_parse_us=171.33 events=300
+08-01 23:03:07.523 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=0 up_bytes=8192 total_ms=341.25 proc_nominal_ms=200 proc_actual_us=200422 http=200 error=none
+08-01 23:03:07.853 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=1 up_bytes=8192 total_ms=323.70 proc_nominal_ms=200 proc_actual_us=200351 http=200 error=none
+08-01 23:03:08.187 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=2 up_bytes=8192 total_ms=327.33 proc_nominal_ms=200 proc_actual_us=200372 http=200 error=none
+08-01 23:03:08.523 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=3 up_bytes=8192 total_ms=326.65 proc_nominal_ms=200 proc_actual_us=200359 http=200 error=none
+08-01 23:03:08.851 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=4 up_bytes=8192 total_ms=321.72 proc_nominal_ms=200 proc_actual_us=200335 http=200 error=none
+08-01 23:03:09.191 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=5 up_bytes=8192 total_ms=330.54 proc_nominal_ms=200 proc_actual_us=200339 http=200 error=none
+08-01 23:03:09.524 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=6 up_bytes=8192 total_ms=325.38 proc_nominal_ms=200 proc_actual_us=200339 http=200 error=none
+08-01 23:03:09.844 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#1 round=7 up_bytes=8192 total_ms=317.37 proc_nominal_ms=200 proc_actual_us=200341 http=200 error=none
+08-01 23:03:09.845 I/AnebProbe( 2751): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=2000
+08-01 23:03:46.359 I/AnebProbe( 2751): STREAM scenario=s2_coding_agent#1 stream=1 expected=800 events=800 reads=802 bytes=248282 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=61.61 error=none
+08-01 23:03:46.359 I/AnebProbe( 2751): PARSE scenario=s2_coding_agent#1 stream=1 parse_dur_us=93610 per_event_parse_us=117.01 events=800
+08-01 23:03:52.328 I/AnebProbe( 2751): CLOCK_SYNC scenario=s2_coding_agent#1 edge=end phase=7 offset_us=-321926398213 err_us=33248 valid_n=17 total_n=20 warmup_n=3
+08-01 23:03:52.363 I/AnebProbe( 2751): SKEW scenario=s2_coding_agent#1 start_offset_us=-321926396317 end_offset_us=-321926398213 drift_ppm=-32.92 offset_suspect=false
+08-01 23:03:52.475 I/AnebProbe( 2751): SCENARIO_KPI scenario=s2_coding_agent#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=61.6145(lowconf) t2_ms=20.5378 t2_incl_ms=20.5378 t3=0.0000 t3_incl=0.0566 t4=0.0000 t5_ms=749.3448 n1_ms=71.3190 n2_ms=13.7330 u1_mbps=9.3472(lowconf) u1_excl_mbps=null u2_ms=140.8264 gaps=0 dup=0
+08-01 23:03:52.485 I/AnebProbe( 2751): BUFFERING scenario=s2_coding_agent#1 score=0.109 attribution=none samples=1098 sawtooth=0.138 near_zero=0.058 lag1=-0.444 batch_count=64 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:03:52.485 I/AnebProbe( 2751): SCENARIO_START scenario=s3_multimodal#1 round=1 order_index=4
+08-01 23:03:58.296 I/AnebProbe( 2751): CLOCK_SYNC scenario=s3_multimodal#1 edge=start phase=0 offset_us=-321926401534 err_us=31221 valid_n=17 total_n=20 warmup_n=3
+08-01 23:03:58.744 I/AnebProbe( 2751): UPLOAD scenario=s3_multimodal#1 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=440.38 goodput_mbps=19.049 server_chunks=16 error=none
+08-01 23:03:58.744 I/AnebProbe( 2751): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:04:06.347 I/AnebProbe( 2751): STREAM scenario=s3_multimodal#1 stream=0 expected=200 events=200 reads=201 bytes=61058 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=71.24 error=none
+08-01 23:04:06.349 I/AnebProbe( 2751): PARSE scenario=s3_multimodal#1 stream=0 parse_dur_us=28063 per_event_parse_us=140.32 events=200
+08-01 23:04:15.603 I/AnebProbe( 2751): DOWNLOAD scenario=s3_multimodal#1 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=9243.59 goodput_mbps=10.890 error=none
+08-01 23:04:16.193 I/AnebProbe( 2751): UPLOAD scenario=s3_multimodal#1 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=556.96 goodput_mbps=15.061 server_chunks=16 error=none
+08-01 23:04:16.193 I/AnebProbe( 2751): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:04:23.790 I/AnebProbe( 2751): STREAM scenario=s3_multimodal#1 stream=1 expected=200 events=200 reads=201 bytes=62048 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=69.15 error=none
+08-01 23:04:23.790 I/AnebProbe( 2751): PARSE scenario=s3_multimodal#1 stream=1 parse_dur_us=38123 per_event_parse_us=190.62 events=200
+08-01 23:04:32.956 I/AnebProbe( 2751): DOWNLOAD scenario=s3_multimodal#1 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=9172.42 goodput_mbps=10.975 error=none
+08-01 23:04:38.821 I/AnebProbe( 2751): CLOCK_SYNC scenario=s3_multimodal#1 edge=end phase=9 offset_us=-321926405377 err_us=30090 valid_n=17 total_n=20 warmup_n=3
+08-01 23:04:38.834 I/AnebProbe( 2751): SKEW scenario=s3_multimodal#1 start_offset_us=-321926401534 end_offset_us=-321926405377 drift_ppm=-93.02 offset_suspect=false
+08-01 23:04:38.902 I/AnebProbe( 2751): SCENARIO_KPI scenario=s3_multimodal#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=69.1533(lowconf) t2_ms=30.8444 t2_incl_ms=30.8444 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=72.0490 n2_ms=12.4070 u1_mbps=15.0614(lowconf) u1_excl_mbps=25.3785(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:04:38.906 I/AnebProbe( 2751): BUFFERING scenario=s3_multimodal#1 score=0.063 attribution=none samples=398 sawtooth=0.025 near_zero=0.000 lag1=-0.626 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:04:38.907 I/AnebProbe( 2751): SCENARIO_START scenario=s1_chat#1 round=1 order_index=5
+08-01 23:04:44.516 I/AnebProbe( 2751): CLOCK_SYNC scenario=s1_chat#1 edge=start phase=0 offset_us=-321926403929 err_us=29139 valid_n=17 total_n=20 warmup_n=3
+08-01 23:04:44.653 I/AnebProbe( 2751): UPLOAD scenario=s1_chat#1 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=126.31 goodput_mbps=0.130 server_chunks=1 error=none
+08-01 23:04:59.798 I/AnebProbe( 2751): STREAM scenario=s1_chat#1 stream=0 expected=600 events=600 reads=602 bytes=188842 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=60.28 error=none
+08-01 23:04:59.798 I/AnebProbe( 2751): PARSE scenario=s1_chat#1 stream=0 parse_dur_us=81827 per_event_parse_us=136.38 events=600
+08-01 23:05:05.447 I/AnebProbe( 2751): CLOCK_SYNC scenario=s1_chat#1 edge=end phase=3 offset_us=-321926398666 err_us=29856 valid_n=17 total_n=20 warmup_n=3
+08-01 23:05:05.480 I/AnebProbe( 2751): SKEW scenario=s1_chat#1 start_offset_us=-321926403929 end_offset_us=-321926398666 drift_ppm=273.75 offset_suspect=true
+08-01 23:05:05.561 I/AnebProbe( 2751): SCENARIO_KPI scenario=s1_chat#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=60.2827(lowconf) t2_ms=31.1712 t2_incl_ms=31.1712 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=67.8590 n2_ms=9.8910 u1_mbps=0.1297(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:05:05.569 I/AnebProbe( 2751): BUFFERING scenario=s1_chat#1 score=0.080 attribution=none samples=599 sawtooth=0.035 near_zero=0.000 lag1=-0.656 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:05:05.569 I/AnebProbe( 2751): ORDER round=2 order=s3_multimodal,s1_chat,s2_coding_agent
+08-01 23:05:05.569 I/AnebProbe( 2751): SCENARIO_START scenario=s3_multimodal#2 round=2 order_index=6
+08-01 23:05:11.117 I/AnebProbe( 2751): CLOCK_SYNC scenario=s3_multimodal#2 edge=start phase=0 offset_us=-321926401403 err_us=28544 valid_n=17 total_n=20 warmup_n=3
+08-01 23:05:11.695 I/AnebProbe( 2751): UPLOAD scenario=s3_multimodal#2 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=548.43 goodput_mbps=15.296 server_chunks=16 error=none
+08-01 23:05:11.695 I/AnebProbe( 2751): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:05:19.293 I/AnebProbe( 2751): STREAM scenario=s3_multimodal#2 stream=0 expected=200 events=200 reads=201 bytes=61062 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=62.44 error=none
+08-01 23:05:19.293 I/AnebProbe( 2751): PARSE scenario=s3_multimodal#2 stream=0 parse_dur_us=40781 per_event_parse_us=203.91 events=200
+08-01 23:05:21.448 I/AnebProbe( 2751): DOWNLOAD scenario=s3_multimodal#2 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=2148.63 goodput_mbps=46.850 error=none
+08-01 23:05:22.008 I/AnebProbe( 2751): UPLOAD scenario=s3_multimodal#2 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=541.20 goodput_mbps=15.500 server_chunks=16 error=none
+08-01 23:05:22.008 I/AnebProbe( 2751): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:05:29.613 I/AnebProbe( 2751): STREAM scenario=s3_multimodal#2 stream=1 expected=200 events=200 reads=201 bytes=62047 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=60.90 error=none
+08-01 23:05:29.614 I/AnebProbe( 2751): PARSE scenario=s3_multimodal#2 stream=1 parse_dur_us=39743 per_event_parse_us=198.72 events=200
+08-01 23:05:31.368 I/AnebProbe( 2751): DOWNLOAD scenario=s3_multimodal#2 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=1760.58 goodput_mbps=57.176 error=none
+08-01 23:05:37.199 I/AnebProbe( 2751): CLOCK_SYNC scenario=s3_multimodal#2 edge=end phase=9 offset_us=-321926399305 err_us=32824 valid_n=17 total_n=20 warmup_n=3
+08-01 23:05:37.222 I/AnebProbe( 2751): SKEW scenario=s3_multimodal#2 start_offset_us=-321926401403 end_offset_us=-321926399305 drift_ppm=77.33 offset_suspect=false
+08-01 23:05:37.295 I/AnebProbe( 2751): SCENARIO_KPI scenario=s3_multimodal#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=60.9025(lowconf) t2_ms=31.7146 t2_incl_ms=31.7146 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=68.1760 n2_ms=12.3350 u1_mbps=15.2957(lowconf) u1_excl_mbps=25.1437(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:05:37.297 I/AnebProbe( 2751): BUFFERING scenario=s3_multimodal#2 score=0.069 attribution=none samples=398 sawtooth=0.040 near_zero=0.000 lag1=-0.621 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:05:37.297 I/AnebProbe( 2751): SCENARIO_START scenario=s1_chat#2 round=2 order_index=7
+08-01 23:05:43.090 I/AnebProbe( 2751): CLOCK_SYNC scenario=s1_chat#2 edge=start phase=0 offset_us=-321926400861 err_us=29466 valid_n=17 total_n=20 warmup_n=3
+08-01 23:05:43.230 I/AnebProbe( 2751): UPLOAD scenario=s1_chat#2 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=125.83 goodput_mbps=0.130 server_chunks=1 error=none
+08-01 23:05:58.386 I/AnebProbe( 2751): STREAM scenario=s1_chat#2 stream=0 expected=600 events=600 reads=602 bytes=188852 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=58.86 error=none
+08-01 23:05:58.390 I/AnebProbe( 2751): PARSE scenario=s1_chat#2 stream=0 parse_dur_us=78558 per_event_parse_us=130.93 events=600
+08-01 23:06:03.860 I/AnebProbe( 2751): CLOCK_SYNC scenario=s1_chat#2 edge=end phase=3 offset_us=-321926397373 err_us=32008 valid_n=17 total_n=20 warmup_n=3
+08-01 23:06:03.889 I/AnebProbe( 2751): SKEW scenario=s1_chat#2 start_offset_us=-321926400861 end_offset_us=-321926397373 drift_ppm=151.53 offset_suspect=true
+08-01 23:06:03.962 I/AnebProbe( 2751): SCENARIO_KPI scenario=s1_chat#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=58.8555(lowconf) t2_ms=30.9270 t2_incl_ms=30.9270 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=68.9080 n2_ms=7.4920 u1_mbps=0.1302(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:06:03.975 I/AnebProbe( 2751): BUFFERING scenario=s1_chat#2 score=0.071 attribution=none samples=599 sawtooth=0.007 near_zero=0.000 lag1=-0.670 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:06:03.975 I/AnebProbe( 2751): SCENARIO_START scenario=s2_coding_agent#2 round=2 order_index=8
+08-01 23:06:09.667 I/AnebProbe( 2751): CLOCK_SYNC scenario=s2_coding_agent#2 edge=start phase=0 offset_us=-321926396736 err_us=32473 valid_n=17 total_n=20 warmup_n=3
+08-01 23:06:10.158 I/AnebProbe( 2751): UPLOAD scenario=s2_coding_agent#2 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=465.94 goodput_mbps=9.002 server_chunks=8 error=none
+08-01 23:06:10.158 I/AnebProbe( 2751): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=3000
+08-01 23:06:22.299 I/AnebProbe( 2751): STREAM scenario=s2_coding_agent#2 stream=0 expected=300 events=300 reads=301 bytes=91570 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=61.02 error=none
+08-01 23:06:22.300 I/AnebProbe( 2751): PARSE scenario=s2_coding_agent#2 stream=0 parse_dur_us=43209 per_event_parse_us=144.03 events=300
+08-01 23:06:22.641 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=0 up_bytes=8192 total_ms=334.84 proc_nominal_ms=200 proc_actual_us=200362 http=200 error=none
+08-01 23:06:22.974 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=1 up_bytes=8192 total_ms=324.53 proc_nominal_ms=200 proc_actual_us=200353 http=200 error=none
+08-01 23:06:23.302 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=2 up_bytes=8192 total_ms=322.64 proc_nominal_ms=200 proc_actual_us=200356 http=200 error=none
+08-01 23:06:23.635 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=3 up_bytes=8192 total_ms=328.52 proc_nominal_ms=200 proc_actual_us=200406 http=200 error=none
+08-01 23:06:23.967 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=4 up_bytes=8192 total_ms=324.13 proc_nominal_ms=200 proc_actual_us=200358 http=200 error=none
+08-01 23:06:24.297 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=5 up_bytes=8192 total_ms=320.37 proc_nominal_ms=200 proc_actual_us=200399 http=200 error=none
+08-01 23:06:24.623 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=6 up_bytes=8192 total_ms=319.59 proc_nominal_ms=200 proc_actual_us=200354 http=200 error=none
+08-01 23:06:24.941 I/AnebProbe( 2751): TOOLLOOP scenario=s2_coding_agent#2 round=7 up_bytes=8192 total_ms=316.42 proc_nominal_ms=200 proc_actual_us=200371 http=200 error=none
+08-01 23:06:24.942 I/AnebProbe( 2751): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=2000
+08-01 23:07:01.459 I/AnebProbe( 2751): STREAM scenario=s2_coding_agent#2 stream=1 expected=800 events=800 reads=801 bytes=248339 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=61.39 error=none
+08-01 23:07:01.459 I/AnebProbe( 2751): PARSE scenario=s2_coding_agent#2 stream=1 parse_dur_us=91176 per_event_parse_us=113.97 events=800
+08-01 23:07:07.222 I/AnebProbe( 2751): CLOCK_SYNC scenario=s2_coding_agent#2 edge=end phase=7 offset_us=-321926398876 err_us=32140 valid_n=17 total_n=20 warmup_n=3
+08-01 23:07:07.262 I/AnebProbe( 2751): SKEW scenario=s2_coding_agent#2 start_offset_us=-321926396736 end_offset_us=-321926398876 drift_ppm=-35.26 offset_suspect=false
+08-01 23:07:07.338 I/AnebProbe( 2751): SCENARIO_KPI scenario=s2_coding_agent#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=61.0221(lowconf) t2_ms=20.2507 t2_incl_ms=20.2507 t3=0.0000 t3_incl=0.0567 t4=0.0000 t5_ms=750.9349 n1_ms=69.2250 n2_ms=11.5690 u1_mbps=9.0018(lowconf) u1_excl_mbps=null u2_ms=134.4781 gaps=0 dup=0
+08-01 23:07:07.339 I/AnebProbe( 2751): BUFFERING scenario=s2_coding_agent#2 score=0.106 attribution=none samples=1098 sawtooth=0.123 near_zero=0.055 lag1=-0.431 batch_count=59 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:07:07.343 I/AnebProbe( 2751): AQS_INPUT_MAP map=N1,N2<-S1.first_clock_sync;T1,T2,T3,T4,T5<-S2;U1<-S3.1MB_upload(incl_slow_start_into_AQS);U2<-S2.tool_loop;D1<-S3.download;S1<-all_scenarios.round_success_ratio
+08-01 23:07:07.347 I/AnebProbe( 2751): AQS run_id=019fbdd7-4e24-718e-b1d9-48558a371c9c score=89.4 low_confidence=true veto=false reason=none subs=T1:95.4,T2:97.0,T3:100.0,U1:80.3,U2:85.9,N1:66.7,N2:85.2
+08-01 23:07:07.347 I/AnebProbe( 2751): AQS_V02 run_id=019fbdd7-4e24-718e-b1d9-48558a371c9c available=false reason=no_usable_continuity_in_24h
+08-01 23:07:07.348 I/AnebProbe( 2751): AQS_TOKEN run_id=019fbdd7-4e24-718e-b1d9-48558a371c9c table=WEIGHTS_TOKEN_MM score=86.3 veto=false reason=none workload=up:2623488B,dl:25165824B,stream:800,tool:8
+08-01 23:07:07.519 I/AnebProbe( 2751): REPORT http=200 bytes=23475 error=none
+08-01 23:07:07.545 I/AnebProbe( 2751): DB_WRITE run_id=019fbdd7-4e24-718e-b1d9-48558a371c9c scenarios=9 env_events_pending=0 radio_samples_pending=0
+08-01 23:07:07.545 I/AnebProbe( 2751): RUN_END run_id=019fbdd7-4e24-718e-b1d9-48558a371c9c status=completed
+08-01 23:07:24.152 I/AnebProbe( 3708): >>> RUN mode=forensic transport=cellular -> https://120-79-148-0.sslip.io:8443
+08-01 23:07:24.306 I/AnebProbe( 3708): RUN_START run_id=019fbddd-98db-73e4-a8da-7ac1af4e0b69 mode=forensic transport=cellular server=https://120-79-148-0.sslip.io:8443 inject=none drive_test=false
+08-01 23:07:24.307 I/AnebProbe( 3708): GUARD_OK metadata=private_dns_active=false;active_transports=cellular;active_validated=true;checked_at_nanos=807904694084311
+08-01 23:07:24.307 I/AnebProbe( 3708): NET_BIND transport=cellular snapshot=transports=cellular_validated=true_not_suspended=true_not_metered=false_down_kbps=30000_up_kbps=15000
+08-01 23:07:24.655 I/AnebProbe( 3708): REACH sni=rst sni_ms=null ip=ok ip_ms=238
+08-01 23:07:24.655 I/AnebProbe( 3708): REACH_SWITCH from=sni_host to=bare_ip reason=sni_rst_ip_ok base=https://120.79.148.0:8443
+08-01 23:07:24.934 I/AnebProbe( 3708): PROFILES source=server versions=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0
+08-01 23:07:24.934 I/AnebProbe( 3708): PROFILE_WARN version_mismatch_server=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0_assets=s1_chat@0.2.0;s2_coding_agent@0.2.0;s3_multimodal@0.3.0_(以服务端为准)
+08-01 23:07:24.958 I/AnebProbe( 3708): ORDER round=0 order=s1_chat,s2_coding_agent,s3_multimodal
+08-01 23:07:24.959 I/AnebProbe( 3708): SCENARIO_START scenario=s1_chat#0 round=0 order_index=0
+08-01 23:07:30.440 I/AnebProbe( 3708): CLOCK_SYNC scenario=s1_chat#0 edge=start phase=0 offset_us=-321926402218 err_us=30830 valid_n=17 total_n=20 warmup_n=3
+08-01 23:07:30.612 I/AnebProbe( 3708): UPLOAD scenario=s1_chat#0 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=151.84 goodput_mbps=0.108 server_chunks=1 error=none
+08-01 23:07:45.792 I/AnebProbe( 3708): STREAM scenario=s1_chat#0 stream=0 expected=600 events=600 reads=602 bytes=188843 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=53.85 error=none
+08-01 23:07:45.792 I/AnebProbe( 3708): PARSE scenario=s1_chat#0 stream=0 parse_dur_us=95891 per_event_parse_us=159.82 events=600
+08-01 23:07:51.330 I/AnebProbe( 3708): CLOCK_SYNC scenario=s1_chat#0 edge=end phase=3 offset_us=-321926401462 err_us=30826 valid_n=17 total_n=20 warmup_n=3
+08-01 23:07:51.414 I/AnebProbe( 3708): SKEW scenario=s1_chat#0 start_offset_us=-321926402218 end_offset_us=-321926401462 drift_ppm=34.36 offset_suspect=false
+08-01 23:07:51.493 I/AnebProbe( 3708): SCENARIO_KPI scenario=s1_chat#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=53.8510(lowconf) t2_ms=31.0476 t2_incl_ms=31.0476 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=72.4240 n2_ms=8.5560 u1_mbps=0.1079(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:07:51.493 I/AnebProbe( 3708): BUFFERING scenario=s1_chat#0 score=0.083 attribution=none samples=599 sawtooth=0.010 near_zero=0.000 lag1=-0.695 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:07:51.493 I/AnebProbe( 3708): SCENARIO_START scenario=s2_coding_agent#0 round=0 order_index=1
+08-01 23:07:57.374 I/AnebProbe( 3708): CLOCK_SYNC scenario=s2_coding_agent#0 edge=start phase=0 offset_us=-321926396095 err_us=34080 valid_n=17 total_n=20 warmup_n=3
+08-01 23:07:57.816 I/AnebProbe( 3708): UPLOAD scenario=s2_coding_agent#0 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=396.60 goodput_mbps=10.576 server_chunks=8 error=none
+08-01 23:07:57.817 I/AnebProbe( 3708): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=3000
+08-01 23:08:09.990 I/AnebProbe( 3708): STREAM scenario=s2_coding_agent#0 stream=0 expected=300 events=300 reads=301 bytes=91581 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=68.44 error=none
+08-01 23:08:09.990 I/AnebProbe( 3708): PARSE scenario=s2_coding_agent#0 stream=0 parse_dur_us=49885 per_event_parse_us=166.28 events=300
+08-01 23:08:10.327 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=0 up_bytes=8192 total_ms=331.98 proc_nominal_ms=200 proc_actual_us=200312 http=200 error=none
+08-01 23:08:10.648 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=1 up_bytes=8192 total_ms=320.15 proc_nominal_ms=200 proc_actual_us=200307 http=200 error=none
+08-01 23:08:10.977 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=2 up_bytes=8192 total_ms=322.90 proc_nominal_ms=200 proc_actual_us=200346 http=200 error=none
+08-01 23:08:11.308 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=3 up_bytes=8192 total_ms=323.13 proc_nominal_ms=200 proc_actual_us=200352 http=200 error=none
+08-01 23:08:11.653 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=4 up_bytes=8192 total_ms=341.40 proc_nominal_ms=200 proc_actual_us=200118 http=200 error=none
+08-01 23:08:11.994 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=5 up_bytes=8192 total_ms=319.84 proc_nominal_ms=200 proc_actual_us=200341 http=200 error=none
+08-01 23:08:12.316 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=6 up_bytes=8192 total_ms=329.58 proc_nominal_ms=200 proc_actual_us=200106 http=200 error=none
+08-01 23:08:12.651 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#0 round=7 up_bytes=8192 total_ms=328.51 proc_nominal_ms=200 proc_actual_us=200301 http=200 error=none
+08-01 23:08:12.651 I/AnebProbe( 3708): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=2000
+08-01 23:08:49.175 I/AnebProbe( 3708): STREAM scenario=s2_coding_agent#0 stream=1 expected=800 events=800 reads=803 bytes=248302 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=64.54 error=none
+08-01 23:08:49.178 I/AnebProbe( 3708): PARSE scenario=s2_coding_agent#0 stream=1 parse_dur_us=94855 per_event_parse_us=118.57 events=800
+08-01 23:08:54.694 I/AnebProbe( 3708): CLOCK_SYNC scenario=s2_coding_agent#0 edge=end phase=7 offset_us=-321926399467 err_us=30269 valid_n=17 total_n=20 warmup_n=3
+08-01 23:08:54.790 I/AnebProbe( 3708): SKEW scenario=s2_coding_agent#0 start_offset_us=-321926396095 end_offset_us=-321926399467 drift_ppm=-56.67 offset_suspect=false
+08-01 23:08:54.861 I/AnebProbe( 3708): SCENARIO_KPI scenario=s2_coding_agent#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=64.5428(lowconf) t2_ms=18.9145 t2_incl_ms=18.9145 t3=0.0000 t3_incl=0.0566 t4=0.0000 t5_ms=752.2161 n1_ms=76.4870 n2_ms=8.7090 u1_mbps=10.5757(lowconf) u1_excl_mbps=null u2_ms=141.2862 gaps=0 dup=0
+08-01 23:08:54.861 I/AnebProbe( 3708): BUFFERING scenario=s2_coding_agent#0 score=0.090 attribution=none samples=1098 sawtooth=0.108 near_zero=0.048 lag1=-0.446 batch_count=53 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:08:54.862 I/AnebProbe( 3708): SCENARIO_START scenario=s3_multimodal#0 round=0 order_index=2
+08-01 23:09:00.557 I/AnebProbe( 3708): CLOCK_SYNC scenario=s3_multimodal#0 edge=start phase=0 offset_us=-321926398632 err_us=32549 valid_n=17 total_n=20 warmup_n=3
+08-01 23:09:01.126 I/AnebProbe( 3708): UPLOAD scenario=s3_multimodal#0 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=537.03 goodput_mbps=15.620 server_chunks=16 error=none
+08-01 23:09:01.127 I/AnebProbe( 3708): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:09:08.716 I/AnebProbe( 3708): STREAM scenario=s3_multimodal#0 stream=0 expected=200 events=200 reads=201 bytes=61065 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=62.21 error=none
+08-01 23:09:08.717 I/AnebProbe( 3708): PARSE scenario=s3_multimodal#0 stream=0 parse_dur_us=31468 per_event_parse_us=157.34 events=200
+08-01 23:09:12.239 I/AnebProbe( 3708): DOWNLOAD scenario=s3_multimodal#0 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=3512.97 goodput_mbps=28.655 error=none
+08-01 23:09:12.725 I/AnebProbe( 3708): UPLOAD scenario=s3_multimodal#0 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=470.20 goodput_mbps=17.841 server_chunks=16 error=none
+08-01 23:09:12.725 I/AnebProbe( 3708): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:09:20.321 I/AnebProbe( 3708): STREAM scenario=s3_multimodal#0 stream=1 expected=200 events=200 reads=201 bytes=62045 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=69.09 error=none
+08-01 23:09:20.321 I/AnebProbe( 3708): PARSE scenario=s3_multimodal#0 stream=1 parse_dur_us=35171 per_event_parse_us=175.86 events=200
+08-01 23:09:22.842 I/AnebProbe( 3708): DOWNLOAD scenario=s3_multimodal#0 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=2525.95 goodput_mbps=39.852 error=none
+08-01 23:09:28.352 I/AnebProbe( 3708): CLOCK_SYNC scenario=s3_multimodal#0 edge=end phase=9 offset_us=-321926398250 err_us=31310 valid_n=17 total_n=20 warmup_n=3
+08-01 23:09:28.393 I/AnebProbe( 3708): SKEW scenario=s3_multimodal#0 start_offset_us=-321926398632 end_offset_us=-321926398250 drift_ppm=13.54 offset_suspect=false
+08-01 23:09:28.466 I/AnebProbe( 3708): SCENARIO_KPI scenario=s3_multimodal#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=62.2114(lowconf) t2_ms=31.4525 t2_incl_ms=31.4525 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=71.5170 n2_ms=12.9940 u1_mbps=15.6203(lowconf) u1_excl_mbps=25.1843(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:09:28.466 I/AnebProbe( 3708): BUFFERING scenario=s3_multimodal#0 score=0.039 attribution=none samples=398 sawtooth=0.043 near_zero=0.000 lag1=-0.544 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:09:28.467 I/AnebProbe( 3708): ORDER round=1 order=s2_coding_agent,s3_multimodal,s1_chat
+08-01 23:09:28.467 I/AnebProbe( 3708): SCENARIO_START scenario=s2_coding_agent#1 round=1 order_index=3
+08-01 23:09:34.455 I/AnebProbe( 3708): CLOCK_SYNC scenario=s2_coding_agent#1 edge=start phase=0 offset_us=-321926403523 err_us=29771 valid_n=17 total_n=20 warmup_n=3
+08-01 23:09:34.887 I/AnebProbe( 3708): UPLOAD scenario=s2_coding_agent#1 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=418.12 goodput_mbps=10.031 server_chunks=8 error=none
+08-01 23:09:34.887 I/AnebProbe( 3708): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=3000
+08-01 23:09:47.035 I/AnebProbe( 3708): STREAM scenario=s2_coding_agent#1 stream=0 expected=300 events=300 reads=299 bytes=91565 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=65.54 error=none
+08-01 23:09:47.036 I/AnebProbe( 3708): PARSE scenario=s2_coding_agent#1 stream=0 parse_dur_us=42727 per_event_parse_us=142.42 events=300
+08-01 23:09:47.365 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=0 up_bytes=8192 total_ms=323.83 proc_nominal_ms=200 proc_actual_us=200388 http=200 error=none
+08-01 23:09:47.681 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=1 up_bytes=8192 total_ms=321.80 proc_nominal_ms=200 proc_actual_us=200510 http=200 error=none
+08-01 23:09:48.011 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=2 up_bytes=8192 total_ms=323.43 proc_nominal_ms=200 proc_actual_us=200377 http=200 error=none
+08-01 23:09:48.339 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=3 up_bytes=8192 total_ms=325.07 proc_nominal_ms=200 proc_actual_us=200244 http=200 error=none
+08-01 23:09:48.677 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=4 up_bytes=8192 total_ms=327.29 proc_nominal_ms=200 proc_actual_us=200352 http=200 error=none
+08-01 23:09:49.021 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=5 up_bytes=8192 total_ms=334.45 proc_nominal_ms=200 proc_actual_us=200367 http=200 error=none
+08-01 23:09:49.339 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=6 up_bytes=8192 total_ms=316.19 proc_nominal_ms=200 proc_actual_us=200340 http=200 error=none
+08-01 23:09:49.666 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#1 round=7 up_bytes=8192 total_ms=314.32 proc_nominal_ms=200 proc_actual_us=200384 http=200 error=none
+08-01 23:09:49.667 I/AnebProbe( 3708): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=2000
+08-01 23:10:26.172 I/AnebProbe( 3708): STREAM scenario=s2_coding_agent#1 stream=1 expected=800 events=800 reads=802 bytes=248362 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=59.71 error=none
+08-01 23:10:26.173 I/AnebProbe( 3708): PARSE scenario=s2_coding_agent#1 stream=1 parse_dur_us=80682 per_event_parse_us=100.85 events=800
+08-01 23:10:31.737 I/AnebProbe( 3708): CLOCK_SYNC scenario=s2_coding_agent#1 edge=end phase=7 offset_us=-321926398832 err_us=30175 valid_n=17 total_n=20 warmup_n=3
+08-01 23:10:31.803 I/AnebProbe( 3708): SKEW scenario=s2_coding_agent#1 start_offset_us=-321926403523 end_offset_us=-321926398832 drift_ppm=85.43 offset_suspect=false
+08-01 23:10:31.902 I/AnebProbe( 3708): SCENARIO_KPI scenario=s2_coding_agent#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=59.7126(lowconf) t2_ms=19.6888 t2_incl_ms=19.6888 t3=0.0000 t3_incl=0.0567 t4=0.0000 t5_ms=752.6641 n1_ms=70.2800 n2_ms=16.1040 u1_mbps=10.0312(lowconf) u1_excl_mbps=null u2_ms=134.0825 gaps=0 dup=0
+08-01 23:10:31.902 I/AnebProbe( 3708): BUFFERING scenario=s2_coding_agent#1 score=0.122 attribution=none samples=1098 sawtooth=0.130 near_zero=0.053 lag1=-0.398 batch_count=58 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:10:31.903 I/AnebProbe( 3708): SCENARIO_START scenario=s3_multimodal#1 round=1 order_index=4
+08-01 23:10:37.406 I/AnebProbe( 3708): CLOCK_SYNC scenario=s3_multimodal#1 edge=start phase=0 offset_us=-321926399548 err_us=30195 valid_n=17 total_n=20 warmup_n=3
+08-01 23:10:37.888 I/AnebProbe( 3708): UPLOAD scenario=s3_multimodal#1 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=455.31 goodput_mbps=18.424 server_chunks=16 error=none
+08-01 23:10:37.889 I/AnebProbe( 3708): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:10:45.467 I/AnebProbe( 3708): STREAM scenario=s3_multimodal#1 stream=0 expected=200 events=200 reads=201 bytes=61062 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=64.21 error=none
+08-01 23:10:45.468 I/AnebProbe( 3708): PARSE scenario=s3_multimodal#1 stream=0 parse_dur_us=21508 per_event_parse_us=107.54 events=200
+08-01 23:10:53.835 I/AnebProbe( 3708): DOWNLOAD scenario=s3_multimodal#1 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8372.73 goodput_mbps=12.023 error=none
+08-01 23:10:54.399 I/AnebProbe( 3708): UPLOAD scenario=s3_multimodal#1 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=552.67 goodput_mbps=15.178 server_chunks=16 error=none
+08-01 23:10:54.399 I/AnebProbe( 3708): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:11:01.990 I/AnebProbe( 3708): STREAM scenario=s3_multimodal#1 stream=1 expected=200 events=200 reads=201 bytes=62057 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=77.01 error=none
+08-01 23:11:01.990 I/AnebProbe( 3708): PARSE scenario=s3_multimodal#1 stream=1 parse_dur_us=32644 per_event_parse_us=163.22 events=200
+08-01 23:11:07.467 I/AnebProbe( 3708): DOWNLOAD scenario=s3_multimodal#1 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=5469.12 goodput_mbps=18.406 error=none
+08-01 23:11:13.060 I/AnebProbe( 3708): CLOCK_SYNC scenario=s3_multimodal#1 edge=end phase=9 offset_us=-321926395229 err_us=34407 valid_n=17 total_n=20 warmup_n=3
+08-01 23:11:13.087 I/AnebProbe( 3708): SKEW scenario=s3_multimodal#1 start_offset_us=-321926399548 end_offset_us=-321926395229 drift_ppm=120.42 offset_suspect=true
+08-01 23:11:13.135 I/AnebProbe( 3708): SCENARIO_KPI scenario=s3_multimodal#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=64.2054(lowconf) t2_ms=30.6316 t2_incl_ms=30.6316 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=73.5350 n2_ms=12.8080 u1_mbps=15.1783(lowconf) u1_excl_mbps=24.2324(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:11:13.135 I/AnebProbe( 3708): BUFFERING scenario=s3_multimodal#1 score=0.089 attribution=none samples=398 sawtooth=0.050 near_zero=0.000 lag1=-0.661 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:11:13.135 I/AnebProbe( 3708): SCENARIO_START scenario=s1_chat#1 round=1 order_index=5
+08-01 23:11:18.995 I/AnebProbe( 3708): CLOCK_SYNC scenario=s1_chat#1 edge=start phase=0 offset_us=-321926402966 err_us=31498 valid_n=17 total_n=20 warmup_n=3
+08-01 23:11:19.163 I/AnebProbe( 3708): UPLOAD scenario=s1_chat#1 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=138.77 goodput_mbps=0.118 server_chunks=1 error=none
+08-01 23:11:34.289 I/AnebProbe( 3708): STREAM scenario=s1_chat#1 stream=0 expected=600 events=600 reads=602 bytes=188840 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=51.34 error=none
+08-01 23:11:34.289 I/AnebProbe( 3708): PARSE scenario=s1_chat#1 stream=0 parse_dur_us=69176 per_event_parse_us=115.29 events=600
+08-01 23:11:40.141 I/AnebProbe( 3708): CLOCK_SYNC scenario=s1_chat#1 edge=end phase=3 offset_us=-321926396613 err_us=32874 valid_n=17 total_n=20 warmup_n=3
+08-01 23:11:40.190 I/AnebProbe( 3708): SKEW scenario=s1_chat#1 start_offset_us=-321926402966 end_offset_us=-321926396613 drift_ppm=303.57 offset_suspect=true
+08-01 23:11:40.256 I/AnebProbe( 3708): SCENARIO_KPI scenario=s1_chat#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=51.3353(lowconf) t2_ms=30.2683 t2_incl_ms=30.2683 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=70.3610 n2_ms=13.5880 u1_mbps=0.1181(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:11:40.257 I/AnebProbe( 3708): BUFFERING scenario=s1_chat#1 score=0.061 attribution=none samples=599 sawtooth=0.020 near_zero=0.000 lag1=-0.627 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:11:40.257 I/AnebProbe( 3708): ORDER round=2 order=s3_multimodal,s1_chat,s2_coding_agent
+08-01 23:11:40.257 I/AnebProbe( 3708): SCENARIO_START scenario=s3_multimodal#2 round=2 order_index=6
+08-01 23:11:45.726 I/AnebProbe( 3708): CLOCK_SYNC scenario=s3_multimodal#2 edge=start phase=0 offset_us=-321926399862 err_us=31123 valid_n=17 total_n=20 warmup_n=3
+08-01 23:11:46.309 I/AnebProbe( 3708): UPLOAD scenario=s3_multimodal#2 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=558.06 goodput_mbps=15.032 server_chunks=16 error=none
+08-01 23:11:46.309 I/AnebProbe( 3708): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:11:53.891 I/AnebProbe( 3708): STREAM scenario=s3_multimodal#2 stream=0 expected=200 events=200 reads=201 bytes=61064 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=64.40 error=none
+08-01 23:11:53.891 I/AnebProbe( 3708): PARSE scenario=s3_multimodal#2 stream=0 parse_dur_us=31547 per_event_parse_us=157.74 events=200
+08-01 23:12:02.894 I/AnebProbe( 3708): DOWNLOAD scenario=s3_multimodal#2 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8994.66 goodput_mbps=11.191 error=none
+08-01 23:12:03.380 I/AnebProbe( 3708): UPLOAD scenario=s3_multimodal#2 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=469.63 goodput_mbps=17.862 server_chunks=16 error=none
+08-01 23:12:03.381 I/AnebProbe( 3708): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:12:10.974 I/AnebProbe( 3708): STREAM scenario=s3_multimodal#2 stream=1 expected=200 events=200 reads=201 bytes=62048 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=69.75 error=none
+08-01 23:12:10.975 I/AnebProbe( 3708): PARSE scenario=s3_multimodal#2 stream=1 parse_dur_us=29621 per_event_parse_us=148.11 events=200
+08-01 23:12:19.894 I/AnebProbe( 3708): DOWNLOAD scenario=s3_multimodal#2 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8913.32 goodput_mbps=11.294 error=none
+08-01 23:12:25.385 I/AnebProbe( 3708): CLOCK_SYNC scenario=s3_multimodal#2 edge=end phase=9 offset_us=-321926400375 err_us=28681 valid_n=17 total_n=20 warmup_n=3
+08-01 23:12:25.417 I/AnebProbe( 3708): SKEW scenario=s3_multimodal#2 start_offset_us=-321926399862 end_offset_us=-321926400375 drift_ppm=-12.24 offset_suspect=false
+08-01 23:12:25.485 I/AnebProbe( 3708): SCENARIO_KPI scenario=s3_multimodal#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=64.3986(lowconf) t2_ms=30.6708 t2_incl_ms=30.6708 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=69.8080 n2_ms=11.3870 u1_mbps=15.0316(lowconf) u1_excl_mbps=27.5007(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:12:25.485 I/AnebProbe( 3708): BUFFERING scenario=s3_multimodal#2 score=0.096 attribution=none samples=398 sawtooth=0.033 near_zero=0.000 lag1=-0.699 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:12:25.485 I/AnebProbe( 3708): SCENARIO_START scenario=s1_chat#2 round=2 order_index=7
+08-01 23:12:31.013 I/AnebProbe( 3708): CLOCK_SYNC scenario=s1_chat#2 edge=start phase=0 offset_us=-321926401461 err_us=26938 valid_n=17 total_n=20 warmup_n=3
+08-01 23:12:31.160 I/AnebProbe( 3708): UPLOAD scenario=s1_chat#2 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=138.49 goodput_mbps=0.118 server_chunks=1 error=none
+08-01 23:12:46.309 I/AnebProbe( 3708): STREAM scenario=s1_chat#2 stream=0 expected=600 events=600 reads=602 bytes=188861 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=69.94 error=none
+08-01 23:12:46.309 I/AnebProbe( 3708): PARSE scenario=s1_chat#2 stream=0 parse_dur_us=68655 per_event_parse_us=114.43 events=600
+08-01 23:12:51.464 I/AnebProbe( 3708): CLOCK_SYNC scenario=s1_chat#2 edge=end phase=3 offset_us=-321926403617 err_us=28577 valid_n=17 total_n=20 warmup_n=3
+08-01 23:12:51.506 I/AnebProbe( 3708): SKEW scenario=s1_chat#2 start_offset_us=-321926401461 end_offset_us=-321926403617 drift_ppm=-107.56 offset_suspect=true
+08-01 23:12:51.563 I/AnebProbe( 3708): SCENARIO_KPI scenario=s1_chat#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=69.9431(lowconf) t2_ms=30.2756 t2_incl_ms=30.2756 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=68.7440 n2_ms=9.1980 u1_mbps=0.1183(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:12:51.566 I/AnebProbe( 3708): BUFFERING scenario=s1_chat#2 score=0.077 attribution=none samples=599 sawtooth=0.023 near_zero=0.000 lag1=-0.664 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:12:51.566 I/AnebProbe( 3708): SCENARIO_START scenario=s2_coding_agent#2 round=2 order_index=8
+08-01 23:12:57.051 I/AnebProbe( 3708): CLOCK_SYNC scenario=s2_coding_agent#2 edge=start phase=0 offset_us=-321926399609 err_us=28726 valid_n=17 total_n=20 warmup_n=3
+08-01 23:12:57.456 I/AnebProbe( 3708): UPLOAD scenario=s2_coding_agent#2 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=384.69 goodput_mbps=10.903 server_chunks=8 error=none
+08-01 23:12:57.456 I/AnebProbe( 3708): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=3000
+08-01 23:13:09.583 I/AnebProbe( 3708): STREAM scenario=s2_coding_agent#2 stream=0 expected=300 events=300 reads=301 bytes=91576 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=68.33 error=none
+08-01 23:13:09.583 I/AnebProbe( 3708): PARSE scenario=s2_coding_agent#2 stream=0 parse_dur_us=38873 per_event_parse_us=129.58 events=300
+08-01 23:13:09.924 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=0 up_bytes=8192 total_ms=335.19 proc_nominal_ms=200 proc_actual_us=200371 http=200 error=none
+08-01 23:13:10.241 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=1 up_bytes=8192 total_ms=312.51 proc_nominal_ms=200 proc_actual_us=200372 http=200 error=none
+08-01 23:13:10.565 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=2 up_bytes=8192 total_ms=318.73 proc_nominal_ms=200 proc_actual_us=200382 http=200 error=none
+08-01 23:13:10.886 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=3 up_bytes=8192 total_ms=315.74 proc_nominal_ms=200 proc_actual_us=200330 http=200 error=none
+08-01 23:13:11.206 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=4 up_bytes=8192 total_ms=317.41 proc_nominal_ms=200 proc_actual_us=200339 http=200 error=none
+08-01 23:13:11.527 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=5 up_bytes=8192 total_ms=314.87 proc_nominal_ms=200 proc_actual_us=200346 http=200 error=none
+08-01 23:13:11.846 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=6 up_bytes=8192 total_ms=313.54 proc_nominal_ms=200 proc_actual_us=200370 http=200 error=none
+08-01 23:13:12.186 I/AnebProbe( 3708): TOOLLOOP scenario=s2_coding_agent#2 round=7 up_bytes=8192 total_ms=320.48 proc_nominal_ms=200 proc_actual_us=200375 http=200 error=none
+08-01 23:13:12.186 I/AnebProbe( 3708): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=2000
+08-01 23:13:48.664 I/AnebProbe( 3708): STREAM scenario=s2_coding_agent#2 stream=1 expected=800 events=800 reads=799 bytes=248299 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=64.91 error=none
+08-01 23:13:48.665 I/AnebProbe( 3708): PARSE scenario=s2_coding_agent#2 stream=1 parse_dur_us=79859 per_event_parse_us=99.82 events=800
+08-01 23:13:54.016 I/AnebProbe( 3708): CLOCK_SYNC scenario=s2_coding_agent#2 edge=end phase=7 offset_us=-321926396304 err_us=32017 valid_n=17 total_n=20 warmup_n=3
+08-01 23:13:54.058 I/AnebProbe( 3708): SKEW scenario=s2_coding_agent#2 start_offset_us=-321926399609 end_offset_us=-321926396304 drift_ppm=59.19 offset_suspect=false
+08-01 23:13:54.170 I/AnebProbe( 3708): SCENARIO_KPI scenario=s2_coding_agent#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=64.9056(lowconf) t2_ms=20.2567 t2_incl_ms=20.2567 t3=0.0000 t3_incl=0.0568 t4=0.0000 t5_ms=751.5609 n1_ms=66.9270 n2_ms=20.0480 u1_mbps=10.9029(lowconf) u1_excl_mbps=null u2_ms=134.8196 gaps=0 dup=0
+08-01 23:13:54.170 I/AnebProbe( 3708): BUFFERING scenario=s2_coding_agent#2 score=0.109 attribution=none samples=1098 sawtooth=0.128 near_zero=0.057 lag1=-0.430 batch_count=62 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:13:54.174 I/AnebProbe( 3708): AQS_INPUT_MAP map=N1,N2<-S1.first_clock_sync;T1,T2,T3,T4,T5<-S2;U1<-S3.1MB_upload(incl_slow_start_into_AQS);U2<-S2.tool_loop;D1<-S3.download;S1<-all_scenarios.round_success_ratio
+08-01 23:13:54.176 I/AnebProbe( 3708): AQS run_id=019fbddd-98db-73e4-a8da-7ac1af4e0b69 score=89.5 low_confidence=true veto=false reason=none subs=T1:95.2,T2:97.0,T3:100.0,U1:80.2,U2:86.5,N1:66.1,N2:86.2
+08-01 23:13:54.179 I/AnebProbe( 3708): AQS_V02 run_id=019fbddd-98db-73e4-a8da-7ac1af4e0b69 available=false reason=no_usable_continuity_in_24h
+08-01 23:13:54.180 I/AnebProbe( 3708): AQS_TOKEN run_id=019fbddd-98db-73e4-a8da-7ac1af4e0b69 table=WEIGHTS_TOKEN_MM score=86.4 veto=false reason=none workload=up:2623488B,dl:25165824B,stream:800,tool:8
+08-01 23:13:54.370 I/AnebProbe( 3708): REPORT http=200 bytes=23416 error=none
+08-01 23:13:54.378 I/AnebProbe( 3708): DB_WRITE run_id=019fbddd-98db-73e4-a8da-7ac1af4e0b69 scenarios=9 env_events_pending=0 radio_samples_pending=0
+08-01 23:13:54.378 I/AnebProbe( 3708): RUN_END run_id=019fbddd-98db-73e4-a8da-7ac1af4e0b69 status=completed
+08-01 23:14:06.854 I/AnebProbe( 4236): >>> RUN mode=forensic transport=cellular -> https://120-79-148-0.sslip.io:8443
+08-01 23:14:07.007 I/AnebProbe( 4236): RUN_START run_id=019fbde3-bde8-7abf-a81d-5aa14a651708 mode=forensic transport=cellular server=https://120-79-148-0.sslip.io:8443 inject=none drive_test=false
+08-01 23:14:07.008 I/AnebProbe( 4236): GUARD_OK metadata=private_dns_active=false;active_transports=cellular;active_validated=true;checked_at_nanos=808307395244666
+08-01 23:14:07.008 I/AnebProbe( 4236): NET_BIND transport=cellular snapshot=transports=cellular_validated=true_not_suspended=true_not_metered=false_down_kbps=30000_up_kbps=15000
+08-01 23:14:07.375 I/AnebProbe( 4236): REACH sni=rst sni_ms=null ip=ok ip_ms=237
+08-01 23:14:07.375 I/AnebProbe( 4236): REACH_SWITCH from=sni_host to=bare_ip reason=sni_rst_ip_ok base=https://120.79.148.0:8443
+08-01 23:14:07.643 I/AnebProbe( 4236): PROFILES source=server versions=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0
+08-01 23:14:07.643 I/AnebProbe( 4236): PROFILE_WARN version_mismatch_server=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0_assets=s1_chat@0.2.0;s2_coding_agent@0.2.0;s3_multimodal@0.3.0_(以服务端为准)
+08-01 23:14:07.664 I/AnebProbe( 4236): ORDER round=0 order=s1_chat,s2_coding_agent,s3_multimodal
+08-01 23:14:07.664 I/AnebProbe( 4236): SCENARIO_START scenario=s1_chat#0 round=0 order_index=0
+08-01 23:14:13.173 I/AnebProbe( 4236): CLOCK_SYNC scenario=s1_chat#0 edge=start phase=0 offset_us=-321926405645 err_us=30393 valid_n=17 total_n=20 warmup_n=3
+08-01 23:14:13.327 I/AnebProbe( 4236): UPLOAD scenario=s1_chat#0 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=122.03 goodput_mbps=0.134 server_chunks=1 error=none
+08-01 23:14:28.490 I/AnebProbe( 4236): STREAM scenario=s1_chat#0 stream=0 expected=600 events=600 reads=602 bytes=188873 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=54.20 error=none
+08-01 23:14:28.492 I/AnebProbe( 4236): PARSE scenario=s1_chat#0 stream=0 parse_dur_us=94977 per_event_parse_us=158.30 events=600
+08-01 23:14:34.355 I/AnebProbe( 4236): CLOCK_SYNC scenario=s1_chat#0 edge=end phase=3 offset_us=-321926396622 err_us=33306 valid_n=17 total_n=20 warmup_n=3
+08-01 23:14:34.437 I/AnebProbe( 4236): SKEW scenario=s1_chat#0 start_offset_us=-321926405645 end_offset_us=-321926396622 drift_ppm=466.14 offset_suspect=true
+08-01 23:14:34.526 I/AnebProbe( 4236): SCENARIO_KPI scenario=s1_chat#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=54.2008(lowconf) t2_ms=30.3518 t2_incl_ms=30.3518 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=75.2520 n2_ms=12.8830 u1_mbps=0.1343(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:14:34.527 I/AnebProbe( 4236): BUFFERING scenario=s1_chat#0 score=0.090 attribution=none samples=599 sawtooth=0.013 near_zero=0.000 lag1=-0.707 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:14:34.527 I/AnebProbe( 4236): SCENARIO_START scenario=s2_coding_agent#0 round=0 order_index=1
+08-01 23:14:40.507 I/AnebProbe( 4236): CLOCK_SYNC scenario=s2_coding_agent#0 edge=start phase=0 offset_us=-321926398781 err_us=29985 valid_n=17 total_n=20 warmup_n=3
+08-01 23:14:41.000 I/AnebProbe( 4236): UPLOAD scenario=s2_coding_agent#0 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=469.32 goodput_mbps=8.937 server_chunks=8 error=none
+08-01 23:14:41.000 I/AnebProbe( 4236): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=3000
+08-01 23:14:53.161 I/AnebProbe( 4236): STREAM scenario=s2_coding_agent#0 stream=0 expected=300 events=300 reads=301 bytes=91554 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=66.67 error=none
+08-01 23:14:53.161 I/AnebProbe( 4236): PARSE scenario=s2_coding_agent#0 stream=0 parse_dur_us=43491 per_event_parse_us=144.97 events=300
+08-01 23:14:53.517 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=0 up_bytes=8192 total_ms=349.63 proc_nominal_ms=200 proc_actual_us=200207 http=200 error=none
+08-01 23:14:53.849 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=1 up_bytes=8192 total_ms=325.57 proc_nominal_ms=200 proc_actual_us=200171 http=200 error=none
+08-01 23:14:54.167 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=2 up_bytes=8192 total_ms=320.70 proc_nominal_ms=200 proc_actual_us=200327 http=200 error=none
+08-01 23:14:54.500 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=3 up_bytes=8192 total_ms=314.32 proc_nominal_ms=200 proc_actual_us=200355 http=200 error=none
+08-01 23:14:54.837 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=4 up_bytes=8192 total_ms=327.35 proc_nominal_ms=200 proc_actual_us=200294 http=200 error=none
+08-01 23:14:55.179 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=5 up_bytes=8192 total_ms=331.08 proc_nominal_ms=200 proc_actual_us=200305 http=200 error=none
+08-01 23:14:55.495 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=6 up_bytes=8192 total_ms=320.78 proc_nominal_ms=200 proc_actual_us=200110 http=200 error=none
+08-01 23:14:55.828 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#0 round=7 up_bytes=8192 total_ms=322.58 proc_nominal_ms=200 proc_actual_us=200336 http=200 error=none
+08-01 23:14:55.828 I/AnebProbe( 4236): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=2000
+08-01 23:15:32.339 I/AnebProbe( 4236): STREAM scenario=s2_coding_agent#0 stream=1 expected=800 events=800 reads=802 bytes=248351 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=77.87 error=none
+08-01 23:15:32.339 I/AnebProbe( 4236): PARSE scenario=s2_coding_agent#0 stream=1 parse_dur_us=85099 per_event_parse_us=106.37 events=800
+08-01 23:15:38.008 I/AnebProbe( 4236): CLOCK_SYNC scenario=s2_coding_agent#0 edge=end phase=7 offset_us=-321926402171 err_us=32540 valid_n=17 total_n=20 warmup_n=3
+08-01 23:15:38.100 I/AnebProbe( 4236): SKEW scenario=s2_coding_agent#0 start_offset_us=-321926398781 end_offset_us=-321926402171 drift_ppm=-62.41 offset_suspect=false
+08-01 23:15:38.162 I/AnebProbe( 4236): SCENARIO_KPI scenario=s2_coding_agent#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=66.6695(lowconf) t2_ms=19.6682 t2_incl_ms=19.6682 t3=0.0000 t3_incl=0.0566 t4=0.0000 t5_ms=741.8813 n1_ms=71.6530 n2_ms=8.1290 u1_mbps=8.9371(lowconf) u1_excl_mbps=null u2_ms=149.4222 gaps=0 dup=0
+08-01 23:15:38.162 I/AnebProbe( 4236): BUFFERING scenario=s2_coding_agent#0 score=0.110 attribution=none samples=1098 sawtooth=0.126 near_zero=0.054 lag1=-0.422 batch_count=59 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:15:38.162 I/AnebProbe( 4236): SCENARIO_START scenario=s3_multimodal#0 round=0 order_index=2
+08-01 23:15:43.996 I/AnebProbe( 4236): CLOCK_SYNC scenario=s3_multimodal#0 edge=start phase=0 offset_us=-321926397361 err_us=32239 valid_n=17 total_n=20 warmup_n=3
+08-01 23:15:44.495 I/AnebProbe( 4236): UPLOAD scenario=s3_multimodal#0 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=461.75 goodput_mbps=18.167 server_chunks=16 error=none
+08-01 23:15:44.496 I/AnebProbe( 4236): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:15:52.098 I/AnebProbe( 4236): STREAM scenario=s3_multimodal#0 stream=0 expected=200 events=200 reads=201 bytes=61051 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=80.65 error=none
+08-01 23:15:52.098 I/AnebProbe( 4236): PARSE scenario=s3_multimodal#0 stream=0 parse_dur_us=29091 per_event_parse_us=145.46 events=200
+08-01 23:16:01.067 I/AnebProbe( 4236): DOWNLOAD scenario=s3_multimodal#0 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8959.54 goodput_mbps=11.235 error=none
+08-01 23:16:01.612 I/AnebProbe( 4236): UPLOAD scenario=s3_multimodal#0 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=530.91 goodput_mbps=15.800 server_chunks=16 error=none
+08-01 23:16:01.613 I/AnebProbe( 4236): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:16:09.200 I/AnebProbe( 4236): STREAM scenario=s3_multimodal#0 stream=1 expected=200 events=200 reads=201 bytes=62049 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=63.21 error=none
+08-01 23:16:09.201 I/AnebProbe( 4236): PARSE scenario=s3_multimodal#0 stream=1 parse_dur_us=31599 per_event_parse_us=158.00 events=200
+08-01 23:16:18.351 I/AnebProbe( 4236): DOWNLOAD scenario=s3_multimodal#0 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=9136.70 goodput_mbps=11.017 error=none
+08-01 23:16:23.939 I/AnebProbe( 4236): CLOCK_SYNC scenario=s3_multimodal#0 edge=end phase=9 offset_us=-321926399206 err_us=31034 valid_n=17 total_n=20 warmup_n=3
+08-01 23:16:24.034 I/AnebProbe( 4236): SKEW scenario=s3_multimodal#0 start_offset_us=-321926397361 end_offset_us=-321926399206 drift_ppm=-41.82 offset_suspect=false
+08-01 23:16:24.081 I/AnebProbe( 4236): SCENARIO_KPI scenario=s3_multimodal#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=63.2098(lowconf) t2_ms=30.5385 t2_incl_ms=30.5385 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=68.3540 n2_ms=15.6930 u1_mbps=15.8005(lowconf) u1_excl_mbps=26.3345(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:16:24.082 I/AnebProbe( 4236): BUFFERING scenario=s3_multimodal#0 score=0.046 attribution=none samples=398 sawtooth=0.030 near_zero=0.000 lag1=-0.577 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:16:24.082 I/AnebProbe( 4236): ORDER round=1 order=s2_coding_agent,s3_multimodal,s1_chat
+08-01 23:16:24.082 I/AnebProbe( 4236): SCENARIO_START scenario=s2_coding_agent#1 round=1 order_index=3
+08-01 23:16:29.655 I/AnebProbe( 4236): CLOCK_SYNC scenario=s2_coding_agent#1 edge=start phase=0 offset_us=-321926395498 err_us=32887 valid_n=17 total_n=20 warmup_n=3
+08-01 23:16:30.070 I/AnebProbe( 4236): UPLOAD scenario=s2_coding_agent#1 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=394.97 goodput_mbps=10.619 server_chunks=8 error=none
+08-01 23:16:30.071 I/AnebProbe( 4236): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=3000
+08-01 23:16:42.219 I/AnebProbe( 4236): STREAM scenario=s2_coding_agent#1 stream=0 expected=300 events=300 reads=298 bytes=91585 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=78.24 error=none
+08-01 23:16:42.223 I/AnebProbe( 4236): PARSE scenario=s2_coding_agent#1 stream=0 parse_dur_us=37422 per_event_parse_us=124.74 events=300
+08-01 23:16:42.561 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=0 up_bytes=8192 total_ms=333.96 proc_nominal_ms=200 proc_actual_us=200337 http=200 error=none
+08-01 23:16:42.886 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=1 up_bytes=8192 total_ms=319.35 proc_nominal_ms=200 proc_actual_us=200341 http=200 error=none
+08-01 23:16:43.219 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=2 up_bytes=8192 total_ms=326.61 proc_nominal_ms=200 proc_actual_us=200389 http=200 error=none
+08-01 23:16:43.544 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=3 up_bytes=8192 total_ms=319.42 proc_nominal_ms=200 proc_actual_us=200422 http=200 error=none
+08-01 23:16:43.869 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=4 up_bytes=8192 total_ms=321.59 proc_nominal_ms=200 proc_actual_us=200284 http=200 error=none
+08-01 23:16:44.198 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=5 up_bytes=8192 total_ms=323.92 proc_nominal_ms=200 proc_actual_us=200347 http=200 error=none
+08-01 23:16:44.527 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=6 up_bytes=8192 total_ms=322.13 proc_nominal_ms=200 proc_actual_us=200344 http=200 error=none
+08-01 23:16:44.852 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#1 round=7 up_bytes=8192 total_ms=321.11 proc_nominal_ms=200 proc_actual_us=200480 http=200 error=none
+08-01 23:16:44.853 I/AnebProbe( 4236): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=2000
+08-01 23:17:21.364 I/AnebProbe( 4236): STREAM scenario=s2_coding_agent#1 stream=1 expected=800 events=800 reads=796 bytes=248305 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=64.92 error=none
+08-01 23:17:21.365 I/AnebProbe( 4236): PARSE scenario=s2_coding_agent#1 stream=1 parse_dur_us=79883 per_event_parse_us=99.85 events=800
+08-01 23:17:27.196 I/AnebProbe( 4236): CLOCK_SYNC scenario=s2_coding_agent#1 edge=end phase=7 offset_us=-321926398092 err_us=30575 valid_n=17 total_n=20 warmup_n=3
+08-01 23:17:27.246 I/AnebProbe( 4236): SKEW scenario=s2_coding_agent#1 start_offset_us=-321926395498 end_offset_us=-321926398092 drift_ppm=-43.25 offset_suspect=false
+08-01 23:17:27.338 I/AnebProbe( 4236): SCENARIO_KPI scenario=s2_coding_agent#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=64.9162(lowconf) t2_ms=21.5339 t2_incl_ms=21.5339 t3=0.0000 t3_incl=0.0571 t4=0.0000 t5_ms=751.5224 n1_ms=69.7390 n2_ms=20.5980 u1_mbps=10.6192(lowconf) u1_excl_mbps=null u2_ms=133.6239 gaps=0 dup=0
+08-01 23:17:27.339 I/AnebProbe( 4236): BUFFERING scenario=s2_coding_agent#1 score=0.172 attribution=none samples=1098 sawtooth=0.209 near_zero=0.092 lag1=-0.400 batch_count=97 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:17:27.339 I/AnebProbe( 4236): SCENARIO_START scenario=s3_multimodal#1 round=1 order_index=4
+08-01 23:17:33.122 I/AnebProbe( 4236): CLOCK_SYNC scenario=s3_multimodal#1 edge=start phase=0 offset_us=-321926399329 err_us=28523 valid_n=17 total_n=20 warmup_n=3
+08-01 23:17:33.579 I/AnebProbe( 4236): UPLOAD scenario=s3_multimodal#1 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=442.45 goodput_mbps=18.960 server_chunks=16 error=none
+08-01 23:17:33.580 I/AnebProbe( 4236): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:17:41.163 I/AnebProbe( 4236): STREAM scenario=s3_multimodal#1 stream=0 expected=200 events=200 reads=201 bytes=61061 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=70.34 error=none
+08-01 23:17:41.164 I/AnebProbe( 4236): PARSE scenario=s3_multimodal#1 stream=0 parse_dur_us=30886 per_event_parse_us=154.43 events=200
+08-01 23:17:50.082 I/AnebProbe( 4236): DOWNLOAD scenario=s3_multimodal#1 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8897.00 goodput_mbps=11.314 error=none
+08-01 23:17:50.665 I/AnebProbe( 4236): UPLOAD scenario=s3_multimodal#1 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=556.84 goodput_mbps=15.065 server_chunks=16 error=none
+08-01 23:17:50.666 I/AnebProbe( 4236): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:17:58.260 I/AnebProbe( 4236): STREAM scenario=s3_multimodal#1 stream=1 expected=200 events=200 reads=201 bytes=62049 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=77.45 error=none
+08-01 23:17:58.260 I/AnebProbe( 4236): PARSE scenario=s3_multimodal#1 stream=1 parse_dur_us=29405 per_event_parse_us=147.03 events=200
+08-01 23:18:00.409 I/AnebProbe( 4236): DOWNLOAD scenario=s3_multimodal#1 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=2156.57 goodput_mbps=46.677 error=none
+08-01 23:18:05.523 I/AnebProbe( 4236): CLOCK_SYNC scenario=s3_multimodal#1 edge=end phase=9 offset_us=-321926401992 err_us=28152 valid_n=17 total_n=20 warmup_n=3
+08-01 23:18:05.542 I/AnebProbe( 4236): SKEW scenario=s3_multimodal#1 start_offset_us=-321926399329 end_offset_us=-321926401992 drift_ppm=-80.68 offset_suspect=false
+08-01 23:18:05.585 I/AnebProbe( 4236): SCENARIO_KPI scenario=s3_multimodal#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=70.3443(lowconf) t2_ms=32.2589 t2_incl_ms=32.2589 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=67.3760 n2_ms=16.0010 u1_mbps=15.0647(lowconf) u1_excl_mbps=28.0022(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:18:05.586 I/AnebProbe( 4236): BUFFERING scenario=s3_multimodal#1 score=0.069 attribution=none samples=398 sawtooth=0.088 near_zero=0.000 lag1=-0.562 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:18:05.586 I/AnebProbe( 4236): SCENARIO_START scenario=s1_chat#1 round=1 order_index=5
+08-01 23:18:11.231 I/AnebProbe( 4236): CLOCK_SYNC scenario=s1_chat#1 edge=start phase=0 offset_us=-321926400782 err_us=28798 valid_n=17 total_n=20 warmup_n=3
+08-01 23:18:11.387 I/AnebProbe( 4236): UPLOAD scenario=s1_chat#1 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=145.96 goodput_mbps=0.112 server_chunks=1 error=none
+08-01 23:18:26.542 I/AnebProbe( 4236): STREAM scenario=s1_chat#1 stream=0 expected=600 events=600 reads=602 bytes=188853 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=60.08 error=none
+08-01 23:18:26.542 I/AnebProbe( 4236): PARSE scenario=s1_chat#1 stream=0 parse_dur_us=66993 per_event_parse_us=111.66 events=600
+08-01 23:18:31.720 I/AnebProbe( 4236): CLOCK_SYNC scenario=s1_chat#1 edge=end phase=3 offset_us=-321926398190 err_us=31562 valid_n=17 total_n=20 warmup_n=3
+08-01 23:18:31.745 I/AnebProbe( 4236): SKEW scenario=s1_chat#1 start_offset_us=-321926400782 end_offset_us=-321926398190 drift_ppm=132.88 offset_suspect=true
+08-01 23:18:31.798 I/AnebProbe( 4236): SCENARIO_KPI scenario=s1_chat#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=60.0834(lowconf) t2_ms=31.2626 t2_incl_ms=31.2626 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=68.2680 n2_ms=15.8900 u1_mbps=0.1123(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:18:31.803 I/AnebProbe( 4236): BUFFERING scenario=s1_chat#1 score=0.039 attribution=none samples=599 sawtooth=0.030 near_zero=0.000 lag1=-0.559 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:18:31.803 I/AnebProbe( 4236): ORDER round=2 order=s3_multimodal,s1_chat,s2_coding_agent
+08-01 23:18:31.803 I/AnebProbe( 4236): SCENARIO_START scenario=s3_multimodal#2 round=2 order_index=6
+08-01 23:18:37.330 I/AnebProbe( 4236): CLOCK_SYNC scenario=s3_multimodal#2 edge=start phase=0 offset_us=-321926400640 err_us=26747 valid_n=17 total_n=20 warmup_n=3
+08-01 23:18:37.962 I/AnebProbe( 4236): UPLOAD scenario=s3_multimodal#2 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=619.04 goodput_mbps=13.551 server_chunks=16 error=none
+08-01 23:18:37.962 I/AnebProbe( 4236): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:18:45.549 I/AnebProbe( 4236): STREAM scenario=s3_multimodal#2 stream=0 expected=200 events=200 reads=200 bytes=61063 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=62.22 error=none
+08-01 23:18:45.550 I/AnebProbe( 4236): PARSE scenario=s3_multimodal#2 stream=0 parse_dur_us=26890 per_event_parse_us=134.45 events=200
+08-01 23:18:54.184 I/AnebProbe( 4236): DOWNLOAD scenario=s3_multimodal#2 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8627.91 goodput_mbps=11.667 error=none
+08-01 23:18:54.661 I/AnebProbe( 4236): UPLOAD scenario=s3_multimodal#2 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=461.06 goodput_mbps=18.194 server_chunks=16 error=none
+08-01 23:18:54.662 I/AnebProbe( 4236): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:19:02.249 I/AnebProbe( 4236): STREAM scenario=s3_multimodal#2 stream=1 expected=200 events=200 reads=201 bytes=62042 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=66.70 error=none
+08-01 23:19:02.251 I/AnebProbe( 4236): PARSE scenario=s3_multimodal#2 stream=1 parse_dur_us=31254 per_event_parse_us=156.27 events=200
+08-01 23:19:05.488 I/AnebProbe( 4236): DOWNLOAD scenario=s3_multimodal#2 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=3233.46 goodput_mbps=31.132 error=none
+08-01 23:19:11.483 I/AnebProbe( 4236): CLOCK_SYNC scenario=s3_multimodal#2 edge=end phase=9 offset_us=-321926400115 err_us=26967 valid_n=17 total_n=20 warmup_n=3
+08-01 23:19:11.498 I/AnebProbe( 4236): SKEW scenario=s3_multimodal#2 start_offset_us=-321926400640 end_offset_us=-321926400115 drift_ppm=14.20 offset_suspect=false
+08-01 23:19:11.553 I/AnebProbe( 4236): SCENARIO_KPI scenario=s3_multimodal#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=62.2243(lowconf) t2_ms=31.4933 t2_incl_ms=31.4933 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=69.1400 n2_ms=17.0630 u1_mbps=13.5510(lowconf) u1_excl_mbps=19.0319(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:19:11.554 I/AnebProbe( 4236): BUFFERING scenario=s3_multimodal#2 score=0.043 attribution=none samples=398 sawtooth=0.035 near_zero=0.000 lag1=-0.564 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:19:11.555 I/AnebProbe( 4236): SCENARIO_START scenario=s1_chat#2 round=2 order_index=7
+08-01 23:19:16.833 I/AnebProbe( 4236): CLOCK_SYNC scenario=s1_chat#2 edge=start phase=0 offset_us=-321926400618 err_us=25672 valid_n=17 total_n=20 warmup_n=3
+08-01 23:19:16.986 I/AnebProbe( 4236): UPLOAD scenario=s1_chat#2 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=142.54 goodput_mbps=0.115 server_chunks=1 error=none
+08-01 23:19:32.125 I/AnebProbe( 4236): STREAM scenario=s1_chat#2 stream=0 expected=600 events=600 reads=602 bytes=188842 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=54.91 error=none
+08-01 23:19:32.125 I/AnebProbe( 4236): PARSE scenario=s1_chat#2 stream=0 parse_dur_us=65802 per_event_parse_us=109.67 events=600
+08-01 23:19:37.616 I/AnebProbe( 4236): CLOCK_SYNC scenario=s1_chat#2 edge=end phase=3 offset_us=-321926394643 err_us=32117 valid_n=17 total_n=20 warmup_n=3
+08-01 23:19:37.639 I/AnebProbe( 4236): SKEW scenario=s1_chat#2 start_offset_us=-321926400618 end_offset_us=-321926394643 drift_ppm=338.66 offset_suspect=true
+08-01 23:19:37.692 I/AnebProbe( 4236): SCENARIO_KPI scenario=s1_chat#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=54.9126(lowconf) t2_ms=33.7387 t2_incl_ms=33.7387 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=67.4990 n2_ms=18.7700 u1_mbps=0.1149(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:19:37.693 I/AnebProbe( 4236): BUFFERING scenario=s1_chat#2 score=0.061 attribution=none samples=599 sawtooth=0.110 near_zero=0.000 lag1=-0.515 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:19:37.693 I/AnebProbe( 4236): SCENARIO_START scenario=s2_coding_agent#2 round=2 order_index=8
+08-01 23:19:43.865 I/AnebProbe( 4236): CLOCK_SYNC scenario=s2_coding_agent#2 edge=start phase=0 offset_us=-321926398063 err_us=29345 valid_n=17 total_n=20 warmup_n=3
+08-01 23:19:44.253 I/AnebProbe( 4236): UPLOAD scenario=s2_coding_agent#2 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=374.93 goodput_mbps=11.187 server_chunks=8 error=none
+08-01 23:19:44.253 I/AnebProbe( 4236): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=3000
+08-01 23:19:56.394 I/AnebProbe( 4236): STREAM scenario=s2_coding_agent#2 stream=0 expected=300 events=300 reads=301 bytes=91565 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=62.06 error=none
+08-01 23:19:56.394 I/AnebProbe( 4236): PARSE scenario=s2_coding_agent#2 stream=0 parse_dur_us=41264 per_event_parse_us=137.55 events=300
+08-01 23:19:56.727 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=0 up_bytes=8192 total_ms=327.32 proc_nominal_ms=200 proc_actual_us=200341 http=200 error=none
+08-01 23:19:57.043 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=1 up_bytes=8192 total_ms=315.11 proc_nominal_ms=200 proc_actual_us=200386 http=200 error=none
+08-01 23:19:57.369 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=2 up_bytes=8192 total_ms=321.81 proc_nominal_ms=200 proc_actual_us=200360 http=200 error=none
+08-01 23:19:57.693 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=3 up_bytes=8192 total_ms=319.74 proc_nominal_ms=200 proc_actual_us=200341 http=200 error=none
+08-01 23:19:58.031 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=4 up_bytes=8192 total_ms=321.21 proc_nominal_ms=200 proc_actual_us=200371 http=200 error=none
+08-01 23:19:58.353 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=5 up_bytes=8192 total_ms=326.78 proc_nominal_ms=200 proc_actual_us=200364 http=200 error=none
+08-01 23:19:58.677 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=6 up_bytes=8192 total_ms=321.48 proc_nominal_ms=200 proc_actual_us=200388 http=200 error=none
+08-01 23:19:59.002 I/AnebProbe( 4236): TOOLLOOP scenario=s2_coding_agent#2 round=7 up_bytes=8192 total_ms=322.08 proc_nominal_ms=200 proc_actual_us=200329 http=200 error=none
+08-01 23:19:59.003 I/AnebProbe( 4236): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=2000
+08-01 23:20:35.516 I/AnebProbe( 4236): STREAM scenario=s2_coding_agent#2 stream=1 expected=800 events=800 reads=799 bytes=248349 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=74.14 error=none
+08-01 23:20:35.516 I/AnebProbe( 4236): PARSE scenario=s2_coding_agent#2 stream=1 parse_dur_us=74363 per_event_parse_us=92.95 events=800
+08-01 23:20:40.834 I/AnebProbe( 4236): CLOCK_SYNC scenario=s2_coding_agent#2 edge=end phase=7 offset_us=-321926398290 err_us=32128 valid_n=17 total_n=20 warmup_n=3
+08-01 23:20:40.886 I/AnebProbe( 4236): SKEW scenario=s2_coding_agent#2 start_offset_us=-321926398063 end_offset_us=-321926398290 drift_ppm=-3.74 offset_suspect=false
+08-01 23:20:40.966 I/AnebProbe( 4236): SCENARIO_KPI scenario=s2_coding_agent#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=62.0625(lowconf) t2_ms=20.6605 t2_incl_ms=20.6605 t3=0.0010 t3_incl=0.0567 t4=0.0000 t5_ms=751.9818 n1_ms=68.5130 n2_ms=18.2770 u1_mbps=11.1870(lowconf) u1_excl_mbps=null u2_ms=126.9772 gaps=0 dup=0
+08-01 23:20:40.967 I/AnebProbe( 4236): BUFFERING scenario=s2_coding_agent#2 score=0.102 attribution=none samples=1098 sawtooth=0.149 near_zero=0.068 lag1=-0.483 batch_count=70 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0009 affects_validity=false
+08-01 23:20:40.980 I/AnebProbe( 4236): AQS_INPUT_MAP map=N1,N2<-S1.first_clock_sync;T1,T2,T3,T4,T5<-S2;U1<-S3.1MB_upload(incl_slow_start_into_AQS);U2<-S2.tool_loop;D1<-S3.download;S1<-all_scenarios.round_success_ratio
+08-01 23:20:40.980 I/AnebProbe( 4236): AQS run_id=019fbde3-bde8-7abf-a81d-5aa14a651708 score=89.0 low_confidence=true veto=false reason=none subs=T1:95.1,T2:96.9,T3:100.0,U1:80.1,U2:86.6,N1:66.9,N2:80.6
+08-01 23:20:40.988 I/AnebProbe( 4236): AQS_V02 run_id=019fbde3-bde8-7abf-a81d-5aa14a651708 available=false reason=no_usable_continuity_in_24h
+08-01 23:20:40.993 I/AnebProbe( 4236): AQS_TOKEN run_id=019fbde3-bde8-7abf-a81d-5aa14a651708 table=WEIGHTS_TOKEN_MM score=85.8 veto=false reason=none workload=up:2623488B,dl:25165824B,stream:800,tool:8
+08-01 23:20:41.170 I/AnebProbe( 4236): REPORT http=200 bytes=23395 error=none
+08-01 23:20:41.198 I/AnebProbe( 4236): DB_WRITE run_id=019fbde3-bde8-7abf-a81d-5aa14a651708 scenarios=9 env_events_pending=0 radio_samples_pending=0
+08-01 23:20:41.199 I/AnebProbe( 4236): RUN_END run_id=019fbde3-bde8-7abf-a81d-5aa14a651708 status=completed
+08-01 23:20:58.776 I/AnebProbe( 4700): >>> RUN mode=forensic transport=cellular -> https://120-79-148-0.sslip.io:8443
+08-01 23:20:58.929 I/AnebProbe( 4700): RUN_START run_id=019fbdea-06fb-7c32-89aa-490e846d944e mode=forensic transport=cellular server=https://120-79-148-0.sslip.io:8443 inject=none drive_test=false
+08-01 23:20:58.930 I/AnebProbe( 4700): GUARD_OK metadata=private_dns_active=false;active_transports=cellular;active_validated=true;checked_at_nanos=808719317518040
+08-01 23:20:58.930 I/AnebProbe( 4700): NET_BIND transport=cellular snapshot=transports=cellular_validated=true_not_suspended=true_not_metered=false_down_kbps=30000_up_kbps=15000
+08-01 23:20:59.270 I/AnebProbe( 4700): REACH sni=rst sni_ms=null ip=ok ip_ms=223
+08-01 23:20:59.270 I/AnebProbe( 4700): REACH_SWITCH from=sni_host to=bare_ip reason=sni_rst_ip_ok base=https://120.79.148.0:8443
+08-01 23:20:59.551 I/AnebProbe( 4700): PROFILES source=server versions=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0
+08-01 23:20:59.551 I/AnebProbe( 4700): PROFILE_WARN version_mismatch_server=s1_chat@0.2.1;s2_coding_agent@0.2.1;s3_multimodal@0.3.0_assets=s1_chat@0.2.0;s2_coding_agent@0.2.0;s3_multimodal@0.3.0_(以服务端为准)
+08-01 23:20:59.573 I/AnebProbe( 4700): ORDER round=0 order=s1_chat,s2_coding_agent,s3_multimodal
+08-01 23:20:59.574 I/AnebProbe( 4700): SCENARIO_START scenario=s1_chat#0 round=0 order_index=0
+08-01 23:21:05.326 I/AnebProbe( 4700): CLOCK_SYNC scenario=s1_chat#0 edge=start phase=0 offset_us=-321926397330 err_us=31644 valid_n=17 total_n=20 warmup_n=3
+08-01 23:21:05.489 I/AnebProbe( 4700): UPLOAD scenario=s1_chat#0 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=144.62 goodput_mbps=0.113 server_chunks=1 error=none
+08-01 23:21:20.726 I/AnebProbe( 4700): STREAM scenario=s1_chat#0 stream=0 expected=600 events=600 reads=602 bytes=188866 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=58.70 error=none
+08-01 23:21:20.726 I/AnebProbe( 4700): PARSE scenario=s1_chat#0 stream=0 parse_dur_us=104603 per_event_parse_us=174.34 events=600
+08-01 23:21:26.416 I/AnebProbe( 4700): CLOCK_SYNC scenario=s1_chat#0 edge=end phase=3 offset_us=-321926397631 err_us=29565 valid_n=17 total_n=20 warmup_n=3
+08-01 23:21:26.499 I/AnebProbe( 4700): SKEW scenario=s1_chat#0 start_offset_us=-321926397330 end_offset_us=-321926397631 drift_ppm=-18.07 offset_suspect=false
+08-01 23:21:26.582 I/AnebProbe( 4700): SCENARIO_KPI scenario=s1_chat#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=58.7038(lowconf) t2_ms=30.8968 t2_incl_ms=30.8968 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=74.9880 n2_ms=14.0570 u1_mbps=0.1133(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:21:26.594 I/AnebProbe( 4700): BUFFERING scenario=s1_chat#0 score=0.053 attribution=none samples=599 sawtooth=0.018 near_zero=0.000 lag1=-0.610 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:21:26.594 I/AnebProbe( 4700): SCENARIO_START scenario=s2_coding_agent#0 round=0 order_index=1
+08-01 23:21:32.645 I/AnebProbe( 4700): CLOCK_SYNC scenario=s2_coding_agent#0 edge=start phase=0 offset_us=-321926395463 err_us=33076 valid_n=17 total_n=20 warmup_n=3
+08-01 23:21:33.064 I/AnebProbe( 4700): UPLOAD scenario=s2_coding_agent#0 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=385.88 goodput_mbps=10.869 server_chunks=8 error=none
+08-01 23:21:33.065 I/AnebProbe( 4700): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=3000
+08-01 23:21:45.205 I/AnebProbe( 4700): STREAM scenario=s2_coding_agent#0 stream=0 expected=300 events=300 reads=301 bytes=91561 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=69.49 error=none
+08-01 23:21:45.205 I/AnebProbe( 4700): PARSE scenario=s2_coding_agent#0 stream=0 parse_dur_us=41694 per_event_parse_us=138.98 events=300
+08-01 23:21:45.542 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=0 up_bytes=8192 total_ms=326.57 proc_nominal_ms=200 proc_actual_us=200342 http=200 error=none
+08-01 23:21:45.874 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=1 up_bytes=8192 total_ms=323.23 proc_nominal_ms=200 proc_actual_us=200364 http=200 error=none
+08-01 23:21:46.221 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=2 up_bytes=8192 total_ms=342.88 proc_nominal_ms=200 proc_actual_us=200351 http=200 error=none
+08-01 23:21:46.574 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=3 up_bytes=8192 total_ms=337.30 proc_nominal_ms=200 proc_actual_us=200348 http=200 error=none
+08-01 23:21:46.903 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=4 up_bytes=8192 total_ms=322.89 proc_nominal_ms=200 proc_actual_us=200102 http=200 error=none
+08-01 23:21:47.236 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=5 up_bytes=8192 total_ms=333.85 proc_nominal_ms=200 proc_actual_us=200383 http=200 error=none
+08-01 23:21:47.577 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=6 up_bytes=8192 total_ms=330.31 proc_nominal_ms=200 proc_actual_us=200130 http=200 error=none
+08-01 23:21:47.891 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#0 round=7 up_bytes=8192 total_ms=315.26 proc_nominal_ms=200 proc_actual_us=200113 http=200 error=none
+08-01 23:21:47.891 I/AnebProbe( 4700): THINK_PAUSE scenario=s2_coding_agent#0 duration_ms=2000
+08-01 23:22:24.408 I/AnebProbe( 4700): STREAM scenario=s2_coding_agent#0 stream=1 expected=800 events=800 reads=798 bytes=248265 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=62.56 error=none
+08-01 23:22:24.408 I/AnebProbe( 4700): PARSE scenario=s2_coding_agent#0 stream=1 parse_dur_us=77097 per_event_parse_us=96.37 events=800
+08-01 23:22:29.761 I/AnebProbe( 4700): CLOCK_SYNC scenario=s2_coding_agent#0 edge=end phase=7 offset_us=-321926400191 err_us=29242 valid_n=17 total_n=20 warmup_n=3
+08-01 23:22:29.851 I/AnebProbe( 4700): SKEW scenario=s2_coding_agent#0 start_offset_us=-321926395463 end_offset_us=-321926400191 drift_ppm=-79.52 offset_suspect=false
+08-01 23:22:29.928 I/AnebProbe( 4700): SCENARIO_KPI scenario=s2_coding_agent#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=62.5568(lowconf) t2_ms=19.8057 t2_incl_ms=19.8057 t3=0.0000 t3_incl=0.0568 t4=0.0000 t5_ms=748.6161 n1_ms=72.8020 n2_ms=19.8650 u1_mbps=10.8694(lowconf) u1_excl_mbps=null u2_ms=142.5323 gaps=0 dup=0
+08-01 23:22:29.928 I/AnebProbe( 4700): BUFFERING scenario=s2_coding_agent#0 score=0.124 attribution=none samples=1098 sawtooth=0.122 near_zero=0.053 lag1=-0.383 batch_count=56 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:22:29.928 I/AnebProbe( 4700): SCENARIO_START scenario=s3_multimodal#0 round=0 order_index=2
+08-01 23:22:36.230 I/AnebProbe( 4700): CLOCK_SYNC scenario=s3_multimodal#0 edge=start phase=0 offset_us=-321926395135 err_us=34919 valid_n=17 total_n=20 warmup_n=3
+08-01 23:22:36.792 I/AnebProbe( 4700): UPLOAD scenario=s3_multimodal#0 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=546.33 goodput_mbps=15.355 server_chunks=16 error=none
+08-01 23:22:36.792 I/AnebProbe( 4700): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:22:44.387 I/AnebProbe( 4700): STREAM scenario=s3_multimodal#0 stream=0 expected=200 events=200 reads=201 bytes=61061 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=72.25 error=none
+08-01 23:22:44.388 I/AnebProbe( 4700): PARSE scenario=s3_multimodal#0 stream=0 parse_dur_us=29638 per_event_parse_us=148.19 events=200
+08-01 23:22:53.056 I/AnebProbe( 4700): DOWNLOAD scenario=s3_multimodal#0 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=8665.04 goodput_mbps=11.617 error=none
+08-01 23:22:53.536 I/AnebProbe( 4700): UPLOAD scenario=s3_multimodal#0 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=464.94 goodput_mbps=18.042 server_chunks=16 error=none
+08-01 23:22:53.536 I/AnebProbe( 4700): THINK_PAUSE scenario=s3_multimodal#0 duration_ms=2500
+08-01 23:23:01.127 I/AnebProbe( 4700): STREAM scenario=s3_multimodal#0 stream=1 expected=200 events=200 reads=201 bytes=62047 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=69.85 error=none
+08-01 23:23:01.128 I/AnebProbe( 4700): PARSE scenario=s3_multimodal#0 stream=1 parse_dur_us=28673 per_event_parse_us=143.37 events=200
+08-01 23:23:02.708 I/AnebProbe( 4700): DOWNLOAD scenario=s3_multimodal#0 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=1571.14 goodput_mbps=64.070 error=none
+08-01 23:23:08.541 I/AnebProbe( 4700): CLOCK_SYNC scenario=s3_multimodal#0 edge=end phase=9 offset_us=-321926399019 err_us=33996 valid_n=17 total_n=20 warmup_n=3
+08-01 23:23:08.607 I/AnebProbe( 4700): SKEW scenario=s3_multimodal#0 start_offset_us=-321926395135 end_offset_us=-321926399019 drift_ppm=-121.99 offset_suspect=true
+08-01 23:23:08.654 I/AnebProbe( 4700): SCENARIO_KPI scenario=s3_multimodal#0 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=69.8499(lowconf) t2_ms=30.9242 t2_incl_ms=30.9242 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=74.7490 n2_ms=10.6240 u1_mbps=15.3546(lowconf) u1_excl_mbps=25.9351(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:23:08.654 I/AnebProbe( 4700): BUFFERING scenario=s3_multimodal#0 score=0.079 attribution=none samples=398 sawtooth=0.030 near_zero=0.000 lag1=-0.660 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:23:08.654 I/AnebProbe( 4700): ORDER round=1 order=s2_coding_agent,s3_multimodal,s1_chat
+08-01 23:23:08.654 I/AnebProbe( 4700): SCENARIO_START scenario=s2_coding_agent#1 round=1 order_index=3
+08-01 23:23:14.560 I/AnebProbe( 4700): CLOCK_SYNC scenario=s2_coding_agent#1 edge=start phase=0 offset_us=-321926402908 err_us=26968 valid_n=17 total_n=20 warmup_n=3
+08-01 23:23:15.024 I/AnebProbe( 4700): UPLOAD scenario=s2_coding_agent#1 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=444.03 goodput_mbps=9.446 server_chunks=8 error=none
+08-01 23:23:15.025 I/AnebProbe( 4700): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=3000
+08-01 23:23:27.154 I/AnebProbe( 4700): STREAM scenario=s2_coding_agent#1 stream=0 expected=300 events=300 reads=301 bytes=91570 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=61.99 error=none
+08-01 23:23:27.154 I/AnebProbe( 4700): PARSE scenario=s2_coding_agent#1 stream=0 parse_dur_us=38561 per_event_parse_us=128.54 events=300
+08-01 23:23:27.502 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=0 up_bytes=8192 total_ms=335.00 proc_nominal_ms=200 proc_actual_us=200422 http=200 error=none
+08-01 23:23:27.832 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=1 up_bytes=8192 total_ms=329.59 proc_nominal_ms=200 proc_actual_us=200350 http=200 error=none
+08-01 23:23:28.167 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=2 up_bytes=8192 total_ms=328.62 proc_nominal_ms=200 proc_actual_us=200343 http=200 error=none
+08-01 23:23:28.497 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=3 up_bytes=8192 total_ms=326.50 proc_nominal_ms=200 proc_actual_us=200193 http=200 error=none
+08-01 23:23:28.830 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=4 up_bytes=8192 total_ms=332.73 proc_nominal_ms=200 proc_actual_us=200357 http=200 error=none
+08-01 23:23:29.177 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=5 up_bytes=8192 total_ms=338.18 proc_nominal_ms=200 proc_actual_us=200352 http=200 error=none
+08-01 23:23:29.526 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=6 up_bytes=8192 total_ms=342.99 proc_nominal_ms=200 proc_actual_us=200368 http=200 error=none
+08-01 23:23:29.858 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#1 round=7 up_bytes=8192 total_ms=324.80 proc_nominal_ms=200 proc_actual_us=200328 http=200 error=none
+08-01 23:23:29.858 I/AnebProbe( 4700): THINK_PAUSE scenario=s2_coding_agent#1 duration_ms=2000
+08-01 23:24:06.352 I/AnebProbe( 4700): STREAM scenario=s2_coding_agent#1 stream=1 expected=800 events=800 reads=800 bytes=248320 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=71.65 error=none
+08-01 23:24:06.353 I/AnebProbe( 4700): PARSE scenario=s2_coding_agent#1 stream=1 parse_dur_us=73070 per_event_parse_us=91.34 events=800
+08-01 23:24:11.867 I/AnebProbe( 4700): CLOCK_SYNC scenario=s2_coding_agent#1 edge=end phase=7 offset_us=-321926401484 err_us=30430 valid_n=17 total_n=20 warmup_n=3
+08-01 23:24:11.948 I/AnebProbe( 4700): SKEW scenario=s2_coding_agent#1 start_offset_us=-321926402908 end_offset_us=-321926401484 drift_ppm=24.62 offset_suspect=false
+08-01 23:24:12.026 I/AnebProbe( 4700): SCENARIO_KPI scenario=s2_coding_agent#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=61.9855(lowconf) t2_ms=19.8343 t2_incl_ms=19.8343 t3=0.0000 t3_incl=0.0567 t4=0.0000 t5_ms=747.5521 n1_ms=71.5220 n2_ms=11.1370 u1_mbps=9.4460(lowconf) u1_excl_mbps=null u2_ms=142.6242 gaps=0 dup=0
+08-01 23:24:12.026 I/AnebProbe( 4700): BUFFERING scenario=s2_coding_agent#1 score=0.105 attribution=none samples=1098 sawtooth=0.124 near_zero=0.054 lag1=-0.432 batch_count=57 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:24:12.026 I/AnebProbe( 4700): SCENARIO_START scenario=s3_multimodal#1 round=1 order_index=4
+08-01 23:24:17.562 I/AnebProbe( 4700): CLOCK_SYNC scenario=s3_multimodal#1 edge=start phase=0 offset_us=-321926398196 err_us=29504 valid_n=17 total_n=20 warmup_n=3
+08-01 23:24:18.022 I/AnebProbe( 4700): UPLOAD scenario=s3_multimodal#1 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=450.54 goodput_mbps=18.619 server_chunks=16 error=none
+08-01 23:24:18.022 I/AnebProbe( 4700): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:24:25.634 I/AnebProbe( 4700): STREAM scenario=s3_multimodal#1 stream=0 expected=200 events=200 reads=201 bytes=61061 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=72.46 error=none
+08-01 23:24:25.635 I/AnebProbe( 4700): PARSE scenario=s3_multimodal#1 stream=0 parse_dur_us=28069 per_event_parse_us=140.35 events=200
+08-01 23:24:34.766 I/AnebProbe( 4700): DOWNLOAD scenario=s3_multimodal#1 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=9136.58 goodput_mbps=11.018 error=none
+08-01 23:24:35.359 I/AnebProbe( 4700): UPLOAD scenario=s3_multimodal#1 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=576.80 goodput_mbps=14.543 server_chunks=16 error=none
+08-01 23:24:35.360 I/AnebProbe( 4700): THINK_PAUSE scenario=s3_multimodal#1 duration_ms=2500
+08-01 23:24:42.955 I/AnebProbe( 4700): STREAM scenario=s3_multimodal#1 stream=1 expected=200 events=200 reads=201 bytes=62057 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=66.24 error=none
+08-01 23:24:42.955 I/AnebProbe( 4700): PARSE scenario=s3_multimodal#1 stream=1 parse_dur_us=28230 per_event_parse_us=141.15 events=200
+08-01 23:24:52.167 I/AnebProbe( 4700): DOWNLOAD scenario=s3_multimodal#1 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=9204.69 goodput_mbps=10.936 error=none
+08-01 23:24:57.836 I/AnebProbe( 4700): CLOCK_SYNC scenario=s3_multimodal#1 edge=end phase=9 offset_us=-321926396273 err_us=33613 valid_n=17 total_n=20 warmup_n=3
+08-01 23:24:57.885 I/AnebProbe( 4700): SKEW scenario=s3_multimodal#1 start_offset_us=-321926398196 end_offset_us=-321926396273 drift_ppm=45.52 offset_suspect=false
+08-01 23:24:57.934 I/AnebProbe( 4700): SCENARIO_KPI scenario=s3_multimodal#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=66.2444(lowconf) t2_ms=30.4006 t2_incl_ms=30.4006 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=71.6750 n2_ms=12.3580 u1_mbps=14.5433(lowconf) u1_excl_mbps=25.9211(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:24:57.934 I/AnebProbe( 4700): BUFFERING scenario=s3_multimodal#1 score=0.070 attribution=none samples=398 sawtooth=0.015 near_zero=0.000 lag1=-0.657 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:24:57.934 I/AnebProbe( 4700): SCENARIO_START scenario=s1_chat#1 round=1 order_index=5
+08-01 23:25:03.188 I/AnebProbe( 4700): CLOCK_SYNC scenario=s1_chat#1 edge=start phase=0 offset_us=-321926401373 err_us=29057 valid_n=17 total_n=20 warmup_n=3
+08-01 23:25:03.321 I/AnebProbe( 4700): UPLOAD scenario=s1_chat#1 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=126.07 goodput_mbps=0.130 server_chunks=1 error=none
+08-01 23:25:18.453 I/AnebProbe( 4700): STREAM scenario=s1_chat#1 stream=0 expected=600 events=600 reads=602 bytes=188841 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=55.54 error=none
+08-01 23:25:18.454 I/AnebProbe( 4700): PARSE scenario=s1_chat#1 stream=0 parse_dur_us=64003 per_event_parse_us=106.67 events=600
+08-01 23:25:24.190 I/AnebProbe( 4700): CLOCK_SYNC scenario=s1_chat#1 edge=end phase=3 offset_us=-321926397263 err_us=30996 valid_n=17 total_n=20 warmup_n=3
+08-01 23:25:24.219 I/AnebProbe( 4700): SKEW scenario=s1_chat#1 start_offset_us=-321926401373 end_offset_us=-321926397263 drift_ppm=206.12 offset_suspect=true
+08-01 23:25:24.298 I/AnebProbe( 4700): SCENARIO_KPI scenario=s1_chat#1 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=55.5365(lowconf) t2_ms=32.9668 t2_incl_ms=32.9668 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=69.4960 n2_ms=16.1950 u1_mbps=0.1300(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:25:24.299 I/AnebProbe( 4700): BUFFERING scenario=s1_chat#1 score=0.046 attribution=none samples=599 sawtooth=0.088 near_zero=0.000 lag1=-0.496 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:25:24.299 I/AnebProbe( 4700): ORDER round=2 order=s3_multimodal,s1_chat,s2_coding_agent
+08-01 23:25:24.299 I/AnebProbe( 4700): SCENARIO_START scenario=s3_multimodal#2 round=2 order_index=6
+08-01 23:25:30.072 I/AnebProbe( 4700): CLOCK_SYNC scenario=s3_multimodal#2 edge=start phase=0 offset_us=-321926396448 err_us=32054 valid_n=17 total_n=20 warmup_n=3
+08-01 23:25:30.710 I/AnebProbe( 4700): UPLOAD scenario=s3_multimodal#2 idx=0 bytes=1048576 chunk=65536 http=200 dur_ms=586.27 goodput_mbps=14.308 server_chunks=16 error=none
+08-01 23:25:30.711 I/AnebProbe( 4700): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:25:38.294 I/AnebProbe( 4700): STREAM scenario=s3_multimodal#2 stream=0 expected=200 events=200 reads=201 bytes=61044 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=66.64 error=none
+08-01 23:25:38.294 I/AnebProbe( 4700): PARSE scenario=s3_multimodal#2 stream=0 parse_dur_us=28450 per_event_parse_us=142.25 events=200
+08-01 23:25:39.871 I/AnebProbe( 4700): DOWNLOAD scenario=s3_multimodal#2 idx=0 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=1583.21 goodput_mbps=63.582 error=none
+08-01 23:25:40.397 I/AnebProbe( 4700): UPLOAD scenario=s3_multimodal#2 idx=1 bytes=1048576 chunk=65536 http=200 dur_ms=513.53 goodput_mbps=16.335 server_chunks=16 error=none
+08-01 23:25:40.397 I/AnebProbe( 4700): THINK_PAUSE scenario=s3_multimodal#2 duration_ms=2500
+08-01 23:25:47.984 I/AnebProbe( 4700): STREAM scenario=s3_multimodal#2 stream=1 expected=200 events=200 reads=201 bytes=62045 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=62.52 error=none
+08-01 23:25:47.986 I/AnebProbe( 4700): PARSE scenario=s3_multimodal#2 stream=1 parse_dur_us=28183 per_event_parse_us=140.92 events=200
+08-01 23:25:49.017 I/AnebProbe( 4700): DOWNLOAD scenario=s3_multimodal#2 idx=1 bytes=12582912 read=12582912 chunk_kb=256 http=200 dur_ms=1025.90 goodput_mbps=98.122 error=none
+08-01 23:25:54.692 I/AnebProbe( 4700): CLOCK_SYNC scenario=s3_multimodal#2 edge=end phase=9 offset_us=-321926403276 err_us=31532 valid_n=17 total_n=20 warmup_n=3
+08-01 23:25:54.714 I/AnebProbe( 4700): SKEW scenario=s3_multimodal#2 start_offset_us=-321926396448 end_offset_us=-321926403276 drift_ppm=-250.86 offset_suspect=true
+08-01 23:25:54.778 I/AnebProbe( 4700): SCENARIO_KPI scenario=s3_multimodal#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=62.5192(lowconf) t2_ms=31.2339 t2_incl_ms=31.2339 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=71.4470 n2_ms=7.2240 u1_mbps=14.3084(lowconf) u1_excl_mbps=23.6707(lowconf) u2_ms=null gaps=0 dup=0
+08-01 23:25:54.783 I/AnebProbe( 4700): BUFFERING scenario=s3_multimodal#2 score=0.086 attribution=none samples=398 sawtooth=0.045 near_zero=0.000 lag1=-0.658 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:25:54.783 I/AnebProbe( 4700): SCENARIO_START scenario=s1_chat#2 round=2 order_index=7
+08-01 23:26:00.344 I/AnebProbe( 4700): CLOCK_SYNC scenario=s1_chat#2 edge=start phase=0 offset_us=-321926401447 err_us=26076 valid_n=17 total_n=20 warmup_n=3
+08-01 23:26:00.500 I/AnebProbe( 4700): UPLOAD scenario=s1_chat#2 idx=0 bytes=2048 chunk=2048 http=200 dur_ms=148.60 goodput_mbps=0.110 server_chunks=1 error=none
+08-01 23:26:15.635 I/AnebProbe( 4700): STREAM scenario=s1_chat#2 stream=0 expected=600 events=600 reads=602 bytes=188857 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=52.53 error=none
+08-01 23:26:15.636 I/AnebProbe( 4700): PARSE scenario=s1_chat#2 stream=0 parse_dur_us=62966 per_event_parse_us=104.94 events=600
+08-01 23:26:20.794 I/AnebProbe( 4700): CLOCK_SYNC scenario=s1_chat#2 edge=end phase=3 offset_us=-321926400481 err_us=26031 valid_n=17 total_n=20 warmup_n=3
+08-01 23:26:20.817 I/AnebProbe( 4700): SKEW scenario=s1_chat#2 start_offset_us=-321926401447 end_offset_us=-321926400481 drift_ppm=50.01 offset_suspect=false
+08-01 23:26:20.859 I/AnebProbe( 4700): SCENARIO_KPI scenario=s1_chat#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=52.5295(lowconf) t2_ms=30.2222 t2_incl_ms=30.2222 t3=0.0000 t3_incl=0.0000 t4=0.0000 t5_ms=null n1_ms=68.2820 n2_ms=15.5250 u1_mbps=0.1103(lowconf) u1_excl_mbps=null u2_ms=null gaps=0 dup=0
+08-01 23:26:20.870 I/AnebProbe( 4700): BUFFERING scenario=s1_chat#2 score=0.067 attribution=none samples=599 sawtooth=0.013 near_zero=0.000 lag1=-0.651 batch_count=0 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:26:20.871 I/AnebProbe( 4700): SCENARIO_START scenario=s2_coding_agent#2 round=2 order_index=8
+08-01 23:26:26.344 I/AnebProbe( 4700): CLOCK_SYNC scenario=s2_coding_agent#2 edge=start phase=0 offset_us=-321926394384 err_us=31703 valid_n=17 total_n=20 warmup_n=3
+08-01 23:26:26.830 I/AnebProbe( 4700): UPLOAD scenario=s2_coding_agent#2 idx=0 bytes=524288 chunk=65536 http=200 dur_ms=464.11 goodput_mbps=9.037 server_chunks=8 error=none
+08-01 23:26:26.831 I/AnebProbe( 4700): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=3000
+08-01 23:26:38.963 I/AnebProbe( 4700): STREAM scenario=s2_coding_agent#2 stream=0 expected=300 events=300 reads=300 bytes=91563 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=63.32 error=none
+08-01 23:26:38.963 I/AnebProbe( 4700): PARSE scenario=s2_coding_agent#2 stream=0 parse_dur_us=36840 per_event_parse_us=122.80 events=300
+08-01 23:26:39.279 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=0 up_bytes=8192 total_ms=324.65 proc_nominal_ms=200 proc_actual_us=200338 http=200 error=none
+08-01 23:26:39.612 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=1 up_bytes=8192 total_ms=323.69 proc_nominal_ms=200 proc_actual_us=200337 http=200 error=none
+08-01 23:26:39.933 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=2 up_bytes=8192 total_ms=321.48 proc_nominal_ms=200 proc_actual_us=200183 http=200 error=none
+08-01 23:26:40.262 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=3 up_bytes=8192 total_ms=321.75 proc_nominal_ms=200 proc_actual_us=200336 http=200 error=none
+08-01 23:26:40.611 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=4 up_bytes=8192 total_ms=344.55 proc_nominal_ms=200 proc_actual_us=200364 http=200 error=none
+08-01 23:26:40.932 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=5 up_bytes=8192 total_ms=317.31 proc_nominal_ms=200 proc_actual_us=200364 http=200 error=none
+08-01 23:26:41.253 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=6 up_bytes=8192 total_ms=316.81 proc_nominal_ms=200 proc_actual_us=200363 http=200 error=none
+08-01 23:26:41.603 I/AnebProbe( 4700): TOOLLOOP scenario=s2_coding_agent#2 round=7 up_bytes=8192 total_ms=342.26 proc_nominal_ms=200 proc_actual_us=200874 http=200 error=none
+08-01 23:26:41.603 I/AnebProbe( 4700): THINK_PAUSE scenario=s2_coding_agent#2 duration_ms=2000
+08-01 23:27:18.074 I/AnebProbe( 4700): STREAM scenario=s2_coding_agent#2 stream=1 expected=800 events=800 reads=801 bytes=248260 gaps=0 dup=0 parse_errors=0 truncated_early=false truncated_tail=false ttft_ms=58.42 error=none
+08-01 23:27:18.075 I/AnebProbe( 4700): PARSE scenario=s2_coding_agent#2 stream=1 parse_dur_us=67854 per_event_parse_us=84.82 events=800
+08-01 23:27:23.567 I/AnebProbe( 4700): CLOCK_SYNC scenario=s2_coding_agent#2 edge=end phase=7 offset_us=-321926393653 err_us=32843 valid_n=17 total_n=20 warmup_n=3
+08-01 23:27:23.606 I/AnebProbe( 4700): SKEW scenario=s2_coding_agent#2 start_offset_us=-321926394384 end_offset_us=-321926393653 drift_ppm=12.19 offset_suspect=false
+08-01 23:27:23.684 I/AnebProbe( 4700): SCENARIO_KPI scenario=s2_coding_agent#2 validity=VALID_LOW_CONFIDENCE reasons=none t1_ms=58.4194(lowconf) t2_ms=17.8240 t2_incl_ms=17.8240 t3=0.0000 t3_incl=0.0567 t4=0.0000 t5_ms=748.4474 n1_ms=70.7830 n2_ms=10.2290 u1_mbps=9.0373(lowconf) u1_excl_mbps=null u2_ms=144.1881 gaps=0 dup=0
+08-01 23:27:23.684 I/AnebProbe( 4700): BUFFERING scenario=s2_coding_agent#2 score=0.090 attribution=none samples=1098 sawtooth=0.102 near_zero=0.042 lag1=-0.433 batch_count=46 best_grid_us=null jank_overlap=0.000 retrans_rate=0.0000 affects_validity=false
+08-01 23:27:23.685 I/AnebProbe( 4700): AQS_INPUT_MAP map=N1,N2<-S1.first_clock_sync;T1,T2,T3,T4,T5<-S2;U1<-S3.1MB_upload(incl_slow_start_into_AQS);U2<-S2.tool_loop;D1<-S3.download;S1<-all_scenarios.round_success_ratio
+08-01 23:27:23.685 I/AnebProbe( 4700): AQS run_id=019fbdea-06fb-7c32-89aa-490e846d944e score=88.9 low_confidence=true veto=false reason=none subs=T1:95.4,T2:97.0,T3:100.0,U1:79.5,U2:85.7,N1:66.4,N2:80.9
+08-01 23:27:23.685 I/AnebProbe( 4700): AQS_V02 run_id=019fbdea-06fb-7c32-89aa-490e846d944e available=false reason=no_usable_continuity_in_24h
+08-01 23:27:23.685 I/AnebProbe( 4700): AQS_TOKEN run_id=019fbdea-06fb-7c32-89aa-490e846d944e table=WEIGHTS_TOKEN_MM score=85.7 veto=false reason=none workload=up:2623488B,dl:25165824B,stream:800,tool:8
+08-01 23:27:23.834 I/AnebProbe( 4700): REPORT http=200 bytes=23525 error=none
+08-01 23:27:23.860 I/AnebProbe( 4700): DB_WRITE run_id=019fbdea-06fb-7c32-89aa-490e846d944e scenarios=9 env_events_pending=0 radio_samples_pending=0
+08-01 23:27:23.860 I/AnebProbe( 4700): RUN_END run_id=019fbdea-06fb-7c32-89aa-490e846d944e status=completed
