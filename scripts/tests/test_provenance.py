@@ -268,6 +268,11 @@ _NOT_A_REPORT_GATE = {
         "same: the `--plan` sample-size CLI only. It shapes advice about a FUTURE "
         "campaign, not any number in this report — nothing here is reproduced "
         "differently by changing it",
+    ("stability", "SCENARIO_JITTER_MARK"):
+        "the marker word printed in the 备注 column and named in the summary (D-378); "
+        "perturbing it changes what the flag is CALLED and leaves every numeral "
+        "identical — the same class as GRADE_UNKNOWN_MARK. Which cells carry it "
+        "is decided by scenario_side_kpis / network_side_kpis, both archived",
     ("provenance", "_SHORT"): "display width of the inline hash, not a gate",
 }
 
@@ -318,6 +323,11 @@ _GATE_KEY = {
     ("stability", "STAB_GROUP_BY"): "stability_group_by",
     ("campaign_common", "VALUE_RANGES"): "value_ranges",
     ("stability", "DEFAULT_STABILITY_KPIS"): "stability_kpis",
+    # D-378: the discriminant that decides which over-gate cells the report
+    # tells the operator NOT to go re-measure, and which cells feed the
+    # 建议复测数中位 the sample-size section prints.
+    ("stability", "SCENARIO_SIDE_KPIS"): "scenario_side_kpis",
+    ("stability", "NETWORK_SIDE_KPIS"): "network_side_kpis",
     ("attribution", "SEGMENTS"): "attribution_segments",
     ("attribution", "SEVERE_FLAGS"): "severe_incomparability_flags",
     ("campaign_common", "TIERS"): "tiers",
@@ -421,6 +431,11 @@ _PERTURB = {
     "cv_gate_percent": (stability, "DEFAULT_CV_GATE", 1.0),
     "stability_max_stable_rows": (stability, "DEFAULT_MAX_STABLE_ROWS", 3),
     "stability_kpis": (stability, "DEFAULT_STABILITY_KPIS", ("t1_ttft_ms",)),
+    # moved onto a KPI the corpus HAS, not emptied: the section banner names
+    # both lists, so a retune shows on the page whether or not any cell is
+    # marked — which is what keeps this from reading inert on a clean corpus.
+    "scenario_side_kpis": (stability, "SCENARIO_SIDE_KPIS", ("n1_rtt_p50_ms",)),
+    "network_side_kpis": (stability, "NETWORK_SIDE_KPIS", ("u1_goodput_mbps",)),
     "validity_min_rate": (validity_rollup, "DEFAULT_MIN_RATE", 0.999),
     # 0 = UTC, which is exactly what this used to be: the perturbation puts the
     # report back on the day boundary that split one Shenzhen field day across

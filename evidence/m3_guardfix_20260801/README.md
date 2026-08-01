@@ -98,6 +98,41 @@ python campaign_report.py $D/expansion_counted.jsonl \
     --md $E/report.md --html $E/report.html --csv $E/exp
 ```
 
+## 6. B-1/B-3/B-5 与 B-2 的复跑（D-382 / D-383）
+
+同一份语料，同一次报告。**三面各自数出来的命中数**（D-303：按模块计数会把
+「两张表只导一张」藏起来）：
+
+| 面 | `SCENARIO_INTRINSIC_JITTER` | 段首横幅 | 中文短语「场景内生抖动」 |
+|---|---|---|---|
+| markdown（`report.md`） | 25 | 1 | 26 |
+| HTML（`report.html`） | **25** | **1** | **26** |
+| CSV（`exp_stability.csv`） | 独立列 `scenario_intrinsic_jitter`：**23 True** | ✗（CSV 无横幅，这是它的形态） | ✗（列名即编码，D-337） |
+
+25 = 横幅 1 + 摘要 1 + 表格行 23。CSV 的 `scenario_jitter_reason` 四种取值实测分布：
+`""`(=已标) 23、`network_side_unstable` 12、`not_applicable` 253。
+
+摘要 bullet（B-3）：
+
+> **复测不稳定**：58/288 单元超 CV 门 —— … 等 58 个；**其中 23 个属场景内生抖动**
+> （标 `SCENARIO_INTRINSIC_JITTER`，**不作为加测网络样本的理由**——那部分方差不在链路上，D-372）。
+
+### B-2：结论句拆开后，数字往**反方向**动了
+
+`06_stability_plan_t1_AFTER.md`（quick 分面，`t1_ttft_ms`）：
+
+| | 单元数 | 建议复测数中位 |
+|---|---|---|
+| **旧口径**（全汇池） | 43 | **n≥78** |
+| **新口径 · 网络侧**（本段唯一可据以加样本的） | 23 | **n≥111** |
+| **新口径 · 场景内生**（单列，不并入） | 20 | n≥78 |
+
+**GUARD_DIFF B-2 当初推断「那个 78 由 s2 主导」——主导是对的，方向说反了。**
+旧口径不是把 n 报高，是**报低了约三成**：把一群「不该据此加样本」的低需求汇进来，
+稀释掉了网络侧真正需要的采样量。**而这正是 n≥15 那个决定所依赖的同一张表。**
+
+`07_stability_plan_n1_AFTER.md`（网络侧 KPI）对「场景内生」**零命中**——判据不越界。
+
 ---
 
-*承 D-270 / D-303 / D-335 / D-354 / D-364 / D-376 / **D-380**；GUARD_DIFF C-1 / C-3；彩排 F-2。*
+*承 D-270 / D-303 / D-335 / D-337 / D-354 / D-364 / D-372 / D-376 / **D-380 / D-382 / D-383**；GUARD_DIFF C-1 / C-3 / B-1 / B-2 / B-3 / B-5；彩排 F-2。*

@@ -315,3 +315,195 @@ def test_the_two_detectable_differences_are_one_multiplication_apart():
     assert checked >= 1, (
         "no row printed both figures — this fixture resolves nothing, so the "
         "relation above was never actually evaluated")
+
+
+# ---------------------------------------------------------------- D-382
+#
+# s2 jitter is intrinsic to the scenario, not in the network (D-372: same batch,
+# TTFT CV 10.3% while RTT CV was 3.6%, TTFT~RTT correlation 0.00). A CV over the
+# gate on a scenario-side KPI therefore does not license 「加测网络样本」 — more
+# field runs thin a variance that does not live in the path.
+
+def _jitter_corpus(ttft, rtt, *, point="P1", profile="s2_coding_agent"):
+    """One cell whose t1 and n1 readings ride the same scenarios, so both land
+    in the same stability cell. `rtt=None` leaves the network side unmeasured."""
+    from synth import make_record
+    recs = []
+    for i, t in enumerate(ttft):
+        kpi = {"t1_ttft_ms": t}
+        if rtt is not None:
+            kpi["n1_rtt_p50_ms"] = rtt[i]
+        recs.append(make_record(
+            campaign={"campaign_id": "base", "tier": "metro", "point_id": point,
+                      "carrier": "cmcc", "time_band": "busy"},
+            aqs=88, scenarios=[(profile, kpi)]))
+    return recs
+
+
+STEADY_NET = [20.0, 20.1, 19.9, 20.05, 20.0]
+JUMPY_TTFT = [400.0, 520.0, 360.0, 480.0, 430.0]
+
+
+def test_scenario_side_jitter_is_marked_only_when_the_network_side_is_steady():
+    """The discriminant, both directions. A guard that fires on the wrong corpus
+    is worse than none: the same over-gate TTFT must NOT be called scenario-
+    intrinsic when the network side is over the gate too (D-382)."""
+    cells = stability.stability_cells(_jitter_corpus(JUMPY_TTFT, STEADY_NET),
+                                      "t1_ttft_ms")
+    assert len(cells) == 1, cells
+    c = cells[0]
+    assert c["unstable"] is True, c
+    assert c["scenario_intrinsic_jitter"] is True, c
+    assert c["scenario_jitter_reason"] == "", c
+
+    jumpy_net = [20.0, 27.0, 15.0, 25.0, 18.0]
+    c2 = stability.stability_cells(_jitter_corpus(JUMPY_TTFT, jumpy_net),
+                                   "t1_ttft_ms")[0]
+    assert c2["unstable"] is True, c2
+    assert c2["scenario_intrinsic_jitter"] is False, c2
+    assert c2["scenario_jitter_reason"] == "network_side_unstable", c2
+
+    calm = stability.stability_cells(
+        _jitter_corpus([400.0, 401.0, 399.0, 400.5, 400.0], STEADY_NET),
+        "t1_ttft_ms")[0]
+    assert calm["unstable"] is False and calm["scenario_intrinsic_jitter"] is False
+    assert calm["scenario_jitter_reason"] == "not_applicable", calm
+
+
+def test_no_network_reading_is_cannot_tell_not_a_denial():
+    """R-10 on the branch that matters most: without the discriminant this check
+    cannot answer. A bare False would send the reader to add field runs against
+    a cell nothing measured the network in."""
+    c = stability.stability_cells(_jitter_corpus(JUMPY_TTFT, None), "t1_ttft_ms")[0]
+    assert c["unstable"] is True, c
+    assert c["scenario_intrinsic_jitter"] is False, c
+    assert c["scenario_jitter_reason"] == "no_network_cv", c
+    md = stability.render_markdown([c], "t1_ttft_ms")
+    assert "不可判" in md and "判不了" in md, md
+    rows = [ln for ln in md.splitlines() if ln.startswith("| campaign_id=")]
+    assert rows and all(stability.SCENARIO_JITTER_MARK not in ln for ln in rows), rows
+
+
+def test_the_marker_reaches_markdown_and_the_banner_states_the_criterion():
+    """§2.6: a premise that only appears inside a 备注 cell is a premise most
+    readers never see. The banner renders on every scenario-side table, marked or
+    not — a paragraph that appears only when it fires never enters a golden and
+    its wording rots unwatched (D-318)."""
+    cells = stability.stability_cells(_jitter_corpus(JUMPY_TTFT, STEADY_NET),
+                                      "t1_ttft_ms")
+    md = stability.render_markdown(cells, "t1_ttft_ms")
+    assert "场景内生抖动判据" in md, md
+    assert stability.SCENARIO_JITTER_MARK in md, md
+    # the Chinese gloss travels with the marker: the HTML report is converted
+    # from this markdown, so this is also the HTML surface (D-107/D-337)
+    assert "场景内生抖动" in md, md
+    assert "不是加测网络样本的理由" in md, md
+    assert "`n1_rtt_p50_ms`" in md, "the banner must name the corroborating KPIs"
+    net_md = stability.render_markdown(
+        stability.stability_cells(_jitter_corpus(JUMPY_TTFT, STEADY_NET),
+                                  "n1_rtt_p50_ms"), "n1_rtt_p50_ms")
+    assert "场景内生抖动判据" not in net_md, net_md
+
+
+def test_the_plan_conclusion_pools_only_the_network_side():
+    """B-2 / D-301: when the criterion changes, the conclusion sentence has to
+    change with it. Measured shape: 「43/96 个单元…建议复测数中位 n≥78」 where the 78
+    was driven by the s2 cells — the number D-372 proved cannot be read as a
+    network sample size, pooled into a network sampling recommendation."""
+    import campaign_common as cc_
+    mild = [400.0, 424.0, 376.0, 416.0, 400.0]
+    recs = (_jitter_corpus(JUMPY_TTFT, STEADY_NET, point="P-jitter")
+            + _jitter_corpus(mild, [20.0, 23.0, 17.0, 22.0, 18.0], point="P-net"))
+    rows = stability.plan_cells(stability.stability_cells(recs, "t1_ttft_ms"))
+    md = stability.render_plan_markdown(rows, "t1_ttft_ms")
+
+    marked = [r for r in rows if r.get("scenario_intrinsic_jitter")]
+    assert [r["cell"]["point_id"] for r in marked] == ["P-jitter"], [
+        (r["cell"]["point_id"], r.get("scenario_intrinsic_jitter")) for r in rows]
+
+    net_short = [r for r in rows if not r.get("scenario_intrinsic_jitter")
+                 and r["resolves_at_power"] is False]
+    assert net_short, "fixture must leave a network-side cell short, or this proves nothing"
+    need = cc_.median([r["required_n_power"] for r in net_short])
+    assert ("n≥**%s**" % cc_.fmt_num(need)) in md.replace("**n≥", "n≥**"), md
+    assert "该中位只汇网络侧的" in md, md
+
+    assert stability.SCENARIO_JITTER_MARK in md, md
+    assert "单列，不并入上句" in md, md
+    assert "买不到网络精度" in md, md
+    assert "(场景内生)" in md, "the plan table has no 备注 column - the row must carry it"
+
+
+def test_a_plan_whose_every_short_cell_is_scenario_intrinsic_refuses_a_median():
+    """「没有可汇的」 is itself the finding. Saying nothing would let a reader carry
+    over the pooled median they saw last time (§2.4, D-150 恒出行)."""
+    rows = stability.plan_cells(
+        stability.stability_cells(_jitter_corpus(JUMPY_TTFT, STEADY_NET), "t1_ttft_ms"))
+    md = stability.render_plan_markdown(rows, "t1_ttft_ms")
+    assert "没有一个可用来推网络采样量" in md, md
+    assert "不给**建议复测数中位" in md, md
+
+
+def test_the_two_kpi_sides_are_disjoint():
+    """The two lists are a discriminant: a KPI on both sides would be asked to
+    corroborate itself, and every over-gate cell on it would silently read
+    network_side_unstable. The recursion is structurally impossible either way
+    (_annotate=False), so this pins the MEANING, not the stack (D-382)."""
+    both = set(stability.SCENARIO_SIDE_KPIS) & set(stability.NETWORK_SIDE_KPIS)
+    assert not both, both
+
+
+def test_the_marked_ROW_carries_the_marker_not_just_the_banner():
+    """Found by mutation audit, not by reasoning: deleting the 备注-column marker
+    left every assertion green, because the section BANNER also spells the marker
+    out and a whole-page `in md` matched there. A guard whose match lands on the
+    wrong surface is a guard that says nothing (§2.14 / the D-319 lesson about
+    what a coverage key compares)."""
+    cells = stability.stability_cells(_jitter_corpus(JUMPY_TTFT, STEADY_NET),
+                                      "t1_ttft_ms")
+    md = stability.render_markdown(cells, "t1_ttft_ms")
+    rows = [ln for ln in md.splitlines() if ln.startswith("| campaign_id=")]
+    assert len(rows) == 1, rows
+    assert stability.SCENARIO_JITTER_MARK in rows[0], (
+        "the marker is on the banner but not on the row a reader acts on")
+    assert "场景内生抖动" in rows[0], rows[0]
+
+
+def test_the_marker_reaches_the_csv_with_its_reason():
+    """CSV is the surface with no banner above it (§2.6/D-141). Exporting
+    `unstable=True` with nothing beside it to say the variance is not in the path
+    puts two surfaces in open disagreement — and the reason column is what keeps
+    `no_network_cv` from reading as 「查过了，是网络问题」 (D-382)."""
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = (_jitter_corpus(JUMPY_TTFT, STEADY_NET, point="P-jitter")
+            + _jitter_corpus(JUMPY_TTFT, None, point="P-blind"))
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(recs, prefix)
+        with open(prefix + "_stability.csv", encoding="utf-8-sig") as f:
+            rows = [r for r in csvmod.DictReader(f) if r["kpi"] == "t1_ttft_ms"]
+    by_point = {r["point_id"]: r for r in rows}
+    assert set(by_point) == {"P-jitter", "P-blind"}, sorted(by_point)
+    assert by_point["P-jitter"]["scenario_intrinsic_jitter"] == "True", by_point
+    assert by_point["P-jitter"]["scenario_jitter_reason"] == "", by_point
+    assert by_point["P-blind"]["scenario_intrinsic_jitter"] == "False", by_point
+    assert by_point["P-blind"]["scenario_jitter_reason"] == "no_network_cv", by_point
+
+
+def test_the_summary_bullet_carries_the_scenario_intrinsic_count():
+    """B-3: the summary is the paragraph decision-makers read closely, and
+    「N/M 单元超 CV 门」 pooled two kinds of noise into one count — the reader's next
+    action (go add field runs) is right for one kind and wasted on the other."""
+    recs = _jitter_corpus(JUMPY_TTFT, STEADY_NET, point="P-jitter")
+    summary = rpt.render_summary_markdown(recs)
+    assert "复测不稳定" in summary, summary
+    assert "其中 1 个属场景内生抖动" in summary, summary
+    assert "不作为加测网络样本的理由" in summary, summary
+    assert stability.SCENARIO_JITTER_MARK in summary, summary
+
+    # ...and a corpus with no such cell must not carry the clause: a note that
+    # fires on clean corpora trains people to ignore it (D-134).
+    calm = _jitter_corpus([400.0, 401.0, 399.0, 400.5, 400.0], STEADY_NET)
+    assert "场景内生抖动" not in rpt.render_summary_markdown(calm)

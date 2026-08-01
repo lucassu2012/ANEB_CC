@@ -617,9 +617,11 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     else:
         bullets.append(f"**有效率**：全部达门（≥{vres['min_rate'] * 100:.0f}%）。")
 
-    ranked_unstable, measured, no_cv = [], 0, 0
+    ranked_unstable, measured, no_cv, n_jitter = [], 0, 0, 0
     for k in stability.DEFAULT_STABILITY_KPIS:
         for c in stability.stability_cells(records, k, min_samples=min_samples):
+            if c.get("scenario_intrinsic_jitter"):
+                n_jitter += 1
             if c["cv_percent"] is None:
                 # counted, not dropped: the denominator below is measured cells
                 # only, and every other bullet in this summary discloses its
@@ -651,11 +653,21 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         bullets.append(f"**复测稳定性**：{no_cv} 个单元**全部无法计算 CV**"
                        "（n<2 或均值≤0）——覆盖缺口，非「全部达门」。")
     else:
+        # The summary is the paragraph decision-makers actually read closely, and
+        # 「N/M 单元超 CV 门」 pooled two kinds of noise into one count: the reader's
+        # next action — go add field runs — is right for one kind and wasted on
+        # the other (D-372/D-378). The count is carried, not split into two
+        # bullets: M is still every cell over the gate, which is what the section
+        # below shows, and a second bullet would put two denominators on the page.
+        jit_note = (f"；**其中 {n_jitter} 个属场景内生抖动**"
+                    f"（标 `{stability.SCENARIO_JITTER_MARK}`，"
+                    "**不作为加测网络样本的理由**——那部分方差不在链路上，D-372）"
+                    if n_jitter else "")
         bullets.append(
             f"**复测不稳定**：{len(unstable)}/{measured} 单元超 CV 门"
             + (f" —— {_top(named_unstable)}" if named_unstable
                else "，**全部无点位标签**")
-            + f"{unstable_unloc}{nocv_note}。" if unstable else
+            + f"{unstable_unloc}{jit_note}{nocv_note}。" if unstable else
             f"**复测稳定性**：{measured} 个单元全部达门{nocv_note}。")
 
     # The report gives order effect three sections and publish_check gates on
@@ -2119,7 +2131,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # an empty cv_percent has two causes needing two different
                     # actions — measure more, or go fix what produced these
                     # numbers — and the bare blank says neither (D-197)
-                    "cv_not_computable_reason", "implausible_values"])
+                    "cv_not_computable_reason", "implausible_values",
+                    # D-378. CSV has no banner above it to explain a word, so the
+                    # fact gets a column of its own beside unstable /
+                    # low_confidence (§2.3 of the addendum, D-141's reason). The
+                    # reason column is the sibling of cv_not_computable_reason:
+                    # a bare False has three causes wanting three different
+                    # actions, and `no_network_cv` is the one that must never
+                    # read as 「查过了，是网络问题」.
+                    "scenario_intrinsic_jitter", "scenario_jitter_reason"])
         for k in stability.DEFAULT_STABILITY_KPIS:
             for c in stability.stability_cells(records, k, min_samples=min_samples):
                 cell = c["cell"]
@@ -2128,7 +2148,9 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             cell.get("tier"), cell.get("profile_id"), c["kpi"], c["n"],
                             _cell(c["median"]), _cell(c["mean"]), _cell(c["cv_percent"]),
                             c["unstable"], c["low_confidence"],
-                            _cell(c.get("cv_not_computable_reason")), _bad(c)])
+                            _cell(c.get("cv_not_computable_reason")), _bad(c),
+                            c.get("scenario_intrinsic_jitter"),
+                            c.get("scenario_jitter_reason") or ""])
     written.append(p)
 
     # The order-effect diagnosis was the one section the report renders as a
@@ -2520,6 +2542,14 @@ def effective_thresholds():
         "kpi_profile_exclusions": {k: list(v) for k, v
                                    in sorted(cc.KPI_PROFILE_EXCLUSIONS.items())},
         "stability_kpis": list(stability.DEFAULT_STABILITY_KPIS),
+        # The discriminant behind SCENARIO_INTRINSIC_JITTER (D-378): which KPIs
+        # count as scenario-side, and which network-side KPIs are asked to
+        # corroborate. Retuning either moves which cells the report tells the
+        # operator NOT to go re-measure, and moves the 建议复测数中位 the
+        # sample-size section prints — archived because a re-run disagreeing with
+        # an archived report over that has to be explainable (D-122/D-248).
+        "scenario_side_kpis": list(stability.SCENARIO_SIDE_KPIS),
+        "network_side_kpis": list(stability.NETWORK_SIDE_KPIS),
         "attribution_kpis": list(attribution.ATTRIBUTABLE_KPIS),
         # Everything below decides what the report SAYS and was missing from a
         # manifest whose own test is named "cover every output-deciding gate"

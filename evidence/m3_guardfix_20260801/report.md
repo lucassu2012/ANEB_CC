@@ -21,9 +21,9 @@
 
 ## 溯源 / provenance（可复现性）
 
-> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-08-01 16:32:18 +0800 · 读 512 行 → 保留 512 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": null, "before": null, "after": null}。
+> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-08-01 17:06:11 +0800 · 读 512 行 → 保留 512 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": null, "before": null, "after": null}。
 
-> **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "kpi_profile_exclusions": {"u1_goodput_mbps": ["s1_chat"]}, "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
+> **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "kpi_profile_exclusions": {"u1_goodput_mbps": ["s1_chat"]}, "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "scenario_side_kpis": ["t1_ttft_ms", "t2_itl_p95_ms", "u2_tool_loop_p95_ms"], "network_side_kpis": ["n1_rtt_p50_ms", "n2_jitter_ms"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
 
 | 输入文件 | sha256 |
 |---|---|
@@ -39,7 +39,7 @@
 - **批化失真热点**：2 个 —— SYNTH-P03/cmcc/busy、SYNTH-P03/cucc/busy。
 - **时钟可疑热点**：无。
 - **有效率**：全部达门（≥80%）。
-- **复测不稳定**：58/288 单元超 CV 门 —— SYNTH-P04/cucc/busy/metro/s1_chat·t1_ttft_ms、SYNTH-P04/cmcc/busy/metro/s3_multimodal·t1_ttft_ms、SYNTH-P04/cucc/idle/metro/s2_coding_agent·t1_ttft_ms 等 58 个。
+- **复测不稳定**：58/288 单元超 CV 门 —— SYNTH-P04/cucc/busy/metro/s1_chat·t1_ttft_ms、SYNTH-P04/cmcc/busy/metro/s3_multimodal·t1_ttft_ms、SYNTH-P04/cucc/idle/metro/s2_coding_agent·t1_ttft_ms 等 58 个；**其中 23 个属场景内生抖动**（标 `SCENARIO_INTRINSIC_JITTER`，**不作为加测网络样本的理由**——那部分方差不在链路上，D-372）。
 - **序位效应**：已轮转，但所有 profile 的位次与单元不平衡——**本轮无法校验**是否残留序位偏倚。
 - **预热效应**：有多轮语料，但各位次/各轮由不同的单元供样——汇池前提不成立，差异不可单独归因——**本轮无法校验**首轮是否更差。
 - **无线上下文**：8/32 个格的无线证据 stale 或过薄——**这些格不足以据此排除信号因素**。
@@ -252,40 +252,42 @@
 
 > **本表共 96 个单元**：✗超门 35，CV 不可计算 0，其余稳定。摘要的「N/M 单元超 CV 门」即各 KPI 分表这两个数各自相加。
 
+> **场景内生抖动判据**（承 D-372）：同格同 profile 下本 KPI 超 CV 门、而网络侧（`n1_rtt_p50_ms`/`n2_jitter_ms`）**未**超门的单元标 `SCENARIO_INTRINSIC_JITTER`（**场景内生抖动**）——D-372 实测同批 RTT 平稳而 TTFT 独抖、两者相关 0.00，故**这些单元的 `需 n≥` 不是加测网络样本的理由**（加 run 只是把一个不在链路上的方差摊薄）。**本表 23 个**。
+
 | 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |
 |---|---|---|---|---|---|---|
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 25 | 453.8 | 454.64 | 4.9 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 26 | 431.8 | 439.1 | 11 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 26 | 431.8 | 439.1 | 11 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 447.8 | 450.22 | 5.7 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 437.2 | 436.23 | 4.2 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 25 | 426.41 | 435.51 | 11 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 25 | 426.41 | 435.51 | 11 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 27 | 431 | 429.82 | 5.1 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 24 | 463.25 | 464.94 | 4.6 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 457.33 | 463.59 | 12.9 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 457.33 | 463.59 | 12.9 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 23 | 457.8 | 458.67 | 3.8 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 429.8 | 433.86 | 4.1 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 24 | 434.64 | 433.21 | 10.9 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 24 | 434.64 | 433.21 | 10.9 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 25 | 443.5 | 439.86 | 3.2 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 26 | 460.25 | 458.8 | 3.9 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 453.66 | 441.87 | 12.5 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 453.66 | 441.87 | 12.5 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 25 | 471.9 | 466.44 | 5.4 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 23 | 435.6 | 436.39 | 4.8 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 27 | 421.81 | 430.31 | 14.5 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 27 | 421.81 | 430.31 | 14.5 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 439.4 | 437.3 | 4.8 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 22 | 457.5 | 464.67 | 4.9 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 23 | 462.24 | 451.24 | 10.7 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 23 | 462.24 | 451.24 | 10.7 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 467.5 | 467.5 | 4.1 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 26 | 441.6 | 443.77 | 4.1 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 26 | 456.9 | 443.22 | 13.4 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 26 | 456.9 | 443.22 | 13.4 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 449.95 | 447.43 | 4.6 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 468.2 | 467.05 | 3.6 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 13 | 409.14 | 434.54 | 11 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 13 | 409.14 | 434.54 | 11 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 15 | 463.1 | 466.68 | 4 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 452.8 | 452.77 | 2.8 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 458.99 | 453.28 | 12.7 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 458.99 | 453.28 | 12.7 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 14 | 448.7 | 450.43 | 4.8 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 13 | 481.3 | 486.97 | 3.9 | 稳定 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 475.75 | 478.35 | 13.1 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 475.75 | 478.35 | 13.1 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 15 | 475.3 | 478.99 | 4.7 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 468.2 | 461.38 | 4.8 | 稳定 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 455.67 | 448.2 | 8.6 | 稳定 | — |
@@ -302,18 +304,18 @@
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 427.4 | 450.58 | 15.3 | ✗超门 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 13 | 407.76 | 444.66 | 26.8 | ✗超门 | — |
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 471.5 | 484.03 | 17.9 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 466.3 | 477.61 | 11.9 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 497.4 | 503.66 | 13.7 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 12 | 455.1 | 458.4 | 14.1 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 491.27 | 491.54 | 10.3 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 482.66 | 486.87 | 11.2 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 13 | 465.71 | 469.99 | 14.6 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 442.78 | 446.41 | 13.7 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 525.21 | 511.85 | 14.6 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 439.84 | 462.26 | 13.5 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 518.91 | 517.88 | 13.2 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 523.29 | 520.92 | 13.6 | ✗超门 | — |
-| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 13 | 530.61 | 515 | 16.8 | ✗超门 | — |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 466.3 | 477.61 | 11.9 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 497.4 | 503.66 | 13.7 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 12 | 455.1 | 458.4 | 14.1 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 491.27 | 491.54 | 10.3 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 482.66 | 486.87 | 11.2 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 13 | 465.71 | 469.99 | 14.6 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 442.78 | 446.41 | 13.7 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 525.21 | 511.85 | 14.6 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 439.84 | 462.26 | 13.5 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 518.91 | 517.88 | 13.2 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 523.29 | 520.92 | 13.6 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 13 | 530.61 | 515 | 16.8 | ✗超门 | **SCENARIO_INTRINSIC_JITTER（场景内生抖动）** |
 
 > 另有 **36** 个**稳定**单元未列出（表内保留全部 ✗超门、CV 不可计算、含不可能读数的单元，以及前 25 个稳定单元）。完整数据见 `<prefix>_stability.csv`。
 

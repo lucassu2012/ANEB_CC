@@ -35,6 +35,19 @@ DEFAULT_STABILITY_KPIS = ("t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps")
 # measurement was excellent.
 STAB_GROUP_BY = ("campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id")
 
+# D-372 measured WHY s2 is noisy and answered it: the jitter is intrinsic to the
+# scenario, not in the network. Same batch, same cells — TTFT CV 10.3% while RTT
+# CV was 3.6%, and TTFT~RTT correlated 0.00. A CV computed on a scenario-side KPI
+# therefore does NOT license 「加测网络样本」: more repeats thin a variance that
+# does not live in the path. These two lists are the discriminant that ruling
+# turned into a check, and the ONE place either side is named (§2.14).
+SCENARIO_SIDE_KPIS = ("t1_ttft_ms", "t2_itl_p95_ms", "u2_tool_loop_p95_ms")
+NETWORK_SIDE_KPIS = ("n1_rtt_p50_ms", "n2_jitter_ms")
+# The marker, written once. markdown prints it as a 备注 prefix and the summary
+# names it; the CSV encodes the same fact as a column of its own, because a CSV
+# has no banner above it to explain a word (D-141/D-303/D-337).
+SCENARIO_JITTER_MARK = "SCENARIO_INTRINSIC_JITTER"
+
 
 def cv_percent(values):
     """Coefficient of variation (%) = sample stdev / mean * 100, or None.
@@ -71,8 +84,61 @@ def cv_reason(vals, cv):
 _UNSET = object()
 
 
+def network_side_verdict(records, group_by=None, cv_gate=None,
+                         min_samples=cc.DEFAULT_MIN_SAMPLES):
+    """{cell key -> True | False | None}: is EVERY network-side KPI in this cell
+    computable AND within the CV gate?
+
+    True  = the path was steady here, so a scenario-side KPI that is not is the
+            discriminant D-372 used.
+    False = the network side is over the gate too — the noise is not specific to
+            the scenario, and the ordinary 「先查测量装置」 reading (D-170) stands.
+    None  = no computable network-side CV in this cell. 「判不了」 is not 「判否」
+            (R-10), and the caller must not mark on it either way.
+    """
+    group_by = STAB_GROUP_BY if group_by is None else group_by
+    per_cell = {}
+    for k in NETWORK_SIDE_KPIS:
+        # _annotate=False makes the recursion structurally impossible rather than
+        # conditionally so. The first version relied on the two lists being
+        # disjoint, and a perturbation putting one KPI on both blew the stack —
+        # an invariant nothing enforced, holding up a recursion guard (D-378).
+        for c in stability_cells(records, k, group_by, cv_gate, min_samples,
+                                 _annotate=False):
+            if c["cv_percent"] is None:
+                continue
+            key = tuple(c["cell"][f] for f in group_by)
+            per_cell[key] = per_cell.get(key, True) and not c["unstable"]
+    return per_cell
+
+
+def annotate_scenario_jitter(cells, kpi_key, net):
+    """Mark the cells whose CV is scenario-intrinsic, in place.
+
+    `scenario_jitter_reason` exists for the same reason
+    `cv_not_computable_reason` does next door: a bare False has three causes
+    calling for three different actions, and the blank says none of them. The
+    dangerous one is `no_network_cv` — without the discriminant this check
+    cannot answer, and a reader filtering False would otherwise be told 「网络侧
+    问题，去加样本」 about a cell nothing measured the network in.
+    """
+    live = kpi_key in SCENARIO_SIDE_KPIS
+    for c in cells:
+        if not (live and c["unstable"]):
+            c["scenario_intrinsic_jitter"] = False
+            c["scenario_jitter_reason"] = "not_applicable"
+            continue
+        key = tuple(c["cell"].values())
+        v = net.get(key)
+        c["scenario_intrinsic_jitter"] = v is True
+        c["scenario_jitter_reason"] = {
+            True: "", False: "network_side_unstable", None: "no_network_cv"}[v]
+    return cells
+
+
 def stability_cells(records, kpi_key, group_by=None,
-                    cv_gate=None, min_samples=cc.DEFAULT_MIN_SAMPLES):
+                    cv_gate=None, min_samples=cc.DEFAULT_MIN_SAMPLES,
+                    _annotate=True):
     # read live, not captured in the signature — see cc.aqs_grade (D-204).
     # group_by sat captured right beside cv_gate until D-269: the fix had been
     # applied to the archived gate and not to the one next to it, which decides
@@ -114,7 +180,16 @@ def stability_cells(records, kpi_key, group_by=None,
             "low_confidence": len(vals) < min_samples,
             "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
         })
-    return cells
+    # Annotated HERE, not at each call site: every surface (report section,
+    # summary bullet, CSV, --plan) reads the same field off the same cells, so
+    # none of them can forget it and none can compute it differently (§2.14).
+    # No recursion risk — the network-side pass is only taken for a scenario-side
+    # KPI, and no KPI is on both lists (a guard test pins that).
+    if not _annotate:
+        return cells
+    net = (network_side_verdict(records, group_by, cv_gate, min_samples)
+           if kpi_key in SCENARIO_SIDE_KPIS else {})
+    return annotate_scenario_jitter(cells, kpi_key, net)
 
 
 # At M2 grid scale this table is (point x carrier x band x tier x profile) per KPI
@@ -145,6 +220,25 @@ def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
     lines += [f"> **本表共 {total} 个单元**：✗超门 {n_unstable}，"
               f"CV 不可计算 {n_nocv}，其余稳定。摘要的「N/M 单元超 CV 门」"
               "即各 KPI 分表这两个数各自相加。", ""]
+    # The section-head banner half of the D-378 contract. Rendered for every
+    # scenario-side KPI table whether or not anything was marked: a paragraph
+    # that only appears when it fires never enters a golden, and its wording
+    # then rots unwatched (D-318). It also names both KPI lists, which is what
+    # makes retuning either one visible on the page rather than only in a flag.
+    if kpi_key in SCENARIO_SIDE_KPIS:
+        n_jit = sum(1 for c in cells if c.get("scenario_intrinsic_jitter"))
+        blind = sum(1 for c in cells
+                    if c.get("scenario_jitter_reason") == "no_network_cv")
+        lines += [
+            f"> **场景内生抖动判据**（承 D-372）：同格同 profile 下本 KPI 超 CV 门、"
+            f"而网络侧（{'/'.join('`%s`' % k for k in NETWORK_SIDE_KPIS)}）**未**超门的"
+            f"单元标 `{SCENARIO_JITTER_MARK}`（**场景内生抖动**）——D-372 实测同批 "
+            "RTT 平稳而 TTFT 独抖、两者相关 0.00，故**这些单元的 `需 n≥` 不是加测网络样本的"
+            f"理由**（加 run 只是把一个不在链路上的方差摊薄）。**本表 {n_jit} 个**。"
+            + (f"另有 **{blind} 个**超门单元的格内**网络侧 CV 不可算**，故**未打此标**——"
+               "那是「判不了」，**不是**「判否」。" if blind else ""),
+            "",
+        ]
     # "stable" here means stable AND clean: a cell carrying impossible readings
     # is never a row to fold away, whatever its CV says about the rest.
     stable_ids = [id(c) for c in cells
@@ -175,6 +269,16 @@ def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
             why = {"n<2": "n<2", "mean<=0": "均值≤0"}.get(
                 c.get("cv_not_computable_reason"), "n<2/均值≤0")
             notes.append(f"CV 不可计算({why})")
+        # Prefix, ahead of the older notes: this is the one that changes what the
+        # reader should DO about the row. The Chinese gloss travels WITH the
+        # marker because the HTML report is converted from this markdown (D-107),
+        # so a separate HTML wording would be a second truth free to drift — the
+        # surfaces differ in vocabulary where they have their own renderer
+        # (the CSV column), not where one is derived from the other (D-337).
+        if c.get("scenario_intrinsic_jitter"):
+            notes.append(f"**{SCENARIO_JITTER_MARK}（场景内生抖动）**")
+        elif c.get("scenario_jitter_reason") == "no_network_cv":
+            notes.append("场景内生?**不可判**（格内无网络侧 CV）")
         if c.get("implausible_values"):
             notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
                 f"{r}×{n}" for r, n in sorted(c["implausible_values"].items())) + "**")
@@ -272,6 +376,10 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         ok = ("—" if r["resolves_at_power"] is None
               else ("达标" if r["resolves_at_power"] else "✗不足"))
         gate = "**✗超门**" if r["unstable"] else ("—" if r["cv_percent"] is None else "达门")
+        # This table has no 备注 column, so the marker rides in the gate cell —
+        # the row a reader is about to act on is the row that has to carry it.
+        if r.get("scenario_intrinsic_jitter"):
+            gate += "(场景内生)"
         lines.append(
             f"| {cell_label} | {r['n']} | {cc.fmt_num(r['median'], 2)} | "
             f"{cc.fmt_num(r['cv_percent'], 1)} | {gate} | {cc.fmt_num(r['mde'], 2)} | "
@@ -292,14 +400,32 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         lines.append(f"> **结论**：{len(rows)} 个单元离散度均不可估（n<2），"
                      "**无法核算采样量**——先补足复测再核算。")
     else:
-        need = cc.median([r["required_n_power"] for r in short]) if short else None
+        # D-378 split the CRITERION; D-301's lesson is that the conclusion
+        # sentence has to move with it, or the section keeps reporting the old
+        # pooled number under a table that no longer means that. The measured
+        # case: 「43/96 个单元…建议复测数中位 n≥78」 on t1_ttft_ms, where the 78 was
+        # driven by the s2 cells — the very number D-372 proved cannot be read as
+        # a network sample size, pooled into a network sampling recommendation.
+        jitter = [r for r in short if r.get("scenario_intrinsic_jitter")]
+        net_short = [r for r in short if not r.get("scenario_intrinsic_jitter")]
+        need = cc.median([r["required_n_power"] for r in net_short]) if net_short else None
         if not short:
             verdict = (f"> **结论**：{len(judged)} 个可核算单元在当前 n 下，"
                        f"都有 **≥{pw}% 的把握**看见 {cc.fmt_num(target_pct, 1)}% 的差异。")
         else:
             verdict = (f"> **结论**：{len(short)}/{len(judged)} 个单元在当前 n 下"
-                       f"**没有 {pw}% 的把握**看见 {cc.fmt_num(target_pct, 1)}% 的差异"
-                       f"；这些单元的建议复测数中位为 **n≥{cc.fmt_num(need)}**（每侧）。")
+                       f"**没有 {pw}% 的把握**看见 {cc.fmt_num(target_pct, 1)}% 的差异")
+            if not net_short:
+                # Saying nothing here would let a reader carry over the pooled
+                # median they saw last time; 「没有可汇的」 is itself the finding.
+                verdict += (f"；但这 {len(short)} 个**全部**标 "
+                            f"`{SCENARIO_JITTER_MARK}`，**没有一个可用来推网络采样量**"
+                            "——本段因此**不给**建议复测数中位。")
+            else:
+                verdict += (f"；这些单元的建议复测数中位为 **n≥{cc.fmt_num(need)}**（每侧）"
+                            + (f"——**该中位只汇网络侧的 {len(net_short)} 个**，"
+                               f"已排除 {len(jitter)} 个 `{SCENARIO_JITTER_MARK}` 单元"
+                               if jitter else "") + "。")
             if coin:
                 verdict += (f" 其中 **{len(coin)} 个**单元的当前 n 恰好落在"
                             "「差异等于噪声尺度」附近——**那只有约五成把握**，"
@@ -307,6 +433,18 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         if unknown:
             verdict += f" 另有 {unknown} 个单元离散度不可估，**未计入**。"
         lines.append(verdict)
+        # The s2 half gets its OWN sentence rather than a clause: pooling it was
+        # the defect, and a parenthesis inside the network sentence would read as
+        # a footnote to a number it must not contribute to.
+        if jitter:
+            j_need = cc.median([r["required_n_power"] for r in jitter])
+            lines.append("")
+            lines.append(
+                f"> ⚠ **另有 {len(jitter)} 个单元标 `{SCENARIO_JITTER_MARK}`**"
+                f"（其 `需 n≥` 中位 **{cc.fmt_num(j_need)}**，**单列，不并入上句**）。"
+                "它们超门的那部分方差**不在链路上**（D-372：同批 RTT 平稳、TTFT~RTT 相关 0.00），"
+                "**照这个数加外场 run 买不到网络精度**。要降它只有两条路："
+                "改**场景/服务端侧**的测量装置，或对该 KPI **放宽 MDE 目标**并写明理由。")
     if unstable:
         # A prescription of "run more repeats" is the wrong remedy for a cell
         # whose measurement is not repeatable in the first place — the runbook
