@@ -1,0 +1,129 @@
+﻿kpi,point_id,carrier,time_band,median,profile_span,profile_medians,grade,grade_tie,n,low_confidence,mixed_campaigns,implausible_values,ruled_out,synthetic
+t1_ttft_ms,SYNTH-P01,cmcc,busy,447.7,431.8–453.8（3 个 profile）,s1_chat=453.8; s2_coding_agent=431.8; s3_multimodal=447.79999999999995,good,,77,False,,,,True
+t1_ttft_ms,SYNTH-P01,cmcc,idle,432.0,426.41–437.2（3 个 profile）,s1_chat=437.2; s2_coding_agent=426.41; s3_multimodal=431.0,good,,77,False,,,,True
+t1_ttft_ms,SYNTH-P01,cucc,busy,460.4,457.33–463.25（3 个 profile）,s1_chat=463.25; s2_coding_agent=457.33; s3_multimodal=457.8,good,,74,False,,,,True
+t1_ttft_ms,SYNTH-P01,cucc,idle,437.79999999999995,429.8–443.5（3 个 profile）,s1_chat=429.8; s2_coding_agent=434.645; s3_multimodal=443.5,good,,74,False,,,,True
+t1_ttft_ms,SYNTH-P02,cmcc,busy,462.85,453.66–471.9（3 个 profile）,s1_chat=460.25; s2_coding_agent=453.66; s3_multimodal=471.9,good,,78,False,,,,True
+t1_ttft_ms,SYNTH-P02,cmcc,idle,435.45000000000005,421.81–439.4（3 个 profile）,s1_chat=435.6; s2_coding_agent=421.81; s3_multimodal=439.4,good,,76,False,,,,True
+t1_ttft_ms,SYNTH-P02,cucc,busy,464.58,457.5–467.5（3 个 profile）,s1_chat=457.5; s2_coding_agent=462.24; s3_multimodal=467.5,good,,71,False,,,,True
+t1_ttft_ms,SYNTH-P02,cucc,idle,446.95,441.6–456.9（3 个 profile）,s1_chat=441.6; s2_coding_agent=456.9; s3_multimodal=449.95,good,,78,False,,,,True
+t1_ttft_ms,SYNTH-P03,cmcc,busy,462.2,409.14–468.2（3 个 profile）,s1_chat=468.2; s2_coding_agent=409.14; s3_multimodal=463.1,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P03,cmcc,idle,454.0,448.7–458.99（3 个 profile）,s1_chat=452.8; s2_coding_agent=458.99; s3_multimodal=448.7,good,,41,False,,,,True
+t1_ttft_ms,SYNTH-P03,cucc,busy,480.5,475.3–481.3（3 个 profile）,s1_chat=481.3; s2_coding_agent=475.755; s3_multimodal=475.3,good,,42,False,,,,True
+t1_ttft_ms,SYNTH-P03,cucc,idle,455.9,447.7–468.2（3 个 profile）,s1_chat=468.2; s2_coding_agent=455.67; s3_multimodal=447.7,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P04,cmcc,busy,453.3,415.33–498.15（3 个 profile）,s1_chat=498.15; s2_coding_agent=415.33; s3_multimodal=447.1,good,,39,False,,,,True
+t1_ttft_ms,SYNTH-P04,cmcc,idle,451.7,414.6–452.9（3 个 profile）,s1_chat=452.9; s2_coding_agent=443.79; s3_multimodal=414.6,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P04,cucc,busy,509.0,497.8–512.31（3 个 profile）,s1_chat=497.79999999999995; s2_coding_agent=512.3149999999999; s3_multimodal=509.0,good,,41,False,,,,True
+t1_ttft_ms,SYNTH-P04,cucc,idle,448.1,407.76–471.5（3 个 profile）,s1_chat=427.4; s2_coding_agent=407.76; s3_multimodal=471.5,good,,41,False,,,,True
+t1_ttft_ms,SYNTH-P05,cmcc,busy,481.4,466.3–489.4（3 个 profile）,s1_chat=479.0; s2_coding_agent=466.295; s3_multimodal=489.4,good,,42,False,,,,True
+t1_ttft_ms,SYNTH-P05,cmcc,idle,444.8,428.87–451.6（3 个 profile）,s1_chat=451.6; s2_coding_agent=428.87; s3_multimodal=442.1,good,,45,False,,,,True
+t1_ttft_ms,SYNTH-P05,cucc,busy,499.95,495.1–501.3（3 个 profile）,s1_chat=501.3; s2_coding_agent=497.405; s3_multimodal=495.1,good,,42,False,,,,True
+t1_ttft_ms,SYNTH-P05,cucc,idle,466.55,463.65–467.1（3 个 profile）,s1_chat=465.25; s2_coding_agent=463.655; s3_multimodal=467.1,good,,42,False,,,,True
+t1_ttft_ms,SYNTH-P06,cmcc,busy,490.96,487.4–494.2（3 个 profile）,s1_chat=487.4; s2_coding_agent=490.87; s3_multimodal=494.2,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P06,cmcc,idle,459.53,455.1–462.2（3 个 profile）,s1_chat=460.65; s2_coding_agent=455.095; s3_multimodal=462.2,good,,39,False,,,,True
+t1_ttft_ms,SYNTH-P06,cucc,busy,505.6,491.27–507.6（3 个 profile）,s1_chat=505.1; s2_coding_agent=491.27; s3_multimodal=507.6,good,,45,False,,,,True
+t1_ttft_ms,SYNTH-P06,cucc,idle,476.0,470.7–482.66（3 个 profile）,s1_chat=470.7; s2_coding_agent=482.66; s3_multimodal=474.3,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P07,cmcc,busy,490.9,465.71–498.4（3 个 profile）,s1_chat=491.2; s2_coding_agent=465.71; s3_multimodal=498.4,good,,42,False,,,,True
+t1_ttft_ms,SYNTH-P07,cmcc,idle,461.1,442.78–470.9（3 个 profile）,s1_chat=470.9; s2_coding_agent=442.78499999999997; s3_multimodal=469.8,good,,40,False,,,,True
+t1_ttft_ms,SYNTH-P07,cucc,busy,504.55,489.1–525.21（3 个 profile）,s1_chat=489.1; s2_coding_agent=525.21; s3_multimodal=501.3,good,,44,False,,,,True
+t1_ttft_ms,SYNTH-P07,cucc,idle,465.1,439.84–480.4（3 个 profile）,s1_chat=480.4; s2_coding_agent=439.83500000000004; s3_multimodal=464.2,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P08,cmcc,busy,536.2,518.91–542.15（3 个 profile）,s1_chat=542.1500000000001; s2_coding_agent=518.91; s3_multimodal=539.95,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P08,cmcc,idle,495.7,487.7–523.29（3 个 profile）,s1_chat=487.7; s2_coding_agent=523.29; s3_multimodal=495.7,good,,45,False,,,,True
+t1_ttft_ms,SYNTH-P08,cucc,busy,560.0,536.61–562.5（3 个 profile）,s1_chat=562.5; s2_coding_agent=536.61; s3_multimodal=560.0,good,,43,False,,,,True
+t1_ttft_ms,SYNTH-P08,cucc,idle,505.0,499.3–530.61（3 个 profile）,s1_chat=513.1; s2_coding_agent=530.61; s3_multimodal=499.3,good,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P01,cmcc,busy,22.82,22.45–22.86（3 个 profile）,s1_chat=22.45; s2_coding_agent=22.84; s3_multimodal=22.855,good,,77,False,,,,True
+n1_rtt_p50_ms,SYNTH-P01,cmcc,idle,16.91,16.83–17.11（3 个 profile）,s1_chat=17.11; s2_coding_agent=16.83; s3_multimodal=16.91,good,,77,False,,,,True
+n1_rtt_p50_ms,SYNTH-P01,cucc,busy,25.66,25.59–25.7（3 个 profile）,s1_chat=25.595; s2_coding_agent=25.66; s3_multimodal=25.7,good,,74,False,,,,True
+n1_rtt_p50_ms,SYNTH-P01,cucc,idle,18.985,18.97–19.06（3 个 profile）,s1_chat=19.06; s2_coding_agent=18.97; s3_multimodal=18.97,good,,74,False,,,,True
+n1_rtt_p50_ms,SYNTH-P02,cmcc,busy,25.27,25.26–25.29（3 个 profile）,s1_chat=25.259999999999998; s2_coding_agent=25.27; s3_multimodal=25.29,good,,78,False,,,,True
+n1_rtt_p50_ms,SYNTH-P02,cmcc,idle,18.61,18.57–18.61（3 个 profile）,s1_chat=18.61; s2_coding_agent=18.61; s3_multimodal=18.575,good,,76,False,,,,True
+n1_rtt_p50_ms,SYNTH-P02,cucc,busy,28.09,28.08–28.12（3 个 profile）,s1_chat=28.119999999999997; s2_coding_agent=28.08; s3_multimodal=28.085,good,,71,False,,,,True
+n1_rtt_p50_ms,SYNTH-P02,cucc,idle,20.91,20.82–21.04（3 个 profile）,s1_chat=21.04; s2_coding_agent=20.975; s3_multimodal=20.82,good,,78,False,,,,True
+n1_rtt_p50_ms,SYNTH-P03,cmcc,busy,27.34,27.34–27.34（3 个 profile）,s1_chat=27.34; s2_coding_agent=27.34; s3_multimodal=27.34,good,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P03,cmcc,idle,19.99,19.94–20.11（3 个 profile）,s1_chat=20.11; s2_coding_agent=20.049999999999997; s3_multimodal=19.939999999999998,good,,41,False,,,,True
+n1_rtt_p50_ms,SYNTH-P03,cucc,busy,30.939999999999998,30.93–30.95（3 个 profile）,s1_chat=30.95; s2_coding_agent=30.939999999999998; s3_multimodal=30.93,good,,42,False,,,,True
+n1_rtt_p50_ms,SYNTH-P03,cucc,idle,22.5,22.5–22.54（3 个 profile）,s1_chat=22.54; s2_coding_agent=22.5; s3_multimodal=22.5,good,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P04,cmcc,busy,27.32,27.04–28.28（3 个 profile）,s1_chat=27.04; s2_coding_agent=27.8; s3_multimodal=28.28,good,,39,False,,,,True
+n1_rtt_p50_ms,SYNTH-P04,cmcc,idle,20.01,20.01–20.01（3 个 profile）,s1_chat=20.01; s2_coding_agent=20.01; s3_multimodal=20.01,good,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P04,cucc,busy,32.7,32.59–32.71（3 个 profile）,s1_chat=32.71; s2_coding_agent=32.645; s3_multimodal=32.59,good,,41,False,,,,True
+n1_rtt_p50_ms,SYNTH-P04,cucc,idle,23.06,23.06–23.34（3 个 profile）,s1_chat=23.06; s2_coding_agent=23.34; s3_multimodal=23.06,good,,41,False,,,,True
+n1_rtt_p50_ms,SYNTH-P05,cmcc,busy,31.53,31.52–31.54（3 个 profile）,s1_chat=31.54; s2_coding_agent=31.53; s3_multimodal=31.52,good,,42,False,,,,True
+n1_rtt_p50_ms,SYNTH-P05,cmcc,idle,23.05,23.05–23.05（3 个 profile）,s1_chat=23.05; s2_coding_agent=23.05; s3_multimodal=23.05,good,,45,False,,,,True
+n1_rtt_p50_ms,SYNTH-P05,cucc,busy,35.01,35.01–35.08（3 个 profile）,s1_chat=35.01; s2_coding_agent=35.084999999999994; s3_multimodal=35.01,good,,42,False,,,,True
+n1_rtt_p50_ms,SYNTH-P05,cucc,idle,26.11,26.11–26.11（3 个 profile）,s1_chat=26.11; s2_coding_agent=26.11; s3_multimodal=26.11,good,,42,False,,,,True
+n1_rtt_p50_ms,SYNTH-P06,cmcc,busy,33.55,33.55–33.6（3 个 profile）,s1_chat=33.55; s2_coding_agent=33.599999999999994; s3_multimodal=33.599999999999994,good,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P06,cmcc,idle,24.59,24.56–24.59（3 个 profile）,s1_chat=24.564999999999998; s2_coding_agent=24.564999999999998; s3_multimodal=24.59,good,,39,False,,,,True
+n1_rtt_p50_ms,SYNTH-P06,cucc,busy,37.47,37.47–37.47（3 个 profile）,s1_chat=37.47; s2_coding_agent=37.47; s3_multimodal=37.47,good,,45,False,,,,True
+n1_rtt_p50_ms,SYNTH-P06,cucc,idle,27.86,27.86–27.86（3 个 profile）,s1_chat=27.86; s2_coding_agent=27.86; s3_multimodal=27.86,good,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P07,cmcc,busy,34.3,33.43–34.3（3 个 profile）,s1_chat=34.3; s2_coding_agent=34.3; s3_multimodal=33.43,good,,42,False,,,,True
+n1_rtt_p50_ms,SYNTH-P07,cmcc,idle,24.784999999999997,23.83–25.74（3 个 profile）,s1_chat=25.74; s2_coding_agent=24.784999999999997; s3_multimodal=23.83,good,,40,False,,,,True
+n1_rtt_p50_ms,SYNTH-P07,cucc,busy,39.25,39.25–39.45（3 个 profile）,s1_chat=39.25; s2_coding_agent=39.25; s3_multimodal=39.445,good,,44,False,,,,True
+n1_rtt_p50_ms,SYNTH-P07,cucc,idle,28.79,27.73–28.79（3 个 profile）,s1_chat=28.79; s2_coding_agent=28.39; s3_multimodal=27.725,good,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P08,cmcc,busy,49.73,49.61–49.8（3 个 profile）,s1_chat=49.8; s2_coding_agent=49.73; s3_multimodal=49.61,fair,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P08,cmcc,idle,36.92,36.92–36.92（3 个 profile）,s1_chat=36.92; s2_coding_agent=36.92; s3_multimodal=36.92,good,,45,False,,,,True
+n1_rtt_p50_ms,SYNTH-P08,cucc,busy,56.31,56.31–57.05（3 个 profile）,s1_chat=56.31; s2_coding_agent=56.31; s3_multimodal=57.05,fair,,43,False,,,,True
+n1_rtt_p50_ms,SYNTH-P08,cucc,idle,41.42,41.42–41.52（3 个 profile）,s1_chat=41.42; s2_coding_agent=41.52; s3_multimodal=41.42,fair,,43,False,,,,True
+u1_goodput_mbps,SYNTH-P01,cmcc,busy,38.269999999999996,38.23–38.43（2 个 profile）,s2_coding_agent=38.43; s3_multimodal=38.235,good,,52,False,,,s1_chat×25,True
+u1_goodput_mbps,SYNTH-P01,cmcc,idle,42.375,42.21–42.74（2 个 profile）,s2_coding_agent=42.74; s3_multimodal=42.21,good,,52,False,,,s1_chat×25,True
+u1_goodput_mbps,SYNTH-P01,cucc,busy,36.845,36.64–36.86（2 个 profile）,s2_coding_agent=36.86; s3_multimodal=36.64,good,,50,False,,,s1_chat×24,True
+u1_goodput_mbps,SYNTH-P01,cucc,idle,41.38,40.73–41.42（2 个 profile）,s2_coding_agent=41.42; s3_multimodal=40.73,good,,49,False,,,s1_chat×25,True
+u1_goodput_mbps,SYNTH-P02,cmcc,busy,36.510000000000005,36.3–37.28（2 个 profile）,s2_coding_agent=36.3; s3_multimodal=37.28,good,,52,False,,,s1_chat×26,True
+u1_goodput_mbps,SYNTH-P02,cmcc,idle,40.95,40.95–41.04（2 个 profile）,s2_coding_agent=40.95; s3_multimodal=41.04,good,,53,False,,,s1_chat×23,True
+u1_goodput_mbps,SYNTH-P02,cucc,busy,35.12,34.93–35.23（2 个 profile）,s2_coding_agent=34.93; s3_multimodal=35.230000000000004,good,,49,False,,,s1_chat×22,True
+u1_goodput_mbps,SYNTH-P02,cucc,idle,39.28,39.03–39.52（2 个 profile）,s2_coding_agent=39.519999999999996; s3_multimodal=39.035,good,,52,False,,,s1_chat×26,True
+u1_goodput_mbps,SYNTH-P03,cmcc,busy,35.565,35.18–36.58（2 个 profile）,s2_coding_agent=36.58; s3_multimodal=35.18,good,,28,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P03,cmcc,idle,40.754999999999995,40.52–41.15（2 个 profile）,s2_coding_agent=41.15; s3_multimodal=40.515,good,,28,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P03,cucc,busy,33.73,33.69–33.81（2 个 profile）,s2_coding_agent=33.81; s3_multimodal=33.69,good,,29,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P03,cucc,idle,38.825,38.75–39.27（2 个 profile）,s2_coding_agent=39.27; s3_multimodal=38.75,good,,30,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P04,cmcc,busy,39.68,35.06–40.91（2 个 profile）,s2_coding_agent=40.905; s3_multimodal=35.06,good,,25,False,,,s1_chat×14,True
+u1_goodput_mbps,SYNTH-P04,cmcc,idle,39.260000000000005,38.57–41.52（2 个 profile）,s2_coding_agent=38.57; s3_multimodal=41.52,good,,30,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P04,cucc,busy,37.8,34.48–38.64（2 个 profile）,s2_coding_agent=38.644999999999996; s3_multimodal=34.48,good,,27,False,,,s1_chat×14,True
+u1_goodput_mbps,SYNTH-P04,cucc,idle,38.565,38.45–39.24（2 个 profile）,s2_coding_agent=38.45; s3_multimodal=39.24,good,,28,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P05,cmcc,busy,33.5,33.42–33.78（2 个 profile）,s2_coding_agent=33.785; s3_multimodal=33.42,good,,29,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P05,cmcc,idle,37.74,37.16–38.37（2 个 profile）,s2_coding_agent=37.16; s3_multimodal=38.37,good,,30,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P05,cucc,busy,31.53,31.23–31.57（2 个 profile）,s2_coding_agent=31.57; s3_multimodal=31.23,good,,29,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P05,cucc,idle,36.44,36.33–36.72（2 个 profile）,s2_coding_agent=36.72; s3_multimodal=36.325,good,,28,False,,,s1_chat×14,True
+u1_goodput_mbps,SYNTH-P06,cmcc,busy,33.02,32.9–33.06（2 个 profile）,s2_coding_agent=33.06; s3_multimodal=32.895,good,,28,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P06,cmcc,idle,37.5,37.28–37.95（2 个 profile）,s2_coding_agent=37.955; s3_multimodal=37.28,good,,25,False,,,s1_chat×14,True
+u1_goodput_mbps,SYNTH-P06,cucc,busy,30.7,30.56–31.3（2 个 profile）,s2_coding_agent=31.3; s3_multimodal=30.56,good,,30,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P06,cucc,idle,35.510000000000005,35.26–35.57（2 个 profile）,s2_coding_agent=35.26; s3_multimodal=35.57,good,,30,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P07,cmcc,busy,32.46,32.34–33.14（2 个 profile）,s2_coding_agent=33.14; s3_multimodal=32.34,good,,27,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P07,cmcc,idle,37.14,37.03–37.17（2 个 profile）,s2_coding_agent=37.035; s3_multimodal=37.17,good,,27,False,,,s1_chat×13,True
+u1_goodput_mbps,SYNTH-P07,cucc,busy,31.07,30.82–31.08（2 个 profile）,s2_coding_agent=31.08; s3_multimodal=30.825,good,,29,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P07,cucc,idle,34.615,34.24–34.91（2 个 profile）,s2_coding_agent=34.905; s3_multimodal=34.245,good,,28,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P08,cmcc,busy,26.85,26.82–27（2 个 profile）,s2_coding_agent=27.0; s3_multimodal=26.82,fair,,29,False,,,s1_chat×14,True
+u1_goodput_mbps,SYNTH-P08,cmcc,idle,31.5,30.96–31.82（2 个 profile）,s2_coding_agent=31.82; s3_multimodal=30.96,good,,30,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P08,cucc,busy,24.64,24.61–24.92（2 个 profile）,s2_coding_agent=24.92; s3_multimodal=24.61,fair,,28,False,,,s1_chat×15,True
+u1_goodput_mbps,SYNTH-P08,cucc,idle,29.439999999999998,29.38–29.74（2 个 profile）,s2_coding_agent=29.74; s3_multimodal=29.38,fair,,28,False,,,s1_chat×15,True
+t2_itl_p95_ms,SYNTH-P01,cmcc,busy,77.8,76.36–78.2（3 个 profile）,s1_chat=78.2; s2_coding_agent=76.355; s3_multimodal=77.9,good,,77,False,,,,True
+t2_itl_p95_ms,SYNTH-P01,cmcc,idle,71.7,71–71.9（3 个 profile）,s1_chat=71.8; s2_coding_agent=71.9; s3_multimodal=71.0,good,,77,False,,,,True
+t2_itl_p95_ms,SYNTH-P01,cucc,busy,80.7,79.14–81.4（3 个 profile）,s1_chat=79.44999999999999; s2_coding_agent=79.14; s3_multimodal=81.4,good,,74,False,,,,True
+t2_itl_p95_ms,SYNTH-P01,cucc,idle,75.35,74.6–76.65（3 个 profile）,s1_chat=74.6; s2_coding_agent=76.65; s3_multimodal=75.0,good,,74,False,,,,True
+t2_itl_p95_ms,SYNTH-P02,cmcc,busy,80.05,78.5–80.6（3 个 profile）,s1_chat=78.5; s2_coding_agent=80.56; s3_multimodal=80.6,good,,78,False,,,,True
+t2_itl_p95_ms,SYNTH-P02,cmcc,idle,74.8,70.14–75.15（3 个 profile）,s1_chat=75.0; s2_coding_agent=70.14; s3_multimodal=75.15,good,,76,False,,,,True
+t2_itl_p95_ms,SYNTH-P02,cucc,busy,81.1,78.9–82.1（3 个 profile）,s1_chat=80.94999999999999; s2_coding_agent=78.9; s3_multimodal=82.1,good,,71,False,,,,True
+t2_itl_p95_ms,SYNTH-P02,cucc,idle,76.85,76.2–78.03（3 个 profile）,s1_chat=76.19999999999999; s2_coding_agent=78.03; s3_multimodal=76.69999999999999,good,,78,False,,,,True
+t2_itl_p95_ms,SYNTH-P03,cmcc,busy,79.7,72.55–82.5（3 个 profile）,s1_chat=80.8; s2_coding_agent=72.55; s3_multimodal=82.5,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P03,cmcc,idle,75.7,74.9–76.55（3 个 profile）,s1_chat=74.9; s2_coding_agent=75.79499999999999; s3_multimodal=76.55000000000001,good,,41,False,,,,True
+t2_itl_p95_ms,SYNTH-P03,cucc,busy,84.45,84.4–84.8（3 个 profile）,s1_chat=84.4; s2_coding_agent=84.47; s3_multimodal=84.8,good,,42,False,,,,True
+t2_itl_p95_ms,SYNTH-P03,cucc,idle,78.5,74.89–80.3（3 个 profile）,s1_chat=77.1; s2_coding_agent=74.89; s3_multimodal=80.3,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P04,cmcc,busy,82.1,72–85.98（3 个 profile）,s1_chat=72.0; s2_coding_agent=85.985; s3_multimodal=83.6,good,,39,False,,,,True
+t2_itl_p95_ms,SYNTH-P04,cmcc,idle,74.5,72.1–76.6（3 个 profile）,s1_chat=76.6; s2_coding_agent=74.15; s3_multimodal=72.1,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P04,cucc,busy,79.1,77.15–95.88（3 个 profile）,s1_chat=77.15; s2_coding_agent=95.88; s3_multimodal=78.5,good,,41,False,,,,True
+t2_itl_p95_ms,SYNTH-P04,cucc,idle,79.9,70.6–84.68（3 个 profile）,s1_chat=70.6; s2_coding_agent=84.68; s3_multimodal=79.9,good,,41,False,,,,True
+t2_itl_p95_ms,SYNTH-P05,cmcc,busy,83.45,82–84.34（3 个 profile）,s1_chat=84.1; s2_coding_agent=84.34; s3_multimodal=82.0,good,,42,False,,,,True
+t2_itl_p95_ms,SYNTH-P05,cmcc,idle,76.9,75.97–78（3 个 profile）,s1_chat=76.2; s2_coding_agent=75.97; s3_multimodal=78.0,good,,45,False,,,,True
+t2_itl_p95_ms,SYNTH-P05,cucc,busy,88.5,88.12–88.6（3 个 profile）,s1_chat=88.6; s2_coding_agent=88.125; s3_multimodal=88.4,good,,42,False,,,,True
+t2_itl_p95_ms,SYNTH-P05,cucc,idle,81.45,79.9–82.72（3 个 profile）,s1_chat=81.9; s2_coding_agent=82.725; s3_multimodal=79.9,good,,42,False,,,,True
+t2_itl_p95_ms,SYNTH-P06,cmcc,busy,87.8,86.65–88.2（3 个 profile）,s1_chat=88.2; s2_coding_agent=86.745; s3_multimodal=86.65,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P06,cmcc,idle,78.1,76.47–78.9（3 个 profile）,s1_chat=78.19999999999999; s2_coding_agent=76.47; s3_multimodal=78.9,good,,39,False,,,,True
+t2_itl_p95_ms,SYNTH-P06,cucc,busy,89.6,88.31–92（3 个 profile）,s1_chat=92.0; s2_coding_agent=88.31; s3_multimodal=88.8,good,,45,False,,,,True
+t2_itl_p95_ms,SYNTH-P06,cucc,idle,82.9,82.74–83.3（3 个 profile）,s1_chat=82.9; s2_coding_agent=82.74; s3_multimodal=83.3,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P07,cmcc,busy,85.95,77.59–86.9（3 个 profile）,s1_chat=84.6; s2_coding_agent=77.59; s3_multimodal=86.9,good,,42,False,,,,True
+t2_itl_p95_ms,SYNTH-P07,cmcc,idle,79.4,77.28–81.6（3 个 profile）,s1_chat=79.3; s2_coding_agent=77.275; s3_multimodal=81.6,good,,40,False,,,,True
+t2_itl_p95_ms,SYNTH-P07,cucc,busy,92.36500000000001,89.7–93.55（3 个 profile）,s1_chat=89.7; s2_coding_agent=92.54; s3_multimodal=93.55,good,,44,False,,,,True
+t2_itl_p95_ms,SYNTH-P07,cucc,idle,81.45,80.68–82.5（3 个 profile）,s1_chat=82.5; s2_coding_agent=80.67500000000001; s3_multimodal=81.35,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P08,cmcc,busy,99.5,95.68–100.1（3 个 profile）,s1_chat=100.1; s2_coding_agent=95.68; s3_multimodal=99.65,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P08,cmcc,idle,90.5,89.9–95.75（3 个 profile）,s1_chat=90.4; s2_coding_agent=95.75; s3_multimodal=89.9,good,,45,False,,,,True
+t2_itl_p95_ms,SYNTH-P08,cucc,busy,104.8,104.1–105.5（3 个 profile）,s1_chat=104.1; s2_coding_agent=104.6; s3_multimodal=105.5,good,,43,False,,,,True
+t2_itl_p95_ms,SYNTH-P08,cucc,idle,91.4,90.7–95.95（3 个 profile）,s1_chat=91.1; s2_coding_agent=95.95; s3_multimodal=90.7,good,,43,False,,,,True

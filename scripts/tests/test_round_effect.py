@@ -10,14 +10,14 @@ import round_effect as re_
 from synth import make_record
 
 
-def _rounds(kpi, per_round, drop_round=False):
+def _rounds(kpi, per_round, drop_round=False, point="P1"):
     """One record whose scenarios carry the given {round: [values]} for `kpi`.
 
     Profile is s2_coding_agent: neutral under the D-366 ruling — s1_chat's u1
     readings are ruled out of cross-profile pools, so an s1 fixture would hand
     the u1 direction test an empty pool instead of a verdict.
     """
-    rec = make_record(campaign={"campaign_id": "c", "tier": "metro", "point_id": "P1",
+    rec = make_record(campaign={"campaign_id": "c", "tier": "metro", "point_id": point,
                                 "carrier": "ctcc", "time_band": "busy"},
                       aqs=88, scenarios=[])
     scns = []
@@ -150,6 +150,109 @@ def test_summary_and_section_agree():
     assert s["judged"] == len(judged)
     assert len(s["suspected"]) == sum(1 for e in judged if e["warm_up_suspected"])
     assert s["single_round"] is False and s["distinct_rounds"] == 3
+
+
+def test_rounds_fed_by_different_cells_refuse_the_verdict_and_name_them():
+    """D-380: the pooling premise order_effect has checked since D-335.
+
+    The measured shape (T6 rehearsal F-2): a 「quick 主体 + 取证子集」 corpus feeds
+    round 0 from every cell and rounds 1-2 from the forensic subset only, and
+    this section printed 「21% 疑似预热效应」 over per-round n of 1443/88/91. Every
+    point of the 21% was which cells fed which round. The section printed the
+    lopsided n honestly and issued the verdict anyway — 「标注一个判词不等于拒绝
+    下判词」 (D-354).
+
+    Two halves, because a guard that fires on the correct corpus is worse than
+    none: the confounded pool refuses AND names, the balanced pool still judges.
+    """
+    # P-slow supplies round 0 only; P-fast supplies all three. Rounds 1-2 look
+    # 21% better for a reason that has nothing to do with warm-up.
+    confounded = (_rounds("t1_ttft_ms", {0: [100.0, 101.0]}, point="P-slow")
+                  + _rounds("t1_ttft_ms", {0: [50.0, 50.5], 1: [50.2, 50.1],
+                                           2: [50.0, 50.4]}, point="P-fast"))
+    e = _entry(re_.analyze(confounded), "t1_ttft_ms")
+    assert e["round_cell_imbalance"] is True, e
+    assert any("P-slow" in c for c in e["round_cells_uneven"]), e["round_cells_uneven"]
+    assert e["warm_up_suspected"] is None, "a confounded pool must not carry a verdict"
+    assert e["not_computable_reason"] == "CELL_CONFOUNDED", e
+    # the measurement is still printed — the premise qualifies it, it does not
+    # erase it (D-335's rule for the 极差 columns, applied here)
+    assert e["first_round_penalty_pct"] is not None and e["first_round_penalty_pct"] > 10
+
+    md = re_.render_markdown(re_.analyze(confounded))
+    assert "不可单独归因(单元混杂)" in md, md
+    assert "CELL_CONFOUNDED" in md and "P-slow" in md, md
+    assert "各轮与单元不平衡" in md, "the premise must also be stated above the table (§2.6)"
+    # the ROWS, not the whole page: the criterion blurb above the table says the
+    # words 「即疑似预热效应」 by design, and matching on the page would pass or
+    # fail for the wrong reason
+    verdicts = [ln for ln in md.splitlines() if ln.startswith("| t1_ttft_ms |")]
+    assert verdicts and all("**疑似预热效应**" not in ln for ln in verdicts), verdicts
+
+    # ...and the same numbers with every round fed by both cells: judged again.
+    balanced = (_rounds("t1_ttft_ms", {0: [100.0, 101.0], 1: [100.2, 100.1],
+                                       2: [100.0, 100.4]}, point="P-slow")
+                + _rounds("t1_ttft_ms", {0: [50.0, 50.5], 1: [50.2, 50.1],
+                                         2: [50.0, 50.4]}, point="P-fast"))
+    b = _entry(re_.analyze(balanced), "t1_ttft_ms")
+    assert b["round_cell_imbalance"] is False, b
+    assert b["warm_up_suspected"] is False, b
+    assert "CELL_CONFOUNDED" not in re_.render_markdown(re_.analyze(balanced))
+
+
+def test_a_confounded_pool_reaches_both_front_doors_as_a_refusal():
+    """C-3: the summary bullet and the publish gate restate the analysis layer's
+    conclusion (D-338), so refusing here must reach both WITHOUT either of them
+    learning a new rule. Verified, not assumed — 「自动跟着对」 is a claim.
+    """
+    import campaign_report as rpt
+    import publish_check as pc
+    confounded = (_rounds("t1_ttft_ms", {0: [100.0, 101.0]}, point="P-slow")
+                  + _rounds("t1_ttft_ms", {0: [50.0, 50.5], 1: [50.2, 50.1],
+                                           2: [50.0, 50.4]}, point="P-fast"))
+    s = re_.summarize(confounded)
+    assert s["judged"] == 0, s
+    assert s["suspected"] == [], "a confounded pool must not be counted as warm-up"
+    assert s["unjudged_reasons"].get("CELL_CONFOUNDED") == 1, s
+
+    summary = rpt.render_summary_markdown(confounded)
+    assert "疑似预热效应" not in summary, summary
+    assert "本轮无法校验" in summary, summary
+    # the reader's words, not the raw identifier (D-354/D-364)
+    assert "汇池前提不成立" in summary, summary
+
+    gate = pc.render_markdown(pc.check(confounded))
+    warm = [ln for ln in gate.splitlines() if "预热效应" in ln]
+    assert warm, gate
+    assert any("汇池前提不成立" in ln for ln in warm), warm
+    assert not any("首轮系统性更差" in ln for ln in warm), warm
+
+
+def test_the_confounded_premise_reaches_the_csv_too():
+    """CSV is the surface with no banner above it (§2.6). Exporting a 21%
+    first-round penalty with nothing beside it to say the rounds were fed by
+    different cells puts two surfaces in open disagreement — the failure D-335
+    fixed next door for the order-effect export (D-380)."""
+    import csv as csvmod
+    import os
+    import tempfile
+    import campaign_report as rpt
+    confounded = (_rounds("t1_ttft_ms", {0: [100.0, 101.0]}, point="P-slow")
+                  + _rounds("t1_ttft_ms", {0: [50.0, 50.5], 1: [50.2, 50.1],
+                                           2: [50.0, 50.4]}, point="P-fast"))
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        rpt.write_csv_tables(confounded, prefix)
+        with open(prefix + "_round_effect.csv", encoding="utf-8-sig") as f:
+            rows = [r for r in csvmod.DictReader(f) if r["kpi"] == "t1_ttft_ms"]
+    assert rows, "round_effect produced no t1 rows"
+    for r in rows:
+        assert r["round_cell_imbalance"] == "True", r
+        assert "P-slow" in r["round_cells_uneven"], r["round_cells_uneven"]
+        # the raw statistic is still exported — the premise qualifies what was
+        # measured, it does not erase it
+        assert r["first_round_penalty_pct"], r
+        assert r["warm_up_suspected"] == "", r
 
 
 def test_markdown_prints_the_measured_percentage_even_when_under_threshold():

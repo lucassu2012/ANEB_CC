@@ -29,7 +29,7 @@ Usage:
 """
 import argparse
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import campaign_common as cc
 import trend
@@ -37,6 +37,13 @@ import trend
 # Same triple the order-effect diagnostic uses: the KPIs where a systematic shift
 # would bias the campaign medians (§2.14 - one list, one meaning).
 ROUND_KPIS = ("t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps")
+
+# Same triple, same meaning, as every other rollup (§2.14). This module pools
+# every cell into one per-round comparison on purpose - sample size is the whole
+# point - but pooling has a premise, and until D-380 nothing here checked it.
+# order_effect has had `position_cell_spread` since D-335; this is the same
+# premise on the other axis (D-380).
+CELL_DIMS = ("point_id", "carrier", "time_band")
 
 # A first-round penalty above this share of the later-round median is called out.
 # 10% is the same magnitude the order-effect gate uses, for the same reason: the
@@ -53,15 +60,22 @@ MIN_PER_ROUND = 2
 
 
 def round_values(records, kpi):
-    """({round_index -> [values]}, [values with no round], ruled_out_n) for one KPI.
+    """({round -> [values]}, [values with no round], ruled_out_n, {round -> Counter(cell)}).
 
     A scenario carrying no `repeat_index` is NOT silently treated as round 0: it
     lands in the unknown bucket and is reported, never merged (R-10). A scenario
     the PO ruling excludes from this KPI's cross-profile pool (D-366: s1_chat's
     2KB burst is a latency proxy, not throughput) is counted, never silent.
+
+    The fourth return is the pooling premise's evidence: which cells fed each
+    round. The verdict below is a difference of medians ACROSS rounds pooled
+    over every cell, so a round fed by cells another round never saw makes that
+    difference a cell effect wearing a warm-up's clothes (D-380).
     """
     rounds, unknown, ruled_out = defaultdict(list), [], 0
+    cell_mix = defaultdict(Counter)
     for rec in records:
+        labels = cc.campaign_labels(rec)
         for scn in cc.iter_scenarios(rec):
             v = cc.scenario_kpi(scn, kpi)
             if v is None:
@@ -72,20 +86,52 @@ def round_values(records, kpi):
             ri = scn.get("repeat_index")
             if isinstance(ri, int) and not isinstance(ri, bool):
                 rounds[ri].append(v)
+                cell_mix[ri][tuple(labels[d] for d in CELL_DIMS)] += 1
             else:
                 unknown.append(v)
-    return dict(rounds), unknown, ruled_out
+    return dict(rounds), unknown, ruled_out, dict(cell_mix)
 
 
-def analyze_kpi(rounds, unknown, kpi, threshold_pct=DEFAULT_WARMUP_PCT, ruled_out=0):
+def round_cell_spread(mix):
+    """Did every ROUND draw on the same SET of cells?
+
+    `mix`: {round -> Counter(cell key)}. Returns (imbalanced, uneven), where
+    `uneven` names the cells missing from at least one round — the evidence and
+    the flag come out of the same computation, so they cannot drift apart.
+
+    None when there is nothing to compare (fewer than two rounds carried
+    values): not checkable is not the same as fine (R-10).
+
+    Deliberately the same shape, the same SETS-not-distributions trade-off and
+    the same reasoning as `order_effect.position_cell_spread` (D-335) — one
+    premise, one way of checking it, two axes (§2.14). The measured case it
+    exists for: a 「quick 主体 + 取证子集」 corpus pools round 0 over all 32 cells
+    and rounds 1-2 over the 8-cell forensic subset, and this section printed
+    「21% 疑似预热效应」 over per-round n of 1443/88/91. None of the 21% was
+    warm-up; all of it was which cells fed which round (T6 rehearsal F-2).
+    """
+    seen = [frozenset(c) for c in mix.values() if c]
+    if len(seen) < 2:
+        return None, []
+    union = set().union(*seen)
+    common = set(seen[0]).intersection(*seen[1:])
+    uneven = sorted("/".join(str(x) for x in k) for k in (union - common))
+    return bool(uneven), uneven
+
+
+def analyze_kpi(rounds, unknown, kpi, threshold_pct=DEFAULT_WARMUP_PCT, ruled_out=0,
+                cell_mix=None):
     """Warm-up verdict for one KPI. `rounds`: {round -> [values]}."""
     per_round = {r: {"median": cc.median(v), "n": len(v)}
                  for r, v in sorted(rounds.items())}
+    imbalanced, uneven = round_cell_spread(cell_mix or {})
     out = {
         "kpi": kpi,
         "rounds": per_round,
         "unknown_round_n": len(unknown),
         "ruled_out_n": ruled_out,
+        "round_cell_imbalance": imbalanced,
+        "round_cells_uneven": uneven,
         "first_round_penalty_pct": None,
         "warm_up_suspected": None,
         "not_computable_reason": None,
@@ -109,6 +155,15 @@ def analyze_kpi(rounds, unknown, kpi, threshold_pct=DEFAULT_WARMUP_PCT, ruled_ou
     # already knows which way is better, so latency and goodput read alike.
     delta = (rest - first) if trend.metric_higher_is_better(kpi) else (first - rest)
     out["first_round_penalty_pct"] = delta / abs(rest) * 100.0
+    if imbalanced:
+        # The percentage is still computed and still printed — the premise
+        # qualifies what was measured, it does not erase it, exactly as the
+        # order-effect section keeps its 极差 columns (D-335). What is refused is
+        # the VERDICT: a round difference the cells could equally explain
+        # supports neither 「疑似预热」 nor 「无明显预热」. Flagging a verdict is not
+        # the same as declining to issue one (D-313/D-354).
+        out["not_computable_reason"] = "CELL_CONFOUNDED"
+        return out
     out["warm_up_suspected"] = out["first_round_penalty_pct"] > threshold_pct
     return out
 
@@ -120,9 +175,10 @@ def analyze(records, kpis=ROUND_KPIS, threshold_pct=None):
     threshold_pct = DEFAULT_WARMUP_PCT if threshold_pct is None else threshold_pct
     entries, seen_rounds = [], set()
     for kpi in kpis:
-        rounds, unknown, ruled_out = round_values(records, kpi)
+        rounds, unknown, ruled_out, cell_mix = round_values(records, kpi)
         seen_rounds |= set(rounds)
-        entries.append(analyze_kpi(rounds, unknown, kpi, threshold_pct, ruled_out))
+        entries.append(analyze_kpi(rounds, unknown, kpi, threshold_pct, ruled_out,
+                                   cell_mix))
     return {"kpis": entries, "distinct_rounds": len(seen_rounds),
             "threshold_pct": threshold_pct}
 
@@ -187,6 +243,20 @@ def render_markdown(res):
         "（按各 KPI 自己的好坏方向；正值=首轮更差）即疑似预热效应。"
         f"每轮至少 {MIN_PER_ROUND} 个样本才判。",
         "",
+    ]
+    # The pooling premise, said once above the table as well as per row: a
+    # premise that only appears inside a 备注 cell is a premise most readers
+    # never see (§2.6, the same reasoning order_effect uses since D-335).
+    mixed = [e for e in res["kpis"] if e.get("round_cell_imbalance")]
+    if mixed:
+        lines += [
+            f"> ⚠ {len(mixed)} 个 KPI 的**各轮与单元不平衡**（有单元未出现在每一轮）——"
+            "本诊断把所有单元汇池比较，该前提不成立时轮次差**不可单独归因于预热**"
+            "（可能是点位/运营商/时段的格构成差穿了预热的外衣，也可能反过来掩盖真效应）。"
+            "见备注列点名的单元。**处置：按采集模式分面，各自单独出一次报告**。",
+            "",
+        ]
+    lines += [
         "| KPI | 各轮中位(n) | 首轮劣势% | 判定 | 备注 |",
         "|---|---|---|---|---|",
     ]
@@ -199,8 +269,24 @@ def render_markdown(res):
             verdict = "**疑似预热效应**"
         else:
             verdict = "无明显预热"
+        # A cell that one round never saw makes the round difference
+        # unattributable in EITHER direction: a slow point feeding only round 0
+        # invents a warm-up penalty, and it can equally mask a real one.
+        # Printing a verdict the numbers cannot support is worse than printing
+        # none (§2.12) — the 各轮中位(n) and 首轮劣势% columns still show exactly
+        # what was measured, including the lopsided per-round n that gave it away.
+        if e.get("round_cell_imbalance"):
+            verdict = "**不可单独归因(单元混杂)**"
         notes = []
-        if e["not_computable_reason"]:
+        if e.get("round_cell_imbalance"):
+            uneven = e["round_cells_uneven"]
+            shown = "、".join(cc.md_cell(c) for c in uneven[:3])
+            notes.append("**CELL_CONFOUNDED:" + shown
+                         + (f" 等 {len(uneven)} 个" if len(uneven) > 3 else "")
+                         + " 未出现在每一轮**")
+        # the bare code is redundant next to the line above, which already names
+        # it AND the cells; every OTHER code still prints itself (D-354)
+        if e["not_computable_reason"] and e["not_computable_reason"] != "CELL_CONFOUNDED":
             notes.append(e["not_computable_reason"])
         if e["unknown_round_n"]:
             notes.append(f"{e['unknown_round_n']} 个场景无轮次编号（未计入）")

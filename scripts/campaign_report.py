@@ -361,7 +361,7 @@ _ORDER_UNJUDGED_WHY = {
     "MEDIAN_NEAR_ZERO": "总体中位≈0，百分比无意义",
     "SINGLE_ROUND": "该 KPI 只有一轮有数",
     "UNREPLICATED_ROUNDS": "每轮样本不足 2 个——轮次差与运行间噪声不可分离",
-    # D-377 gave round_effect the pooling-premise check order_effect has had
+    # D-380 gave round_effect the pooling-premise check order_effect has had
     # since D-335. Both axes emit the same code because it is the same fact
     # (cells not common to every bucket), and the wording says which axis it
     # came from — the caller passes one map, not two (§2.14).
@@ -2243,7 +2243,13 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     "first_round_penalty_pct", "threshold_pct", "warm_up_suspected",
                     "not_computable_reason", "low_confidence",
                     "unknown_round_scenarios", "ruled_out_scenarios",
-                    "distinct_rounds"])
+                    "distinct_rounds",
+                    # …and whether the rounds being compared were even fed by the
+                    # same cells. Without these the CSV exports a 21% first-round
+                    # penalty with nothing to say it is a cell effect, while the
+                    # markdown says 不可单独归因 — three surfaces, one fact
+                    # (§2.6/D-380, exactly as D-335 did for the order-effect CSV).
+                    "round_cell_imbalance", "round_cells_uneven"])
         for e in wres["kpis"]:
             rows = sorted(e["rounds"].items()) or [(None, {"median": None, "n": 0})]
             for rnd, p_ in rows:
@@ -2254,7 +2260,9 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(e["not_computable_reason"]),
                             e["low_confidence"], e["unknown_round_n"],
                             e.get("ruled_out_n", 0),
-                            wres["distinct_rounds"]])
+                            wres["distinct_rounds"],
+                            _cell(e.get("round_cell_imbalance")),
+                            "; ".join(e.get("round_cells_uneven") or ())])
     written.append(p)
 
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]
@@ -2638,7 +2646,7 @@ def main(argv):
     # box that means GBK bytes, and any character GBK cannot encode (⚠ U+26A0,
     # the very case force_utf8_stdout was written for) would answer a mistyped
     # path with the traceback D-306 removed. A sweep of all 17 CLIs that call
-    # this found campaign_report the only one printing before it (D-380).
+    # this found campaign_report the only one printing before it (D-381).
     cc.force_utf8_stdout()
 
     bad_outputs = _preflight_outputs(args)
