@@ -124,7 +124,7 @@ observed_ui_layer:
   source: "aneb-a11y-observe-2026-07-18"    # 无障碍观察(ADAPTER_OBS/adapter_obs 落库),非抓包
   ui_stack: "view"                           # 原生 View 系(思考期 UI 静止 → v3 簇分割适用)
   ttft_ui_ms: 1984                           # 端到端 TTFT 代理(A0′ 用户气泡上屏→响应首字,含渲染)
-  # ⚠ 起点订正(D-375 / 大脑裁定 6-6 前半,2026-08-01):本行原写「发送→响应首字」,
+  # ⚠ 起点订正(D-396 / 大脑裁定 6-6 前半,2026-08-01):本行原写「发送→响应首字」,
   #   而 v3 簇分割的实际起点是**首簇首事件=用户气泡上屏**(D-52 逐字:三段结构
   #   「用户气泡上屏簇→思考静默→流式响应簇」,ttftClusterMs=首簇起→次簇起),
   #   即 `spec/adapters/INSTRUMENTATION_SPEC.md` §1.2 命名的 A0′,不是发送动作 A0。
