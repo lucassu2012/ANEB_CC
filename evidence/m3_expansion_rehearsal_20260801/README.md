@@ -71,6 +71,17 @@ python coverage_matrix.py $D/expansion_counted_quick.jsonl \
 > 对不上就说明生成路径变了（不要默认它一定一致）。**分析产物（报告 / CSV / 各步 stdout）
 > 全部入库**，因为那才是结论所依据的东西。真实语料不适用此规则——真实测量不可重生成。
 
+> 📌 **D-376 之后:CSV 面的「逐字节可复现」有条件成立**(2026-08-01 补,大脑对抗复核指出)。
+> D-376 给 radio 段接上了 CGNAT 出口 IP 读者,`_radio.csv` 因此**多出 `egress_ips` 列**。
+> 后果分两半,实测过才写:
+> - **`CORPUS_SHA256.txt` 不受影响**——它只记 4 份 `.jsonl` 语料与 `warmup_ledger.csv` 的
+>   指纹,**不含任何 `exp_*.csv`**,所以不会出现哈希失配。
+> - **归档的 `exp_radio.csv` 与今日重跑结果不再逐字节相同**(表头少一列 `egress_ips`)。
+>   这**不是**产物损坏,是接线后的预期差异:本目录是 D-376 之前的快照。
+>
+> 判据因此要说清:**语料层**仍严格可重生成(SEED 对账);**分析产物层**的字节一致
+> 只在「同一版本的分析层」内成立——跨版本比较要比**内容与结论**,不是比字节。
+
 各步输出已归档为 `00_shape.txt` / `01_validate_counted.txt` / `02_report_counted.txt` /
 `03_publish_check_counted.md` / `04_publish_check_forensic_subset.md` /
 `05_publish_check_raw_with_warmup.md` / `06_stability_plan_t1.md` /

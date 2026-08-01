@@ -3,8 +3,16 @@
 **方法学探针,独立 `campaign_id=m2-afternoonradio-20260801`,不入 M2 声明。**
 大脑任务 T1 的一次性交付:**v17 APK 装机验证 + 下午窗 radio 采集**合并执行。
 台账:4/4 completed(`019fbbe9/019fbbef/019fbbf6/019fbbfc`);覆盖安装
-(Room v16→17 实机迁移,无 Migration 异常);收尾核验干净(WiFi 恢复=1、stayon=0、
-桌面、无残留进程),见 `capture_log.txt`。
+(Room v16→17 实机迁移,无 Migration 异常);收尾核验:WiFi 恢复=1、stayon=0、
+无残留进程,见 `capture_log.txt`。
+
+**收尾焦点的措辞订正(大脑对抗复核指出)**:`capture_log.txt` 记录的收尾
+`focus=NotificationShade`,而本文原写「桌面」——两者不符,已核实为**核验抓取时机
+问题,非收尾停在通知栏**:`KEYCODE_HOME` 已生效,但华为 ROM 的下拉面板收起是动画,
+脚本固定 sleep 8 秒后抓到的仍是尚未让出焦点的 `NotificationShade`;事后(15:5x)
+只读复查 P40,焦点为 `com.huawei.android.launcher/...UniHomeLauncher`。
+**处置**:T2 起收尾改为**轮询直到 launcher 取得焦点**(最长 30 秒,中途补按一次 HOME)
+并把结果写进流水——`日志证据与措辞必须一致`,不能靠事后解释补齐。
 
 ## 三条验收判据(逐条实测)
 
@@ -32,6 +40,12 @@ stale=false`,RSRP 中位 **−60**(档「良」),`sinr_db` 仍为 null(该 ROM �
 **③ D-370 假设判定——见下节。**
 
 ## D-370 判定:制式差假说**未被证伪,且下午窗未出现 NR 回归**
+
+**「暖轮」口径(复算前必读)**:暖轮=`repeat_index >= 1` 的场景,**剔除每轮的第 1 遍**
+(D-355/D-358:首轮含无线唤醒+App 冷启动)。本批暖轮 n=24,RTT 中位 **68.724**;
+按**全量** 36 场景复算则是 **69.644**——两个数都对,是两个口径。
+(该定义此前只写在 `busyradio_20260801`/`m2_idleprobe_20260731` 两份 README 里,
+单读本份会复算不出下表数字;大脑对抗复核指出后补此行。)
 
 | 窗口 | 制式/小区 | 暖轮 RTT 中位 | 暖轮 TTFT 中位 | CGNAT 出口 |
 |---|---|---|---|---|
