@@ -45,7 +45,7 @@ def _valid_record():
         },
         "scenarios": [{
             "profile_id": "s1_chat", "profile_version": "0.2", "repeat_index": 0,
-            "order_index": 0, "validity": "VALID", "invalid_reasons": "",
+            "order_index": 0, "validity": "valid", "invalid_reasons": "",
             "kpi": _valid_kpi(),
             "clock": {"offset_start_us": 1, "offset_end_us": 2, "drift_ppm": 0.0,
                       "offset_suspect": False},
@@ -108,10 +108,23 @@ def test_unknown_validity_state_fails():
 
 # ---------------------------------------------------------------- case drift
 
-def test_lowercase_validity_is_advisory_not_error():
-    """The real producer emits lower-case: must pass (exit 0) with an advisory."""
+def test_lowercase_validity_is_the_exact_match_now():
+    """D-371 aligned the schema to the producer's lower-case (every real corpus
+    is lower-case; the upper-case enum was the aspirational copy, D-190). The
+    authoritative spelling must pass with NO advisory — a warning that fires on
+    every honest record teaches the operator to ignore warnings."""
     rec = _valid_record()
     rec["scenarios"][0]["validity"] = "valid_low_confidence"
+    assert _errors(rec) == []
+    assert _warnings(rec) == []
+
+
+def test_uppercase_validity_is_advisory_not_error():
+    """The drift direction inverted with D-371: legacy upper-case (old fixtures,
+    pre-alignment tools) now matches only by case-fold — advisory, not a
+    rejection (the record still carries a usable measurement)."""
+    rec = _valid_record()
+    rec["scenarios"][0]["validity"] = "VALID_LOW_CONFIDENCE"
     assert _errors(rec) == []
     assert any("case drift" in w for w in _warnings(rec))
 

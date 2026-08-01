@@ -9,6 +9,13 @@
 
 *v1.0 · 2026-07-29 · 分析层 lane 撰写 · 承 D-284*
 
+> ✅ **本规格已全量落地(2026-08-01,D-367 施工 / D-368 真机验收)**:§2 的 `radio` 八字段已进
+> `result-run.schema.json` 并有真实语料落盘;§5 的三行交接全部完成——`spec/scoring/radio_bands.yaml`
+> 建档、`validate_spec_scoring` 注册检查器、Kotlin `SpecScoringParityTest.radio_bands_parity` 与
+> 分析层对拍双双改指该 YAML;§6 两侧验收均达成(生产侧见 `evidence/radiowire_20260801/`,
+> 分析侧 `radio_rollup` 已在真实数据出段)。本文其余内容保留作接线合同与字段语义的权威出处;
+> 文中「今天只存在于 BufferingDetector」等现状描述均为**成文时实况**,以本横幅为准。
+
 ---
 
 ## 1. 为什么现在提

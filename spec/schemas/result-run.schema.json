@@ -120,8 +120,8 @@
         "order_index": { "type": "integer", "description": "run 内执行序号(拉丁方实际顺序证据)" },
         "validity": {
           "type": "string",
-          "enum": ["VALID", "VALID_LOW_CONFIDENCE", "INVALID"],
-          "description": "三态有效性(INVALID 场景 KPI 已被 gate 置 null)"
+          "enum": ["valid", "valid_low_confidence", "invalid"],
+          "description": "三态有效性(invalid 场景 KPI 已被 gate 置 null)。小写为权威——生产者(ResultReporter)自始写小写,全部真实语料均小写;schema 曾写大写造成两个事实源各说各话(D-190 记账、试点报告附二点名),D-371 按「实况为准」对齐。大写取值=历史/合成侧漂移,前门记非致命 advisory 不拒收"
         },
         "invalid_reasons": { "type": "string", "description": "逗号分隔 InvalidReason 名称;空串=无" },
         "kpi": {

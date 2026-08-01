@@ -187,12 +187,13 @@ def all_value_ranges():
     """
     return dict(VALUE_RANGES, **NON_KPI_RANGES)
 
-# R1 signal bands. These DUPLICATE app/probe/src/main/java/com/aneb/probe/
-# scoring/BufferingDetector.kt because spec/ has no home for radio thresholds
-# today — which is itself a finding, and is why the wiring spec asks for them to
-# move there. Until then the duplication is reconciled rather than silent:
-# test_the_signal_bands_match_the_producer_that_defines_them reads the Kotlin
-# source and fails if either side drifts.
+# R1 signal bands. The single source is spec/scoring/radio_bands.yaml (the
+# wiring spec's §5 handoff, landed by D-367); this copy and the app's
+# BufferingDetector constants are its two spokes, each reconciled against the
+# YAML by its own parity test (here:
+# test_the_signal_bands_match_the_producer_that_defines_them; app side:
+# SpecScoringParityTest.radio_bands_parity). Change the YAML first — either
+# spoke drifting from it fails its suite.
 RSRP_WEAK_DBM = -105.0
 RSRP_GOOD_DBM = -95.0
 SINR_WEAK_DB = 0.0
