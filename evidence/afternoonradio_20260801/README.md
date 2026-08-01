@@ -7,12 +7,29 @@
 无残留进程,见 `capture_log.txt`。
 
 **收尾焦点的措辞订正(大脑对抗复核指出)**:`capture_log.txt` 记录的收尾
-`focus=NotificationShade`,而本文原写「桌面」——两者不符,已核实为**核验抓取时机
-问题,非收尾停在通知栏**:`KEYCODE_HOME` 已生效,但华为 ROM 的下拉面板收起是动画,
-脚本固定 sleep 8 秒后抓到的仍是尚未让出焦点的 `NotificationShade`;事后(15:5x)
-只读复查 P40,焦点为 `com.huawei.android.launcher/...UniHomeLauncher`。
-**处置**:T2 起收尾改为**轮询直到 launcher 取得焦点**(最长 30 秒,中途补按一次 HOME)
-并把结果写进流水——`日志证据与措辞必须一致`,不能靠事后解释补齐。
+`focus=NotificationShade`,而本文原写「桌面」——两者不符。
+
+> ### ⛔ 本段当日给出的解释是**错的**,已于 2026-08-02 由 T2 推翻(D-393/D-394 §2.16 第 ⑥ 例)
+>
+> ~~原解释:核验抓取时机问题——`KEYCODE_HOME` 已生效,但华为 ROM 的下拉面板收起是动画,
+> 脚本固定 sleep 8 秒后抓到的仍是尚未让出焦点的 `NotificationShade`。~~
+>
+> **真因与动画、时机、`sleep` 时长都无关**:**屏幕灭掉、锁屏之后 `mCurrentFocus`
+> 恒报 `NotificationShade`**——锁屏时该窗口持有窗口焦点是 Android 常态。
+> T2 收尾时三个独立量法当场证明设备就在桌面:`mFocusedApp` =
+> `com.huawei.android.launcher/.unihome.UniHomeLauncher`、`Recent #0` =
+> `type=home visible=true`、`dumpsys window policy` = `screenState=SCREEN_STATE_OFF`。
+>
+> **连带作废的处置**:据此错解释为 T2 写的「**轮询直到 launcher 取得焦点(最长 30 秒)**」
+> **永远不可能成功**——它在等一个屏灭状态下不会出现的值;T2 实测正是轮满 30 秒后
+> 报 `launcher focused = False`,而设备其实达标。
+>
+> **正确判据**:查 **`mFocusedApp`**,并同时打印 `screenState`(runbook §6 已改)。
+>
+> **线索当时就摆在那儿**:`mCurrentFocus` 的窗口 ID `bef519c` 横跨 T1 预检、T1 收尾、
+> T2 预检、T2 收尾**十小时纹丝不动**——**一个不动的 ID 本身就说明它不是真实焦点**,
+> 而四次都没被当作线索读。这是那句「日志证据与措辞必须一致」更深的一层:
+> **对不上时,先怀疑量法,而不是先给现象编一个说得通的故事。**
 
 ## 三条验收判据(逐条实测)
 

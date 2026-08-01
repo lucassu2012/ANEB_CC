@@ -374,12 +374,25 @@ adb shell input keyevent KEYCODE_HOME           # 回桌面
 ```
 adb shell "settings get global wifi_on"                     # 应回到采集前记下的原值
 adb shell "settings get global stay_on_while_plugged_in"    # 应为 0
-adb shell "dumpsys window | grep mCurrentFocus"             # 应是 huawei…launcher
+adb shell "dumpsys window | grep mFocusedApp"               # 应是 huawei…UniHomeLauncher
+adb shell "dumpsys window policy | grep screenState"        # 屏灭时会是 SCREEN_STATE_OFF
 adb shell "ps -A | grep -iE 'aneb|vpn|tcpdump' | grep -v grep"  # 应无输出
 ```
 
+> ⚠ **判据订正（D-393/D-394，2026-08-02）：焦点这一条以前查错了对象。**
+> 原命令查的是 `mCurrentFocus`，而**屏幕灭掉、锁屏之后它恒报 `NotificationShade`**
+> ——那不是「用户把通知栏拉下来了」，锁屏时该窗口持有窗口焦点是 Android 常态。
+> 于是**收尾明明达标却被判成没回桌面**，连着四次（T1 预检/收尾、T2 预检/收尾）。
+> **查 `mFocusedApp`**：它报的是焦点**应用**，屏灭时仍是 `UniHomeLauncher`。
+> 顺手把 `screenState` 也打出来，免得下次再把「屏灭」误读成别的东西。
+>
+> **线索早就在那儿**：`mCurrentFocus` 的窗口 ID 横跨那四次**十小时不变**——
+> **一个不动的 ID 本身就说明它不是真实焦点**（红线 §2.16 第 ⑥ 例）。
+> 曾为该现象编过一个解释（「华为 ROM 收起面板是动画、脚本抓早了」），
+> **那是套在坏量法上的合理故事，与动画和时机无关**，已作废。
+
 > ⛔ **桌面可见 ≠ 干净**：残留的后台进程、VPN/隧道、临时规则、没关的 `stayon` 都算不干净
-> （仓根 `CLAUDE.md` 第 5 条）。若上面第四条有输出而你无法确认它是谁起的——**不要杀**，
+> （仓根 `CLAUDE.md` 第 5 条）。若上面最后一条有输出而你无法确认它是谁起的——**不要杀**，
 > 按第 3 条先协调。
 
 ## 已知坑速查
