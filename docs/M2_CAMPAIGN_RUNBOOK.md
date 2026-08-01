@@ -125,7 +125,7 @@ python radio_rollup.py rehearsal_radio.jsonl
 网格就用交付文件 [`campaign_grid_shenzhen.json`](campaign_grid_shenzhen.json)
 （单点位占位 `SZ-PILOT-01`，真名 PO 后补；拿到真名后**网格文件与下面的补注命令同改**）。
 
-### 0.6.1 采集前必做的两件事（实测踩过，D-349）
+### 0.6.1 采集前必做的三件事（①② 实测踩过 D-349；③ 为 PO 批复 D-366 后新增）
 
 **① 关掉 WiFi，别只靠 `--es transport cellular`。** 运营商标签 `ctcc` 声称的是「这一格测的是
 中国电信蜂窝」，而 WiFi 在线时系统会把 App 申请的蜂窝网**中途撕掉**——实测第一次 run 在
