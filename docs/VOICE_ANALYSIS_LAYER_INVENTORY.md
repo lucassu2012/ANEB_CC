@@ -146,3 +146,93 @@ T10（[`PROFILE4_VOICE_LOOPBACK_SPEC.md`](PROFILE4_VOICE_LOOPBACK_SPEC.md) §0�
   它可能有同样的形状；派单没点名它，我不擅自扩范围，但**登记在此**。
 - 本文是**一次测量，不是一道守卫**：今天字段加一列、或分析层哪天拼出一个语音名字，
   没有任何东西会告诉你本文过期了。应有形态见 §3.1 末的边界声明。
+
+---
+
+# §6 `voice_rollup` 设计概要（T15 ③ · **DESIGN ONLY，未实现，待大脑批**）
+
+> **本节不是决定，是提案**。一行代码都没写。理由是 T10 的教训：
+> 语音这个域里，每一步先问消费方是谁——而 §1 刚证明**今天连数据都出不来**。
+> **在两个前置（§6.6 待裁 A/B）落定之前实现它，等于给一个不存在的输入写聚合器。**
+
+## 6.1 输入：语料从哪来、什么形状
+
+**今天不存在**。`scripts/` 的既有输入是 run 契约导出的 jsonl，而语音不在其中（§1）。
+两条候选路径，**必须先裁**（§6.6 A）：
+
+| 路径 | 形状 | 代价 | 风险 |
+|---|---|---|---|
+| **P1 直拉 Room 表** | 扩 `pull_device_corpus.py`，从设备 `aneb-probe.db` 的 `voice_result` 表导出**第二种语料**（非 run 契约） | 小：该脚本已有 `--inspect` 列全表全列、已有 `PRAGMA table_info` 发现逻辑，加一个表即可 | 产出**不是 run 契约**，过不了 `validate_results.py`；等于在仓里立第二种语料格式 |
+| **P2 进 run 契约** | 给 `result-run.schema.json` 加语音段 + 生产端上报 | 大：**双侧同提交、顺序不可反**（D-397 严格 loader 通则），且要动 `app/`（不在本 lane） | 契约变更面最广；但产出天然过既有全部前门 |
+
+**倾向 P1（仅供裁决参考，不自行拍板）**：它零 `app/` 改动、可当天出第一份真数据；
+而 P2 的收益要等生产端排期。**但 P1 有一条硬伤必须同时裁**（§6.6 B）：
+`voice_result` 表**只有 `tsEpochMs`，没有任何战役标签**——没有 `point_id` / `carrier` /
+`time_band` / `campaign_id`。而战役层的一切聚合都按 `(point_id, carrier, time_band)` 分格
+（`radio_rollup.CELL_DIMS` 即此形状）。**没有标签就分不了格**，`voice_rollup` 只能退化成
+「按时间窗 + 按 caliber」的两维汇总。这不是实现细节，是它能回答什么问题的边界。
+
+## 6.2 输出：三个面逐一点名（D-303）
+
+**三个面都要有，且各自点名**——D-303 的教训正是「13 张表里 2 张没有合成证据」，
+而 D-304 的教训是「按模块计数的守卫对『两张表只导一张』永远答有」：
+
+| 面 | 产出 | 说明 |
+|---|---|---|
+| **markdown** | 综合报告新增 `## 语音承载` 段（`campaign_report.py` 中 `parts.append(voice_rollup.render_markdown(...))`，位置紧邻 `复测稳定性`） | 段首**必须**带口径横幅：本族测的是**语音要走的网络承载**，非 MOS/VoLTE/口到耳绝对值（`PROFILE4_VOICE_LOOPBACK_SPEC` §1.1 的红线，M1 含未实测常数 `CODEC_JB_BUDGET_MS=60.0`） |
+| **HTML** | 随 md 自动出（D-107 既有机制，零额外代码） | 需**实测核对**而非假定，D-303 要求逐面数标记数 |
+| **CSV** | `<prefix>_voice.csv` **全量导出、不折叠**（照 D-130：独立 CLI 与 CSV 不折叠） | 一张表一个 CSV；若 §6.3 的两代分表渲染成**两张表**，就必须导**两个** CSV 或一个带 `caliber` 列的长表——**不可两张表只导一张**（D-304） |
+
+## 6.3 口径分组：两条**互相独立**的口径轴，别混成一条
+
+派单说「两代 caliber」，实读下来是**两条正交的轴**，混谈会出错：
+
+| 轴 | 取值 | 存在哪 | 对 rollup 的意义 |
+|---|---|---|---|
+| **采集口径**（数据怎么测出来的） | v1 `paced-proxy` = `caliber` 为 **null**；v2 `server-sim(aneb-realtime-session-v1)` | `voice_result.caliber` 列，**每行都有** | **分组键，且是硬前提**（见下） |
+| **评分口径**（分怎么算的） | `aqs-voice-sim-v0.1`（M7 前） vs `v0.2`（M7 后） | **哪儿都不存**——分数从不落库（§4） | **与 rollup 无关**：本 rollup 聚合的是原始 KPI，不是分。M7 的影响只在引用 79.8 的散文侧（`VOICE_STALL_KPI_PROPOSAL` §4 的横幅提案） |
+
+**「v1/v2 必须分开」不是审美，是源码给的硬约束**——`Entities.kt` 的 KDoc 自己写着**两个方向**：
+
+- v2 尾部 7 列（`ttfbP50Ms` … `turnsOk`）：**「v1 行恒 null」**；
+- `downFrameJitterMs`：**「v2 Done 恒 null——由 `downNetJitterMs` 取代」**。
+
+**所以任何跨 caliber 汇池，都会让不同字段的分母悄悄不同**：同一批行里，
+`ttfbP50Ms` 的有效样本只有 v2 那部分，`downFrameJitterMs` 只有 v1 那部分，
+而汇总行会把它们印在同一个 `n` 旁边。这正是 D-335/D-336 反复咬住的形状
+（汇池前提不成立 / 静默改分母）。**设计上写死：`caliber` 是分组键，不是展示列；
+跨 caliber 汇池一律不做，若哪天要做，必须先有一条汇池前提守卫。**
+v1 的 `caliber` 是 **null**——按 D-333 的教训，**「没名字的桶」不得裸进有序集合**，
+须显式标为 `v1(paced-proxy)` 而不是让 null 自己去排序。
+
+## 6.4 复用哪些既有 helper（点名，不重写）
+
+| 复用 | 用途 | 不自己写的理由 |
+|---|---|---|
+| `campaign_common.load_records` | 读语料 + 去重 + 坏行计数 | D-314/D-315/D-326：per-run 那份副本没有 NaN 拒绝，重写必然再分叉一次 |
+| `campaign_common.keep_value` / `value_problem` / `VALUE_RANGES` | 逐值范围校验、NaN 拒绝 | D-148 的 NaN 拒绝就活在这里；语音字段需**新增各自的 range**（属新增数据不属重写） |
+| `campaign_common.fnum` | 数字渲染 | D-315 已查明 `fnum` 有三份副本——**不要造第四份** |
+| `campaign_common.DEFAULT_MIN_SAMPLES` | 低置信门 | D-379 明令不为局部问题调它 |
+| `campaign_common.force_utf8_stdout` | CLI 输出编码 | D-381 的根因就是它放错了位置 |
+| `campaign_common.is_synthetic` / `count_synthetic` | 合成语料标记 | D-303：每个面都要能指认合成来源 |
+| `radio_rollup` 的**模块骨架** | `analyze(records, min_samples)` 返回 dict、`render_markdown(res)`、`main(argv)` 独立 CLI 三件套 | 这是仓内 rollup 的既定形状，报告侧接线（import 到 `analyze` 到 `append(render_markdown)` 到写 `<prefix>_x.csv`）照抄即可 |
+| `publish_check.py` | 发布门 | **D-305 的教训必须当场吸取**：radio 接进来时报告会印、CSV 会导，唯独发布门没学会它。语音这一条**同批就要进发布门**，不留到下一轮 |
+
+## 6.5 明确**不做**的
+
+- **不重算历史分**：M7 的输入是逐帧到达序列的 `max`，而库里只存 P95 抖动，**原始序列从未落盘**；
+  任何补算都是缺 M7 的残分（`VOICE_STALL_KPI_PROPOSAL` §4 已把这个理由订正过一次，采信其订正后版本）。
+- **不在本 rollup 里出 AQS 分**：分数不落库是 D-42 定的诚实设计，rollup 不该把它重新发明出来。
+- **不碰 `app/`**：本 lane 边界（D-327）。P2 路径若获批，须交生产侧 lane。
+
+## 6.6 待裁 / 待办（交大脑，本文不擅自决定）
+
+| # | 待裁项 | 为什么必须先裁 |
+|---|---|---|
+| **A** | 语料路径取 **P1（直拉 Room 表）** 还是 **P2（进 run 契约）** | 决定了 `voice_rollup` 的输入格式、要不要过 `validate_results.py`、以及是否需要生产侧排期。**这是唯一的真前置** |
+| **B** | 无战役标签怎么办 | `voice_result` 只有 `tsEpochMs`。三选一：①外场时人工记台账再 `--set` 补注（同 `point_id` 现有做法）；②接受退化为「时间窗 × caliber」两维；③给生产端加标签列（同 A 的 P2 代价）。**不裁 B 就写不出分格逻辑** |
+| **C** | 语音字段的 `VALUE_RANGES` 门限取值 | 每个都是新常量，按 §2.2 的规矩**必须有自己的来源**，不可拍脑袋 |
+| **D** | 是否值得做 | **诚实的反问，也请一并裁**：语音今天**没有战役数据**（真机只跑过 D-38 那一次），rollup 建成后可能长期空转。若 M7 与外场语音批没有排期，本项应排在扩展轮之后 |
+
+> **本节的边界声明**：以上全部是设计判断，**没有一条经过实测验证**——
+> 它们建立在 §1–§4 的盘点之上，而盘点只测了「今天有什么」，没测「加上之后会怎样」。
