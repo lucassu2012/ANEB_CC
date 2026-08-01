@@ -1,0 +1,6 @@
+n=11 ttft values: [61.5, 53.5, 58.7, 51.0, 48.9, 44.6, 64.2, 54.1, 52.8, 58.6, 55.3]
+CV all: 10.3%
+drop-one CVs: [10.2, 10.8, 10.7, 10.6, 10.1, 8.6, 9.3, 10.9, 10.8, 10.7, 10.9]
+spearman rho (time vs ttft): -0.03
+rtt CV: 3.6%  (same-run RTT wobble = network-side; flat RTT + wobbly TTFT = server/scenario-side)
+pearson ttft~rtt: -0.00  (high = network path explains the wobble)
