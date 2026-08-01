@@ -269,6 +269,20 @@ direction 枚举、分∈[0,100]；vetoes 必填字段+比较符/种类枚举+ca
 每 phase `type` 已知且必填字段类型正确（bool 不算数值）。只读两棵树；树缺 → exit 2。
 守卫「先改 spec 后动代码」：一侧语义改而另一侧漏改不再静默溜过。
 
+### `validate_voice_plan.py` — Profile 4 语音执行计划对拍门（D-390 §5.1，`voice-plan-parity`）
+对拍 `spec/profiles/client/voice_realtime_plan.json` 与 `VoiceRunner.kt`：①**真读 Kotlin 源取常量**
+（9 个 `const val` + 计划工厂内的字面量 + 打断轮索引）逐值比对——这是
+`validate_spec_scoring.py` **刻意不做**的一步（那份只校验 YAML 自身不变量）；
+②派生值 `derived_nominal_kbps` **重算**不信任字面量；③两个计划都在 wire 限额内；
+④数字自身蕴含的合理性（打断点必须落在上行段内、打断轮索引必须是真轮次、
+连续性断连轮不能是末轮，否则其后无轮次、重建无从观测）。只读两份文件；缺任一 → exit 2。
+
+**为什么这道门必须存在**：Kotlin 侧的 `VoiceExecutionPlanParityTest.kt` 更强（它比对
+`defaultSimPlan()` **实际生成**的计划），但**在发布门里不执行**——`verify_all` 只跑
+`assembleDebug`，且 Gradle 在只有模块外文件变化时把 `testDebugUnitTest` 判 `UP-TO-DATE`
+整个跳过（实测三处 spec 突变全存活）。本门双向突变审计 **10/10 咬住**，
+含「改常量名让正则失效」也必须响——**提取器失效要报错，不许静默跳过比较**。
+
 ### `campaign_common.py` — 共享库
 记录加载（按 `run.run_id` 去重）、`run.campaign` 标签优雅降级、AQS/KPI/sub_scores/
 buffering 访问器、nearest-rank 分位、AQS 四级分带（锚定系统 54/70 封顶阈值）、UTF-8

@@ -303,6 +303,36 @@ if ($py -and (Test-Path $profilesScript)) {
     $log += Add-Result 'profiles-deep' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- Profile-4 VOICE execution-plan parity gate (D-390 5.1): same shape as
+# spec-scoring-unit above, and for the same reason -- VoiceExecutionPlanParityTest.kt
+# is Android-toolchain-gated and this script runs assembleDebug, not the unit tests.
+# Worse, it was MEASURED not to run even by hand: Gradle marks testDebugUnitTest
+# UP-TO-DATE when only a file outside the module changed, so three separate spec
+# mutations all survived. This checker is the one that actually gates. It reads the
+# Kotlin source and compares the exported numbers against the constants they mirror
+# (which validate_spec_scoring.py deliberately does not do), plus the file's own
+# invariants. Reads spec/profiles/client + app/.../VoiceRunner.kt, never writes.
+# exit: 0=PASS / 2=an input absent -> NOT_EXECUTED / else=violations -> FAIL.
+$voicePlanScript = Join-Path $repo 'scripts\validate_voice_plan.py'
+if ($py -and (Test-Path $voicePlanScript)) {
+    $out = & $py $voicePlanScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- voice-plan-parity (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'voice-plan-parity' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'voice plan parity OK' } | Select-Object -First 1).Trim())
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'voice-plan-parity' 'NOT_EXECUTED' 'spec or VoiceRunner.kt absent'
+    } else {
+        $log += Add-Result 'voice-plan-parity' 'FAIL' 'voice plan spec<->code drift; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $voicePlanScript)) { $missing += 'scripts/validate_voice_plan.py' }
+    $log += Add-Result 'voice-plan-parity' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
