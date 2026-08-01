@@ -35,9 +35,18 @@ Usage:
     python synth_campaign.py -o r.jsonl --points 8 --repeats 5 --campaigns base,opt
 """
 import argparse
+import csv
 import json
 import random
 import sys
+from collections import Counter
+
+# The M3 expansion-round shape reads the scenario-side / network-side KPI lists
+# from here rather than restating them: `stability` is the ONE place either side
+# is named (§2.14), and it is also the code that has to RECOGNISE the shape this
+# generator plants. See the 扩展轮 section near the bottom for why a second copy
+# would be worse than a dependency.
+import stability
 
 GENERATOR = "synth_campaign.py"
 GENERATOR_VERSION = "1"
@@ -459,18 +468,378 @@ def inject_chaos(records, seed=20260726):
     return kept
 
 
+# ------------------------------------------------------------ M3 扩展轮形状
+#
+# `generate()` 造的是 **M2 的形状**——`mode="quick"`、每场景 `repeat_index=0`、
+# 全语料同一个 `scenario_order`。扩展轮（`docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md`）
+# 要三样它造不出的东西，此前靠一只一次性整形器补齐
+# （`evidence/m3_expansion_rehearsal_20260801/shape_expansion_corpus.py`，现已降格为
+# 历史证据）——**而一次性脚本没有守卫**（GUARD_DIFF C-4）。本节把它接了进来。
+#
+# 下面每个幅度都只是**设计值**，其出处是决策号里已归档的实测值；本文件不产生任何
+# 新的测量，其输出也不得被引用为测量。
+S2_EXTRA_JITTER = 0.11            # s2 场景侧额外相对抖动（设计源 D-353 / D-372）
+WARMUP_PENALTY = 0.16             # 预热轮整体更差的比例（设计源 D-358）
+FORENSIC_ROUND0_RESIDUAL = 0.04   # 预热丢弃后，取证第 0 轮的 App/TLS 残余（D-358）
+
+EXPANSION_TIER = "metro"          # 单层级（D-48：单实例 E-01，扩展轮不排三层级行程）
+EXPANSION_CAMPAIGN = "EXP"        # 单战役（生成器自动加 `SYNTH-` 前缀＝合成标记 #2）
+EXPANSION_COUNTED_REPEATS = 15    # 提案 §1：扩展轮 n≥15（依 s1/s3 网络侧 CV）
+EXPANSION_WARMUP_RUNS = 1         # 每格丢弃的预热轮数（口径见 D-366，此处只给指针）
+EXPANSION_FORENSIC_RUNS = 5       # D-379：取证 5 轮（提案原「建议 4 轮」已随之作废）
+
+# 台账列。**预热轮在语料里没有任何字段说明自己是预热**——它会正常上报，
+# 唯一认得它的是台账（口径 D-366，此处刻意不复述其记账细则：复述必漂）。
+# 也刻意不给记录加一个「我是预热」的合成专用字段：那等于让彩排去演一个外场
+# 根本造不出来的形状，正是 D-309 要防的那件事的反面。
+WARMUP_DISPOSITION = "预热丢弃"
+WARMUP_AUTHORITY = "D-366"
+WARMUP_LEDGER_HEADER = ("run_id", "mode", "point_id", "carrier", "time_band",
+                        "disposition", "authority", "synthetic")
+
+EXPANSION_ARTIFACTS = (("raw", "_raw.jsonl"), ("counted", "_counted.jsonl"),
+                       ("counted_quick", "_counted_quick.jsonl"),
+                       ("counted_forensic", "_counted_forensic.jsonl"))
+WARMUP_LEDGER_SUFFIX = "_warmup_ledger.csv"
+
+
+def latin_square(items=PROFILES):
+    """n×n 循环拉丁方（第 r 行 = items 左移 r 位）——D-354 验证过轮转正确的形状。
+
+    刻意**算**出来而不是写成字面量：一张手写的 3×3 表被人编辑后可以悄悄不再是
+    拉丁方（某个位次上某个 profile 出现两次），而算出来的那张不可能。
+    """
+    n = len(items)
+    return tuple(tuple(items[(r + c) % n] for c in range(n)) for r in range(n))
+
+
+LATIN_SQUARE = latin_square()
+# 契约示例即此写法：三个轮次以 `|` 连接，轮内以 `,` 连接。
+FORENSIC_SCENARIO_ORDER = "|".join(",".join(r) for r in LATIN_SQUARE)
+
+
+def warmup_scaled_kpis():
+    """预热轮劣化落在哪些 KPI 上：场景侧 + 网络侧 + `u1_goodput_mbps`。
+
+    两张清单**读 `stability`**（§2.14 说它是「场景侧/网络侧」在全仓唯一被命名的
+    地方），不在这里另抄一份。理由不是省事：s2 的设计效应与**检测它的那条判据**
+    （`SCENARIO_INTRINSIC_JITTER`，D-382）必须是同一张清单，否则两边可以悄悄分叉，
+    而分叉的那天彩排会安静地不再演示那个标记——一个不再演示要教的那件事的彩排，
+    和坏掉的彩排在输出上分不开（D-182 的形状）。「两处逐字相同」恰是最容易分叉、
+    又最难察觉的状态（D-317）。
+    """
+    return (tuple(stability.SCENARIO_SIDE_KPIS) + tuple(stability.NETWORK_SIDE_KPIS)
+            + ("u1_goodput_mbps",))
+
+
+def _scale_kpi(kpi, keys, factor, *, higher_better=("u1_goodput_mbps",)):
+    """把一组 KPI 按 factor 缩放（factor>1 = 更差）。等级标签随之重算。"""
+    for k in keys:
+        v = kpi.get(k)
+        if v is None:
+            continue
+        kpi[k] = round(v / factor if k in higher_better else v * factor,
+                       4 if k in ("t3_stall_rate", "t4_severe_stall_rate") else 2)
+    for k in GRADED:
+        if k in kpi:
+            kpi[k.split("_")[0] + "_grade"] = _grade(k, kpi[k])
+
+
+def apply_s2_intrinsic_jitter(records, rng):
+    """只给 s2 的**场景侧** KPI 加一层 per-run 抖动，网络侧 KPI 一个不动。
+
+    这正是 D-372 判定、D-382 变成判据的那个形状：同格同 profile 下场景侧超 CV 门
+    而网络侧未超门。`n1_rtt_p50_ms` / `n2_jitter_ms` 不动，是**判别证据本身**。
+    """
+    touched = 0
+    for rec in records:
+        for scn in rec.get("scenarios") or []:
+            if scn.get("profile_id") != PROFILES[1]:
+                continue
+            f = max(0.5, 1.0 + rng.gauss(0, S2_EXTRA_JITTER))
+            _scale_kpi(scn.get("kpi") or {}, stability.SCENARIO_SIDE_KPIS, f)
+            touched += 1
+    return touched
+
+
+def _expansion_cell_key(rec):
+    c = (rec.get("run") or {}).get("campaign") or {}
+    return (c.get("campaign_id"), c.get("point_id"), c.get("carrier"),
+            c.get("time_band"), c.get("tier"))
+
+
+def _expansion_quick(rng, *, points, carriers, time_bands, tier, campaign,
+                     counted_repeats, warmup_runs, seed, start_ms, radio):
+    """quick 主体：每格 (counted_repeats + warmup_runs) 条，预热轮 = 每格文件序前 N 条。
+
+    `generate()` 把 repeats 放在最内层循环，所以每格的头几条就是该格最先跑的那几条
+    ——正好是预热轮的位置。台账记下它们的 `run_id`。
+    """
+    recs = generate(points=points, carriers=carriers, time_bands=time_bands,
+                    tiers=(tier,), repeats=counted_repeats + warmup_runs,
+                    campaigns=(campaign,), seed=seed, start_ms=start_ms, radio=radio)
+    seen, warmup_ids = {}, []
+    scaled = warmup_scaled_kpis()
+    for rec in recs:
+        k = _expansion_cell_key(rec)
+        if seen.get(k, 0) >= warmup_runs:
+            continue
+        seen[k] = seen.get(k, 0) + 1
+        warmup_ids.append(rec["run"]["run_id"])
+        # 预热轮整体更差（无线唤醒）：网络侧与场景侧**一起**劣化——这与 s2 的
+        # 内生抖动是两回事（那个只动场景侧），故两处分别施加。
+        for scn in rec.get("scenarios") or []:
+            _scale_kpi(scn.get("kpi") or {}, scaled, 1.0 + WARMUP_PENALTY)
+    apply_s2_intrinsic_jitter(recs, rng)
+    return recs, warmup_ids
+
+
+def _expansion_forensic(rng, start_ms, *, points, carriers, time_bands, tier,
+                        campaign, point_indices, runs_per_cell, warmup_runs,
+                        seed, radio):
+    """取证子集：每格 (runs_per_cell + warmup_runs) 条取证 run，每条 9 场景、3×3 轮转。
+
+    一次取证 run = len(PROFILES)² 个场景：`order_index` 0..8、`repeat_index` 逐轮
+    0,0,0/1,1,1/2,2,2、`scenario_order` 为三个轮次以 `|` 连接。
+    """
+    recs, warmup_ids = [], []
+    counter = 0
+    pids = _point_ids(points)
+    for pi in point_indices:
+        point = pids[pi]
+        qf = _quality_factor(pi, points)     # 与 quick 主体里同一点位同一质量因子
+        for carrier in carriers:
+            carrier_f = 1.0 if carrier == "cmcc" else 1.12
+            for band in time_bands:
+                band_f = 1.35 if band == "busy" else 1.0
+                for run_i in range(warmup_runs + runs_per_cell):
+                    counter += 1
+                    is_warmup = run_i < warmup_runs
+                    base = TIER_BASE_RTT_MS[tier]
+                    scns = []
+                    for rnd, row in enumerate(LATIN_SQUARE):
+                        # 预热轮整条更差；计入轮只剩 App/TLS 残余，且残余只落在
+                        # **轮内第 0 轮**（口径 D-358）。
+                        if is_warmup:
+                            round_f = 1.0 + WARMUP_PENALTY
+                        else:
+                            round_f = 1.0 + (FORENSIC_ROUND0_RESIDUAL if rnd == 0 else 0.0)
+                        for pos, profile in enumerate(row):
+                            oi = rnd * len(row) + pos
+                            rtt = max(3.0, base * qf * carrier_f * band_f * round_f
+                                      * (1.0 + rng.gauss(0, 0.045 * 0.5)))
+                            block = _radio(rng, pi, band, rnd, pos) if radio else None
+                            scn = _scenario(rng, PROFILES.index(profile), rtt,
+                                            order_index=oi, suspect_clock=False,
+                                            batching=False, transport="cellular",
+                                            radio=block)
+                            scn["profile_id"] = profile   # 位次由拉丁方决定
+                            scn["repeat_index"] = rnd     # 轮次（D-354 语义）
+                            scns.append(scn)
+                    usable = [s for s in scns if s["validity"] != "invalid"]
+                    if usable:
+                        subs = _sub_scores(usable[0]["kpi"])
+                        score = round(sum(subs.values()) / len(subs), 2)
+                        aqs = {"score": score, "low_confidence": len(usable) < 2,
+                               "veto_applied": False, "not_computable_reason": None,
+                               "input_mapping": "synthetic", "sub_scores": subs}
+                    else:
+                        aqs = {"score": None, "low_confidence": True,
+                               "veto_applied": False,
+                               "not_computable_reason": "ALL_SCENARIOS_INVALID",
+                               "input_mapping": "synthetic", "sub_scores": {}}
+                    run_id = f"synth-{seed}-{campaign}-forensic-{counter:06d}"
+                    if is_warmup:
+                        warmup_ids.append(run_id)
+                    recs.append({
+                        "claim_scope": "application_end_to_end_to_probe_node",
+                        "kpi_set": "agent-qoe-kpi-v0.2", "aqs_version": "aqs-v0.1",
+                        "profile_versions": "s1@0.2,s2@0.2,s3@0.2",
+                        "schema_version": "1.0",
+                        "synthetic": {"generator": GENERATOR,
+                                      "version": GENERATOR_VERSION,
+                                      "seed": seed, "warning": WARNING},
+                        "run": {
+                            "run_id": run_id,
+                            "started_at_epoch_ms": start_ms + counter * 400_000,
+                            "mode": "forensic",
+                            "scenario_order": FORENSIC_SCENARIO_ORDER,
+                            "transport": "auto(cellular)", "profile_source": "server",
+                            "app_version_name": "0.0-synthetic", "app_version_code": 0,
+                            "guard_metadata": None,
+                            "status": "completed" if usable else "aborted:all_invalid",
+                            "aqs": aqs,
+                            "campaign": {
+                                "campaign_id": CAMPAIGN_PREFIX + campaign,
+                                "tier": tier, "point_id": point,
+                                "carrier": carrier, "time_band": band,
+                                "server_tier_endpoint":
+                                    "https://e-01-%s.invalid" % tier},
+                        },
+                        "scenarios": scns,
+                    })
+    apply_s2_intrinsic_jitter(recs, rng)
+    return recs, warmup_ids
+
+
+def generate_expansion(*, points=8, carriers=("cmcc", "cucc"),
+                       time_bands=("busy", "idle"), tier="metro", campaign="EXP",
+                       counted_repeats=EXPANSION_COUNTED_REPEATS,
+                       warmup_runs=EXPANSION_WARMUP_RUNS, forensic_points=2,
+                       forensic_runs_per_cell=EXPANSION_FORENSIC_RUNS,
+                       forensic_warmup_runs=1, seed=20260801,
+                       start_ms=1783944000000, radio=True):
+    """M3 扩展轮语料。返回 dict：raw / counted / counted_quick / counted_forensic /
+    warmup_ids / ledger_rows。
+
+    同时产出 `_raw`（拉取到的全部）与 `_counted`（按台账排除预热后）两份语料，
+    是为了让「台账排除到底改变了什么」可以**被对着核**，而不是被声称。
+    """
+    rng = random.Random(seed)
+    quick, quick_warmup = _expansion_quick(
+        rng, points=points, carriers=carriers, time_bands=time_bands, tier=tier,
+        campaign=campaign, counted_repeats=counted_repeats, warmup_runs=warmup_runs,
+        seed=seed, start_ms=start_ms, radio=radio)
+    forensic_start = quick[-1]["run"]["started_at_epoch_ms"] + 600_000
+    forensic, forensic_warmup = _expansion_forensic(
+        rng, forensic_start, points=points, carriers=carriers,
+        time_bands=time_bands, tier=tier, campaign=campaign,
+        point_indices=tuple(range(forensic_points)),
+        runs_per_cell=forensic_runs_per_cell, warmup_runs=forensic_warmup_runs,
+        seed=seed, radio=radio)
+
+    raw = quick + forensic
+    warmup_ids = set(quick_warmup) | set(forensic_warmup)
+    counted = [r for r in raw if r["run"]["run_id"] not in warmup_ids]
+    ledger_rows = []
+    for r in raw:
+        rid = r["run"]["run_id"]
+        if rid not in warmup_ids:
+            continue
+        c = r["run"]["campaign"]
+        ledger_rows.append((rid, r["run"]["mode"], c["point_id"], c["carrier"],
+                            c["time_band"], WARMUP_DISPOSITION, WARMUP_AUTHORITY,
+                            "True"))
+    return {"raw": raw, "counted": counted,
+            # 分面语料：两块池化在一份报告里时，序位与预热两段都会被「位次由不同
+            # 格供样」污染，而那正是取证子集存在的目的（D-380）。故各自也要能单独出报告。
+            "counted_quick": [r for r in counted if r["run"]["mode"] == "quick"],
+            "counted_forensic": [r for r in counted if r["run"]["mode"] == "forensic"],
+            "warmup_ids": warmup_ids, "ledger_rows": ledger_rows}
+
+
+def assert_double_marked(records):
+    """D-270 隔离自检：每条记录都必须**双重**带标（`synthetic` 块 + `SYNTH-` 前缀）。
+
+    在写盘**之前**跑；任一条不成立就不产出任何文件。
+    """
+    bad = [(r.get("run") or {}).get("run_id") for r in records
+           if not isinstance(r.get("synthetic"), dict)
+           or not str(((r.get("run") or {}).get("campaign") or {})
+                      .get("campaign_id", "")).startswith(CAMPAIGN_PREFIX)]
+    if bad:
+        raise ValueError(f"隔离自检失败：{len(bad)} 条记录缺合成标记，例：{bad[0]}")
+    return len(records)
+
+
+def write_expansion_artifacts(prefix, bundle):
+    """写出五份产物，返回路径列表。隔离自检先行——不合格就一个文件都不写。"""
+    assert_double_marked(bundle["raw"])
+    paths = []
+    for key, suffix in EXPANSION_ARTIFACTS:
+        p = prefix + suffix
+        with open(p, "w", encoding="utf-8") as f:
+            for r in bundle[key]:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        paths.append(p)
+    ledger = prefix + WARMUP_LEDGER_SUFFIX
+    with open(ledger, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        w.writerow(WARMUP_LEDGER_HEADER)
+        w.writerows(bundle["ledger_rows"])
+    paths.append(ledger)
+    return paths
+
+
+def _expansion_conflicts(args):
+    """扩展轮模式与哪些参数冲突。**列出来拒绝，而不是静默忽略**——一个被悄悄
+    忽略的 `--repeats 5` 会让操作者以为自己拿到的是每格 5 条。"""
+    out = []
+    if args.repeats is not None:
+        out.append("--repeats：扩展轮拆成 --counted-repeats + --warmup-runs")
+    if args.chaos:
+        out.append("--chaos：会删记录/改 mode，取证轮转与每格 n 随之失真")
+    if args.unlabelled:
+        out.append("--unlabelled：剥掉 run.campaign 后格与台账都无从认")
+    if args.tiers is not None and len(args.tiers.split(",")) != 1:
+        out.append("--tiers：扩展轮是单层级（D-48 单实例 E-01），请只给一个")
+    if args.campaigns is not None and len(args.campaigns.split(",")) != 1:
+        out.append("--campaigns：扩展轮是单战役，请只给一个")
+    if args.out.endswith(".jsonl"):
+        out.append("-o：扩展轮模式下它是**路径前缀**，不要以 .jsonl 结尾")
+    return out
+
+
+def _main_expansion(args):
+    conflicts = _expansion_conflicts(args)
+    if conflicts:
+        print("--expansion 与以下参数冲突（拒绝静默忽略）：", file=sys.stderr)
+        for c in conflicts:
+            print("  - " + c, file=sys.stderr)
+        return 2
+    bundle = generate_expansion(
+        points=args.points, carriers=tuple(args.carriers.split(",")),
+        time_bands=tuple(args.time_bands.split(",")),
+        tier=args.tiers or EXPANSION_TIER, campaign=args.campaigns or EXPANSION_CAMPAIGN,
+        counted_repeats=args.counted_repeats,
+        warmup_runs=args.warmup_runs, forensic_points=args.forensic_points,
+        forensic_runs_per_cell=args.forensic_runs,
+        forensic_warmup_runs=args.forensic_warmup_runs, seed=args.seed)
+    try:
+        paths = write_expansion_artifacts(args.out, bundle)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    cells = {_expansion_cell_key(r) for r in bundle["counted"]}
+    quick_n = Counter(_expansion_cell_key(r) for r in bundle["counted_quick"])
+    per_cell = sorted(set(quick_n.values()))
+    print(WARNING)
+    for key, path in zip([k for k, _ in EXPANSION_ARTIFACTS], paths):
+        print(f"{key:16s}: {len(bundle[key]):5d} runs -> {path}")
+    print(f"{'warmup_ledger':16s}: {len(bundle['ledger_rows']):5d} 条"
+          f"（{WARMUP_DISPOSITION}，authority={WARMUP_AUTHORITY}）-> {paths[-1]}")
+    print(f"格数 (counted) = {len(cells)}；quick 每格计入 n = {per_cell}")
+    print(f"取证 run 数 (counted) = {len(bundle['counted_forensic'])}"
+          f"；scenario_order 轮次数 = {len(FORENSIC_SCENARIO_ORDER.split('|'))}"
+          f"；radio = on（--expansion 隐含）")
+    return 0
+
+
 def main(argv):
     ap = argparse.ArgumentParser(
         description="Generate a SYNTHETIC ANEB campaign corpus (rehearsal only — "
                     "the numbers are fabricated, never present them as measurements)")
-    ap.add_argument("-o", "--out", required=True, help="output JSONL path")
+    ap.add_argument("-o", "--out", required=True,
+                    help="output JSONL path — or, with --expansion, the PATH "
+                         "PREFIX the five expansion artifacts hang off")
     ap.add_argument("--points", type=int, default=8)
-    ap.add_argument("--repeats", type=int, default=5)
+    # default is None, not 5, so --expansion can REFUSE an explicitly passed
+    # --repeats instead of silently ignoring it (the expansion round splits it
+    # into --counted-repeats + --warmup-runs).
+    ap.add_argument("--repeats", type=int, default=None,
+                    help="repeats per cell (default 5; not valid with --expansion)")
     ap.add_argument("--carriers", default="cmcc,cucc")
     ap.add_argument("--time-bands", default="busy,idle")
-    ap.add_argument("--tiers", default="metro,regional,core")
-    ap.add_argument("--campaigns", default="base,opt",
-                    help="comma-separated campaign ids (all get the SYNTH- prefix)")
+    # None rather than the M2 default, for the same reason as --repeats: with
+    # --expansion these have DIFFERENT defaults (single tier, single campaign),
+    # and an explicitly passed multi-value list must be refused, not overridden.
+    ap.add_argument("--tiers", default=None,
+                    help="comma-separated tiers (default metro,regional,core; "
+                         "with --expansion exactly one, default %s)" % EXPANSION_TIER)
+    ap.add_argument("--campaigns", default=None,
+                    help="comma-separated campaign ids (all get the SYNTH- prefix; "
+                         "default base,opt; with --expansion exactly one, default %s)"
+                         % EXPANSION_CAMPAIGN)
     ap.add_argument("--seed", type=int, default=20260725)
     ap.add_argument("--unlabelled", action="store_true",
                     help="strip run.campaign, matching what the app emits TODAY "
@@ -485,14 +854,39 @@ def main(argv):
                     help="seed realistic field pathologies (missing tier, aborted "
                          "runs, mixed profile versions, clock jumps, all-invalid "
                          "cell, unlabelled records…) to rehearse honest degradation")
+    ap.add_argument("--expansion", action="store_true",
+                    help="generate the M3 EXPANSION-ROUND shape instead of the M2 "
+                         "grid: a quick body with one discarded warm-up run per "
+                         "cell (ledger = the only thing that knows which), a "
+                         "forensic subset on a 3x3 Latin square, and s2 scenario-"
+                         "intrinsic jitter. -o becomes a path PREFIX and five "
+                         "artifacts are written; --radio is implied")
+    ap.add_argument("--counted-repeats", type=int, default=EXPANSION_COUNTED_REPEATS,
+                    help="expansion: repeats per cell that COUNT (default %d)"
+                         % EXPANSION_COUNTED_REPEATS)
+    ap.add_argument("--warmup-runs", type=int, default=EXPANSION_WARMUP_RUNS,
+                    help="expansion: discarded warm-up runs per quick cell "
+                         "(default %d)" % EXPANSION_WARMUP_RUNS)
+    ap.add_argument("--forensic-points", type=int, default=2,
+                    help="expansion: how many leading points carry the forensic "
+                         "subset (default 2)")
+    ap.add_argument("--forensic-runs", type=int, default=EXPANSION_FORENSIC_RUNS,
+                    help="expansion: counted forensic runs per forensic cell "
+                         "(default %d)" % EXPANSION_FORENSIC_RUNS)
+    ap.add_argument("--forensic-warmup-runs", type=int, default=1,
+                    help="expansion: discarded warm-up runs per forensic cell")
     args = ap.parse_args(argv)
 
-    recs = generate(points=args.points, repeats=args.repeats,
+    if args.expansion:
+        return _main_expansion(args)
+
+    recs = generate(points=args.points,
+                    repeats=5 if args.repeats is None else args.repeats,
                     carriers=tuple(args.carriers.split(",")),
                     time_bands=tuple(args.time_bands.split(",")),
-                    tiers=tuple(args.tiers.split(",")),
-                    campaigns=tuple(args.campaigns.split(",")), seed=args.seed,
-                    radio=args.radio)
+                    tiers=tuple((args.tiers or "metro,regional,core").split(",")),
+                    campaigns=tuple((args.campaigns or "base,opt").split(",")),
+                    seed=args.seed, radio=args.radio)
     if args.chaos:
         recs = inject_chaos(recs, seed=args.seed + 1)
         print("chaos: " + "; ".join(name for name, _ in CHAOS_PATHOLOGIES))

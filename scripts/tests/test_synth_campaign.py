@@ -7,6 +7,7 @@ Two things must hold, and the second one is a safety property:
   2. synthetic records are ALWAYS detectable and the report ALWAYS says so —
      fabricated numbers must never be presentable as field measurements.
 """
+import json
 import os
 import sys
 
@@ -219,6 +220,298 @@ def test_rehearsal_can_demonstrate_both_verdicts():
             if ln.startswith("- **优化前后")][0]
     assert designed in line
     assert "±" in line              # named with its noise scale, never bare
+
+
+# ----------------------------------------------------------- M3 扩展轮形状
+#
+# GUARD_DIFF C-4 的原话是「一次性脚本没有守卫」。把整形器的能力搬进生成器之后，
+# 这一节就是那批**缺失的守卫**——每一条都对着扩展轮真正要演示的一件事。
+
+SMALL_EXP = dict(points=3, carriers=("cmcc",), time_bands=("busy", "idle"),
+                 counted_repeats=4, warmup_runs=1, forensic_points=1,
+                 forensic_runs_per_cell=2, forensic_warmup_runs=1, seed=4242)
+
+
+def _one_off_shaper():
+    """The historical one-off整形器, loaded from evidence/ as a module."""
+    import importlib.util
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    path = os.path.join(root, "evidence", "m3_expansion_rehearsal_20260801",
+                        "shape_expansion_corpus.py")
+    assert os.path.exists(path), path
+    spec = importlib.util.spec_from_file_location("shape_expansion_corpus", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_generator_still_reproduces_the_one_off_shaper():
+    """金标准对拍：同参数同种子，生成器的产物必须与那只一次性整形器的等价。
+
+    唯一容许的差异是 `synthetic.generator` 这一处**溯源字段**——记录现在如实指认
+    真正造出它的那份代码。它有零个读者（`campaign_common.is_synthetic` 只看
+    `synthetic` 是不是 dict，或看 `SYNTH-` 前缀），故不改变任何分析结论；而归档
+    的那份语料本来就是**自相矛盾**的：同一次运行里 quick 半边写 `synth_campaign.py`、
+    取证半边写 `shape_expansion_corpus.py`。现在两半一致了。
+
+    容许清单写成**逐字段的白名单**而不是「差不多一样就行」：任何第二处差异都会
+    让这条守卫红——那正是它存在的理由。整形器留在 evidence/ 里不删，所以这条
+    对拍可以一直跑下去，而不是只在交付那天跑过一次（D-322）。
+    """
+    import random
+    old = _one_off_shaper()
+    # the golden was built before D-379 raised the forensic round count to 5,
+    # so the comparison pins the shaper's own value rather than today's default.
+    assert old.FORENSIC_RUNS_PER_CELL == 4, old.FORENSIC_RUNS_PER_CELL
+    assert sc.EXPANSION_FORENSIC_RUNS == 5, sc.EXPANSION_FORENSIC_RUNS
+
+    rng = random.Random(old.SEED)
+    q, q_warm = old.build_quick_body(rng)
+    f, f_warm = old.build_forensic_subset(
+        rng, q[-1]["run"]["started_at_epoch_ms"] + 600_000)
+    raw = q + f
+    warm = set(q_warm) | set(f_warm)
+    golden = {"raw": raw,
+              "counted": [r for r in raw if r["run"]["run_id"] not in warm]}
+    golden["counted_quick"] = [r for r in golden["counted"]
+                               if r["run"]["mode"] == "quick"]
+    golden["counted_forensic"] = [r for r in golden["counted"]
+                                  if r["run"]["mode"] == "forensic"]
+
+    new = sc.generate_expansion(
+        points=old.POINTS, carriers=old.CARRIERS, time_bands=old.TIME_BANDS,
+        tier=old.TIERS[0], campaign=old.CAMPAIGN, counted_repeats=old.N_COUNTED,
+        warmup_runs=old.N_WARMUP, forensic_points=len(old.FORENSIC_POINT_INDICES),
+        forensic_runs_per_cell=old.FORENSIC_RUNS_PER_CELL,
+        forensic_warmup_runs=old.FORENSIC_WARMUP_RUNS, seed=old.SEED)
+
+    assert new["warmup_ids"] == warm
+    # 那一处容许的差异必须**真的在**。否则生成器改回盖整形器的名字时，下面每条
+    # 记录都会比出相等、这条守卫全绿，而语料在谎报自己的出处。突变审计里先预测
+    # 它会存活、再去验，果然存活（D-325）——这三行就是那次存活逼出来的。
+    assert {r["synthetic"]["generator"] for r in new["raw"]} == {sc.GENERATOR}
+    assert {r["synthetic"]["generator"] for r in golden["counted_forensic"]} == {
+        "shape_expansion_corpus.py"}
+    assert {r["synthetic"]["generator"] for r in golden["counted_quick"]} == {
+        sc.GENERATOR}, "归档语料的 quick 半边本来就写着 synth_campaign.py（它自相矛盾）"
+    for key in ("raw", "counted", "counted_quick", "counted_forensic"):
+        a, b = golden[key], new[key]
+        assert len(a) == len(b), f"{key}: {len(a)} vs {len(b)}"
+        for x, y in zip(a, b):
+            if x == y:
+                continue
+            # exactly one field may differ, and only on the forensic half
+            assert y["run"]["mode"] == "forensic", (key, y["run"]["run_id"])
+            assert x["synthetic"]["generator"] == "shape_expansion_corpus.py"
+            assert y["synthetic"]["generator"] == sc.GENERATOR
+            xx = dict(x, synthetic=dict(x["synthetic"], generator=sc.GENERATOR))
+            assert xx == y, f"{key}/{y['run']['run_id']}: 差异不止溯源字段一处"
+
+
+def test_forensic_runs_carry_a_real_latin_square():
+    """取证轮转：每轮是一次 profile 全排列，**每个位次跨轮也是一次全排列**。
+
+    后半句才是拉丁方的定义。只检查「每轮三个都不同」的守卫，会放过一张三行完全
+    相同的表——那正是「未轮转」，也正是 D-354 要这张表来排除的东西。
+    """
+    square = sc.latin_square()
+    n = len(sc.PROFILES)
+    assert len(square) == n
+    for row in square:
+        assert sorted(row) == sorted(sc.PROFILES)          # 每轮是全排列
+    for col in range(n):
+        assert sorted(r[col] for r in square) == sorted(sc.PROFILES)  # 每位次也是
+
+    bundle = sc.generate_expansion(**SMALL_EXP)
+    assert bundle["counted_forensic"], "取证子集为空，本条什么都没测到"
+    for rec in bundle["counted_forensic"]:
+        scns = rec["scenarios"]
+        assert len(scns) == n * n
+        assert [s["order_index"] for s in scns] == list(range(n * n))
+        assert [s["repeat_index"] for s in scns] == [r for r in range(n) for _ in range(n)]
+        rounds = [tuple(s["profile_id"] for s in scns[r * n:(r + 1) * n])
+                  for r in range(n)]
+        assert tuple(rounds) == square
+        # scenario_order 把同一件事编码在 run 上：三段以 `|` 连，段内以 `,` 连
+        order = rec["run"]["scenario_order"]
+        assert order.split("|") == [",".join(r) for r in square]
+        assert rec["run"]["mode"] == "forensic"
+
+
+def test_the_ledger_is_the_only_thing_that_knows_which_run_was_a_warm_up():
+    """预热轮**会正常上报**（口径 D-366）——语料本身没有任何字段说明它是预热。
+
+    两个方向都要钉住：
+      1. `counted` 恰好等于 `raw` 减去台账点名的那些（台账真的说了算）；
+      2. 语料里**没有**任何自称预热的字段。少了第 2 条，生成器可以偷偷给记录盖一个
+         合成专用的戳，于是彩排演的是一个外场根本造不出来的形状——分析层看着能
+         认出预热轮，真到外场那天它一个也认不出（D-309 的反面）。
+    """
+    bundle = sc.generate_expansion(**SMALL_EXP)
+    ids_raw = {r["run"]["run_id"] for r in bundle["raw"]}
+    ids_counted = {r["run"]["run_id"] for r in bundle["counted"]}
+    ledger_ids = [row[0] for row in bundle["ledger_rows"]]
+    assert len(ledger_ids) == len(set(ledger_ids)) == len(bundle["warmup_ids"])
+    assert set(ledger_ids) <= ids_raw
+    assert ids_counted == ids_raw - set(ledger_ids)
+    assert ids_counted, "counted 为空，上一条断言会恒真"
+
+    cols = dict(zip(sc.WARMUP_LEDGER_HEADER, bundle["ledger_rows"][0]))
+    assert cols["disposition"] == sc.WARMUP_DISPOSITION
+    assert cols["authority"] == sc.WARMUP_AUTHORITY == "D-366"
+    assert cols["synthetic"] == "True"
+
+    blob = json.dumps(bundle["raw"], ensure_ascii=False)
+    for word in ("warmup", "warm_up", "预热", "discard"):
+        assert word not in blob.lower() if word.isascii() else word not in blob, (
+            f"语料里出现了自称预热的字样 {word!r} —— 外场语料造不出这个字段")
+
+
+def test_the_designed_warm_up_penalty_is_actually_present():
+    """E2 是个**设计效应**：预热轮系统性更差。它必须真的在，否则「台账排除到底
+    改变了什么」这个问题在彩排里没有答案，而那正是要演示的那件事。"""
+    bundle = sc.generate_expansion(**SMALL_EXP)
+    warm = [r for r in bundle["raw"] if r["run"]["run_id"] in bundle["warmup_ids"]
+            and r["run"]["mode"] == "quick"]
+    cold = [r for r in bundle["counted_quick"]]
+    assert warm and cold
+
+    def med_rtt(recs):
+        vals = sorted(s["kpi"]["n1_rtt_p50_ms"] for r in recs for s in r["scenarios"]
+                      if s["kpi"].get("n1_rtt_p50_ms") is not None)
+        return vals[len(vals) // 2]
+
+    assert med_rtt(warm) > med_rtt(cold) * 1.05, (med_rtt(warm), med_rtt(cold))
+
+
+def test_the_s2_jitter_lands_where_stability_looks_for_it():
+    """s2 场景内生抖动必须被 `SCENARIO_INTRINSIC_JITTER`（D-382）真的认出来。
+
+    这条不查生成器自己的内部状态，而是**把语料喂给判据**：一个设计效应若与检测它
+    的判据对不上，彩排就是在演一件没人会看的事，而坏掉的检测路径与好用的那条在
+    输出上分不开（D-182 的形状）。反方向同样要钉：网络侧 KPI 上零命中——判据不
+    越界，越界了它就不再是判别证据。
+    """
+    import stability
+    bundle = sc.generate_expansion(**dict(SMALL_EXP, counted_repeats=8))
+    recs = bundle["counted_quick"]
+
+    scen = stability.stability_cells(recs, "t1_ttft_ms")
+    marked = [c for c in scen if c.get("scenario_intrinsic_jitter")]
+    assert marked, "没有一个单元被判为场景内生抖动——设计效应与判据对不上了"
+    assert {c["cell"]["profile_id"] for c in marked} == {sc.PROFILES[1]}, (
+        "被标记的不只是 s2 —— 抖动漏到别的 profile 上了")
+
+    net = stability.stability_cells(recs, "n1_rtt_p50_ms")
+    assert not [c for c in net if c.get("scenario_intrinsic_jitter")], (
+        "网络侧 KPI 上出现了场景内生抖动标记 —— 判据越界")
+
+
+def test_the_scenario_side_list_has_exactly_one_home():
+    """两张 KPI 清单只能有一处定义。§2.14 说 `stability` 是它们在全仓**唯一**被
+    命名的地方；生成器再抄一份，设计效应与判据就能悄悄分叉，而「两处逐字相同」
+    正是最容易分叉又最难察觉的状态（D-317）。
+
+    **判据是「有没有第二个绑定拿着同一份值」，不是源码里出没出现过那几个词。**
+    第一版拿裸子串去比，被 `GRADED` 当场骗了——它恰好把 `n1`/`n2` 排在相邻位置，
+    于是守卫报出一处根本不存在的副本。会误报的守卫等于没有守卫（D-319）。
+
+    边界如实写在这里：它咬的是**副本诞生的那一刻**（新副本必然与本尊相等），
+    咬不住一份已经漂过的副本；而漂移正是从相等开始的，所以这是对的那一刻。
+    """
+    import stability
+    assert set(sc.warmup_scaled_kpis()) == (
+        set(stability.SCENARIO_SIDE_KPIS) | set(stability.NETWORK_SIDE_KPIS)
+        | {"u1_goodput_mbps"})
+    assert not (set(stability.SCENARIO_SIDE_KPIS) & set(stability.NETWORK_SIDE_KPIS))
+    rivals = [n for n, v in vars(sc).items()
+              if isinstance(v, tuple)
+              and v in (stability.SCENARIO_SIDE_KPIS, stability.NETWORK_SIDE_KPIS)]
+    assert not rivals, (
+        f"synth_campaign 里出现了拿着同一份清单的第二个名字：{rivals} —— "
+        "清单必须读 stability 的，不是抄它的")
+    with open(sc.__file__, encoding="utf-8") as f:
+        src = f.read()
+    for lst in (stability.SCENARIO_SIDE_KPIS, stability.NETWORK_SIDE_KPIS):
+        literal = "(" + ", ".join('"%s"' % k for k in lst) + ")"
+        assert literal not in src, f"函数体里内联了一份字面量 {literal}"
+
+
+def test_expansion_corpus_survives_the_contract_gate_and_the_front_door():
+    """新形状不被现有守卫误拒——彩排的合格线之一，且三份分面各自都要过。"""
+    bundle = sc.generate_expansion(**SMALL_EXP)
+    schema = vr.load_schema(vr.DEFAULT_SCHEMA)
+    for key in ("raw", "counted", "counted_quick", "counted_forensic"):
+        recs = bundle[key]
+        assert recs, key
+        errors, _warnings = vr.validate_records(recs, schema)
+        assert errors == [], (key, errors[:3])
+        assert rpt.contract_gate(recs) == [], key
+
+
+def test_expansion_records_are_double_marked_before_anything_is_written():
+    """D-270：写盘前逐条断言双重标记，任一条不成立就**一个文件都不产出**。"""
+    import tempfile
+    bundle = sc.generate_expansion(**SMALL_EXP)
+    assert sc.assert_double_marked(bundle["raw"]) == len(bundle["raw"])
+    for r in bundle["raw"]:
+        assert isinstance(r["synthetic"], dict)
+        assert r["run"]["campaign"]["campaign_id"].startswith(sc.CAMPAIGN_PREFIX)
+
+    broken = [dict(r) for r in bundle["raw"]]
+    broken[3] = {k: v for k, v in broken[3].items() if k != "synthetic"}
+    broken[3]["run"] = dict(broken[3]["run"],
+                            campaign=dict(broken[3]["run"]["campaign"],
+                                          campaign_id="sz-2026Q3-baseline"))
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "exp")
+        try:
+            sc.write_expansion_artifacts(prefix, dict(bundle, raw=broken))
+            raise AssertionError("隔离自检没拦住缺标记的记录")
+        except ValueError:
+            pass
+        assert os.listdir(d) == [], f"自检失败却已经写出文件：{os.listdir(d)}"
+
+
+def test_expansion_refuses_conflicting_flags_instead_of_ignoring_them():
+    """静默忽略一个参数，会让操作者以为自己拿到的是另一份语料。逐条拒绝并点名。"""
+    import argparse
+    base = dict(repeats=None, chaos=False, unlabelled=False, tiers=None,
+                campaigns=None, out="/tmp/exp")
+    assert sc._expansion_conflicts(argparse.Namespace(**base)) == []
+    for field, value, needle in (("repeats", 5, "--repeats"),
+                                 ("chaos", True, "--chaos"),
+                                 ("unlabelled", True, "--unlabelled"),
+                                 ("tiers", "metro,core", "--tiers"),
+                                 ("campaigns", "a,b", "--campaigns"),
+                                 ("out", "/tmp/exp.jsonl", "-o")):
+        got = sc._expansion_conflicts(argparse.Namespace(**dict(base, **{field: value})))
+        assert any(needle in g for g in got), (field, got)
+
+
+def test_expansion_cli_writes_five_artifacts_and_the_prefix_rule_holds():
+    import subprocess
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "expansion")
+        cmd = [sys.executable, os.path.join(os.path.dirname(sc.__file__),
+                                            "synth_campaign.py"),
+               "-o", prefix, "--expansion", "--points", "3", "--carriers", "cmcc",
+               "--counted-repeats", "3", "--forensic-points", "1",
+               "--forensic-runs", "2", "--seed", "4242"]
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+        assert r.returncode == 0, r.stderr[:600]
+        written = sorted(os.listdir(d))
+        assert written == ["expansion_counted.jsonl", "expansion_counted_forensic.jsonl",
+                           "expansion_counted_quick.jsonl", "expansion_raw.jsonl",
+                           "expansion_warmup_ledger.csv"], written
+        assert sc.WARNING in r.stdout
+        assert sc.WARMUP_AUTHORITY in r.stdout        # 台账的出处印在操作者眼前
+
+        bad = subprocess.run(cmd + ["--repeats", "5"], capture_output=True,
+                             text=True, errors="replace")
+        assert bad.returncode == 2, bad.stdout[:400]
+        assert "--repeats" in bad.stderr, bad.stderr[:400]
 
 
 def test_tier_ordering_is_realistic():
