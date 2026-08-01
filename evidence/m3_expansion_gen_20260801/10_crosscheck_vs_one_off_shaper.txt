@@ -1,0 +1,43 @@
+==============================================================================
+A. 对象级逐条比较（在内存里，未做任何归一化）
+==============================================================================
+  raw                n= 552   记录不同 = 40
+  counted            n= 512   记录不同 = 32
+  counted_quick      n= 480   记录不同 = 0
+  counted_forensic   n=  32   记录不同 = 32
+
+  差异字段（语料 → 字段路径 → 取值对）：
+    raw: .synthetic.generator = [('shape_expansion_corpus.py', 'synth_campaign.py')]
+    counted: .synthetic.generator = [('shape_expansion_corpus.py', 'synth_campaign.py')]
+    counted_forensic: .synthetic.generator = [('shape_expansion_corpus.py', 'synth_campaign.py')]
+
+  差异记录的归属（是 quick 还是 forensic）：
+    raw                 40 条不同，全部 mode ∈ ['forensic']
+    counted             32 条不同，全部 mode ∈ ['forensic']
+    counted_quick        0 条不同，全部 mode ∈ —
+    counted_forensic    32 条不同，全部 mode ∈ ['forensic']
+
+==============================================================================
+B. 字节级：用生产写入路径落盘后，与归档 SHA-256 对账
+==============================================================================
+  expansion_raw.jsonl                DIFF  bytes new=2990532 arch=2990852 (Δ=+320)
+                                       仅把 40 条取证记录的 generator 名归一化后：MATCH  bytes=2990852
+                                       字节差核账：40 条 × 8 字节（'shape_expansion_corpus.py' 比 'synth_campaign.py' 长 8） = 320，实测 Δ=320 → 对得上
+  expansion_counted.jsonl            DIFF  bytes new=2736131 arch=2736387 (Δ=+256)
+                                       仅把 32 条取证记录的 generator 名归一化后：MATCH  bytes=2736387
+                                       字节差核账：32 条 × 8 字节（'shape_expansion_corpus.py' 比 'synth_campaign.py' 长 8） = 256，实测 Δ=256 → 对得上
+  expansion_counted_quick.jsonl      MATCH bytes new=2330061 arch=2330061 (Δ=+0)
+  expansion_counted_forensic.jsonl   DIFF  bytes new=406070 arch=406326 (Δ=+256)
+                                       仅把 32 条取证记录的 generator 名归一化后：MATCH  bytes=406326
+                                       字节差核账：32 条 × 8 字节（'shape_expansion_corpus.py' 比 'synth_campaign.py' 长 8） = 256，实测 Δ=256 → 对得上
+  warmup_ledger.csv                  MATCH bytes new=3251 arch=3251 (Δ=+0)
+
+==============================================================================
+C. 台账 <-> 语料对账
+==============================================================================
+  counted == raw − 台账 : True
+  台账行数 = 40  warmup_ids = 40  台账 id ⊆ raw : True
+  语料里有没有任何字段自称是预热轮 : False
+
+未解释的差异： 无
+exit=0

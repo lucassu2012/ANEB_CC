@@ -1,0 +1,9 @@
+SYNTHETIC - fabricated data, NOT measurements
+raw             :   560 runs -> ../evidence/m3_expansion_gen_20260801/expansion_raw.jsonl
+counted         :   520 runs -> ../evidence/m3_expansion_gen_20260801/expansion_counted.jsonl
+counted_quick   :   480 runs -> ../evidence/m3_expansion_gen_20260801/expansion_counted_quick.jsonl
+counted_forensic:    40 runs -> ../evidence/m3_expansion_gen_20260801/expansion_counted_forensic.jsonl
+warmup_ledger   :    40 条（预热丢弃，authority=D-366）-> ../evidence/m3_expansion_gen_20260801/expansion_warmup_ledger.csv
+格数 (counted) = 32；quick 每格计入 n = [15]
+取证 run 数 (counted) = 40；scenario_order 轮次数 = 3；radio = on（--expansion 隐含）
+exit=0

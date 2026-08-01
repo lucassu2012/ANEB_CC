@@ -1,0 +1,6 @@
+# synth_campaign.py --expansion SEED=20260801 的产物指纹（语料本身不入库，可由步骤 0 重生成后对账）
+0520f042082e636c9e4072fefc07092139d846d19d774178f996a9310ffd932a     3092073  expansion_raw.jsonl
+9823d513d4699cbcc59d15151b93637cb3e8fac98521f988cfca93073132fe18     2837650  expansion_counted.jsonl
+d869bda5b889b3bce64e3ddf9f387fa232cb155627900e193260170400668986     2330061  expansion_counted_quick.jsonl
+fdda4eb9902e399fd5b3c5229503fded5990c9a0e1046e88fd6de5202363bfde      507589  expansion_counted_forensic.jsonl
+3ab66437e13320de8d95a80e7836abbde8a64e24d2e0907968b17de43007ac8b        3251  expansion_warmup_ledger.csv
