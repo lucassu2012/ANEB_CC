@@ -1,7 +1,9 @@
 # Profile 4 语音回环 · 规格先行（T10）
 
 **状态**：规格草案 v1.0 · 2026-08-01 · owner=v2(分析/规格 lane) · 无设备、无 E-01 变更
-**上游**：SYSTEM_DEV_PLAN v1.0 §4「执行序 A→F」的 D 步
+**上游**：执行序 A→F 的 **D 步**（该执行序出自 `docs/BRAIN_TASKBOARD.md` 与大脑派单，
+**不在 `SYSTEM_DEV_PLAN v1.0` 里**——本稿初版误引作「DEV PLAN §4『执行序 A→F』」，
+而该文件 §4 是「子项目定义」、全文对「执行序」**零命中**，已订正）
 **方法学范本**：T9（`RADIO_CONTEXT_WIRING_SPEC.md`）——**盘点先行**，先数清已有的，再写缺的
 
 ---
@@ -123,7 +125,12 @@ E_anchor 不是误差棒，是**判据与真值之间无法用更多样本消除
   2. **用往返顶替单向**。口到耳是「单向 + 对端处理 + 单向」，判据用 RTT 顶替，
      隐含**上下行对称**假设；CGNAT/非对称接入下该假设无据。
   3. **混分位相加**。P50 与 P95 相加不构成任何一个确定分位数的口到耳。
-- **正确读法**：「**网络贡献的口到耳下界预算**」。锚曲线注释已写明此意，本规格将其固化。
+- **正确读法**：「**网络贡献的口到耳下界预算**」。
+  **出处订正**：初版说「锚曲线注释已写明此意」——**不对**，`anchors.yaml` 的 M1 注释
+  全文是「口到耳(语音,§4.1 对话自然度红线;v1=预算合成 DERIVED / v2=实测代理 PROXY 同锚)」，
+  **无「下界」二字**。逐字写着这句的是 `VoiceRunner.kt:26`、`TestModeProfile.kt:521`
+  与 `client_profiles.json:418`（M1 的 `definition`：「（网络贡献的口到耳下界预算，
+  非真实音频链路实测）」）。本规格将其固化为**规格级**约束。
 
 ### M1′ 口到耳实测代理（v2，标 PROXY）
 
@@ -236,11 +243,35 @@ E_total^2 ~= E_audio_chain^2 + E_clock^2 + E_sched^2 + E_server_sim^2 + E_sampli
 
 初版写「用现有语料即可做」。**实测后证伪，两条独立原因**：
 
-1. **`chunk_us` 从未被归档**。它是 M3 的「服务端权威」，在源码与规格中被点名 15 处
-   （`VoiceRunner.kt`×4、`AnebClient.kt`×3、`TestModeProfile.kt`×3、`AqsScorer.kt`、
-   `Entities.kt`、`client_profiles.json`×2），但对 `evidence/` 全部 **30 份 jsonl** 逐词扫描
-   （**分开数、不用交替式 grep**——交替式会让 `sched_us` 的命中冒充 `chunk_us` 的命中）：
-   `chunk_us` **0 份**，`sched_us` 8 份，`arrival_us` 8 份。
+1. **`chunk_us` 从未被归档**。它是 M3 的「服务端权威」，在仓内被点名 **20 处**
+   （字节级逐文件计数，排除 `build/`、`.git/`、`__pycache__`）：
+
+   | 处数 | 文件 |
+   |---|---|
+   | 5 | `app/…/engine/VoiceRunner.kt` |
+   | 3 | `app/…/net/AnebClient.kt` |
+   | 3 | `app/…/ui/TestModeProfile.kt` |
+   | 2 | `spec/profiles/client/client_profiles.json` |
+   | 2 | `app/probe/src/main/assets/spec_profiles/client_profiles.json`（运行时镜像） |
+   | 1 | `app/…/data/Entities.kt` |
+   | 1 | `app/…/scoring/AqsScorer.kt` |
+   | 1 | `spec/scoring/weights.yaml` |
+   | **1** | **`server/handlers_upload.go`** ← **产出方**：`ChunkUs []int64 \`json:"chunk_us"\`` |
+   | 1 | `server/handlers_upload_test.go` |
+
+   > **计数订正（对抗复核指出）**：初版写「15 处」并列了一份逐文件清单，
+   > **总数与逐项都不对**——`VoiceRunner.kt` 实为 5 不是 4，且整份清单**漏了产出方
+   > `server/handlers_upload.go`**、运行时镜像与 `weights.yaml`。
+   > **漏掉产出方尤其反讽**：「被点名这么多处却一份没落盘」这个反差里，
+   > **写出该字段的那一处正是最该被点名的**。
+   > 本节自己强调「**分开数、不用交替式 grep**」以示计数严谨，逐文件数字理应同精度。
+
+   而对 `evidence/` 下 jsonl 逐词扫描（**分开数、不用交替式 grep**——交替式会让
+   `sched_us` 的命中冒充 `chunk_us` 的命中）：`chunk_us` **0 份**，`sched_us` 8 份，
+   `arrival_us` 8 份。
+   （**份数口径**：本稿初版写「30 份」，是成文时的工作区计数；此后 v4 的 E1 装置又产出若干，
+   **当前工作区 35 份、版本库内 27 份**。三个数都对，是三个口径；**`chunk_us` 命中恒为 0**。）
+
    **上行权威序列被就地约简成一个 P95 后丢弃，从未落盘**，故 M3 无法从任何语料复核。
 2. **即便两侧都在，也算不出单向时延**。`sched_us`(服务端) 与 `arrival_us`(客户端) 是**两个时钟**，
    其差含钟偏；`/echo` 的四时间戳正是为解钟偏而设，但**未逐帧落盘**。
@@ -342,7 +373,9 @@ pre_flush_us（服务端冲刷前）/ arrival_us（客户端到达）`。
 `FRAME_BYTES=160`、`UPLINK_FRAMES/DOWNLINK_FRAMES=200`、`SIM_M3_FRAMES=150`、
 `defaultSimPlan()` 里 8 轮 × 75 上行帧 × 100 下行帧 × 300ms 驻留 × idx 3/6 打断。
 
-这违反铁律 1「新增业务模型＝新增一份描述文件，不改引擎代码」。
+这偏离铁律 1。**原文逐字**（`SYSTEM_DEV_PLAN_v1.0.md:50`）：
+「新增业务模型 = 新增一份 **YAML**，不改引擎代码」——初版加了引号却写成「一份描述文件」，
+非逐字，已订正。
 （`spec/profiles/client/client_profiles.json` **确有** `voice_realtime` 条目，但那是
 **展示元数据**——displayName/tagline/metrics 单位——不是可驱动引擎的描述文件。）
 
@@ -354,9 +387,21 @@ pre_flush_us（服务端冲刷前）/ arrival_us（客户端到达）`。
 1. **`profiles/` 是被枚举下发的服务端合同，不是一个"放描述文件的地方"**。
    `server/profiles.go` 的 `loadProfiles()` 对目录做 `os.ReadDir` 并解析**全部** `*.json`，
    注释亲口写着「解析失败任一文件即整体报错（profile 是两端共享合同，**不允许静默跳过**）」；
-   `handleProfiles` 则**下发全部** profile。而服务端**没有任何语音相位类型**
-   （现有相位为 `clock_sync` / `upload_burst` / `token_stream` / `download_burst` / `artifact_stream`）。
+   `handleProfiles` 则**下发全部** profile。而服务端**没有任何语音相位类型**。
    放进去 ⇒ **服务端对外通告一个它执行不了的合同**。
+
+   > **相位清单订正（初版手写、既漏又多）**：初版写「现有相位为 `clock_sync` /
+   > `upload_burst` / `token_stream` / `download_burst` / `artifact_stream`」。
+   > 以 `scripts/validate_profiles.py` 的 `PHASE_SPEC` 为准（它是**门**，不是散文），
+   > 实为 **6 种**：`clock_sync` / `upload_burst` / `download_burst` /
+   > **`think_pause`** / `token_stream` / **`tool_loop`**——
+   > **我漏了两种，其中 `think_pause` 恰是最接近语音「驻留/思考停顿」语义的那一种**；
+   > 而我多写的 `artifact_stream` **不在 `PHASE_SPEC` 里**（虽然 `server/profiles.go:111`
+   > 有 `artifactStreamPhase`、`main.go:40` 有该路由）。
+   > **顺带一条本 lane 之外的观察，只登记不处理**：一份使用 `artifact_stream` 的
+   > profile 会被 `validate_profiles.py` 判为 `unknown phase type` ——**门与实现对不上**。
+   > 当前三份 profile 都没用它，故今天不发作。
+   > 结论不受影响：**六种里没有一种是语音的。**
 2. **`spec/profiles/server/` 与 `profiles/` 之间有双向 parity 门**
    （`scripts/validate_profiles.py: validate_dirs()`，`spec - runtime` 与 `runtime - spec` 两个方向各报一次错）。
    只放 spec 一侧 ⇒ 门直接 FAIL。
