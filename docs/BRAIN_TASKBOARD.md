@@ -77,6 +77,12 @@
 - **C：标注先不设阈值只印数值**（两簇间无人区，设阈值=发明常量）。**D：不做剥服务端版**（静默是听者的物理体验）。
 - 实施排明日：评分面与采集面**分开提交**（各自可回滚）；PO 知会由大脑负责。
 
+### 第五批（2026-08-01 22:4x，针对「对拍守卫在发布门空转」发现，ac73eb7）
+
+- **方法学红线批准**：「守卫『绿』之前先证明它被执行了」+ 三例量法教训合并为一族（截断/合并/解码/未执行——都不报错、都给看起来完整的答案），随 v2 明日入册批落 D 号。
+- **三道 Kotlin 对拍处置=定向 --rerun-tasks**（verify_all 加 `--tests "*ParityTest" --tests "*AdapterSpecTest"` 强制重跑），不做 Python 镜像×3（同名实现分叉温床）、不做全量重跑（+1.5min）；>30s 再议。并入 v2 明日 :probe 批。
+- **loader 通则升级**：TestModeProfileLoader 与 AdapterSpecLoader 同款严格 Json——「仓内 spec loader 皆严格，往既有 JSON 补键默认不可行，新增内容走新文件」写进 spec/README 治理规则（修订 additive-only 条款，两案合并），属主明日定。
+
 ### 第二批（2026-08-01，针对 GUARD_DIFF 19 条；正式入册由 T8 承接）
 
 - **C-1 修**（T8 核心）：`round_effect` 加汇池前提守卫，D-335 `position_cell_spread()` 同款——各轮非同一组格供样即拒判词+点名；C-3 随修自动对。
