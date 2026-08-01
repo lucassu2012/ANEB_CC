@@ -20,7 +20,7 @@
 
 ## 三条通道各收什么
 
-- **A**：`adb logcat` 里 `AnebAdapter` 标签的行（`ADAPTER_EVT` / `ADAPTER_OBS`）。
+- **A**：`adb logcat` 里 `AnebProbe` 标签的行（`ADAPTER_EVT` / `ADAPTER_OBS`）。
   注意今天没有逐事件时戳——见 `e1_analyze.py` 模块注释「通道 A 现状」。
 - **B**：定周期 `adb exec-out screencap`（**raw 非 png**：raw 头部自带宽高，可直接算
   ROI 均值，免去在无第三方库的环境里解 PNG），只落**均值标量**与宿主时戳，
@@ -66,7 +66,14 @@ def device_allowed(serial, model, allow_real_device):
     if not serial:
         return False, "未指定 --serial：本脚本没有自动挑设备的路径"
     norm = _norm_model(model)
-    if norm and any(norm == _norm_model(m) for m in DENY_MODELS):
+    if not norm:
+        # fail-closed（T14 交叉审查，D-392 ①）：`Adb.text` 不看 returncode，设备
+        # offline / unauthorized 时 adb 把错误写 stderr、exit 非零、stdout 为空且
+        # **不抛异常**，于是 model 是空串。旧版这里是 `if norm and ...`，空串把整条
+        # denylist 短路跳过，随后落到下面那句**断言型号已被检查过**的放行理由上——
+        # 守卫放行一台型号未知的设备，还打印一句假话给操作者。未知不等于安全。
+        return False, "型号未知（getprop 读回空串）：denylist 无从判定，拒绝在型号未知的设备上运行"
+    if any(norm == _norm_model(m) for m in DENY_MODELS):
         return False, "%s（型号 %s 在 DENY_MODELS）" % (DENY_REASON, model.strip())
     if EMULATOR_SERIAL_RE.match(serial):
         return True, "模拟器序列号"
@@ -181,9 +188,17 @@ def find_layer_name(adb, package):
 STIM_PKG = "com.aneb.e1stimulus"
 STIM_ACT = "com.aneb.e1stimulus/.StimulusActivity"
 
+# 通道 A 的 logcat 标签。**必须与生产者逐字相等**：`logcat -s <tag>:I` 是排他过滤，
+# 写错一个字母就是**零行**，而零行与「探针没打时戳」在下游长得一模一样。
+# 首版写的是 `"AnebAdapter"`，而 `AnebAccessibilityService.kt` 的 `TAG` 是
+# `"AnebProbe"`——两次 dry-run 的 `adapter.log` 都是 0 字节，报告却把责任归给 :probe
+# （T14 交叉审查，D-392 ②）。`test_adapter_tag_equals_the_producers_tag` 从 .kt 源码
+# 正则取出 TAG 与本常量对账，改名再发生一次会当场变红。
+DEFAULT_ADAPTER_TAG = "AnebProbe"
+
 
 def collect(adb, out_dir, interval_ms, count, roi_px, warmup, screencap_period_ms,
-            adapter_tag="AnebAdapter"):
+            adapter_tag=DEFAULT_ADAPTER_TAG):
     os.makedirs(out_dir, exist_ok=True)
     notes = {}
 

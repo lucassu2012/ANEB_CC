@@ -5,6 +5,7 @@
 `test_p40_refused_even_with_allow_real_device`：那个旗标**不该**能放行 P40。
 """
 import os
+import re
 import struct
 import sys
 
@@ -75,6 +76,60 @@ def test_unknown_model_does_not_open_the_door_for_real_devices():
     """型号读不到（空串）时，真机仍需显式旗标——未知不等于安全。"""
     ok, _r = ec.device_allowed("8MY0221126002537", "", False)
     assert ok is False
+
+
+def test_unknown_model_is_refused_even_with_the_real_device_flag():
+    """上一条只测了**不带**旗标那支，而那支的拒绝来自模拟器规则、与型号无关。
+
+    带旗标的那支才是唯一有风险的：`Adb.text` 不看 returncode，设备 offline /
+    unauthorized 时 adb 返回空 stdout 且**不抛异常**，model 就是空串。旧实现的
+    `if norm and ...` 让空串把整条 denylist 短路跳过，然后打印
+    「真机，已显式 --allow-real-device 且**型号不在 denylist**」——一句对型号未知的
+    设备为假、而且正是打给操作者看的话。测试名字承诺「未知不等于安全」，
+    断言必须真的落在那一支上（T14 交叉审查，D-392 ①）。
+    """
+    for model in ("", "   ", None):
+        ok, r = ec.device_allowed("8MY0221126002537", model, True)
+        assert ok is False, model
+        assert "型号未知" in r, r
+
+
+def test_deny_models_are_pinned_by_literals_not_by_the_constant_itself():
+    """受试集就是被测常量时，删掉一个变体永远测不出来。
+
+    `test_p40_refused_even_with_allow_real_device` 遍历 `ec.DENY_MODELS` 本身，
+    所以它证明的是「表里的都被拒」，不是「该拒的都在表里」——后者才是这条红线要的
+    东西。本条把四个型号写死成字面量：**只增不减**，删一个当场变红
+    （T14 交叉审查，D-392 ③；`tools/e1/README.md` §0 的清单与它同源）。
+    """
+    assert set(ec.DENY_MODELS) == {"ELS-AN00", "ELS-NX9", "ELS-N04", "ELS-TN00"}
+    for model in ("ELS-NX9", "ELS-N04", "ELS-TN00"):
+        ok, _r = ec.device_allowed("8MY0221126002537", model, True)
+        assert ok is False, model
+
+
+def test_adapter_tag_equals_the_producers_tag():
+    """`logcat -s <tag>:I` 是排他过滤：标签写错一个字母 = 零行，而零行与
+    「探针根本没打这条日志」在下游长得一模一样。
+
+    首版采集器订的是 `AnebAdapter`，生产者 `AnebAccessibilityService.kt` 打的是
+    `AnebProbe`——两次 dry-run 的 `adapter.log` 都是 0 字节，而报告把通道 A 未判读
+    归因给 :probe。判据不能手抄：从生产者源码正则取出 `TAG` 与本侧常量对账
+    （同 `validate_adapters` 从 DTO 派生的手法，D-275；T14 交叉审查，D-392 ②）。
+    """
+    root = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))))
+    kt = os.path.join(root, "app", "probe", "src", "main", "java", "com", "aneb",
+                      "probe", "adapter", "AnebAccessibilityService.kt")
+    # 找不到生产者就报错，不跳过——「查不了」当作通过是构造性失明。
+    assert os.path.exists(kt), "找不到生产者源码，无从对账：%s" % kt
+    with open(kt, encoding="utf-8") as fh:
+        src = fh.read()
+    tags = re.findall(r'\bprivate\s+const\s+val\s+TAG\s*=\s*"([^"]+)"', src)
+    assert len(tags) == 1, "AnebAccessibilityService.kt 里 TAG 命中 %d 次，判据有歧义" % len(tags)
+    assert ec.DEFAULT_ADAPTER_TAG == tags[0], (
+        "采集器订的标签 %r != 生产者的 TAG %r —— 通道 A 会结构性收到零行"
+        % (ec.DEFAULT_ADAPTER_TAG, tags[0]))
 
 
 # ── screencap raw 解析 ────────────────────────────────────────────────────

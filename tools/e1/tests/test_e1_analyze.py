@@ -198,9 +198,9 @@ def test_channel_a_without_per_event_timestamps_is_not_executed():
 
     通道 A 必须报 NOT_EXECUTED 并给原因，**绝不用聚合值折算出一个数**。
     """
-    adapter = ["01-01 I/AnebAdapter: ADAPTER_EVT type=click cls=android.widget.Button "
+    adapter = ["01-01 I/AnebProbe: ADAPTER_EVT type=click cls=android.widget.Button "
                "desc=null txt_len=0 pkg=com.x",
-               "01-01 I/AnebAdapter: ADAPTER_OBS pkg=com.x mode=generic events=8 "
+               "01-01 I/AnebProbe: ADAPTER_OBS pkg=com.x mode=generic events=8 "
                "first_delta_ms=12.0 cadence_p50_ms=2000.0"]
     res = ea.analyze(_stim_lines(count=4, warmup=0), adapter, _sf_text(count=4), "", [])
     assert res["channel_a"]["status"] == ea.NOT_EXECUTED
@@ -215,7 +215,7 @@ def test_channel_a_reads_per_event_timestamps_when_present():
     adapter = []
     for seq in sorted(flips):
         t = flips[seq]["t_commit_boot_ns"] + 3_000_000  # 事件比提交晚 3ms
-        adapter.append("01-01 I/AnebAdapter: ADAPTER_EVT type=content cls=X txt_len=3 "
+        adapter.append("01-01 I/AnebProbe: ADAPTER_EVT type=content cls=X txt_len=3 "
                        "pkg=com.aneb.e1stimulus t_boot_ns=%d" % t)
     res = ea.analyze(stim, adapter, _sf_text(count=4), "", [])
     a = res["channel_a"]
