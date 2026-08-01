@@ -23,9 +23,9 @@
 ## 跨蓝图挖出的「现在可验证」代码隐患（下一代码轮首选，非本轮范围）
 
 - ✅ **已修（observationId 碰撞风险，spine-1）**：`observationId` 增 `subjectGroupId` 参并追加其 8 位短哈希（`apiprobe-<provider>-<ms>-<subjHash8>`），同毫秒跨 subject 现产出不同 id，杜绝 Codex `duplicate_observation_id_within_partition`。18 单测绿（含去歧义用例）。同 subject 同 ms 重复触发的边界可接受（探针单次手动）。
-- workloadKind 应与请求体同源（spine-1）：ApiProbe.run 目前请求体恒 text，而 observation 的 workloadKind 来自 sink，可能 body=text 却标 image。修：run 增 workload 参，请求体与标注同源。
+- ✅ **已修（workloadKind 与请求体分叉，spine-1，D-66 2026-07-19）**：删 `ObservationSink.workloadKind` 独立字段；`ApiProbe.run` 增 workload 参，`requestBodyJson` 与 observation 的 `workload_kind` **同源**（同一 workload 值），多模态显式 `IllegalArgumentException` 拒——body=text 标 image 的错标路径已不存在。
 
-这两项锁无关、可 JVM 单测、非投机——建议作为设备/PO 解锁前的下一代码轮首个任务。
+两项均已闭环（本清单 2026-08-01 对账更新——上一版仍把第二项列为待办，而代码 D-66 当天就修了：被执行的文档最后才被更新，又一例）。
 
 ## 当前阻塞态（2026-07-18）
 

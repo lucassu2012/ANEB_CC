@@ -1,0 +1,18 @@
+﻿
+09:36:17  idle-night band: starting immediately (02:xx local)
+09:36:17  preflight focus:   mCurrentFocus=Window{bef519c u0 NotificationShade}
+09:36:18  wifi_on before: 1
+09:36:29  idlenight radio forensic batch start target=4
+09:36:31  attempt 1 : idlenight radio forensic run started
+09:43:32  attempt 1 : COMPLETED (1/4) run_id=019fbaf7-4349-76dc-afd3-e75d9094794b
+09:43:42  attempt 2 : idlenight radio forensic run started
+09:50:22  attempt 2 : COMPLETED (2/4) run_id=019fbafd-d64f-7f78-8de5-a952672e3993
+09:50:33  attempt 3 : idlenight radio forensic run started
+09:57:13  attempt 3 : COMPLETED (3/4) run_id=019fbb04-1a6a-7d1c-81f2-0e80eca243e6
+09:57:23  attempt 4 : idlenight radio forensic run started
+10:04:14  attempt 4 : COMPLETED (4/4) run_id=019fbb0a-5ede-735d-b2c8-fb5e2288e754
+10:04:22  idlenight radio BATCH DONE completed=4 attempts=4
+10:04:32  wrap-up: wifi_on=1 stayon=0
+10:04:32  wrap-up: focus=  mCurrentFocus=Window{bef519c u0 NotificationShade}
+10:04:32  wrap-up: leftover=(none)
+10:04:33  DONE
