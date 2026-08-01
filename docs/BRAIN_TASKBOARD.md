@@ -9,13 +9,14 @@
 
 | ID | 任务 | 属主 | 状态 | 验收判据 | 证据 |
 |---|---|---|---|---|---|
-| T1 | **装 v17 APK + ≥14:00 下午 radio 批**（合并执行：先装 D-373 所产 debug APK 并核对构建对应提交，再跑下午批） | v2 | DOING | ① Room v16→17 实机迁移成功、`kpi_quality` 首次真实落盘且契约门放行；② radio 八字段齐备；③ 对 D-370 假设给出判定：下午窗 NR 是否回归、暖轮 RTT 是否回落至 ~53ms 量级（判定写入 DECISION_LOG） | evidence/ 待填 |
+| T1 | **装 v17 APK + ≥14:00 下午 radio 批**（合并执行：先装 D-373 所产 debug APK 并核对构建对应提交，再跑下午批） | v2 | **DONE** | ①✅ v16→17 迁移无异常、36/36 场景带 `kpi_quality`、契约门零 advisory；②✅ radio 八字段 36/36 齐备（LTE pci=420，RSRP −60「良」，`sinr_db` 诚实 null）；③✅ 判定入册 **D-374**：下午窗 **NR 未回归**、RTT 68.7ms 未回落 → 时段解释进一步削弱，但制式与 CGNAT 出口**始终同变分不开**，闭环需一次实测到 NR 的窗。**额外收获**：`kpi_quality` 首采即揭开「低置信恒为真」谜底＝T1/U1 每场景只测 1 次（下限 3），加 run 数无效——已交 T3 | `evidence/afternoonradio_20260801/`（语料+流水+trust/radio 两份固化 rollup+README）；决策 D-374 |
 | T2 | **≥23:00 闲时 radio 批**（三时段无线图最后一块） | v2 | TODO | 闲时窗 radio 八字段 + CGNAT 出口 IP 记录；三时段（早高峰/下午/闲时）制式与 RTT 对照表落 DECISION_LOG，「闲时更差=制式差」链条闭合或明确否定 | evidence/ 待填 |
 | T3 | **扩展轮设计提案**（D-353/D-372 尾巴）**〔大脑验收 PASS 2026-08-01：五判据全满足，溯源纪律到位；后续=T6〕** | v3 | DONE | n≥15 依 s1/s3 网络侧 CV 论证；s2 单列口径或放宽 MDE 二选一并给理由；点位真名留占位标注待 PO；产出=提案文档或 runbook 增补，不预写未测数字 | `docs/M3_EXPANSION_ROUND_PROPOSAL.md`（①n≥15 依 s1/s3 CV 5.5/5.9%、排除 s2 CV 承 D-372；②s2 取单列口径；③点位 `SZ-PILOT-01` 占位待 PO；④预热轮+1/格计入工时(D-366)、取证模式循环 3×3 拉丁方；⑤全数字标源+待测清单） |
 | T4 | **步骤 B 悬置监控**（GLM 校准包 D-369 已交 G 树侧，等待消费；CalibrationMetadata 重启条件挂 G 树校验器/schema 入仓，见 D-359） | 大脑 | DOING | 每日只读检查 G 树有无消费/入仓迹象；3 天无动静升级 PO | — |
-| T6 | **扩展轮执行就绪包**（承 T3 提案，大脑验收 T3=PASS 后续派） | v3 | DONE | ① runbook 扩展轮增补草案（n≥15、s2 单列 `SCENARIO_INTRINSIC_JITTER`、预热轮 D-366、3×3 拉丁方、radio+CGNAT 随采硬前置、点位真名 PENDING-PO）；② 按「quick 主体+取证子集」口径（大脑裁定方向，待 PO 确认）合成彩排全链路 synth→report→publish_check，验证 n=15/s2 单列形状不被现有守卫误拒（D-309 形状对账）；③ 守卫/渲染面差异清单（只列不改，零差异也要如实写） | `docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md`（①独立草案不改 runbook 正文——理由 D-311「现场逐条执行的那份最危险」，§7 预写并入清单；标记名**定案 `SCENARIO_INTRINSIC_JITTER`**（对齐 20 个现役渲染标记的三条命名规则，偏差=长 1 字符已如实说明）；对 D-366/D-354 **只给指针不复述**，刻意不含预热记账细则与轮转证据）；`evidence/m3_expansion_rehearsal_20260801/`（②全链路 **PASS**：契约门 512/512 exit 0 → 报告 md+HTML+17 CSV exit 0 → 发布门 FAIL 1（=合成语料，彩排合格线本身）/WARN 8/N-A 2，**新形状零误拒**；隔离可核验=写盘前双标记断言+产物不出目录+前门自己拦得住；`README.md` §1 有逐条可复跑命令）；`docs/M3_EXPANSION_ROUND_GUARD_DIFF.md`（③**19 条**=需改动/待裁定 11（P0×4）+ 诚实的否定 7 + 契约级缺口 1，每条点名 md/HTML/CSV 三面）。**彩排挖出 5 条真问题**：F-1/F-2 方向 B 池化使序位不可判、预热印出 **21% 假信号**（各轮 n=1443/88/91，根因=格构成差非预热；`round_effect` 缺 D-335 那条汇池前提守卫）；F-3 分析层无任何面能指认预热轮（诚实的否定，同 D-366）；F-4 覆盖「样本」列混模式；F-5 取证 4 轮 < `DEFAULT_MIN_SAMPLES=5` 恒标 low_conf。**另报一条与本任务无关的既有失败**：`tests/test_cli_smoke.py::test_a_mistyped_output_path…` 在本机确定性失败（`r.stderr is None`，Py3.14/Win 子进程捕获问题），**scripts/ 未被本任务改动**，597 passed / 1 failed |
+| T6 | **扩展轮执行就绪包**（承 T3 提案，大脑验收 T3=PASS 后续派）**〔大脑验收 PASS 2026-08-01：三产出齐、彩排零误拒确认、5 条发现经差异清单核验为真；19 条裁定见「大脑裁定」节第二批；后续=T8〕** | v3 | DONE | ① runbook 扩展轮增补草案（n≥15、s2 单列 `SCENARIO_INTRINSIC_JITTER`、预热轮 D-366、3×3 拉丁方、radio+CGNAT 随采硬前置、点位真名 PENDING-PO）；② 按「quick 主体+取证子集」口径（大脑裁定方向，待 PO 确认）合成彩排全链路 synth→report→publish_check，验证 n=15/s2 单列形状不被现有守卫误拒（D-309 形状对账）；③ 守卫/渲染面差异清单（只列不改，零差异也要如实写） | `docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md`（①独立草案不改 runbook 正文——理由 D-311「现场逐条执行的那份最危险」，§7 预写并入清单；标记名**定案 `SCENARIO_INTRINSIC_JITTER`**（对齐 20 个现役渲染标记的三条命名规则，偏差=长 1 字符已如实说明）；对 D-366/D-354 **只给指针不复述**，刻意不含预热记账细则与轮转证据）；`evidence/m3_expansion_rehearsal_20260801/`（②全链路 **PASS**：契约门 512/512 exit 0 → 报告 md+HTML+17 CSV exit 0 → 发布门 FAIL 1（=合成语料，彩排合格线本身）/WARN 8/N-A 2，**新形状零误拒**；隔离可核验=写盘前双标记断言+产物不出目录+前门自己拦得住；`README.md` §1 有逐条可复跑命令）；`docs/M3_EXPANSION_ROUND_GUARD_DIFF.md`（③**19 条**=需改动/待裁定 11（P0×4）+ 诚实的否定 7 + 契约级缺口 1，每条点名 md/HTML/CSV 三面）。**彩排挖出 5 条真问题**：F-1/F-2 方向 B 池化使序位不可判、预热印出 **21% 假信号**（各轮 n=1443/88/91，根因=格构成差非预热；`round_effect` 缺 D-335 那条汇池前提守卫）；F-3 分析层无任何面能指认预热轮（诚实的否定，同 D-366）；F-4 覆盖「样本」列混模式；F-5 取证 4 轮 < `DEFAULT_MIN_SAMPLES=5` 恒标 low_conf。**另报一条与本任务无关的既有失败**：`tests/test_cli_smoke.py::test_a_mistyped_output_path…` 在本机确定性失败（`r.stderr is None`，Py3.14/Win 子进程捕获问题），**scripts/ 未被本任务改动**，597 passed / 1 failed |
 | T5 | **步骤 C：Profile 3 适配器规格先行**（豆包 + DeepSeek，PO 2026-08-01 批准增开 v4 承接）**〔大脑验收 PASS 2026-08-01：五判据全满足且挖出四个真缺口（A4 零判据/A0-A0′ 口径缺口/1帧参照系未定义/DEV PLAN 两处失效字样）；八项待裁定见下方「大脑裁定」节；后续=T7〕** | v4 | DONE | ① 两 App 的打点事件定义（何为首帧响应/回答完成等）与外部观测方法规格；② 打点误差预算论证（M3 门=≤1 帧≈33ms，出处 SYSTEM_DEV_PLAN §6）；③ 画像参数采集口径与 [GUESS] 替换路径；④ App 改版/风控脆弱性风险与缓解各≥2 条；⑤ 规格阶段不碰设备，确需真机探索先报大脑排窗 | `spec/adapters/INSTRUMENTATION_SPEC.md` v0.1.0（①五锚点 A0–A4＋新命名 A0′，两 App 各自判据阶梯，**A4 回答完成当前零判据**故新设 C-1/C-2/C-3；②四通道 A/B/C/D＋兜底 E，**结论=不接通道 C（gfxinfo/SurfaceFlinger）则「≤1 帧」不可判**；③E_anchor⊕E_transport⊕E_quant⊕E_clock 四项仅末项有界→**M3 打点误差门当前 NOT_EXECUTED**，配 E1–E4 实验设计（E1 无需 P40）；④适配器只能翻 7 字段中的 `session_duration_s_dist`，且依赖 A4；⑤改版 4 条＋风控 4 条＋OEM 5 条。**未碰 P40、未新增任何实测数字**。八项待裁定见 §6，解阻关键=6-1 口径读法、6-5 通道 C 排窗）；`spec/adapters/README.md` 加入口指针；verify_all 13/13 PASS（`evidence/phase0/verify_all_20260801-140136.log`） |
 | T7 | **E1 装置 + 裁定落地包**（承 T5，大脑验收 PASS 后续派） | v4 | DOING | ① E1 已知真值刺激装置：刺激源（debug 面板 ROI 翻转 + t0 落 logcat）+ 通道 A/B/C 采集与判读脚本，模拟器/任一可用 Android 环境 dry-run 跑通（P40 实测窗另排，装置正确性先行）；② 6-1/6-2/6-3 裁定按 DECISION_LOG 格式入册，6-2/6-3 记入 PLAN_ALIGNMENT；③ 6-6 前半：`ttft_ui_ms` 行内注释订正（check_redline 通过为证）；④ 6-7：`dist` additive 子段落地（整段缺席语义 + 守卫）；⑤ 全程不碰 P40、不碰真实 App 额度 | evidence/+spec/ 待填 |
+| T8 | **GUARD_DIFF P0 修复包**（承 T6，裁定见「大脑裁定」第二批） | v3 | TODO | ① C-1：round_effect 汇池前提守卫（D-335 同款）+突变审计，C-3 随修验证；② B-1/B-3/B-5：`SCENARIO_INTRINSIC_JITTER` 三面落地+摘要拆分+常量归档；③ B-2：--plan 结论句拆 s2；④ A-1(a)：plan 表接进报告三面；⑤ A-2 落定=取证 5 轮（改增补草案 §8 #3）；⑥ test_cli_smoke Py3.14/Win 失败处置；纪律=每条立 D 号→改→突变审计→三面核对渲染，验收=大脑复核+套件全绿或如实说明 | 待填 |
 
 设备注意（T1/T2 共用 P40）：照根 `CLAUDE.md` 实况流程；冷启动协议=每格丢弃预热轮（D-366）；关 WiFi 属临时设置须照原值恢复；logcat 实时落盘（环缓冲 256KiB 七分钟冲净）；无人值守遇驻留进程按「有活动服务=别人的会话，立即放弃」处理。
 
@@ -35,6 +36,18 @@
 - **6-6 取②先测后改**：E3 出数前不改口径；但 `ttft_ui_ms` 行内注释「发送→」先行订正为「A0′（用户气泡上屏）→」，T7 顺手落（附 check_redline 通过证据）。
 - **6-7 `observed_ui_layer.dist` additive 子段批准**，T7 落地（整段缺席语义照 spec §4.5）。
 - **6-8 实验序 = E1 先行**（装置不挑设备），E2–E4 待 6-5 排窗后。
+
+### 第二批（2026-08-01，针对 GUARD_DIFF 19 条；正式入册由 T8 承接）
+
+- **C-1 修**（T8 核心）：`round_effect` 加汇池前提守卫，D-335 `position_cell_spread()` 同款——各轮非同一组格供样即拒判词+点名；C-3 随修自动对。
+- **B-1/B-3/B-5 修**（T8）：`SCENARIO_INTRINSIC_JITTER` 三面落地（契约照增补草案 §2.3）+ 摘要 bullet 拆分计数；若采强化条件，其常量 N 进 `effective_thresholds()`（D-248 会自动咬住）。
+- **B-2 修**（T8）：`--plan` 结论句拆 s2（D-301 教训：换判据必须同时改结论句）。
+- **A-1 取 (a)**（T8）：`需 n≥(80%)` 表接进报告 md+HTML+CSV——决定 n≥15 的那个数必须出现在决策者读的面上。
+- **A-2 裁定=取证子集 5 轮**：一举满足每位次 n≥5 与每格 n≥MIN_SAMPLES(5)，代价 8 格约 +52min；不动全局常量、不加豁免逻辑。增补草案 §8 #3 就此落定。
+- **B-4 裁定=本轮不加 CV 发布门**：采纳其 D-339 警示（门与摘要清单本不该相等）；扩展轮真跑后若需要再立。
+- **A-4 维持**（运行时分面已解决，不改代码）；**C-4 批准方向**（synth_campaign 学扩展轮形状——一次性脚本没守卫），排期在 P0 修完后。
+- **D-1 批准开加性契约字段方向**（CGNAT 出口 IP：server 观测的 client addr 是天然来源；契约加性可选+读者同日出生 D-276），跨端设计排 T9、属主待 T1/T2 收工后定。
+- **既有失败处置**（T8 顺手）：`test_cli_smoke` 在 Py3.14/Win 确定性失败不许长期带着跑（会淹没真失败）——诊断并修复或带理由 skip+跟踪项。
 
 ## 警戒线
 

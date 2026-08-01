@@ -1,0 +1,21 @@
+﻿
+13:38:47  waiting for the afternoon band (local hour >= 14)
+14:00:48  afternoon band open
+14:00:49  preflight focus:   mCurrentFocus=Window{bef519c u0 NotificationShade}
+14:00:51  wifi_on before: 1
+14:00:54  install v17: Performing Streamed Install Success
+14:01:02  net: Active default network: 229
+14:01:05  t1 afternoon radio forensic batch start target=4 (v17 apk)
+14:01:07  attempt 1 : run started
+14:07:58  attempt 1 : COMPLETED (1/4) run_id=019fbbe9-83f0-7af7-bb79-0569456daba8
+14:08:08  attempt 2 : run started
+14:14:49  attempt 2 : COMPLETED (2/4) run_id=019fbbef-f003-7e9a-977c-9ef5203ae42c
+14:14:59  attempt 3 : run started
+14:21:19  attempt 3 : COMPLETED (3/4) run_id=019fbbf6-3452-71da-b7ac-162bfc27421f
+14:21:30  attempt 4 : run started
+14:28:00  attempt 4 : COMPLETED (4/4) run_id=019fbbfc-2a92-765f-aacf-9642cf42f312
+14:28:08  T1 BATCH DONE completed=4 attempts=4
+14:28:18  wrap-up: wifi_on=1 stayon=0
+14:28:18  wrap-up: focus=  mCurrentFocus=Window{bef519c u0 NotificationShade}
+14:28:18  wrap-up: leftover=(none)
+14:28:19  DONE
