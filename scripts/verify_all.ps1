@@ -85,6 +85,53 @@ if ($py -and (Test-Path $redlineScript)) {
     $log += Add-Result 'portraits-redline' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- Profile-3 ADAPTER spec shape gate (T11/D-387) -------------------------------------
+# Until now nothing in this chain looked at spec/adapters/ at all: the byte-parity between
+# the spec copies and the assets the device actually loads was guarded only by AdapterSpecTest,
+# and this script runs assembleDebug, not the unit tests. So editing spec/adapters/*.json and
+# forgetting the mirror passed the local gate in silence.
+# The gate also refuses any key the app's strict Json would reject — that failure mode is not a
+# crash, it is fail-safe returning an EMPTY spec list: every app drops to generic and adapter_obs
+# stops persisting (D-54), with nothing reported anywhere. exit: 0=PASS / 1=violation(s).
+$adapterScript = Join-Path $repo 'spec\adapters\validate_adapters.py'
+if ($py -and (Test-Path $adapterScript)) {
+    $out = & $py $adapterScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- adapters-spec (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'adapters-spec' 'PASS' 'validate_adapters.py'
+    } else {
+        $log += Add-Result 'adapters-spec' 'FAIL' 'adapter-spec violation(s); see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $adapterScript)) { $missing += 'validate_adapters.py' }
+    $log += Add-Result 'adapters-spec' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+# --- ADAPTER spec gate SELF-TEST: reflex tests guard the guard (same pattern as portraits) ---
+$adapterTest = Join-Path $repo 'spec\adapters\test_validate_adapters.py'
+if ($py -and (Test-Path $adapterTest)) {
+    Push-Location (Join-Path $repo 'spec\adapters')
+    $out = & $py $adapterTest 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    Pop-Location
+    $log += "--- adapters-spec-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'adapters-spec-unit' 'PASS' (($out -split "`n" | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'adapters-spec-unit' 'FAIL' 'reflex test(s) failed; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $adapterTest)) { $missing += 'test_validate_adapters.py' }
+    $log += Add-Result 'adapters-spec-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- Profile-3 portrait red-line guard SELF-TEST (D-65): reflex tests guard the guard ---
 # Runs the self-contained reflex runner (no pytest needed). exit: 0=all reflex tests pass /
 # 1=a red/green reflex failed (guard weakened or a rule regressed) -> FAIL.

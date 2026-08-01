@@ -61,3 +61,46 @@
   事件时戳流全量记录）。
 - 真机验证（主会话执行）后：核实 `package`、经 uiautomator dump 回填精确 `view_id_regex`、
   撤销对应 `status` 字段并升版本；语义变化走新 id 并列（additive-only）。
+
+## `validated_against_version` 生命周期（裁定 6-4，2026-08-01）
+
+**为什么要它**：适配器脆弱是 `SYSTEM_DEV_PLAN` §8 自认的 M3 最高风险。规格=数据文件
+（改版即改 JSON 不改代码）只解决了「怎么修」，没解决**「怎么知道该修了」**——App 一改版，
+节点规则悄悄失配，打点数字照样往外出。本字段是那个「知道」。
+
+**形状**（`INSTRUMENTATION_SPEC` §5.1 R1-b）：
+
+```json
+"validated_against_version": {
+  "version_name": "1.2.3",
+  "version_code": 1203,
+  "captured_at": "2026-08-02",
+  "source": "dumpsys package com.larus.nova（只读）"
+}
+```
+
+采集命令是**只读**的，不改设备任何状态：
+
+```bash
+adb -s <serial> shell dumpsys package com.larus.nova | grep -E "versionName|versionCode"
+```
+
+**生命周期**：
+
+| 情形 | 宿主行为 |
+|---|---|
+| 字段**缺席** | 照常按规格观察。缺席 = 尚未采到版本号，**不是**「任何版本都适用」；此时漂移检测能力为零，这一点要如实标注，不得读作「已验证」 |
+| 采集时版本**匹配** | 正常，走规格模式 |
+| 采集时版本**不匹配** | **降级 generic 观察 + 该规格标 `STALE`，不静默出数**——宁可少一批数据，也不要一批不知道对不对的数据 |
+
+**当前值 = 缺席，且这是诚实状态**：D-50/D-51 装机核实了包名与 Activity，但**没有留下版本号记录**
+（决策日志里零命中）。不编造，待真机窗采集。
+
+> ⚠ **落地顺序是硬约束，不能反**（T11 实测发现，D-387）：
+> `AdapterSpecLoader` 用默认严格 `Json`（源码注释逐字：「未知键/类型不符即抛 → 触发 fail-safe 空列表」）。
+> 所以**必须先给 `AdapterDto` 加带默认值的字段，再往 JSON 里写**；反过来做，设备上的后果是
+> 解析抛异常 → fail-safe 空列表 → 两个 App 全部落回 generic → 按 D-54 落库要求 `specId != null`，
+> **`adapter_obs` 从此一条不入库，而且没有任何一处会报错**。
+> 另外 assets 镜像与本目录**字节级一致**是硬不变量，两侧必须同一次提交。
+> `validate_adapters.py` 会替我们拦住这个顺序错——它的允许键集**从 `AdapterSpec.kt` 的 DTO 派生**，
+> DTO 加了就自动放行，没加而 JSON 先加了就当场失败。
