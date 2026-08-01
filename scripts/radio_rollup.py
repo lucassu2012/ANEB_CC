@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """ANEB campaign radio-context rollup (stdlib only).
 
 Why this exists now. D-48 dropped the three-tier deployment, so the differential
@@ -52,6 +52,33 @@ def radio_of(scn):
     return r if isinstance(r, dict) else None
 
 
+def egress_ip(scn):
+    """The IP half of `network_snapshot.server_observed_addr` (D-376).
+
+    The field has been in the contract and on the wire since the beginning, and
+    until now no analysis-layer code read it — the D-276 shape, found by D-374
+    needing it: the NR window egressed 106.92.23.196 and all three LTE windows
+    106.80.108.105, so RAT and egress path move together in every corpus we
+    have. A reader cannot separate them without seeing both, so this belongs
+    beside the serving cell, not in a separate table.
+
+    Port is dropped on purpose: it is per-connection noise, and keeping it would
+    make every scenario look like a different egress.
+    """
+    ns = scn.get("network_snapshot")
+    if not isinstance(ns, dict):
+        return None
+    addr = ns.get("server_observed_addr")
+    if not isinstance(addr, str) or not addr.strip():
+        return None
+    # IPv6 literals arrive bracketed ("[2001:db8::1]:443"); IPv4 as "a.b.c.d:p".
+    addr = addr.strip()
+    if addr.startswith("["):
+        end = addr.find("]")
+        return addr[1:end] if end > 1 else None
+    return addr.rsplit(":", 1)[0] if ":" in addr else addr
+
+
 def cell_key(r):
     """A serving-cell identity from the parts the producer can read without
     location permission. None unless at least one part is present — an identity
@@ -68,7 +95,7 @@ def _samples(records):
     runs they saw. Returns (cells, places, stale, implausible)."""
     cells = defaultdict(lambda: {"rsrp": [], "sinr": [], "rats": Counter(),
                                  "keys": Counter(), "n_with_radio": 0, "n": 0,
-                                 "samples": []})
+                                 "samples": [], "egress": Counter()})
     places = defaultdict(lambda: defaultdict(Counter))   # place -> band -> keys
     stale = Counter()
     implausible = defaultdict(Counter)
@@ -82,6 +109,13 @@ def _samples(records):
         c["n"] += 1
         saw_radio = False
         for scn in cc.iter_scenarios(rec):
+            # Egress is read BEFORE the radio guard clauses: it is a property of
+            # the path, not of the radio block, and a wifi scenario (no radio
+            # key) still has one. Tying it to `continue`-guarded radio parsing
+            # would silently make it a cellular-only column (D-336's shape).
+            ip = egress_ip(scn)
+            if ip:
+                c["egress"][ip] += 1
             r = radio_of(scn)
             if r is None:
                 continue
@@ -138,6 +172,10 @@ def radio_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
             "low_confidence": c["n_with_radio"] < min_samples,
             "thin_samples": bool(c["samples"]) and cc.median(c["samples"]) < min_samples,
             "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
+            # Egress path beside the serving cell, because D-374 measured them
+            # moving together and a reader who sees only one cannot tell which
+            # of the two a between-window difference belongs to (D-376).
+            "egress_ips": dict(sorted(c["egress"].items())),
         })
     return out, places
 
@@ -219,8 +257,8 @@ def render_markdown(res):
         + ("；另有 **%d 格无法定档**（两个分量都不可得，**不是「中」**）" % unbanded
            if unbanded else ""),
         "",
-        "| 点位 | 运营商 | 时段 | 信号档 | RSRP中位 | SINR中位 | 制式 | 服务小区 | 备注 |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| 点位 | 运营商 | 时段 | 信号档 | RSRP中位 | SINR中位 | 制式 | 服务小区 | 出口 IP | 备注 |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for c in res["cells"]:
         cl = {k: cc.md_cell(v) for k, v in c["cell"].items()}
@@ -242,12 +280,22 @@ def render_markdown(res):
         if c["implausible_values"]:
             notes.append("**IMPLAUSIBLE_VALUE:" + "; ".join(
                 "%s×%d" % (r, n) for r, n in sorted(c["implausible_values"].items())) + "**")
+        if len(c.get("egress_ips") or {}) > 1:
+            # Same shape as MIXED_SERVING_CELL one line up: the window's numbers
+            # pool more than one egress path, so they characterise neither.
+            notes.append("**MIXED_EGRESS:%d**" % len(c["egress_ips"]))
+        # One IP prints itself; several print a count — the reader needs to know
+        # the window egressed from one path or wandered, not read a list.
+        eg = c.get("egress_ips") or {}
+        egress = ("—" if not eg else
+                  cc.md_cell(next(iter(eg))) if len(eg) == 1 else "%d 个" % len(eg))
         lines.append(
-            "| %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
+            "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
                 cl["point_id"], cl["carrier"], cl["time_band"], band,
                 cc.fmt_num(c["rsrp_median_dbm"], 1), cc.fmt_num(c["sinr_median_db"], 1),
                 "/".join(sorted(c["rats"])) or "—",
                 ("%d 个%s" % (len(c["cell_keys"]), lc)) if c["cell_keys"] else "—",
+                egress,
                 "; ".join(notes) or "—"))
 
     lines += ["", "### 忙闲可比性（同点位是否挂同一小区）", ""]

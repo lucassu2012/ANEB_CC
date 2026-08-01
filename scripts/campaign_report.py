@@ -361,6 +361,11 @@ _ORDER_UNJUDGED_WHY = {
     "MEDIAN_NEAR_ZERO": "总体中位≈0，百分比无意义",
     "SINGLE_ROUND": "该 KPI 只有一轮有数",
     "UNREPLICATED_ROUNDS": "每轮样本不足 2 个——轮次差与运行间噪声不可分离",
+    # D-377 gave round_effect the pooling-premise check order_effect has had
+    # since D-335. Both axes emit the same code because it is the same fact
+    # (cells not common to every bucket), and the wording says which axis it
+    # came from — the caller passes one map, not two (§2.14).
+    "CELL_CONFOUNDED": "各位次/各轮由不同的单元供样——汇池前提不成立，差异不可单独归因",
 }
 
 _SEG_NAMES = {"access_component": "接入", "regional_backbone_incr": "区域骨干",
@@ -2341,7 +2346,12 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         w.writerow(["point_id", "carrier", "time_band", "band", "rsrp_median_dbm",
                     "sinr_median_db", "rats", "serving_cells", "n", "n_with_radio",
                     "sampled_n_median", "stale_samples", "low_confidence",
-                    "thin_samples", "implausible_values"])
+                    "thin_samples", "implausible_values",
+                    # D-376: the egress path travels with the serving cell on the
+                    # page, so it must travel with it here too (§2.6) — the CSV is
+                    # where an analyst separates "the cell changed" from "the path
+                    # changed", which D-374 could not do.
+                    "egress_ips"])
         for c in rcells:
             cell = c["cell"]
             w.writerow([cell.get("point_id"), cell.get("carrier"), cell.get("time_band"),
@@ -2349,7 +2359,9 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         _cell(c["sinr_median_db"]), "/".join(sorted(c["rats"])),
                         "/".join(sorted(c["cell_keys"])), c["n"], c["n_with_radio"],
                         _cell(c["sampled_n_median"]), c["stale_samples"],
-                        c["low_confidence"], c["thin_samples"], _bad(c)])
+                        c["low_confidence"], c["thin_samples"], _bad(c),
+                        "; ".join("%s×%d" % (ip, n) for ip, n
+                                  in sorted((c.get("egress_ips") or {}).items()))])
     written.append(p)
 
     # The radio section renders TWO tables and only the first was exported: the
@@ -2619,6 +2631,16 @@ def main(argv):
                          "the report loses its 'validated input' claim)")
     args = ap.parse_args(argv)
 
+    # FIRST, ahead of every exit path that prints. This call used to sit below
+    # the output preflight, so the one refusal an operator reaches by mistyping a
+    # path — D-306's whole reason for existing — was the single message in this
+    # file emitted at the console codepage instead of UTF-8. On a zh-CN Windows
+    # box that means GBK bytes, and any character GBK cannot encode (⚠ U+26A0,
+    # the very case force_utf8_stdout was written for) would answer a mistyped
+    # path with the traceback D-306 removed. A sweep of all 17 CLIs that call
+    # this found campaign_report the only one printing before it (D-380).
+    cc.force_utf8_stdout()
+
     bad_outputs = _preflight_outputs(args)
     if bad_outputs:
         for b in bad_outputs:
@@ -2626,7 +2648,6 @@ def main(argv):
         print("（先建好目录或改路径再跑；本次未产出任何文件）", file=sys.stderr)
         return 2
 
-    cc.force_utf8_stdout()
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
 

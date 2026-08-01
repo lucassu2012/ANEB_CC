@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Golden reflex tests for scripts/radio_rollup.py (D-284).
 
 With the three-tier differential gone (D-48), radio context is the first
@@ -22,12 +22,19 @@ import synth_campaign as sc
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def _rec(point="P1", carrier="cmcc", band="busy", radios=(), tier="metro"):
-    """One run whose scenarios carry the given radio blocks (None = no block)."""
+def _rec(point="P1", carrier="cmcc", band="busy", radios=(), tier="metro",
+         egress="198.51.100.9:443"):
+    """One run whose scenarios carry the given radio blocks (None = no block).
+
+    `egress` may be a single value for every scenario or a per-scenario list —
+    a window that wandered between egress paths is a shape the real corpora can
+    produce and D-376 has to be able to show it.
+    """
     scns = []
-    for r in radios:
+    for i, r in enumerate(radios):
+        addr = egress[i] if isinstance(egress, (list, tuple)) else egress
         ns = {"transport": "cellular", "capabilities": "INTERNET",
-              "interface": "rmnet0", "server_observed_addr": "198.51.100.9:443"}
+              "interface": "rmnet0", "server_observed_addr": addr}
         if r is not None:
             ns["radio"] = r
         scns.append({"profile_id": "s1_chat", "validity": "valid",
@@ -40,6 +47,56 @@ def _rec(point="P1", carrier="cmcc", band="busy", radios=(), tier="metro"):
 def _radio(rsrp=-98, sinr=7, pci=238, rat="NR", n=12, stale=False):
     return {"rat": rat, "rsrp_dbm": rsrp, "sinr_db": sinr, "pci": pci,
             "tac": 12345, "arfcn": 504990, "sampled_n": n, "stale": stale}
+
+
+# ------------------------------------------------- 出口 IP 与制式并排（D-376）
+
+def test_egress_ip_sits_beside_the_serving_cell():
+    """D-374 measured RAT and egress path moving together in every window we
+    have (NR→106.92.23.196, three LTE windows→106.80.108.105) and could not
+    separate them. A reader can only try if both are on the same row, so this
+    pins the value in the cell dict AND on the rendered row."""
+    res = rr.analyze([_rec(radios=[_radio(), _radio()], egress="203.0.113.7:8443")])
+    c = res["cells"][0]
+    assert c["egress_ips"] == {"203.0.113.7": 2}, c["egress_ips"]
+    md = rr.render_markdown(res)
+    assert "出口 IP" in md                      # the column exists
+    assert "203.0.113.7" in md, md              # ...and carries the value
+
+
+def test_two_egress_paths_in_one_window_are_flagged_not_averaged():
+    """Same shape as MIXED_SERVING_CELL: a window whose numbers pool two egress
+    paths characterises neither, so it is marked rather than silently merged.
+    The row prints a count (not a list) — a reader needs 'it wandered', and the
+    identities are in the CSV."""
+    res = rr.analyze([_rec(radios=[_radio(), _radio()],
+                           egress=["203.0.113.7:8443", "198.51.100.9:443"])])
+    c = res["cells"][0]
+    assert len(c["egress_ips"]) == 2, c["egress_ips"]
+    md = rr.render_markdown(res)
+    assert "**MIXED_EGRESS:2**" in md, md
+    assert "| 2 个 |" in md or "2 个" in md, md
+
+
+def test_egress_survives_a_scenario_with_no_radio_block():
+    """The egress is a property of the path, not of the radio block: a wifi (or
+    permission-denied) scenario has no `radio` key but still egressed somewhere.
+    Reading it inside the radio guard clauses would have made it a
+    cellular-only column — the silent-denominator shape of D-336."""
+    res = rr.analyze([_rec(radios=[None, None], egress="203.0.113.7:8443")])
+    c = res["cells"][0]
+    assert c["n_with_radio"] == 0                       # no radio evidence at all
+    assert c["egress_ips"] == {"203.0.113.7": 2}, c["egress_ips"]
+
+
+def test_a_missing_observed_addr_is_absent_not_zero():
+    """R-10: a producer that did not report the address yields no egress entry —
+    never a placeholder that would later be counted as a real path."""
+    rec = _rec(radios=[_radio()])
+    rec["scenarios"][0]["network_snapshot"].pop("server_observed_addr")
+    c = rr.analyze([rec])["cells"][0]
+    assert c["egress_ips"] == {}, c["egress_ips"]
+    assert "MIXED_EGRESS" not in rr.render_markdown(rr.analyze([rec]))
 
 
 # --------------------------------------------------------------- the band rule
