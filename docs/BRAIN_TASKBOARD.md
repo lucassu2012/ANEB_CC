@@ -67,6 +67,14 @@
 - ~~profile 4 描述文件外化 → 批准（落位 `spec/profiles/server/s4_voice_realtime.json`）~~ **【大脑裁定错误，2026-08-01 18:3x 被 v2 动手前盘点推翻并订正】**：原落位放 spec 侧破双向 parity 门（validate_profiles.py 两方向报错）、放两侧则服务端 `loadProfiles()`+`handleProfiles` 会通告一个无执行相位的假合同——**大脑批准时没数落位的读者，归因在大脑不在规格**。订正版已批：落 `spec/profiles/client/client_profiles.json` 的 voice_realtime 条目（补执行计划子对象）+ 对拍测试钉 VoiceRunner 常量，「导出+对拍」形态同 D-48 对齐-1/D-367；v2 实施，23:00 前，入册时写明「大脑原批落位被推翻」。
 - **`/realtime-sim` 归属 → 大脑已只读核实**：handler+测试确在 G 树 Codex 主仓 `server/handlers_realtime_sim.go`，由 E-01 部署的 aneb-server 托管——本树不可重建属预期架构（server 归 Codex lane），风险定性=跨树依赖非丢失；已随 T10 补进 PLAN_ALIGNMENT L60；若 Codex 侧重构该 handler，语音 v2 口径受影响——纳入 T4 类跨树监控。
 
+### 第四批（2026-08-01 21:3x，针对 VOICE_STALL_KPI_PROPOSAL 四项待裁）
+
+- **提案整体批准**（M7 计分不否决+②降为标注；锚四点有仓内出处；权重从失明的 M2/M3 匀出，Σ=1.00 脚本核过；历史 79.8 无风险=分数从不落库）。
+- **A：末点 1000ms 保留，标 `PROVISIONAL`**——改 400 会让 500ms 与 5s 静默同分，丢掉 M7 存在的全部意义；回核义务=第一批真实语音语料出来后必须核锚（谁跑首批谁触发）。
+- **B′：两个新字段落库批准方向**（Room v17→v18 additive），与 probe 时戳+validated_against_version DTO 同批 :probe 改动（明日一次迁移带三件事）。
+- **C：标注先不设阈值只印数值**（两簇间无人区，设阈值=发明常量）。**D：不做剥服务端版**（静默是听者的物理体验）。
+- 实施排明日：评分面与采集面**分开提交**（各自可回滚）；PO 知会由大脑负责。
+
 ### 第二批（2026-08-01，针对 GUARD_DIFF 19 条；正式入册由 T8 承接）
 
 - **C-1 修**（T8 核心）：`round_effect` 加汇池前提守卫，D-335 `position_cell_spread()` 同款——各轮非同一组格供样即拒判词+点名；C-3 随修自动对。
