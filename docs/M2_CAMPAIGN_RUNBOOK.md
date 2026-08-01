@@ -169,7 +169,21 @@ adb logcat -v time -s AnebProbe:I > campaign_logcat.txt     # 另起一个窗口
 > 每格记「完成 N / 尝试 M」，M>N 时在报告的采集概况里如实写出原因（如本轮实测的
 > `bound_network_lost`）。不记，这件事就随 logcat 一起消失了。
 
-**补注**（把真机拉下来的原始 JSONL 打上战役标签；`SZ-PILOT-01` 为占位，真名下来后改）：
+**拉取**（D-393 补：此前这一步只写着「把真机拉下来的原始 JSONL」，**从不说怎么拉**）：
+
+```
+python pull_device_corpus.py --out ../evidence/<批次目录> --name pilot --since-epoch-ms <本批首轮的 epoch 毫秒>
+```
+
+- **`--since-epoch-ms` 不是可选的**：设备 `report_body` 存的是**该机全部历史 run**，
+  不传就把几十条历史一起倒出来。取本批第一轮开始的整点毫秒即可。
+- 它连 **`-wal`/`-shm` 一起拉**——App 用 WAL 写，只取 `.db` 会漏掉最近几条 run。
+- 设备侧 `run-as … cat` **只读**；`--inspect` 可先看表结构不写盘。
+- **为什么不能从服务端取**：`/api/v1/results` **只支持 POST**（`server/handlers_results.go:67`），
+  没有 GET；设备上也**没有 `sqlite3`**，所以只能把库拉回本机解析。
+- 拉完**先过契约门再补注**：`python validate_results.py <批次目录>/pilot_raw.jsonl`。
+
+**补注**（把拉下来的原始 JSONL 打上战役标签；`SZ-PILOT-01` 为占位，真名下来后改）：
 
 ```
 python annotate_campaign.py pilot_raw.jsonl -o pilot_labelled.jsonl --set campaign_id=pilot --set point_id=SZ-PILOT-01 --set carrier=ctcc --set tier=metro --infer-time-band

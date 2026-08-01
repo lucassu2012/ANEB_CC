@@ -269,6 +269,19 @@ direction 枚举、分∈[0,100]；vetoes 必填字段+比较符/种类枚举+ca
 每 phase `type` 已知且必填字段类型正确（bool 不算数值）。只读两棵树；树缺 → exit 2。
 守卫「先改 spec 后动代码」：一侧语义改而另一侧漏改不再静默溜过。
 
+### `pull_device_corpus.py` — 真机语料拉取（D-393；runbook 采集步的唯一可执行答案）
+把设备 Room 库拉到本地并抽出 `report_body` 为 JSONL。**它填的是 runbook 一句
+「把真机拉下来的原始 JSONL」却从不说怎么拉的缺口**：`/api/v1/results` **只支持 POST**
+（`server/handlers_results.go:67`）、设备**无 `sqlite3`**、仓内此前**无 db→jsonl 工具**。
+**必须连 `-wal`/`-shm` 一起拉**——App 用 WAL 写，只取 `.db` 会漏掉最近若干 run。
+设备侧 `run-as … cat` **只读**，不改任何状态。
+
+**隔离单批用 `--since-epoch-ms`**：`report_body` 存的是**该机全部历史 run**，不传截止点
+就把全部倒出来。截止时间由**关联 `test_run.startedAtEpochMs`** 取得——
+`report_body` 自己**没有时间列**，早期版本因此让 `--since-epoch-ms` **静默失效**
+（该取 4 条取了 67 条仍报 success，红线 §2.16 第七例）；现改为关联取时间，
+**关联不上就抛异常，绝不静默放行**。`--inspect` 只打印表结构、不写盘。
+
 ### `validate_voice_plan.py` — Profile 4 语音执行计划对拍门（D-390 §5.1，`voice-plan-parity`）
 对拍 `spec/profiles/client/voice_realtime_plan.json` 与 `VoiceRunner.kt`：①**真读 Kotlin 源取常量**
 （9 个 `const val` + 计划工厂内的字面量 + 打断轮索引）逐值比对——这是
