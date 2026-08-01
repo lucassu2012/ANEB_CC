@@ -25,10 +25,18 @@ def _write_jsonl(path, records):
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
-def _run(script, *args):
+def _run(script, *args, env=None):
+    # errors="replace", not strict: a child that emits one non-UTF-8 byte kills
+    # subprocess's reader THREAD, and communicate() then hands back stderr=None.
+    # Every assertion below indexes r.stderr, so the whole suite answered a real
+    # encoding regression with `TypeError: 'NoneType' is not subscriptable` and
+    # a PytestUnhandledThreadExceptionWarning buried 300 lines up — a failure
+    # that says nothing about the bug (D-380). Replacement characters fail the
+    # SAME assertions, and print what actually came back.
     return subprocess.run(
         [sys.executable, os.path.join(SCRIPTS, script), *args],
-        capture_output=True, text=True, encoding="utf-8", cwd=SCRIPTS)
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=SCRIPTS, env=env)
 
 
 def _fixture(d):
@@ -85,6 +93,43 @@ def test_a_mistyped_output_path_does_not_answer_with_a_traceback():
             left = sorted(os.listdir(d))
             assert left == [os.path.basename(src)], (
                 "%s produced files before refusing: %s" % (flag, left))
+
+
+def test_the_refusal_an_operator_reaches_by_mistyping_is_utf8_on_any_console():
+    """D-381. `force_utf8_stdout` sat BELOW the output preflight, so the one
+    message a mistyped path produces was the single stderr write in
+    campaign_report emitted at the console codepage instead of UTF-8.
+
+    On this zh-CN Windows box that meant GBK bytes: the test above decoded them
+    as UTF-8, subprocess's reader thread raised, communicate() returned
+    stderr=None, and every assertion indexing r.stderr died with
+    `TypeError: 'NoneType' is not subscriptable` — a red suite saying nothing
+    about the cause. Worse than the noise: one character GBK cannot encode (⚠
+    U+26A0, the very case force_utf8_stdout exists for) would have answered a
+    mistyped path with the traceback D-306 removed.
+
+    The test above only bites where the console is not UTF-8 already, so it
+    cannot pin this on Linux/CI. PYTHONIOENCODING forces the child's stderr to a
+    codec that CANNOT represent the message on any platform; reconfigure()
+    overrides it, so bytes coming back decodable as UTF-8 prove the call ran
+    before the print. A sweep of all 17 CLIs calling force_utf8_stdout found
+    campaign_report the only one printing before it.
+    """
+    for enc in ("gbk", "latin-1", "ascii"):
+        with tempfile.TemporaryDirectory() as d:
+            src = _fixture(d)
+            env = dict(os.environ, PYTHONIOENCODING=enc)
+            r = _run("campaign_report.py", src, "--md",
+                     os.path.join(d, "nope", "out"), env=env)
+            assert r.returncode == 2, (enc, r.returncode, r.stderr[:300])
+            # errors="replace" in _run: a byte the UTF-8 decoder rejected comes
+            # back as U+FFFD, so the phrase check below fails readably instead
+            # of the whole subprocess handing back None.
+            assert "�" not in r.stderr, (
+                "%s: stderr is not valid UTF-8 — force_utf8_stdout ran after the "
+                "message, or not at all: %r" % (enc, r.stderr[:300]))
+            assert "输出路径不可用" in r.stderr, (enc, r.stderr[:300])
+            assert "Traceback" not in r.stderr, (enc, r.stderr[:300])
 
 
 def test_the_documented_batch_workflow_creates_its_output_directory():
