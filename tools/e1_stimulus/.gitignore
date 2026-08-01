@@ -1,0 +1,7 @@
+# E1 刺激源构建产物——源码入仓，产物不入仓（与 app/.gitignore 同构）。
+# 这份 APK 只装模拟器/受控测试机，绝不装 P40（见 tools/e1/README.md 的设备红线）。
+build/
+.gradle/
+.kotlin/
+local.properties
+*.apk

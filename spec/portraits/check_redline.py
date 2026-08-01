@@ -128,7 +128,7 @@ def gate_state(app, d):
 
 
 def check_portrait(app, d):
-    """Single-portrait dict -> list of violation strings (pure, no IO). Carries R1-R19."""
+    """Single-portrait dict -> list of violation strings (pure, no IO). Carries R1-R20."""
     v = []
 
     def bad(cond, rule, msg):
@@ -156,6 +156,7 @@ def check_portrait(app, d):
         f"schema_version={d.get('schema_version')} not semver")
 
     v += _check_capture_status(app, d, params, mode)
+    v += _check_ui_dist(app, d)
 
     pf = d.get("params_fit_approx")
     if pf is None:
@@ -210,6 +211,82 @@ def check_portrait(app, d):
         if exp is not None:
             bad(sl == exp[0], "R18", f"{name} caliber={cal} requires source_layer={exp[0]} (got {sl})")
             bad(conf == exp[1], "R18", f"{name} caliber={cal} requires confidence={exp[1]} (got {conf})")
+    return v
+
+
+# R20 — observed_ui_layer.dist (INSTRUMENTATION_SPEC §4.5; brain ruling 6-7, 2026-08-01).
+#
+# The whole point of this section is that a single value is not a distribution. doubao's
+# ttft_ui_ms 1984 came from two runs that agreed (D-52/D-54) — agreement is a good sign and
+# still not a distribution. So the rule is: the section may be ABSENT (that is the honest state
+# while samples are short), but once present it must be complete. "Absent" and "present with
+# nulls" say different things, exactly as PENDING and N/A-BY-CALIBER do on the params side
+# (D-348) — a half-filled dist reads as "we measured this" to every downstream reader.
+#
+# Thresholds are the evidence ladder from the spine-3 blueprint §1.2, named once here so a
+# later edit changes them in one place rather than being re-typed at each call site (D-264).
+DIST_MIN_N = 30            # >=30 turns
+DIST_MIN_SESSIONS = 5      # >=5 sessions
+DIST_MIN_NETWORKS = 2      # >=2 network conditions (e.g. WiFi + 5G)
+DIST_METRIC_KEYS = ("p50", "p90", "p99", "n", "sessions", "networks")
+# Scalar companions of the metric entries — they are not distributions and must not be
+# checked as such.
+DIST_META_KEYS = ("method", "captured_at")
+
+
+def _check_ui_dist(app, d):
+    """R20 — observed_ui_layer.dist: absent is fine, half-filled is not. Pure, no IO."""
+    v = []
+
+    def bad(cond, rule, msg):
+        if not cond:
+            v.append(f"[{app}] {rule}: {msg}")
+
+    ui = d.get("observed_ui_layer")
+    if not isinstance(ui, dict) or "dist" not in ui:
+        return v  # absent = the honest state while samples are short; not a violation
+    dist = ui.get("dist")
+    # R20a — present means present. A null/empty dist is the "half-filled" state this rule exists
+    # to forbid: it looks like a section and carries nothing.
+    bad(isinstance(dist, dict) and bool(dist), "R20a",
+        "observed_ui_layer.dist present but not a non-empty mapping "
+        "(omit the whole section instead of writing an empty one)")
+    if not isinstance(dist, dict) or not dist:
+        return v
+    # R20b — the scalar companions must be there; a distribution whose method is unknown cannot
+    # be compared with the next one (§1.6: every value carries its method tag).
+    for k in DIST_META_KEYS:
+        bad(dist.get(k) is not None, "R20b", f"dist.{k} missing or null")
+    metrics = [k for k in dist if k not in DIST_META_KEYS]
+    bad(bool(metrics), "R20b", "dist carries no metric entry")
+    for name in sorted(metrics):
+        e = dist.get(name)
+        if not isinstance(e, dict):
+            bad(False, "R20c", f"dist.{name} is not a mapping")
+            continue
+        # R20c — no nulls, no missing keys. This is the rule the brain named.
+        missing = [k for k in DIST_METRIC_KEYS if e.get(k) is None]
+        bad(not missing, "R20c", f"dist.{name} has null/missing {missing}")
+        if missing:
+            continue
+        # R20d — below the evidence ladder it is not a distribution, it is a few readings.
+        # Writing it anyway is how "n=3" ends up quoted as a p99 downstream.
+        bad(isinstance(e["n"], int) and e["n"] >= DIST_MIN_N, "R20d",
+            f"dist.{name}.n={e['n']} < {DIST_MIN_N} turns (blueprint §1.2 ladder)")
+        bad(isinstance(e["sessions"], int) and e["sessions"] >= DIST_MIN_SESSIONS, "R20d",
+            f"dist.{name}.sessions={e['sessions']} < {DIST_MIN_SESSIONS}")
+        nets = e["networks"]
+        bad(isinstance(nets, list) and len(nets) >= DIST_MIN_NETWORKS
+            and all(isinstance(s, str) and s.strip() for s in nets), "R20d",
+            f"dist.{name}.networks={nets} needs >={DIST_MIN_NETWORKS} named conditions")
+        # R20e — percentiles must be ordered. An unordered triple is not a mis-typed number,
+        # it is a sign the three came from different pools.
+        try:
+            bad(float(e["p50"]) <= float(e["p90"]) <= float(e["p99"]), "R20e",
+                f"dist.{name} percentiles not ascending: "
+                f"p50={e['p50']} p90={e['p90']} p99={e['p99']}")
+        except (TypeError, ValueError):
+            bad(False, "R20e", f"dist.{name} percentiles not numeric")
     return v
 
 
@@ -313,7 +390,7 @@ def main():
         for x in violations:
             print("  -", x)
         return 1
-    print("OK: all red-line invariants hold (R1-R19: params gate intact, no caliber overclaim, "
+    print("OK: all red-line invariants hold (R1-R20: params gate intact, no caliber overclaim, "
           "provenance consistent, per-field capture status backs every filled param).")
     return 0
 

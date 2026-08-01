@@ -123,11 +123,30 @@ observed_ui_layer:
   captured: true
   source: "aneb-a11y-observe-2026-07-18"    # 无障碍观察(ADAPTER_OBS/adapter_obs 落库),非抓包
   ui_stack: "view"                           # 原生 View 系(思考期 UI 静止 → v3 簇分割适用)
-  ttft_ui_ms: 1984                           # 端到端 TTFT 代理(发送→响应首字,含渲染)
+  ttft_ui_ms: 1984                           # 端到端 TTFT 代理(A0′ 用户气泡上屏→响应首字,含渲染)
+  # ⚠ 起点订正(D-375 / 大脑裁定 6-6 前半,2026-08-01):本行原写「发送→响应首字」,
+  #   而 v3 簇分割的实际起点是**首簇首事件=用户气泡上屏**(D-52 逐字:三段结构
+  #   「用户气泡上屏簇→思考静默→流式响应簇」,ttftClusterMs=首簇起→次簇起),
+  #   即 `spec/adapters/INSTRUMENTATION_SPEC.md` §1.2 命名的 A0′,不是发送动作 A0。
+  #   两者相差「点击→气泡上屏」这一**从未测量过**的量;该量由实验 E3 测出前,
+  #   本值不得被读作「用户按下发送到看见首字」。数值本身未变,只订正它自称测的是什么。
   ttft_method: "v3-cluster"
   cadence_ui_ms: 100                         # 流式呈现节奏 p50(累计 8 轮 99.7–111.6ms 稳定)
   caliber: "UI 呈现口径,含 App 渲染,≠网络 ITL/TTFT;与 Profile 2 服务端仿真严格分标;恒 LOW/INCONCLUSIVE"
   runs: "P40/5G,豆包免费档,2026-07-18(D-52/D-54)"
+  # ── dist 子段(additive,大脑裁定 6-7 批准;规格见 INSTRUMENTATION_SPEC §4.5)──────
+  # **本画像刻意不写 dist 段**——这是它今天的诚实状态,不是遗漏。
+  # 上面的 ttft_ui_ms 1984 来自两次一致的读数(1984.4 / 1984.6,D-52/D-54);两次一致是
+  # 好信号,但**两次不是分布**。蓝图 §1.2 的证据阶梯要求 ≥30 turns / ≥5 sessions /
+  # ≥2 网络条件,并给出 p50/p90/p99 + 样本数 + 采集环境。没到阈值就整段不写,
+  # 而不是写一个 n=3 的"分布"——写下来它就会在下游被当成 p99 引用。
+  # 采到之后的形状(check_redline R20 逐条钉死:段可缺席,一旦出现字段不得为 null):
+  #   dist:
+  #     ttft_ui_ms:    { p50: , p90: , p99: , n: , sessions: , networks: [] }
+  #     cadence_ui_ms: { p50: , p90: , p99: , n: , sessions: , networks: [] }
+  #     rct_ui_ms:     { p50: , p90: , p99: , n: , sessions: , networks: [] }  # 依赖 A4 判据(§1.5)
+  #     method: { ttft: , rct: }
+  #     captured_at:                       # YYYY-MM-DD
 
 # ── observed_network_layer(D-57 PCAPdroid 抓包实测；网络传输层）─────────────
 # ⚠️ 口径分层:本段=网络传输层观察(SNI/目的域名/端口/字节量级)。TLS 加密下**无明文 token

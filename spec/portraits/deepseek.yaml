@@ -137,6 +137,15 @@ observed_ui_layer:
   cadence_ui_ms: null                        # 同帧突发合流(事件 p50≈0.0–0.4ms),非逐帧节奏,不作 cadence 宣称
   caliber: "UI 呈现口径,含 App 渲染,≠网络 ITL/TTFT;与 Profile 2 服务端仿真严格分标;恒 LOW/INCONCLUSIVE"
   runs: "P40/5G,DeepSeek 快速模式免费档,2026-07-18(D-55 短问答 + D-60 长回复 id=6)"
+  # ── dist 子段(additive,大脑裁定 6-7 批准;规格见 INSTRUMENTATION_SPEC §4.5)──────
+  # **本画像刻意不写 dist 段**——诚实缺席,不是遗漏。样本远未达蓝图 §1.2 阶梯
+  # (≥30 turns / ≥5 sessions / ≥2 网络条件)。形状与规则同 doubao.yaml 同名注释
+  # (check_redline R20:段可缺席,一旦出现字段不得为 null、须带 method、须过样本阶梯)。
+  # 本 App 特有的两条约束,采集前必须先解决,否则采到的分布不可用:
+  #   ① cadence_ui_ms 现为 null 且**不得**填入 dist——同帧突发合流是事件伪影而非
+  #      流式节奏(D-51,p50≈0.0–0.4ms),它与豆包的 ~100ms 不可互比(§1.4);
+  #   ② ttft 的检出质量随回复长度变化(短问答 v3=null 仅 v4 出值,D-55/D-60),
+  #      故 dist 必须按同一 method 分池,不同 method 的值不进同一个池子(§1.6 第 4 条)。
 
 # ── observed_network_layer(D-57 PCAPdroid 抓包实测；网络传输层，部分）─────────
 # ⚠️ 本次抓包窗口未对 DeepSeek 发消息（仅豆包发），故仅采到**背景连接**（APM/DNS），

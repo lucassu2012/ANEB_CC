@@ -8,7 +8,116 @@ no device, no PO dependency. Run:  python -m pytest spec/portraits/test_check_re
 Guards the guard: if a future refactor weakens an invariant, its RED test fails.
 """
 from check_redline import (check_portrait, check_cross_file, gate_state, portrait_mode,
-                           PARAM_FIELDS, RULED_STATUS)
+                           PARAM_FIELDS, RULED_STATUS,
+                           DIST_MIN_N, DIST_MIN_SESSIONS, DIST_MIN_NETWORKS)
+
+
+# ── R20: observed_ui_layer.dist (INSTRUMENTATION_SPEC §4.5, brain ruling 6-7) ──────────
+def _dist_metric(n=None, sessions=None, networks=None, p50=1980.0, p90=2100.0, p99=2300.0):
+    return {"p50": p50, "p90": p90, "p99": p99,
+            "n": DIST_MIN_N if n is None else n,
+            "sessions": DIST_MIN_SESSIONS if sessions is None else sessions,
+            "networks": ["wifi", "5g"] if networks is None else networks}
+
+
+def _with_dist(dist):
+    d = _valid_pending()
+    d["observed_ui_layer"] = {"captured": True, "source": "aneb-a11y-observe-2026-08-15",
+                              "caliber": "ui-proxy", "ttft_ui_ms": 1984}
+    if dist is not None:
+        d["observed_ui_layer"]["dist"] = dist
+    return d
+
+
+def _valid_dist():
+    return {"ttft_ui_ms": _dist_metric(),
+            "cadence_ui_ms": _dist_metric(p50=100.0, p90=110.0, p99=130.0),
+            "method": {"ttft": "v3-cluster", "rct": "quiet-only"},
+            "captured_at": "2026-08-15"}
+
+
+def _r20(d):
+    return [x for x in check_portrait("x", d) if "R20" in x]
+
+
+def test_R20_absent_dist_is_not_a_violation():
+    """整段缺席是诚实状态（样本没到阈值就别写），不是缺陷。"""
+    assert _r20(_with_dist(None)) == []
+    assert _r20(_valid_pending()) == []          # 连 observed_ui_layer 都没有的画像同样放行
+
+
+def test_R20_complete_dist_passes():
+    assert _r20(_with_dist(_valid_dist())) == []
+
+
+def test_R20a_empty_dist_caught():
+    """写一个空段 = 看着像有、其实什么都没有——正是本规则要禁的半填状态。"""
+    assert any("R20a" in x for x in check_portrait("x", _with_dist({})))
+
+
+def test_R20c_null_field_caught():
+    """大脑点名的那一条：dist 段出现则字段不得为 null。"""
+    dist = _valid_dist()
+    dist["ttft_ui_ms"]["p99"] = None
+    assert any("R20c" in x for x in check_portrait("x", _with_dist(dist)))
+
+
+def test_R20c_missing_key_caught():
+    dist = _valid_dist()
+    del dist["ttft_ui_ms"]["sessions"]
+    assert any("R20c" in x for x in check_portrait("x", _with_dist(dist)))
+
+
+def test_R20b_missing_method_caught():
+    """没有 method 标签的分布，与下一份分布无从比较（§1.6）。"""
+    dist = _valid_dist()
+    del dist["method"]
+    assert any("R20b" in x for x in check_portrait("x", _with_dist(dist)))
+
+
+def test_R20d_below_sample_ladder_caught():
+    """n=3 不是分布，是几次读数。写下来它就会在下游被当成 p99 引用。"""
+    for kw in ({"n": DIST_MIN_N - 1}, {"sessions": DIST_MIN_SESSIONS - 1},
+               {"networks": ["wifi"] * (DIST_MIN_NETWORKS - 1)}):
+        dist = _valid_dist()
+        dist["ttft_ui_ms"] = _dist_metric(**kw)
+        assert any("R20d" in x for x in check_portrait("x", _with_dist(dist))), kw
+
+
+def test_R20e_unordered_percentiles_caught():
+    """p50>p99 不是打错一个数，是三个数来自不同的池子。"""
+    dist = _valid_dist()
+    dist["ttft_ui_ms"] = _dist_metric(p50=9999.0)
+    assert any("R20e" in x for x in check_portrait("x", _with_dist(dist)))
+
+
+def test_R20_does_not_fire_on_network_layer_dist():
+    """R20 只管 UI 层。网络层另有口径，别让一条规则越界去管它没见过的段。"""
+    d = _valid_pending()
+    d["observed_network_layer"]["dist"] = {"whatever": None}
+    assert _r20(d) == []
+
+
+def test_guard_self_description_covers_every_implemented_rule():
+    """守卫自己那句「R1-Rxx」必须跟得上它实际实现的规则数。
+
+    这不是洁癖：D-301 的形状正是「判据换了，而摘要还在报旧名字，且钉住旧名字的
+    那条守卫让它看起来一直是对的」。本轮加 R20 时，`check_portrait` 的 docstring
+    与实跑 OK 行都还自称 R1-R19——**多加一条规则不会让任何测试变红**，
+    所以这里让它变红。规则号从源码里数出来，不手写清单（D-275）。
+    """
+    import os
+    import re
+    src_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "check_redline.py")
+    with open(src_path, "r", encoding="utf-8") as fh:
+        src = fh.read()
+    # 只数真正被 bad(...) 引用的规则号——注释里提到的编号不算实现。
+    used = {int(m) for m in re.findall(r'"R(\d+)[a-z]?"', src)}
+    assert used, "没数出任何规则号，说明这条守卫的量法坏了"
+    top = max(used)
+    assert f"R1-R{top}" in src, (
+        f"实现到 R{top}，但源码里找不到自述串 R1-R{top}："
+        f"docstring 或 OK 行仍停在旧范围")
 
 
 def _capture_status(overrides=None):
