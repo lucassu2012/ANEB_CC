@@ -1,0 +1,7 @@
+SYNTHETIC - fabricated data, NOT measurements
+raw      : 552 runs -> E:\C Project\ANEB\evidence\m3_expansion_rehearsal_20260801\expansion_raw.jsonl
+counted  : 512 runs -> E:\C Project\ANEB\evidence\m3_expansion_rehearsal_20260801\expansion_counted.jsonl
+ledger   : 40 条预热丢弃 -> E:\C Project\ANEB\evidence\m3_expansion_rehearsal_20260801\warmup_ledger.csv
+格数 (counted) = 32；quick 每格计入 n = [15]
+取证 run 数 (counted) = 32；scenario_order 轮次数 = 3
+exit=0

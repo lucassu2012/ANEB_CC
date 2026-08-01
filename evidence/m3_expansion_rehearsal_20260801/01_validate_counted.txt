@@ -1,0 +1,2 @@
+contract OK: 512 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+validate exit=0

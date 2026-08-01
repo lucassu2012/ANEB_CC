@@ -1,0 +1,6 @@
+# shape_expansion_corpus.py SEED=20260801 的产物指纹（语料本身不入库，可由步骤 0 重生成后对账）
+149cb57fbd74b20be989667d6595712492932dd012e3a1b9be0111b77e28ca05    2990852  expansion_raw.jsonl
+4497d6adb5d40568fb7dcea5f85e8d1467be930ac94b7829d9607b8659a30812    2736387  expansion_counted.jsonl
+d869bda5b889b3bce64e3ddf9f387fa232cb155627900e193260170400668986    2330061  expansion_counted_quick.jsonl
+70f8e546769f22c3e8856692515fae4bf3f96bf3c36e78a0b55ede2dfa15fbe6     406326  expansion_counted_forensic.jsonl
+200d73fcbe120a60ecf61c0169117e3f355ae8c08d9c60809198747275030315       3251  warmup_ledger.csv
