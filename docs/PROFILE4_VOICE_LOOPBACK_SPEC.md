@@ -281,9 +281,32 @@ pre_flush_us（服务端冲刷前）/ arrival_us（客户端到达）`。
 （`spec/profiles/client/client_profiles.json` **确有** `voice_realtime` 条目，但那是
 **展示元数据**——displayName/tagline/metrics 单位——不是可驱动引擎的描述文件。）
 
-**建议**：把上述常量外化为 `spec/profiles/server/s4_voice_realtime.json`，
-并配 spec↔runtime 对拍测试（范本：`SpecScoringParityTest`、`radio_bands.yaml` 的对拍）。
-**这是纯重构，不改任何观测值**，可安全实施。
+~~**建议**：把上述常量外化为 `spec/profiles/server/s4_voice_realtime.json`，
+并配 spec↔runtime 对拍测试。~~ ← **本建议已作废（本稿第三处自我订正，且它一度被大脑批准）。**
+
+**为什么作废（实读两条硬证据）**：
+
+1. **`profiles/` 是被枚举下发的服务端合同，不是一个"放描述文件的地方"**。
+   `server/profiles.go` 的 `loadProfiles()` 对目录做 `os.ReadDir` 并解析**全部** `*.json`，
+   注释亲口写着「解析失败任一文件即整体报错（profile 是两端共享合同，**不允许静默跳过**）」；
+   `handleProfiles` 则**下发全部** profile。而服务端**没有任何语音相位类型**
+   （现有相位为 `clock_sync` / `upload_burst` / `token_stream` / `download_burst` / `artifact_stream`）。
+   放进去 ⇒ **服务端对外通告一个它执行不了的合同**。
+2. **`spec/profiles/server/` 与 `profiles/` 之间有双向 parity 门**
+   （`scripts/validate_profiles.py: validate_dirs()`，`spec - runtime` 与 `runtime - spec` 两个方向各报一次错）。
+   只放 spec 一侧 ⇒ 门直接 FAIL。
+
+**两条合起来**：s4 放哪一侧都不对——放 spec 破门，放两侧破合同。
+
+**订正后的建议**：语音是**零服务端部署、客户端驱动**的，它的执行计划就该落在**客户端 spec** 侧——
+那里已有 `spec/profiles/client/client_profiles.json`，且已被 `ClientProfileDataParityTest`
+以「两份数据零漂移」守着。实读该文件的 `voice_realtime` 条目，现有键为
+`business / businessType / conclusion / displayName / id / live / metricSpecs / metrics / scoring / tagline / version`
+——**有展示、有度量规格、有评分，唯独没有执行计划**。故正确动作是给它补一个执行计划子对象
+（帧节奏／帧字节／上下行帧数／M3 帧数／默认轮次计划），并配对拍测试钉住
+`VoiceRunner` companion 的同名常量。形态＝**「导出＋对拍」**，与 D-48 对齐-1
+（`scoring/` 三 YAML 逐字导出 + `SpecScoringParityTest` 反射对拍）和 D-367（`radio_bands.yaml`）**同款**，
+**不让代码反向读 spec**（那是终态，留待后续）。这样才真是「纯重构、零观测值变化」。
 
 ### 5.2 **非缺口**（本稿初版判断错误，已订正）：`/v1/voice/echo` 早已登记为等价替代
 
