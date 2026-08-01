@@ -446,6 +446,12 @@ note 逐字 "UI cadence proxy, not network ITL"）。本文不放宽这一条。
 
 **提案（additive-only，遵 `spec/README.md` 治理规则 3）**：新增子段，不动现有键：
 
+> 治理规则 3 已于 D-397 改写为**严格 loader 通则**（「往既有被加载 JSON 补键默认不可行」）。
+> **本提案不受影响，但理由要换一个**：它安全**不是因为它是 additive**，而是因为**它的消费方
+> 不是严格 Kotlin loader**——`observed_ui_layer` 落在 portraits 的 YAML 上，由
+> `check_redline.py` 与 `portrait.schema.json`（`observedLayer` 无 `additionalProperties: false`）
+> 消费。规则 3 的判据是**消费方**，不是变更形状（D-276「动手前先数读者」）。
+
 ```yaml
 observed_ui_layer:
   ttft_ui_ms: 1984          # 保留，语义不变（首个实测锚点值）

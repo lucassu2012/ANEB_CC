@@ -9,8 +9,49 @@
    参数的权威定义都在本目录。代码或其他文档与 spec 冲突时,以 spec 为准修代码。
 2. **一切跨仓库/跨模块变更先改 spec、后动代码**(计划 §7 运作规则):契约性改动
    (新增 KPI/权重表/Schema 字段/Profile 相位等)必须先在本目录落定并升版本,再动 P1/P2 代码。
-3. **additive-only**:已发布字段/权重表/锚点表只增不改不删;语义变化 = 新 id/新版本号并列
+3. **严格 loader 通则**(D-397;取代原「additive-only 安全」那半句)。
+   **仓内 spec loader 皆严格 `Json`**——`kotlinx.serialization` 的默认实例对**未知键**与
+   **类型不符**一律抛异常。因此:**往一份已被加载的 JSON 里补键,默认不可行**。
+   它不是加性变更,是**双侧同提交**变更,且**顺序不可反**(先 DTO 带默认值,后 JSON+assets 镜像)。
+
+   **两个实证案例**(都是动手前的核查把任务翻了面,不是设想):
+
+   | loader | 严格性出处 | 补一个键的后果 | 证据强度 |
+   |---|---|---|---|
+   | `AdapterSpecLoader`<br>`AdapterSpec.kt:43` | `private val json = Json`,注释逐字「默认严格:未知键/类型不符即抛 → 触发 fail-safe 空列表」 | `loadFromAssets` 捕获 → **返回空列表**(单文件坏也整体回空,KDoc 逐字) → **全部** App 落回 generic → D-54 要求 `specId != null` ⇒ **`adapter_obs` 从此一条不入库,且没有任何一处会报错** | **有反例**:`AdapterSpecTest.kt:121` `strict mode rejects unknown keys` 喂 `"unknown_key": 1` 断言抛,且**先跑一次合法底座**防真空通过 |
+   | `TestModeProfileLoader`<br>`TestModeProfileLoader.kt:30` | `private val json = Json`,KDoc(:20)逐字「[Json] 用严格模式(未知键即失败),防 schema 漂移静默生效」 | `loadFromAssets` 捕获 → **返回 null** → 回退代码内硬编码 FALLBACK,打 `SPEC_PROFILE_FALLBACK`;`ClientProfileDataParityTest` 用例 1 同时红(D-391 ②) | ⚠ **无反例**:那份名为「损坏数据必须抛」的用例(`ClientProfileDataParityTest.kt:94`)喂的是**坏 JSON / schema 不符 / profiles 为空**三种,**未知键一种都没喂**。该 loader 的「未知键即失败」今天只由 KDoc 与 `Json` 默认值担保 |
+
+   **逃生口(唯一批准形态):新文件 + 新对拍。** 不往既有被加载 JSON 补键,改为另立一份数据文件,
+   并**同批**给它配一道**会失败的**对拍守卫。先例:D-391 的
+   `spec/profiles/client/voice_realtime_plan.json` + `scripts/validate_voice_plan.py`
+   (接进 `verify_all` 的 `voice-plan-parity` 步)——当时正是因为往 `voice_realtime` 条目里
+   补子对象**做不到**:运行时抛 → 回退兜底 → 要做必须改 DTO,而同一裁示禁止动 `:probe`。
+
+   **判据是消费方,不是变更形状。** 同样叫「additive」,落在**不同消费方**上结论相反:
+   `observed_ui_layer.dist`(裁定 6-7)是安全的——它的消费方是 `check_redline.py` 与
+   `portrait.schema.json`(`observedLayer` 无 `additionalProperties: false`),**不是**严格
+   Kotlin loader。**动手前先数消费方**(D-276),别数变更形状。
+
+   **即使照做了「先 DTO 后 JSON」,形状门仍有一处够不着**(T14 §8.2,真 `main()` 实测):
+   新增的嵌套 DTO 若**声明在 `AdapterSpec.kt` 之外的文件**,`validate_adapters.py` 对该段
+   **一个键都不查**,并照旧印出 `OK: ... A1 no key the strict parser would reject ...`
+   ——而那个键就在文件里(唯一差别=把该 DTO 挪回同文件的对照组当场 exit 1)。
+   故**新增嵌套类型必须与根 DTO 同文件、且是 `data class`**;
+   `class`(非 data)/`enum class`/`typealias` 同样整块静默不查。
+   这是「补一个键」不安全的**第二个、独立的**原因。
+
+   **原规则仍然成立的那一半**(版本纪律,未被推翻):已发布字段/权重表/锚点表
+   **只增不改不删**;语义变化 = 新 id/新版本号并列
    (既有先例:aqs-v0.1 → aqs-v0.2 并列、WEIGHTS_TOKEN_MM/TXT 并列、aqs-voice-sim-v0.1 并列)。
+   **被推翻的只是「additive ⇒ 安全,可以单侧改」这半句**(D-387 首次撞见,D-397 升为通则)。
+
+   > **本条今天没有守卫(诚实缺口)**:「仓内 spec loader 皆严格」这句话本身没有任何东西核对它
+   > ——新增第三个严格 loader 时,上表不会自己长出一行。应有的形态:扫 `app/**/*.kt` 里
+   > `= Json` 的默认实例,与上表**对账**(清单从产物导出而非手写,D-329)。**本轮未实现**:
+   > 它须接进 `scripts/verify_all.ps1` 才算数(D-394 §2.16「一道守卫『绿』之前,先证明它被执行了」),
+   > 而该文件此刻有他会话未提交的改动,不得代为暂存。列为下一轮首项。
+   > 同一格里的第二项:给 `TestModeProfileLoader` 补一条「未知键即抛」的反例(上表右列那个 ⚠),
+   > 属 `:probe` 面,交 v2。
 4. 既有红线对 spec 同样生效:**R-10**(可空字段=测量失败/未测,null 绝不以 0/哨兵顶替)、
    **D-02**(展示层只消费落库产物,不重算测量/打分)。
 
