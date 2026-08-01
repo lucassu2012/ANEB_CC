@@ -352,6 +352,31 @@ if ($jdk -and $sdk -and $wrapperJar) {
     $log += Add-Result 'app-assembleDebug' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- spec<->runtime PARITY tests, forced to actually run (D-391/D-394 red line 2.16)
+# Until now this gate ran assembleDebug only, so ClientProfileDataParityTest /
+# SpecScoringParityTest / AdapterSpecTest / VoiceExecutionPlanParityTest were never
+# executed here at all -- and even by hand Gradle skipped them as UP-TO-DATE whenever
+# only a file OUTSIDE the module changed (measured: three spec mutations all survived).
+# The whole "export + parity" discipline rested on tests nothing was running.
+# Task-scoped --rerun forces just this task, not the upstream chain: measured 9-12s
+# here versus 129s for --rerun-tasks, and a spec mutation is CAUGHT either way.
+if ($jdk -and $sdk -and $wrapperJar) {
+    Push-Location (Join-Path $repo 'app')
+    $out = & .\gradlew.bat ':probe:testDebugUnitTest' '--tests' '*ParityTest' `
+        '--tests' '*AdapterSpecTest' '--rerun' '--no-daemon' 2>&1 | Out-String
+    $state = if ($LASTEXITCODE -eq 0) { 'PASS' } else { 'FAIL' }
+    Pop-Location
+    $log += "--- app-parity-tests ---"
+    $log += $out
+    $log += Add-Result 'app-parity-tests' $state 'gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun'
+} else {
+    $missing = @()
+    if (-not $jdk) { $missing += 'JDK' }
+    if (-not $sdk) { $missing += 'AndroidSDK' }
+    if (-not $wrapperJar) { $missing += 'gradle-wrapper.jar' }
+    $log += Add-Result 'app-parity-tests' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- write log (utf8, never UTF-16) ---
 $log -join "`r`n" | Out-File -Encoding utf8 $logPath
 
