@@ -1475,6 +1475,34 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     if not any_stab:
         parts.append("_无场景 KPI 数据。_")
         parts.append("")
+    # The number that decided n>=15 lived ONLY in `stability.py --plan` stdout —
+    # a command someone had to know to type. Three report surfaces carried none
+    # of it, so the evidence for the campaign's own sample-size ruling was
+    # invisible to every reader of the report (GUARD_DIFF A-1, D-388). Sits
+    # directly under 复测稳定性 because it is the same cells asked a different
+    # question: that section says whether a cell repeats, this one says how many
+    # repeats it would take to resolve something.
+    parts.append(f"## 采样量核算（目标：分辨 "
+                 f"{cc.fmt_num(stability.DEFAULT_TARGET_EFFECT_PCT, 1)}% 的差异）")
+    parts.append("")
+    parts.append(
+        "> **这一段是「还要测多少」的依据**，`复测稳定性` 是「测得准不准」——同一批单元，"
+        "两个问题。扩展轮 `n≥` 的决定就出自本段的 "
+        f"`需 n≥({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%)` 列。"
+        f"完整（未折叠）数据见 `<prefix>_plan.csv`，或单独跑 "
+        "`python stability.py <corpus> --kpi <KPI> --plan`。")
+    parts.append("")
+    any_plan = False
+    for k in stability.DEFAULT_STABILITY_KPIS:
+        sc = stability.stability_cells(records, k, cv_gate=stability.DEFAULT_CV_GATE,
+                                       min_samples=min_samples)
+        if sc:
+            any_plan = True
+            parts.append(stability.render_plan_markdown(stability.plan_cells(sc), k))
+            parts.append("")
+    if not any_plan:
+        parts.append("_无场景 KPI 数据。_")
+        parts.append("")
     # Measurement-validity check on the medians above: did Latin-square
     # counterbalancing actually cancel execution-position bias? (D-95)
     any_order = False
@@ -2153,6 +2181,41 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             c.get("scenario_jitter_reason") or ""])
     written.append(p)
 
+    # The sample-size table the markdown now renders (D-388). Exported in FULL —
+    # the markdown folds 达标 rows above a cap and says so, and the CSV is where
+    # the banner points for the rest (§2.6: a section the report renders and does
+    # not export is D-246's shape, and per-module counting hides it, D-303).
+    p = prefix + "_plan.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = _TaggedWriter(f, synthetic)
+        w.writerow(["campaign_id", "point_id", "carrier", "time_band", "tier",
+                    "profile_id", "kpi", "n", "median", "cv_percent", "unstable",
+                    "target_effect_pct", "target_abs", "mde", "mde_pct",
+                    "mde_at_power", "required_n_breakeven", "required_n_at_power",
+                    "resolves_target_breakeven", "resolves_at_power", "plan_power",
+                    # the same pair the stability export carries: a required_n on
+                    # a scenario-intrinsic cell is arithmetic, not a field plan
+                    # (D-382/D-383)
+                    "scenario_intrinsic_jitter", "scenario_jitter_reason"])
+        for k in stability.DEFAULT_STABILITY_KPIS:
+            sc = stability.stability_cells(records, k, min_samples=min_samples)
+            for r in stability.plan_cells(sc):
+                cell = r["cell"]
+                w.writerow([cell.get("campaign_id"), cell.get("point_id"),
+                            cell.get("carrier"), cell.get("time_band"),
+                            cell.get("tier"), cell.get("profile_id"), r["kpi"],
+                            r["n"], _cell(r["median"]), _cell(r["cv_percent"]),
+                            r["unstable"],
+                            stability.DEFAULT_TARGET_EFFECT_PCT,
+                            _cell(r["target_abs"]), _cell(r["mde"]),
+                            _cell(r["mde_pct"]), _cell(r.get("mde_power")),
+                            _cell(r["required_n"]), _cell(r.get("required_n_power")),
+                            _cell(r["resolves_target"]),
+                            _cell(r.get("resolves_at_power")), cc.PLAN_POWER,
+                            r.get("scenario_intrinsic_jitter"),
+                            r.get("scenario_jitter_reason") or ""])
+    written.append(p)
+
     # The order-effect diagnosis was the one section the report renders as a
     # table of numbers with no machine-readable export at all: nine of the ten
     # modules build_report_markdown calls ship a CSV, and this one did not
@@ -2550,6 +2613,16 @@ def effective_thresholds():
         # an archived report over that has to be explainable (D-122/D-248).
         "scenario_side_kpis": list(stability.SCENARIO_SIDE_KPIS),
         "network_side_kpis": list(stability.NETWORK_SIDE_KPIS),
+        # Exempt as 「only the standalone --plan CLI; no report section reads it」
+        # until D-388 wired that section into the report — and NOTHING would have
+        # noticed, because both were captured as default ARGUMENTS, which puts
+        # them in the exemption test's `captured` bucket where no perturbation
+        # reaches them (D-204's first trap). The reason a comment gives for a
+        # decision needs its own guard; these two had one that could not fire.
+        "plan_target_effect_pct": stability.DEFAULT_TARGET_EFFECT_PCT,
+        "plan_max_ok_rows": stability.DEFAULT_MAX_PLAN_ROWS,
+        # decides every 需 n≥(80%) and 达标? the section prints
+        "plan_power": cc.PLAN_POWER,
         "attribution_kpis": list(attribution.ATTRIBUTABLE_KPIS),
         # Everything below decides what the report SAYS and was missing from a
         # manifest whose own test is named "cover every output-deciding gate"

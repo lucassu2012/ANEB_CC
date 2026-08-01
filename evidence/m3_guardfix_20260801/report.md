@@ -21,9 +21,9 @@
 
 ## 溯源 / provenance（可复现性）
 
-> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-08-01 17:06:11 +0800 · 读 512 行 → 保留 512 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": null, "before": null, "after": null}。
+> 工具 `aneb-campaign-analysis/1.0` · 生成 2026-08-01 18:14:22 +0800 · 读 512 行 → 保留 512 条（去重丢 0）。参数 {"min_samples": 5, "attr_kpi": "n1_rtt_p50_ms", "campaign": null, "before": null, "after": null}。
 
-> **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "kpi_profile_exclusions": {"u1_goodput_mbps": ["s1_chat"]}, "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "scenario_side_kpis": ["t1_ttft_ms", "t2_itl_p95_ms", "u2_tool_loop_p95_ms"], "network_side_kpis": ["n1_rtt_p50_ms", "n2_jitter_ms"], "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
+> **生效门限**（改动其一即改变报告结论，复现须同值）：{"cv_gate_percent": 10.0, "stability_max_stable_rows": 25, "validity_min_rate": 0.8, "buffering_hotspot_share": 0.5, "clock_hotspot_share": 0.5, "aqs_grade_bands": [[85.0, "excellent"], [70.0, "good"], [54.0, "fair"], [0.0, "poor"]], "local_day_utc_offset_h": 8, "value_ranges_non_kpi": {"rsrp_dbm": [-160.0, -30.0], "sinr_db": [-30.0, 45.0]}, "rsrp_weak_dbm": -105.0, "rsrp_good_dbm": -95.0, "sinr_weak_db": 0.0, "sinr_good_db": 10.0, "signal_bands": ["weak", "medium", "good"], "signal_labels": {"weak": "弱", "medium": "中", "good": "良"}, "grade_order": ["excellent", "good", "fair", "poor"], "attribution_group_by": ["point_id", "carrier", "time_band", "profile_id"], "stability_group_by": ["campaign_id", "point_id", "carrier", "time_band", "tier", "profile_id"], "heat_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps", "t2_itl_p95_ms"], "kpi_profile_exclusions": {"u1_goodput_mbps": ["s1_chat"]}, "stability_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "scenario_side_kpis": ["t1_ttft_ms", "t2_itl_p95_ms", "u2_tool_loop_p95_ms"], "network_side_kpis": ["n1_rtt_p50_ms", "n2_jitter_ms"], "plan_target_effect_pct": 5.0, "plan_max_ok_rows": 25, "plan_power": 0.8, "attribution_kpis": ["n1_rtt_p50_ms", "t1_ttft_ms"], "tier_time_spread_gate_ms": 3600000, "segment_outlier_target_false_alarm": 0.05, "segment_outlier_k_by_cells": [[5, 8.0], [9, 6.0], [1000000000, 5.0]], "segment_min_cells_to_screen": 4, "order_effect_threshold_percent": 10.0, "min_campaigns_for_trend": 3, "median_se_factor": 1.253, "mad_to_sigma": 1.4826, "epoch_ms_bounds": [1577836800000, 4102444800000], "value_ranges": {"aqs_score": [0.0, 100.0], "buffering_score": [0.0, 1.0], "n1_rtt_p50_ms": [0.0, null], "n2_jitter_ms": [0.0, null], "near_zero_arrival_ratio": [0.0, null], "sawtooth_ratio": [0.0, null], "sub_score": [0.0, 100.0], "t1_ttft_ms": [0.0, null], "t2_itl_p95_ms": [0.0, null], "t3_stall_rate": [0.0, 1.0], "t4_severe_stall_rate": [0.0, 1.0], "u1_goodput_mbps": [0.0, null], "u2_tool_loop_p95_ms": [0.0, null]}, "tiers": ["metro", "regional", "core"], "attribution_segments": ["access_component", "regional_backbone_incr", "core_backbone_incr"], "severe_incomparability_flags": ["TIER_TIME_SPREAD", "MIXED_TRANSPORT", "TIER_ENDPOINT_CONFLICT", "IMPLAUSIBLE_VALUE", "VETO_CAPPED", "TIER_INCOMPLETE"], "order_effect_kpis": ["t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps"], "transport_media": ["wifi", "cellular"], "trend_metric_key": "aqs"}
 
 | 输入文件 | sha256 |
 |---|---|
@@ -409,6 +409,224 @@
 | campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 39.24 | 39.73 | 21.1 | ✗超门 | — |
 
 > 另有 **60** 个**稳定**单元未列出（表内保留全部 ✗超门、CV 不可计算、含不可能读数的单元，以及前 25 个稳定单元）。完整数据见 `<prefix>_stability.csv`。
+
+## 采样量核算（目标：分辨 5% 的差异）
+
+> **这一段是「还要测多少」的依据**，`复测稳定性` 是「测得准不准」——同一批单元，两个问题。扩展轮 `n≥` 的决定就出自本段的 `需 n≥(80%)` 列。完整（未折叠）数据见 `<prefix>_plan.csv`，或单独跑 `python stability.py <corpus> --kpi <KPI> --plan`。
+
+### 采样量核算：`t1_ttft_ms`（目标：分辨 5% 的差异）
+
+> **口径**：`可辨最小差异` = 以本单元实测离散度，两个同样大小的单元之间需要多大差异才会超出噪声尺度（√2·1.253·sd/√n）。它是**量级指示、不是显著性检验**（时延右偏）。离散度未知（n<2）的单元一律留 `—`，**不以 0 或当前 n 顶替**。
+
+> ⚠ **两个「需 n≥」不是一回事，规划采样量要看后一个**：`需 n≥(平)` 是让目标差异**正好等于**噪声尺度的复测数——在那个 n 上，一个**真实存在**的目标差异只有**约五成**会被判为「超出噪声」（实测 52%~58%，n=5~40，D-201）；此前本段把这个数称作「足够」，**那是把抛硬币说成了保证**。`需 n≥(80%)` 才是「有 80% 把握看见它」所需的数，约为前者的 3.39 倍（判据是 |Δ|>噪声，故系数为 1+z=1.842；**不是**双侧显著性检验的 z₁₋α/₂+z₁₋β，那会多要 7.85 倍的外场工时，去买一个本报告从不作出的承诺）。
+
+> ⚠ **两个「可辨最小差异」同理**：`(平)` 是**恰好等于**噪声尺度的差异——真有这么大的差异，也只有约五成会被判为「超出噪声」；`(80%)` 才是「这一格有 80% 把握分辨出来」的差异，约为前者的 1.842 倍。右侧「达标?」按 80% 判——**此前本表只印 `(平)` 那一个数，判词却按八成给**，一列按五成报、一列按八成判，并排放在同一行（D-240）。
+
+| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异(平) | 占中位(平) | 可辨最小差异(80%) | 达标?(80%) | 需 n≥(平) | 需 n≥(80%) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 25 | 453.8 | 4.9 | 达门 | 7.88 | 1.7% | 14.52 | 达标 | 4 | 11 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 26 | 431.8 | 11 | **✗超门**(场景内生) | 16.77 | 3.9% | 30.88 | ✗不足 | 16 | 54 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 447.8 | 5.7 | 达门 | 8.99 | 2% | 16.56 | 达标 | 5 | 15 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 437.2 | 4.2 | 达门 | 6.47 | 1.5% | 11.92 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 25 | 426.41 | 11 | **✗超门**(场景内生) | 16.92 | 4% | 31.16 | ✗不足 | 16 | 54 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 27 | 431 | 5.1 | 达门 | 7.48 | 1.7% | 13.78 | 达标 | 4 | 12 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 24 | 463.25 | 4.6 | 达门 | 7.77 | 1.7% | 14.31 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 457.33 | 12.9 | **✗超门**(场景内生) | 20.45 | 4.5% | 37.67 | ✗不足 | 22 | 74 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 23 | 457.8 | 3.8 | 达门 | 6.47 | 1.4% | 11.92 | 达标 | 2 | 7 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 429.8 | 4.1 | 达门 | 6.29 | 1.5% | 11.58 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 24 | 434.64 | 10.9 | **✗超门**(场景内生) | 17.13 | 3.9% | 31.55 | ✗不足 | 15 | 51 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 25 | 443.5 | 3.2 | 达门 | 5.03 | 1.1% | 9.27 | 达标 | 2 | 5 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 26 | 460.25 | 3.9 | 达门 | 6.21 | 1.3% | 11.44 | 达标 | 2 | 7 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 453.66 | 12.5 | **✗超门**(场景内生) | 18.81 | 4.1% | 34.64 | ✗不足 | 19 | 63 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 25 | 471.9 | 5.4 | 达门 | 9 | 1.9% | 16.58 | 达标 | 4 | 13 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 23 | 435.6 | 4.8 | 达门 | 7.66 | 1.8% | 14.11 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 27 | 421.81 | 14.5 | **✗超门**(场景内生) | 21.29 | 5% | 39.2 | ✗不足 | 28 | 94 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 439.4 | 4.8 | 达门 | 7.3 | 1.7% | 13.45 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 22 | 457.5 | 4.9 | 达门 | 8.63 | 1.9% | 15.89 | 达标 | 4 | 11 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 23 | 462.24 | 10.7 | **✗超门**(场景内生) | 17.76 | 3.8% | 32.71 | ✗不足 | 14 | 47 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 467.5 | 4.1 | 达门 | 6.73 | 1.4% | 12.4 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 26 | 441.6 | 4.1 | 达门 | 6.28 | 1.4% | 11.57 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 26 | 456.9 | 13.4 | **✗超门**(场景内生) | 20.6 | 4.5% | 37.94 | ✗不足 | 22 | 72 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 449.95 | 4.6 | 达门 | 7.2 | 1.6% | 13.26 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 468.2 | 3.6 | 达门 | 7.77 | 1.7% | 14.31 | 达标 | 2 | 6 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 13 | 409.14 | 11 | **✗超门**(场景内生) | 23.43 | 5.7% | 43.15 | ✗不足 | 18 | 58 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 15 | 463.1 | 4 | 达门 | 8.52 | 1.8% | 15.69 | 达标 | 3 | 7 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 452.8 | 2.8 | 达门 | 6.24 | 1.4% | 11.49 | 达标 | 1 | 4 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 458.99 | 12.7 | **✗超门**(场景内生) | 27.24 | 5.9% | 50.16 | ✗不足 | 20 | 67 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 14 | 448.7 | 4.8 | 达门 | 10.24 | 2.3% | 18.86 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 13 | 481.3 | 3.9 | 达门 | 9.25 | 1.9% | 17.04 | 达标 | 2 | 7 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 475.75 | 13.1 | **✗超门**(场景内生) | 29.58 | 6.2% | 54.47 | ✗不足 | 22 | 74 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 15 | 475.3 | 4.7 | 达门 | 10.33 | 2.2% | 19.03 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 468.2 | 4.8 | 达门 | 10.93 | 2.3% | 20.12 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 455.67 | 8.6 | 达门 | 17.55 | 3.9% | 32.32 | ✗不足 | 9 | 31 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 447.7 | 4 | 达门 | 8.1 | 1.8% | 14.92 | 达标 | 2 | 7 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 14 | 498.15 | 21.2 | **✗超门** | 50.04 | 10% | 92.15 | ✗不足 | 57 | 192 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 12 | 415.33 | 26.1 | **✗超门** | 58.29 | 14% | 107.36 | ✗不足 | 95 | 321 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 13 | 447.1 | 27.4 | **✗超门** | 59.27 | 13.3% | 109.16 | ✗不足 | 92 | 310 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 452.9 | 25.6 | **✗超门** | 56.19 | 12.4% | 103.48 | ✗不足 | 81 | 272 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 443.79 | 17 | **✗超门** | 34.72 | 7.8% | 63.94 | ✗不足 | 37 | 125 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 414.6 | 21.7 | **✗超门** | 43.44 | 10.5% | 80.01 | ✗不足 | 66 | 224 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 14 | 497.8 | 28.2 | **✗超门** | 65.85 | 13.2% | 121.27 | ✗不足 | 98 | 333 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 512.31 | 17.5 | **✗超门** | 43.63 | 8.5% | 80.35 | ✗不足 | 41 | 138 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 13 | 509 | 16.6 | **✗超门** | 42.12 | 8.3% | 77.56 | ✗不足 | 36 | 121 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 427.4 | 15.3 | **✗超门** | 33.83 | 7.9% | 62.31 | ✗不足 | 33 | 111 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 13 | 407.76 | 26.8 | **✗超门** | 58.49 | 14.3% | 107.72 | ✗不足 | 107 | 363 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 471.5 | 17.9 | **✗超门** | 39.68 | 8.4% | 73.07 | ✗不足 | 43 | 145 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 13 | 479 | 3.5 | 达门 | 8.17 | 1.7% | 15.04 | 达标 | 2 | 6 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 466.3 | 11.9 | **✗超门**(场景内生) | 26.85 | 5.8% | 49.45 | ✗不足 | 19 | 63 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 428.87 | 9.9 | 达门 | 19.85 | 4.6% | 36.56 | ✗不足 | 13 | 44 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 497.4 | 13.7 | **✗超门**(场景内生) | 32.66 | 6.6% | 60.14 | ✗不足 | 25 | 82 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 463.65 | 9.4 | 达门 | 20.72 | 4.5% | 38.16 | ✗不足 | 12 | 38 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 490.87 | 8.3 | 达门 | 18.76 | 3.8% | 34.54 | ✗不足 | 9 | 28 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 12 | 455.1 | 14.1 | **✗超门**(场景内生) | 32.97 | 7.2% | 60.71 | ✗不足 | 26 | 86 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 13 | 462.2 | 6.5 | 达门 | 14.79 | 3.2% | 27.24 | ✗不足 | 6 | 19 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 491.27 | 10.3 | **✗超门**(场景内生) | 23.13 | 4.7% | 42.59 | ✗不足 | 14 | 46 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 482.66 | 11.2 | **✗超门**(场景内生) | 25.01 | 5.2% | 46.07 | ✗不足 | 17 | 55 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 13 | 465.71 | 14.6 | **✗超门**(场景内生) | 33.7 | 7.2% | 62.06 | ✗不足 | 28 | 93 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 442.78 | 13.7 | **✗超门**(场景内生) | 28.98 | 6.5% | 53.36 | ✗不足 | 24 | 82 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 489.1 | 6.3 | 达门 | 14.06 | 2.9% | 25.9 | ✗不足 | 5 | 17 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 525.21 | 14.6 | **✗超门**(场景内生) | 34.15 | 6.5% | 62.9 | ✗不足 | 26 | 87 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 439.84 | 13.5 | **✗超门**(场景内生) | 29.6 | 6.7% | 54.52 | ✗不足 | 26 | 87 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 518.91 | 13.2 | **✗超门**(场景内生) | 31.18 | 6% | 57.41 | ✗不足 | 22 | 74 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 523.29 | 13.6 | **✗超门**(场景内生) | 32.34 | 6.2% | 59.55 | ✗不足 | 23 | 78 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 562.5 | 6.8 | 达门 | 17.62 | 3.1% | 32.46 | ✗不足 | 6 | 20 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 536.61 | 7.9 | 达门 | 20.09 | 3.7% | 36.99 | ✗不足 | 9 | 29 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 13 | 530.61 | 16.8 | **✗超门**(场景内生) | 42.43 | 8% | 78.14 | ✗不足 | 34 | 113 |
+
+> 另有 **28** 个**已达标**单元未列出（表内保留全部 ✗不足、✗超门、不可核算、场景内生抖动的单元，以及前 25 个达标单元）。完整数据见 `<prefix>_plan.csv`。
+
+> **结论**：43/96 个单元在当前 n 下**没有 80% 的把握**看见 5% 的差异；这些单元的建议复测数中位为 **n≥123**（每侧）——**该中位只汇网络侧的 20 个**，已排除 23 个 `SCENARIO_INTRINSIC_JITTER` 单元。 其中 **16 个**单元的当前 n 恰好落在「差异等于噪声尺度」附近——**那只有约五成把握**，不要据此认为采样量已经够了。
+
+> ⚠ **另有 23 个单元标 `SCENARIO_INTRINSIC_JITTER`**（其 `需 n≥` 中位 **74**，**单列，不并入上句**）。它们超门的那部分方差**不在链路上**（D-372：同批 RTT 平稳、TTFT~RTT 相关 0.00），**照这个数加外场 run 买不到网络精度**。要降它只有两条路：改**场景/服务端侧**的测量装置，或对该 KPI **放宽 MDE 目标**并写明理由。
+
+> ⚠ 其中 **35 个单元 CV 已超门**（标 `✗超门`）。对这些单元,`需 n≥` 只是把噪声摊薄的算术,**不解决它们本身不可重复**——先查原因(设备/环境/场景本身不稳)再重采,不要照着这个数字硬加复测。
+
+### 采样量核算：`n1_rtt_p50_ms`（目标：分辨 5% 的差异）
+
+> **口径**：`可辨最小差异` = 以本单元实测离散度，两个同样大小的单元之间需要多大差异才会超出噪声尺度（√2·1.253·sd/√n）。它是**量级指示、不是显著性检验**（时延右偏）。离散度未知（n<2）的单元一律留 `—`，**不以 0 或当前 n 顶替**。
+
+> ⚠ **两个「需 n≥」不是一回事，规划采样量要看后一个**：`需 n≥(平)` 是让目标差异**正好等于**噪声尺度的复测数——在那个 n 上，一个**真实存在**的目标差异只有**约五成**会被判为「超出噪声」（实测 52%~58%，n=5~40，D-201）；此前本段把这个数称作「足够」，**那是把抛硬币说成了保证**。`需 n≥(80%)` 才是「有 80% 把握看见它」所需的数，约为前者的 3.39 倍（判据是 |Δ|>噪声，故系数为 1+z=1.842；**不是**双侧显著性检验的 z₁₋α/₂+z₁₋β，那会多要 7.85 倍的外场工时，去买一个本报告从不作出的承诺）。
+
+> ⚠ **两个「可辨最小差异」同理**：`(平)` 是**恰好等于**噪声尺度的差异——真有这么大的差异，也只有约五成会被判为「超出噪声」；`(80%)` 才是「这一格有 80% 把握分辨出来」的差异，约为前者的 1.842 倍。右侧「达标?」按 80% 判——**此前本表只印 `(平)` 那一个数，判词却按八成给**，一列按五成报、一列按八成判，并排放在同一行（D-240）。
+
+| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异(平) | 占中位(平) | 可辨最小差异(80%) | 达标?(80%) | 需 n≥(平) | 需 n≥(80%) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 25 | 22.45 | 6.6 | 达门 | 0.52 | 2.3% | 0.96 | 达标 | 6 | 19 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 26 | 22.84 | 6.2 | 达门 | 0.48 | 2.1% | 0.89 | 达标 | 5 | 16 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 22.86 | 6.8 | 达门 | 0.53 | 2.3% | 0.97 | 达标 | 6 | 19 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 17.11 | 7 | 达门 | 0.41 | 2.4% | 0.76 | 达标 | 6 | 20 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 25 | 16.83 | 6.9 | 达门 | 0.4 | 2.4% | 0.74 | 达标 | 6 | 20 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 27 | 16.91 | 6.5 | 达门 | 0.37 | 2.2% | 0.68 | 达标 | 6 | 18 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 24 | 25.59 | 5.8 | 达门 | 0.52 | 2% | 0.96 | 达标 | 5 | 14 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 25.66 | 6.2 | 达门 | 0.54 | 2.1% | 0.99 | 达标 | 5 | 16 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 23 | 25.7 | 5.4 | 达门 | 0.5 | 2% | 0.93 | 达标 | 4 | 13 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 19.06 | 5.9 | 达门 | 0.39 | 2.1% | 0.72 | 达标 | 5 | 15 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 24 | 18.97 | 6 | 达门 | 0.4 | 2.1% | 0.74 | 达标 | 5 | 15 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 25 | 18.97 | 5.7 | 达门 | 0.37 | 2% | 0.69 | 达标 | 4 | 14 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 26 | 25.26 | 2.7 | 达门 | 0.24 | 0.9% | 0.44 | 达标 | 1 | 4 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 25.27 | 2.5 | 达门 | 0.21 | 0.8% | 0.4 | 达标 | 1 | 3 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 25 | 25.29 | 2.5 | 达门 | 0.23 | 0.9% | 0.42 | 达标 | 1 | 3 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 23 | 18.61 | 2.1 | 达门 | 0.14 | 0.8% | 0.26 | 达标 | 1 | 2 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 27 | 18.61 | 2.2 | 达门 | 0.14 | 0.8% | 0.26 | 达标 | 1 | 3 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 18.57 | 2.4 | 达门 | 0.15 | 0.8% | 0.28 | 达标 | 1 | 3 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 22 | 28.12 | 2.8 | 达门 | 0.29 | 1% | 0.54 | 达标 | 1 | 4 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 23 | 28.08 | 3.4 | 达门 | 0.35 | 1.2% | 0.64 | 达标 | 2 | 5 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 28.09 | 2.4 | 达门 | 0.24 | 0.8% | 0.44 | 达标 | 1 | 3 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 26 | 21.04 | 2.4 | 达门 | 0.18 | 0.8% | 0.33 | 达标 | 1 | 3 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 26 | 20.98 | 2.3 | 达门 | 0.17 | 0.8% | 0.31 | 达标 | 1 | 3 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 20.82 | 2.7 | 达门 | 0.2 | 1% | 0.36 | 达标 | 1 | 4 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 27.34 | 2.7 | 达门 | 0.34 | 1.2% | 0.63 | 达标 | 1 | 4 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 14 | 27.04 | 11.6 | **✗超门** | 1.53 | 5.7% | 2.82 | ✗不足 | 19 | 62 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 12 | 27.8 | 10.8 | **✗超门** | 1.55 | 5.6% | 2.86 | ✗不足 | 15 | 51 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 13 | 28.28 | 11.2 | **✗超门** | 1.57 | 5.5% | 2.89 | ✗不足 | 17 | 55 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 20.01 | 16.1 | **✗超门** | 1.63 | 8.1% | 3 | ✗不足 | 35 | 117 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 20.01 | 15.5 | **✗超门** | 1.46 | 7.3% | 2.68 | ✗不足 | 32 | 108 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 20.01 | 15.5 | **✗超门** | 1.46 | 7.3% | 2.68 | ✗不足 | 32 | 108 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 14 | 32.71 | 11.2 | **✗超门** | 1.71 | 5.2% | 3.15 | ✗不足 | 16 | 52 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 32.65 | 11.2 | **✗超门** | 1.68 | 5.2% | 3.1 | ✗不足 | 15 | 51 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 13 | 32.59 | 11.7 | **✗超门** | 1.83 | 5.6% | 3.36 | ✗不足 | 17 | 56 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 23.06 | 13.8 | **✗超门** | 1.52 | 6.6% | 2.8 | ✗不足 | 23 | 77 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 13 | 23.34 | 12.9 | **✗超门** | 1.45 | 6.2% | 2.67 | ✗不足 | 20 | 68 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 23.06 | 12.9 | **✗超门** | 1.32 | 5.7% | 2.43 | ✗不足 | 20 | 67 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 34.3 | 6.7 | 达门 | 1.02 | 3% | 1.88 | ✗不足 | 6 | 18 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 13 | 34.3 | 6.5 | 达门 | 1.06 | 3.1% | 1.96 | ✗不足 | 6 | 17 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 14 | 33.43 | 6.8 | 达门 | 1.07 | 3.2% | 1.98 | ✗不足 | 6 | 20 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 25.74 | 6.4 | 达门 | 0.78 | 3% | 1.44 | ✗不足 | 5 | 17 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 24.78 | 6.4 | 达门 | 0.75 | 3% | 1.38 | ✗不足 | 6 | 18 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 13 | 23.83 | 6.7 | 达门 | 0.82 | 3.4% | 1.51 | ✗不足 | 7 | 21 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 39.25 | 6.7 | 达门 | 1.15 | 2.9% | 2.12 | ✗不足 | 6 | 18 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 15 | 39.25 | 6.7 | 达门 | 1.15 | 2.9% | 2.12 | ✗不足 | 6 | 18 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 14 | 39.45 | 6.3 | 达门 | 1.14 | 2.9% | 2.09 | ✗不足 | 5 | 16 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 15 | 28.79 | 7.6 | 达门 | 0.99 | 3.4% | 1.82 | ✗不足 | 8 | 25 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 14 | 28.39 | 7.9 | 达门 | 1.06 | 3.7% | 1.95 | ✗不足 | 8 | 27 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 14 | 27.73 | 7.7 | 达门 | 1.03 | 3.7% | 1.9 | ✗不足 | 8 | 27 |
+
+> 另有 **47** 个**已达标**单元未列出（表内保留全部 ✗不足、✗超门、不可核算、场景内生抖动的单元，以及前 25 个达标单元）。完整数据见 `<prefix>_plan.csv`。
+
+> **结论**：24/96 个单元在当前 n 下**没有 80% 的把握**看见 5% 的差异；这些单元的建议复测数中位为 **n≥39**（每侧）。 其中 **12 个**单元的当前 n 恰好落在「差异等于噪声尺度」附近——**那只有约五成把握**，不要据此认为采样量已经够了。
+
+> ⚠ 其中 **12 个单元 CV 已超门**（标 `✗超门`）。对这些单元,`需 n≥` 只是把噪声摊薄的算术,**不解决它们本身不可重复**——先查原因(设备/环境/场景本身不稳)再重采,不要照着这个数字硬加复测。
+
+### 采样量核算：`u1_goodput_mbps`（目标：分辨 5% 的差异）
+
+> **口径**：`可辨最小差异` = 以本单元实测离散度，两个同样大小的单元之间需要多大差异才会超出噪声尺度（√2·1.253·sd/√n）。它是**量级指示、不是显著性检验**（时延右偏）。离散度未知（n<2）的单元一律留 `—`，**不以 0 或当前 n 顶替**。
+
+> ⚠ **两个「需 n≥」不是一回事，规划采样量要看后一个**：`需 n≥(平)` 是让目标差异**正好等于**噪声尺度的复测数——在那个 n 上，一个**真实存在**的目标差异只有**约五成**会被判为「超出噪声」（实测 52%~58%，n=5~40，D-201）；此前本段把这个数称作「足够」，**那是把抛硬币说成了保证**。`需 n≥(80%)` 才是「有 80% 把握看见它」所需的数，约为前者的 3.39 倍（判据是 |Δ|>噪声，故系数为 1+z=1.842；**不是**双侧显著性检验的 z₁₋α/₂+z₁₋β，那会多要 7.85 倍的外场工时，去买一个本报告从不作出的承诺）。
+
+> ⚠ **两个「可辨最小差异」同理**：`(平)` 是**恰好等于**噪声尺度的差异——真有这么大的差异，也只有约五成会被判为「超出噪声」；`(80%)` 才是「这一格有 80% 把握分辨出来」的差异，约为前者的 1.842 倍。右侧「达标?」按 80% 判——**此前本表只印 `(平)` 那一个数，判词却按八成给**，一列按五成报、一列按八成判，并排放在同一行（D-240）。
+
+| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异(平) | 占中位(平) | 可辨最小差异(80%) | 达标?(80%) | 需 n≥(平) | 需 n≥(80%) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 25 | 38.63 | 4.9 | 达门 | 0.67 | 1.7% | 1.24 | 达标 | 4 | 11 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 26 | 38.43 | 5.4 | 达门 | 0.73 | 1.9% | 1.35 | 达标 | 4 | 13 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 38.23 | 5.2 | 达门 | 0.7 | 1.8% | 1.29 | 达标 | 4 | 12 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 42.31 | 5 | 达门 | 0.75 | 1.8% | 1.38 | 达标 | 4 | 11 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 25 | 42.74 | 4.9 | 达门 | 0.74 | 1.7% | 1.37 | 达标 | 4 | 11 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 27 | 42.21 | 4.9 | 达门 | 0.71 | 1.7% | 1.31 | 达标 | 4 | 11 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 24 | 36.74 | 4.4 | 达门 | 0.58 | 1.6% | 1.06 | 达标 | 3 | 9 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 36.86 | 3.7 | 达门 | 0.46 | 1.3% | 0.85 | 达标 | 2 | 6 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 23 | 36.64 | 5.5 | 达门 | 0.75 | 2% | 1.37 | 达标 | 4 | 13 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 25 | 40.96 | 4.9 | 达门 | 0.71 | 1.7% | 1.3 | 达标 | 3 | 11 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 24 | 41.42 | 5.5 | 达门 | 0.81 | 2% | 1.49 | 达标 | 4 | 13 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P01 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 25 | 40.73 | 5.5 | 达门 | 0.8 | 2% | 1.47 | 达标 | 4 | 13 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 26 | 37.23 | 4.3 | 达门 | 0.56 | 1.5% | 1.03 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 27 | 36.3 | 4.4 | 达门 | 0.55 | 1.5% | 1.01 | 达标 | 3 | 9 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 25 | 37.28 | 4.9 | 达门 | 0.64 | 1.7% | 1.17 | 达标 | 3 | 10 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 23 | 40.8 | 4.1 | 达门 | 0.63 | 1.5% | 1.15 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 27 | 40.95 | 4.3 | 达门 | 0.6 | 1.5% | 1.11 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 41.04 | 4.4 | 达门 | 0.63 | 1.5% | 1.16 | 达标 | 3 | 9 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 22 | 35.59 | 4.5 | 达门 | 0.6 | 1.7% | 1.1 | 达标 | 3 | 9 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 23 | 34.93 | 5.4 | 达门 | 0.7 | 2% | 1.28 | 达标 | 4 | 13 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 26 | 35.23 | 4.1 | 达门 | 0.5 | 1.4% | 0.92 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 26 | 39.05 | 3.6 | 达门 | 0.48 | 1.2% | 0.89 | 达标 | 2 | 6 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 26 | 39.52 | 4.2 | 达门 | 0.58 | 1.5% | 1.06 | 达标 | 3 | 8 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P02 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 26 | 39.03 | 3.6 | 达门 | 0.49 | 1.3% | 0.9 | 达标 | 2 | 6 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P03 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 35.73 | 3.4 | 达门 | 0.56 | 1.6% | 1.04 | 达标 | 2 | 6 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 14 | 32.43 | 20.7 | **✗超门** | 3.42 | 10.5% | 6.3 | ✗不足 | 63 | 212 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 12 | 40.91 | 21.1 | **✗超门** | 4.08 | 10% | 7.51 | ✗不足 | 48 | 162 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 13 | 35.06 | 18.1 | **✗超门** | 3.24 | 9.2% | 5.97 | ✗不足 | 45 | 151 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 37.77 | 12.3 | **✗超门** | 2.28 | 6% | 4.2 | ✗不足 | 19 | 65 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 15 | 38.57 | 21.5 | **✗超门** | 3.96 | 10.3% | 7.29 | ✗不足 | 64 | 215 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 41.52 | 17.6 | **✗超门** | 3.4 | 8.2% | 6.27 | ✗不足 | 41 | 137 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 14 | 31.56 | 20.3 | **✗超门** | 3.3 | 10.4% | 6.07 | ✗不足 | 62 | 208 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 38.64 | 18 | **✗超门** | 3.19 | 8.3% | 5.87 | ✗不足 | 39 | 130 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 13 | 34.48 | 16 | **✗超门** | 2.73 | 7.9% | 5.02 | ✗不足 | 33 | 111 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 13 | 38.29 | 19.1 | **✗超门** | 3.53 | 9.2% | 6.5 | ✗不足 | 45 | 150 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s2_coding_agent | 13 | 38.45 | 8.2 | 达门 | 1.53 | 4% | 2.82 | ✗不足 | 9 | 28 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P04 · carrier=cucc · time_band=idle · tier=metro · profile_id=s3_multimodal | 15 | 39.24 | 21.1 | **✗超门** | 3.83 | 9.8% | 7.05 | ✗不足 | 58 | 194 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 13 | 33.95 | 5.8 | 达门 | 0.95 | 2.8% | 1.75 | ✗不足 | 5 | 14 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P05 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s2_coding_agent | 14 | 33.78 | 6.4 | 达门 | 1 | 3% | 1.85 | ✗不足 | 5 | 17 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s3_multimodal | 14 | 32.9 | 6 | 达门 | 0.93 | 2.8% | 1.72 | ✗不足 | 5 | 16 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P06 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s3_multimodal | 13 | 37.28 | 6.5 | 达门 | 1.18 | 3.2% | 2.17 | ✗不足 | 6 | 18 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=busy · tier=metro · profile_id=s1_chat | 15 | 30.98 | 7.3 | 达门 | 1.03 | 3.3% | 1.9 | ✗不足 | 7 | 23 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P07 · carrier=cucc · time_band=idle · tier=metro · profile_id=s1_chat | 15 | 35.23 | 6.9 | 达门 | 1.11 | 3.2% | 2.05 | ✗不足 | 7 | 21 |
+| campaign_id=SYNTH-EXP · point_id=SYNTH-P08 · carrier=cucc · time_band=busy · tier=metro · profile_id=s3_multimodal | 13 | 24.61 | 5.6 | 达门 | 0.69 | 2.8% | 1.27 | ✗不足 | 5 | 14 |
+
+> 另有 **52** 个**已达标**单元未列出（表内保留全部 ✗不足、✗超门、不可核算、场景内生抖动的单元，以及前 25 个达标单元）。完整数据见 `<prefix>_plan.csv`。
+
+> **结论**：19/96 个单元在当前 n 下**没有 80% 的把握**看见 5% 的差异；这些单元的建议复测数中位为 **n≥111**（每侧）。 其中 **8 个**单元的当前 n 恰好落在「差异等于噪声尺度」附近——**那只有约五成把握**，不要据此认为采样量已经够了。
+
+> ⚠ 其中 **11 个单元 CV 已超门**（标 `✗超门`）。对这些单元,`需 n≥` 只是把噪声摊薄的算术,**不解决它们本身不可重复**——先查原因(设备/环境/场景本身不稳)再重采,不要照着这个数字硬加复测。
 
 ## 序位效应诊断（t1_ttft_ms；拉丁方反平衡是否奏效）
 

@@ -97,6 +97,47 @@
 | campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
 | campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
 
+## 采样量核算（目标：分辨 5% 的差异）
+
+> **这一段是「还要测多少」的依据**，`复测稳定性` 是「测得准不准」——同一批单元，两个问题。扩展轮 `n≥` 的决定就出自本段的 `需 n≥(80%)` 列。完整（未折叠）数据见 `<prefix>_plan.csv`，或单独跑 `python stability.py <corpus> --kpi <KPI> --plan`。
+
+### 采样量核算：`n1_rtt_p50_ms`（目标：分辨 5% 的差异）
+
+> **口径**：`可辨最小差异` = 以本单元实测离散度，两个同样大小的单元之间需要多大差异才会超出噪声尺度（√2·1.253·sd/√n）。它是**量级指示、不是显著性检验**（时延右偏）。离散度未知（n<2）的单元一律留 `—`，**不以 0 或当前 n 顶替**。
+
+> ⚠ **两个「需 n≥」不是一回事，规划采样量要看后一个**：`需 n≥(平)` 是让目标差异**正好等于**噪声尺度的复测数——在那个 n 上，一个**真实存在**的目标差异只有**约五成**会被判为「超出噪声」（实测 52%~58%，n=5~40，D-201）；此前本段把这个数称作「足够」，**那是把抛硬币说成了保证**。`需 n≥(80%)` 才是「有 80% 把握看见它」所需的数，约为前者的 3.39 倍（判据是 |Δ|>噪声，故系数为 1+z=1.842；**不是**双侧显著性检验的 z₁₋α/₂+z₁₋β，那会多要 7.85 倍的外场工时，去买一个本报告从不作出的承诺）。
+
+> ⚠ **两个「可辨最小差异」同理**：`(平)` 是**恰好等于**噪声尺度的差异——真有这么大的差异，也只有约五成会被判为「超出噪声」；`(80%)` 才是「这一格有 80% 把握分辨出来」的差异，约为前者的 1.842 倍。右侧「达标?」按 80% 判——**此前本表只印 `(平)` 那一个数，判词却按八成给**，一列按五成报、一列按八成判，并排放在同一行（D-240）。
+
+| 单元 | n | 中位 | CV% | 超门? | 可辨最小差异(平) | 占中位(平) | 可辨最小差异(80%) | 达标?(80%) | 需 n≥(平) | 需 n≥(80%) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 0 | 达门 | 0 | 0% | 0 | 达标 | 0 | 0 |
+
+> **结论**：24 个可核算单元在当前 n 下，都有 **≥80% 的把握**看见 5% 的差异。
+
 ## 序位效应诊断（n1_rtt_p50_ms；拉丁方反平衡是否奏效）
 
 > 判据：同 profile 各**执行位次**的中位数极差 / 总体中位数 > 10.0% 即疑似残留序位偏倚（无效应=好结果）。

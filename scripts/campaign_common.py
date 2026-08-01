@@ -936,7 +936,7 @@ def required_n(sd, effect):
 PLAN_POWER = 0.80
 
 
-def power_factor(power=PLAN_POWER):
+def power_factor(power=None):
     """Multiplier on the noise scale for a `power` chance of clearing it.
 
     This report's criterion is |Δ| > noise, i.e. ONE noise unit — not a
@@ -946,20 +946,26 @@ def power_factor(power=PLAN_POWER):
     wrong criterion would have demanded 7.85x — real field days spent buying a
     guarantee this report never makes.
     """
+    # read live, not captured in the signature — archived in the provenance
+    # manifest since the report started rendering the sample-size section
+    # (D-388), and that manifest promises changing it changes the report
+    power = PLAN_POWER if power is None else power
     if not 0.5 < power < 1.0:
         return None
     return 1.0 + statistics.NormalDist().inv_cdf(power)
 
 
-def detectable_effect_at_power(sd, n, power=PLAN_POWER):
+def detectable_effect_at_power(sd, n, power=None):
     """Difference this cell would clear the noise scale `power` of the time."""
+    power = PLAN_POWER if power is None else power
     mde = min_detectable_effect(sd, n)
     f = power_factor(power)
     return None if (mde is None or f is None) else mde * f
 
 
-def required_n_at_power(sd, effect, power=PLAN_POWER):
+def required_n_at_power(sd, effect, power=None):
     """Repeats per side to see a difference of `effect` `power` of the time."""
+    power = PLAN_POWER if power is None else power
     f = power_factor(power)
     if sd is None or effect is None or effect <= 0 or f is None:
         return None

@@ -301,11 +301,24 @@ def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
 # plan — the noise scale (D-144) only tells you afterwards that the delta drowned.
 DEFAULT_TARGET_EFFECT_PCT = 5.0
 
+# Same reason the CV table has one (D-117): at grid scale this is one row per
+# cell per KPI and it would bury every section under it. Rows that already
+# resolve the target are folded away and the omission is stated in full;
+# 达标 is the only kind ever folded — a cell that is short, over the CV gate,
+# not computable or carrying impossible readings is exactly what the reader
+# came for. The standalone CLI stays uncapped (D-130: whoever ran the tool
+# came to look at this table).
+DEFAULT_MAX_PLAN_ROWS = 25
 
-def plan_cells(cells, target_pct=DEFAULT_TARGET_EFFECT_PCT):
+
+def plan_cells(cells, target_pct=None):
     """Per cell: what the repeats actually resolve, and how many it would take to
     resolve `target_pct`% of the cell median. Unknown spread stays None all the
     way through — 'we cannot say' must not render as 'resolves everything'."""
+    # read live (D-204/D-388): captured in the signature, setattr could not
+    # reach it, so the perturbation guard never ran on a gate the report
+    # now prints
+    target_pct = DEFAULT_TARGET_EFFECT_PCT if target_pct is None else target_pct
     out = []
     for c in cells:
         sd, n, med = c["stdev"], c["n"], c["median"]
@@ -331,7 +344,10 @@ def plan_cells(cells, target_pct=DEFAULT_TARGET_EFFECT_PCT):
     return out
 
 
-def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
+def render_plan_markdown(rows, kpi_key, target_pct=None, max_ok_rows=_UNSET):
+    target_pct = DEFAULT_TARGET_EFFECT_PCT if target_pct is None else target_pct
+    if max_ok_rows is _UNSET:
+        max_ok_rows = DEFAULT_MAX_PLAN_ROWS
     lines = [f"### 采样量核算：`{kpi_key}`（目标：分辨 {cc.fmt_num(target_pct, 1)}% 的差异）", ""]
     if not rows:
         lines.append(f"_无 `{kpi_key}` 数据。_")
@@ -368,7 +384,23 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
         f"需 n≥({cc.fmt_num(cc.PLAN_POWER * 100, 0)}%) |",
         "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for r in rows:
+    # Same fold as the CV table (D-117), and the same rule about WHICH rows may
+    # be folded: only a cell that already resolves the target AND is inside the
+    # CV gate AND carries no impossible readings. Everything a reader came for —
+    # short, over the gate, not computable, marked — stays on the page, and the
+    # omission is stated in full below rather than silently applied.
+    ok_ids = [id(r) for r in rows
+              if r["resolves_at_power"] is True and not r["unstable"]
+              and not r.get("implausible_values")
+              and not r.get("scenario_intrinsic_jitter")]
+    omitted = 0
+    if max_ok_rows is not None and len(ok_ids) > max_ok_rows:
+        keep = set(ok_ids[:max_ok_rows])
+        omitted = len(ok_ids) - max_ok_rows
+        shown_rows = [r for r in rows if id(r) not in set(ok_ids) or id(r) in keep]
+    else:
+        shown_rows = rows
+    for r in shown_rows:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in r["cell"].items())
         # judged at the SAME criterion as the verdict below. Judging the column
         # at break-even and the verdict at power would put "达标" on a row the
@@ -386,6 +418,13 @@ def render_plan_markdown(rows, kpi_key, target_pct=DEFAULT_TARGET_EFFECT_PCT):
             f"{cc.fmt_num(r['mde_pct'], 1)}% | {cc.fmt_num(r.get('mde_power'), 2)} | "
             f"{ok} | {cc.fmt_num(r['required_n'])} | "
             f"{cc.fmt_num(r.get('required_n_power'))} |")
+    if omitted:
+        lines += ["", f"> 另有 **{omitted}** 个**已达标**单元未列出（表内保留全部 ✗不足、"
+                      "✗超门、不可核算、场景内生抖动的单元，以及前 "
+                      f"{max_ok_rows} 个达标单元）。完整数据见 `<prefix>_plan.csv`。"]
+    # Counted over `rows`, never over what survived the fold: the conclusion is
+    # about the population the verdict was computed on, not the rows that fit on
+    # the page (the reason D-297 gave the CV table its own count line).
     unstable = [r for r in rows if r["unstable"]]
     judged = [r for r in rows if r["resolves_at_power"] is not None]
     # The verdict is judged at the POWER criterion, not at break-even. Judging it
@@ -482,7 +521,10 @@ def main(argv):
         if args.plan <= 0:
             print("--plan 的目标差异须为正数（它是要分辨的差异占中位的百分比）", file=sys.stderr)
             return 2
-        print(render_plan_markdown(plan_cells(cells, args.plan), args.kpi, args.plan))
+        # uncapped standalone, same reason the CV table is (D-130): whoever ran
+        # THIS tool came to look at this table
+        print(render_plan_markdown(plan_cells(cells, args.plan), args.kpi, args.plan,
+                                   max_ok_rows=None))
     else:
         print(render_markdown(cells, args.kpi, args.cv_gate,
                               max_stable_rows=args.max_stable_rows or None))

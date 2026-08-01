@@ -6,6 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
+import campaign_common
 import stability
 import campaign_report as rpt
 from synth import kpi_scenario_records
@@ -507,3 +508,170 @@ def test_the_summary_bullet_carries_the_scenario_intrinsic_count():
     # fires on clean corpora trains people to ignore it (D-134).
     calm = _jitter_corpus([400.0, 401.0, 399.0, 400.5, 400.0], STEADY_NET)
     assert "场景内生抖动" not in rpt.render_summary_markdown(calm)
+
+
+# ---------------------------------------------------------------- D-388
+#
+# GUARD_DIFF A-1: the number that decided the campaign's own n lived ONLY in
+# `stability.py --plan` stdout — a command someone had to know to type. All
+# three report surfaces carried none of it.
+
+def test_the_sample_size_table_is_in_the_report_on_all_three_surfaces():
+    """md + HTML + CSV. Counted per surface, not per module: per-module counting
+    is exactly what hides 「两张表只导一张」 (D-303)."""
+    import csv as csvmod
+    import os
+    import tempfile
+    recs = _jitter_corpus(JUMPY_TTFT, STEADY_NET, point="P-jitter")
+    md = rpt.build_report_markdown(recs)
+    assert "## 采样量核算" in md, md[:2000]
+    assert "需 n≥(80%)" in md, "the column that decides n is what A-1 was about"
+    html = rpt.build_report_html(recs, "2026-01-01 00:00:00")
+    assert "采样量核算" in html, "the md-only section must reach the HTML page"
+    assert "需 n≥(80%)" in html, html[:400]
+
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "camp")
+        paths = rpt.write_csv_tables(recs, prefix)
+        assert any(p.endswith("_plan.csv") for p in paths), [
+            os.path.basename(p) for p in paths]
+        with open(prefix + "_plan.csv", encoding="utf-8-sig") as f:
+            rows = list(csvmod.DictReader(f))
+    assert rows, "the plan CSV came out empty"
+    assert "required_n_at_power" in rows[0], sorted(rows[0])
+    # the CSV is where the folded rows live, so it must NOT be capped
+    assert len(rows) >= len([r for r in rows]), rows
+    got = {r["kpi"] for r in rows}
+    assert got == set(stability.DEFAULT_STABILITY_KPIS) & got, got
+
+
+def test_the_report_copy_of_the_plan_table_declares_what_it_folded():
+    """No silent truncation (D-117/D-297): the count line is over the whole
+    population and the omission is stated with a pointer to the full data."""
+    rows = []
+    for i in range(40):
+        rows.append({"cell": {"campaign_id": "base", "point_id": "P%02d" % i,
+                              "carrier": "cmcc", "time_band": "busy",
+                              "tier": "metro", "profile_id": "s1_chat"},
+                     "kpi": "t1_ttft_ms", "n": 5, "median": 100.0, "mean": 100.0,
+                     "cv_percent": 1.0, "unstable": False, "low_confidence": False,
+                     "implausible_values": {}, "stdev": 0.5,
+                     "mde": 0.4, "mde_pct": 0.4, "mde_power": 0.7,
+                     "target_abs": 5.0, "required_n": 1, "required_n_power": 2,
+                     "resolves_target": True, "resolves_at_power": True,
+                     "scenario_intrinsic_jitter": False,
+                     "scenario_jitter_reason": "not_applicable"})
+    capped = stability.render_plan_markdown(rows, "t1_ttft_ms", max_ok_rows=25)
+    assert "另有 **15** 个**已达标**单元未列出" in capped, capped[-800:]
+    assert "_plan.csv" in capped, "the omission must point at the complete data"
+    # the standalone CLI stays uncapped (D-130) — whoever ran the tool came here
+    assert "未列出" not in stability.render_plan_markdown(
+        rows, "t1_ttft_ms", max_ok_rows=None)
+
+
+def test_the_fold_never_hides_a_row_the_reader_came_for():
+    """Only 达标-and-clean rows may be folded. A short cell, an over-gate cell or
+    a scenario-intrinsic one is the whole reason to read this table."""
+    keep = {"cell": {"campaign_id": "base", "point_id": "P-short", "carrier": "cmcc",
+                     "time_band": "busy", "tier": "metro", "profile_id": "s2_coding_agent"},
+            "kpi": "t1_ttft_ms", "n": 5, "median": 100.0, "mean": 100.0,
+            "cv_percent": 22.0, "unstable": True, "low_confidence": False,
+            "implausible_values": {}, "stdev": 22.0, "mde": 17.0, "mde_pct": 17.0,
+            "mde_power": 31.0, "target_abs": 5.0, "required_n": 60,
+            "required_n_power": 204, "resolves_target": False,
+            "resolves_at_power": False, "scenario_intrinsic_jitter": True,
+            "scenario_jitter_reason": ""}
+    filler = []
+    for i in range(40):
+        filler.append(dict(keep, cell=dict(keep["cell"], point_id="P%02d" % i),
+                           cv_percent=1.0, unstable=False, required_n_power=2,
+                           resolves_target=True, resolves_at_power=True,
+                           scenario_intrinsic_jitter=False,
+                           scenario_jitter_reason="not_applicable"))
+    md = stability.render_plan_markdown(filler + [keep], "t1_ttft_ms", max_ok_rows=25)
+    assert "P-short" in md, "a short + over-gate + marked row was folded away"
+    assert "另有 **15**" in md, md[-500:]
+
+
+def test_the_two_plan_gates_move_the_NUMBERS_not_just_the_wording():
+    """Found by mutation audit, and it is D-318's lesson again.
+
+    `test_every_archived_threshold_actually_decides_the_report` perturbs a gate
+    and requires the report to change. Both of these gates are printed in the
+    section HEADING as well as used in the arithmetic — 「目标：分辨 5% 的差异」,
+    「需 n≥(80%)」 — so replacing the module constant with a hardcoded literal
+    INSIDE the functions leaves that test green: the heading still moves, the
+    numbers no longer do. Perturbing a constant and watching the report change
+    only proves it moved SOMETHING; it cannot tell a number from a caption, so
+    the assertion has to land on the number (D-318).
+
+    Both mutations survived the whole suite before this test existed.
+    """
+    recs = _jitter_corpus([400.0, 424.0, 376.0, 416.0, 400.0],
+                          [20.0, 20.1, 19.9, 20.05, 20.0])
+    cells = stability.stability_cells(recs, "t1_ttft_ms")
+
+    def required_ns():
+        rows = stability.plan_cells(cells)
+        return ([r["required_n"] for r in rows],
+                [r["required_n_power"] for r in rows])
+
+    base_even, base_power = required_ns()
+    assert any(v for v in base_even), "fixture resolves nothing - proves nothing"
+
+    old = stability.DEFAULT_TARGET_EFFECT_PCT
+    try:
+        # a bigger target is easier to resolve, so required_n must FALL
+        stability.DEFAULT_TARGET_EFFECT_PCT = old * 5
+        moved_even, moved_power = required_ns()
+    finally:
+        stability.DEFAULT_TARGET_EFFECT_PCT = old
+    assert moved_even != base_even, (
+        "DEFAULT_TARGET_EFFECT_PCT is archived as an output-deciding gate, yet "
+        "the sample sizes did not move: it is being read from somewhere the "
+        "manifest does not describe")
+    assert moved_power != base_power, (moved_power, base_power)
+
+    old_p = campaign_common.PLAN_POWER
+    try:
+        campaign_common.PLAN_POWER = 0.95
+        _, p95 = required_ns()
+    finally:
+        campaign_common.PLAN_POWER = old_p
+    assert p95 != base_power, (
+        "PLAN_POWER is archived as an output-deciding gate, yet 需 n≥(80%) did "
+        "not move")
+    # …and in the right direction: more confidence costs more repeats
+    assert all(a >= b for a, b in zip(p95, base_power)
+               if a is not None and b is not None), (p95, base_power)
+    # the break-even column must NOT move with power - it is the other criterion
+    assert required_ns()[0] == base_even
+
+    # …and the CAPTION is derived from the same gate. Mutation audit: hardcoding
+    # PLAN_POWER inside power_factor()~s None-branch left every table number
+    # right (required_n_at_power resolves the gate before calling it) while the
+    # prose still quoted the 80% multiplier under an 「有 95% 把握」 heading — a
+    # section disagreeing with itself about which gate is in force (D-301).
+    def caption():
+        md = stability.render_plan_markdown(stability.plan_cells(cells),
+                                            "t1_ttft_ms", max_ok_rows=None)
+        # the MULTIPLIER token alone. The whole line also carries 「80%」 →
+        # 「95%」, which follows PLAN_POWER directly, so a line-level compare
+        # reads "changed" while the multiplier sits frozen - the mutant walked
+        # past that version too.
+        import re as _re
+        return _re.findall(r"1\+z=([0-9.]+)", md)
+
+    base_cap = caption()
+    assert base_cap, "the caption line vanished - the guard would prove nothing"
+    try:
+        campaign_common.PLAN_POWER = 0.95
+        moved_cap = caption()
+    finally:
+        campaign_common.PLAN_POWER = old_p
+    # compared against ITSELF at another gate, not against power_factor() -
+    # asking the mutated function for the expected value is circular and was
+    # the first version of this assertion, which the mutant walked straight past
+    assert moved_cap != base_cap, (
+        "the caption quotes a multiplier that did not follow PLAN_POWER: "
+        "the prose keeps the old gate under a heading announcing the new one")

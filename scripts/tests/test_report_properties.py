@@ -1423,6 +1423,9 @@ _KPI_SET_FOR_CSV = {
     "attribution": lambda: attribution.ATTRIBUTABLE_KPIS,
     "segment_profile": lambda: attribution.ATTRIBUTABLE_KPIS,
     "stability": lambda: stability.DEFAULT_STABILITY_KPIS,
+    # the sample-size table is the same cells asked a different question, so
+    # it is computed over the same list (D-388)
+    "plan": lambda: stability.DEFAULT_STABILITY_KPIS,
     "order_effect": lambda: order_effect.ORDER_SENSITIVE_KPIS,
     "round_effect": lambda: round_effect.ROUND_KPIS,
 }
@@ -1813,6 +1816,10 @@ _CSV_FOR_TABLE = {
     "点位 × 忙闲 × 运营商 热力卡": "heat",
     "分 KPI 热力卡：": "kpi_heat",
     "复测稳定性：": "stability",
+    # D-388 wired GUARD_DIFF A-1 in: the number that decides the campaign n
+    # was reachable only by typing . This guard caught the
+    # new section the moment it rendered without an export.
+    "采样量核算：": "plan",
     "序位效应诊断（": "order_effect",
     "有效性与失效原因": "validity",
     "有效率趋势": "validity_trend",

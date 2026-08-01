@@ -262,12 +262,6 @@ _NOT_A_REPORT_GATE = {
         "(D-263). What exempts it is that its value is `METRIC_AQS`, archived "
         "as `trend_metric_key`: retune the metric and the archived key moves "
         "with it, so the manifest cannot look unchanged",
-    ("stability", "DEFAULT_TARGET_EFFECT_PCT"):
-        "only the standalone `--plan` sample-size CLI; no report section reads it",
-    ("campaign_common", "PLAN_POWER"):
-        "same: the `--plan` sample-size CLI only. It shapes advice about a FUTURE "
-        "campaign, not any number in this report — nothing here is reproduced "
-        "differently by changing it",
     ("stability", "SCENARIO_JITTER_MARK"):
         "the marker word printed in the 备注 column and named in the summary (D-378); "
         "perturbing it changes what the flag is CALLED and leaves every numeral "
@@ -323,6 +317,14 @@ _GATE_KEY = {
     ("stability", "STAB_GROUP_BY"): "stability_group_by",
     ("campaign_common", "VALUE_RANGES"): "value_ranges",
     ("stability", "DEFAULT_STABILITY_KPIS"): "stability_kpis",
+    # Exempt as "the standalone --plan CLI only" until D-388 wired that section
+    # into the report. Nothing would have caught the exemption going stale:
+    # both were captured as default ARGUMENTS, i.e. in the `captured` bucket of
+    # the exemption test, where no perturbation reaches them. Made live at the
+    # source (D-204) so these entries are checkable at all.
+    ("stability", "DEFAULT_TARGET_EFFECT_PCT"): "plan_target_effect_pct",
+    ("stability", "DEFAULT_MAX_PLAN_ROWS"): "plan_max_ok_rows",
+    ("campaign_common", "PLAN_POWER"): "plan_power",
     # D-378: the discriminant that decides which over-gate cells the report
     # tells the operator NOT to go re-measure, and which cells feed the
     # 建议复测数中位 the sample-size section prints.
@@ -430,6 +432,12 @@ def test_effective_thresholds_cover_every_output_deciding_gate():
 _PERTURB = {
     "cv_gate_percent": (stability, "DEFAULT_CV_GATE", 1.0),
     "stability_max_stable_rows": (stability, "DEFAULT_MAX_STABLE_ROWS", 3),
+    # a bigger target is easier to resolve, so required_n and every 达标? move
+    "plan_target_effect_pct": (stability, "DEFAULT_TARGET_EFFECT_PCT", 25.0),
+    "plan_max_ok_rows": (stability, "DEFAULT_MAX_PLAN_ROWS", 1),
+    # 0.95 rather than a nudge: the factor is 1+z, so this changes every
+    # 需 n≥(80%) column heading AND the numbers under it
+    "plan_power": (campaign_common, "PLAN_POWER", 0.95),
     "stability_kpis": (stability, "DEFAULT_STABILITY_KPIS", ("t1_ttft_ms",)),
     # moved onto a KPI the corpus HAS, not emptied: the section banner names
     # both lists, so a retune shows on the page whether or not any cell is
