@@ -192,6 +192,18 @@
             }
           }
         },
+        "kpi_quality": {
+          "type": "object",
+          "description": "per-KPI 质量(D-373,可选/加性;v17+ 生产者写):键=KPI 短名(与设备侧 lowConfidenceKpis 同一词汇,T1/T2/T2_incl_coalesced/T3/T3_incl_resume/T4/T5/N1/N2/U1/U1_excl_slow_start/U2),值={sample_count:进入统计的有效样本数,low_confidence:该 KPI 是否低于其口径下限}。低置信判词由此带理由——此前契约只导结论,标记恒真且无从定位(试点报告附二)",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["sample_count", "low_confidence"],
+            "properties": {
+              "sample_count": { "type": ["integer", "null"] },
+              "low_confidence": { "type": "boolean" }
+            }
+          }
+        },
         "parse": {
           "type": "object",
           "additionalProperties": true,

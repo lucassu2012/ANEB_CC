@@ -509,6 +509,25 @@ def scenario_validity(scn):
     return v.lower() if isinstance(v, str) else "unknown"
 
 
+def scenario_kpi_quality(scn):
+    """scenarios[].kpi_quality as {short_name: {"sample_count": int|None,
+    "low_confidence": bool}} — {} when absent (v17 之前的生产者;缺席是事实,
+    不是零,消费方须区分「没带」与「全好」,D-373/R-10)."""
+    q = scn.get("kpi_quality")
+    if not isinstance(q, dict):
+        return {}
+    out = {}
+    for name, entry in q.items():
+        if not isinstance(entry, dict):
+            continue
+        n = entry.get("sample_count")
+        out[name] = {
+            "sample_count": n if isinstance(n, int) and not isinstance(n, bool) else None,
+            "low_confidence": bool(entry.get("low_confidence")),
+        }
+    return out
+
+
 def scenario_order_index(scn):
     """scenarios[].order_index — execution POSITION within the run (0-based).
 

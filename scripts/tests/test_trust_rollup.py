@@ -49,6 +49,39 @@ def test_exactly_half_suspect_is_not_hotspot():
     assert tu.analyze(recs)["cells"][0]["clock_hotspot"] is False
 
 
+# ------------------------------------------------------- 低置信定位（D-373）
+
+def _rec_quality(quality):
+    rec = _rec(clock={"offset_suspect": False})
+    rec["scenarios"][0]["kpi_quality"] = quality
+    return rec
+
+
+def test_kpi_quality_rollup_names_which_kpi_is_short_and_by_how_much():
+    """试点报告附二第一建议的读者半边:低置信判词带上理由——哪个 KPI、
+    低置信几次、最少几个样本。两半都钉:被标注的行与干净的行。"""
+    recs = [_rec_quality({"U2": {"sample_count": 5, "low_confidence": True},
+                          "N1": {"sample_count": 20, "low_confidence": False}})
+            for _ in range(3)]
+    res = tu.analyze(recs)
+    kq = res["kpi_quality"]
+    assert kq["U2"] == {"annotated": 3, "low": 3, "min_n": 5}, kq
+    assert kq["N1"] == {"annotated": 3, "low": 0, "min_n": 20}, kq
+    md = tu.render_markdown(res)
+    assert "低置信定位" in md
+    assert "| U2 | 3 | 3 (100%) | 5 |" in md, md
+    assert "| N1 | 3 | 0 (0%) | 20 |" in md, md
+
+
+def test_a_corpus_without_kpi_quality_reports_a_gap_not_silence():
+    """v17 之前的语料没有 kpi_quality:定位段必须说「无法定位」,
+    而不是消失或渲染一张空表读成「没有低置信」(缺席≠全好,R-10)。"""
+    res = tu.analyze([_rec(clock={"offset_suspect": False})])
+    assert res["kpi_quality"] == {}
+    md = tu.render_markdown(res)
+    assert "无法定位" in md and "不等于没有" in md, md
+
+
 def test_stream_bad_on_gap_or_dup():
     recs = [_rec(kpi={"seq_gap_count": 1, "seq_dup_count": 0}),
             _rec(kpi={"seq_gap_count": 0, "seq_dup_count": 2}),

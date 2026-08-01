@@ -46,7 +46,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v15：adapter_obs 加 sessionSpanMs 列（spine-3 C6 会话时长 ui-proxy，additive ADD COLUMN）
     // v16：scenario_result 增 radio* 八列（RADIO_CONTEXT_WIRING_SPEC v1.0 接线，D-367：
     //      场景级无线导出进上报体 network_snapshot.radio;全部可空,历史行 NULL,additive）
-    version = 16,
+    // v17：scenario_result 增 kpiSampleCounts 列（D-373:per-KPI 有效样本数进上报体
+    //      kpi_quality;低置信判词从此带理由;可空,历史行 NULL,additive ADD COLUMN）
+    version = 17,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -408,6 +410,28 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v16 → v17 的全部语句（per-KPI 样本数落库，additive-only，D-373）：scenario_result 加
+         * `kpiSampleCounts` 列（"T1:3,T2:110,…"，与 lowConfidenceKpis 同一短名词汇）。ALTER TABLE
+         * ADD COLUMN 追加为末列，与 Entities.kt ScenarioResultEntity 末尾新字段的 KSP 期望 schema
+         * 一致（affinity TEXT、可空、**无默认值**——R-10）。既有行补 NULL（=「导出未运行」，
+         * ResultReporter 据此不为历史行编造 kpi_quality 块），不触碰其他表/列＝v16 旧数据全存活。
+         */
+        internal val MIGRATION_16_17_SQL: List<String> = listOf(
+            "ALTER TABLE `scenario_result` ADD COLUMN `kpiSampleCounts` TEXT",
+        )
+
+        /**
+         * v16 → v17（per-KPI 样本数落库，additive）：只加列不动数据。人工验证同 [MIGRATION_15_16]
+         * KDoc（覆盖安装后既有行可见且 kpiSampleCounts=NULL、.schema 输出含新列、跑一次场景后
+         * 新行有值、logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_16_17_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -420,7 +444,7 @@ abstract class AnebDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                        MIGRATION_15_16,
+                        MIGRATION_15_16, MIGRATION_16_17,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()

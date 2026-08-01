@@ -87,4 +87,24 @@ class ResultReporterRadioTest {
         val b = body(scenario("wifi", stale = null))
         assertFalse("wifi/历史行不得携带 radio 键（规格 §2）", b.contains("\"radio\""))
     }
+
+    // ---------- per-KPI 质量（D-373） ----------
+
+    @Test
+    fun `kpi_quality 携带样本数与低置信且历史行不写键`() {
+        val with = body(
+            scenario("cellular", stale = false).copy(
+                kpiSampleCounts = "T1:3,N1:20,U2:5",
+                lowConfidenceKpis = "U2",
+            ),
+        )
+        assertTrue(with.contains("\"kpi_quality\""))
+        assertTrue(with.contains("\"T1\":{\"sample_count\":3,\"low_confidence\":false}") ||
+            with.contains("\"T1\": {\"sample_count\": 3, \"low_confidence\": false}"))
+        assertTrue(with.contains("\"U2\":{\"sample_count\":5,\"low_confidence\":true}") ||
+            with.contains("\"U2\": {\"sample_count\": 5, \"low_confidence\": true}"))
+        // 历史行（kpiSampleCounts=null）：不写键、不编造
+        val without = body(scenario("cellular", stale = false))
+        assertFalse("v17 之前的历史行不得携带 kpi_quality 键", without.contains("\"kpi_quality\""))
+    }
 }

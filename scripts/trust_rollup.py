@@ -94,11 +94,30 @@ def trust_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     return cells
 
 
+def kpi_quality_rollup(records):
+    """Corpus-level per-KPI quality (D-373): {short_name: {annotated, low,
+    min_n}}. Empty dict when NO scenario carries kpi_quality — the pre-v17
+    shape, reported as a collection gap rather than silence (缺席≠全好)."""
+    agg = {}
+    for rec in records:
+        for scn in cc.iter_scenarios(rec):
+            for name, q in cc.scenario_kpi_quality(scn).items():
+                slot = agg.setdefault(name, {"annotated": 0, "low": 0, "min_n": None})
+                slot["annotated"] += 1
+                if q["low_confidence"]:
+                    slot["low"] += 1
+                n = q["sample_count"]
+                if n is not None and (slot["min_n"] is None or n < slot["min_n"]):
+                    slot["min_n"] = n
+    return agg
+
+
 def analyze(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
     cells = trust_cells(records, min_samples)
     no_evidence = all(c["clock_annotated"] == 0 and c["stream_counted"] == 0
                       and c["parse_per_event_us_median"] is None for c in cells)
     return {"cells": cells, "min_samples": min_samples,
+            "kpi_quality": kpi_quality_rollup(records),
             "no_evidence": no_evidence if cells else True}
 
 
@@ -131,6 +150,23 @@ def render_markdown(res):
             f"{c['clock_annotated']} | {share} | {cc.fmt_num(c['abs_drift_ppm_median'])} | "
             f"{stream} | {cc.fmt_num(c['parse_per_event_us_median'])} | "
             f"{'; '.join(notes) or '—'} |")
+
+    # 低置信定位（D-373）：判词从此带理由——哪个 KPI 低置信、差到几个样本。
+    lines += ["", "### 低置信定位（per-KPI 样本数）", ""]
+    kq = res.get("kpi_quality") or {}
+    if not kq:
+        lines.append("_语料未携带 `kpi_quality`（v17 之前的生产者）——低置信**无法定位**，"
+                     "不等于没有。_")
+    else:
+        lines += ["| KPI | 标注场景 | 低置信 | 最小样本数 |",
+                  "|---|---|---|---|"]
+        ordered = sorted(kq.items(),
+                         key=lambda kv: (-(kv[1]["low"] / kv[1]["annotated"]),
+                                         kv[0]))
+        for name, s in ordered:
+            lines.append(f"| {cc.md_cell(name)} | {s['annotated']} | "
+                         f"{s['low']} ({s['low'] / s['annotated'] * 100:.0f}%) | "
+                         f"{cc.fmt_num(s['min_n'])} |")
     return "\n".join(lines)
 
 

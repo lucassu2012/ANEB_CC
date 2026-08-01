@@ -187,6 +187,24 @@ object ResultReporter {
             put("parse_dur_us", s.parseDurUsTotal)
             put("per_event_parse_us", s.perEventParseUs)
         })
+        // per-KPI 质量（D-373，试点报告附二第一建议）：低置信判词此前只有结论没有理由
+        // ——哪个 KPI 差几个样本设备知道、契约不说，标记恒真且无从定位。kpiSampleCounts
+        // 非 null = 导出运行过（v17+）；历史行不写该键，不编造。词汇与 lowConfidenceKpis
+        // 同源（TestEngine.kpiValuePairs 单一清单）。
+        val sampleCounts = s.kpiSampleCounts
+        if (sampleCounts != null) {
+            val lowSet = s.lowConfidenceKpis.split(",").filter { it.isNotBlank() }.toSet()
+            put("kpi_quality", buildJsonObject {
+                sampleCounts.split(",").filter { it.isNotBlank() }.forEach { pair ->
+                    val name = pair.substringBefore(":")
+                    val n = pair.substringAfter(":").toIntOrNull()
+                    put(name, buildJsonObject {
+                        put("sample_count", n)
+                        put("low_confidence", name in lowSet)
+                    })
+                }
+            })
+        }
         // P1-C08 遗留接线：批化标注（additive 扩展——server/handlers_results.go 的
         // validateResultContract 只校验必填字段、不拒新增字段，已读码确认）。
         // R-05：score/attribution 仅为标注与取证证据，服务端/下游不得据此改判 validity。

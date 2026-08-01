@@ -2289,6 +2289,21 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                         c["low_confidence"], _mixed(cell)])
     written.append(p)
 
+    # 低置信定位（D-373）：trust 段渲染的第二张表，照 §2.6 抵达 CSV。
+    # 语料未携带 kpi_quality（v17 之前）→ 只有表头的空表：文件在、行为零，
+    # 与「没导出这张表」可区分（缺席是事实，不是省略）。
+    kq = trust_rollup.kpi_quality_rollup(records)
+    p = prefix + "_kpi_quality.csv"
+    with open(p, "w", newline="", encoding=CSV_ENCODING) as f:
+        w = _TaggedWriter(f, synthetic)
+        w.writerow(["kpi", "annotated_scenarios", "low_confidence", "low_share_percent",
+                    "min_sample_count"])
+        for name in sorted(kq, key=lambda k: (-(kq[k]["low"] / kq[k]["annotated"]), k)):
+            s = kq[name]
+            w.writerow([name, s["annotated"], s["low"],
+                        round(s["low"] / s["annotated"] * 100, 1), _cell(s["min_n"])])
+    written.append(p)
+
     tcells = transport_rollup.analyze(records, min_samples)["cells"]
     p = prefix + "_transport.csv"
     with open(p, "w", newline="", encoding=CSV_ENCODING) as f:

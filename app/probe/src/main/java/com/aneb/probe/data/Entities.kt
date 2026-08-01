@@ -197,6 +197,11 @@ data class ScenarioResultEntity(
     val radioSampledN: Int? = null,
     /** 中位数是否只能建立在陈旧样本上(R-02);null=导出未运行 */
     val radioStale: Boolean? = null,
+    // ---- per-KPI 样本数(v17 additive 列,D-373;试点报告附二第一建议) ----
+    // 「低置信」判词此前只导出结论不导出理由(哪个 KPI 差几个样本),恒真且无从定位。
+    // 格式与 lowConfidenceKpis 同一短名词汇:"T1:3,T2:110,…"(名:进入统计的有效样本数);
+    // null = 导出未运行(v17 之前的历史行,ResultReporter 据此不写 kpi_quality 块)。
+    val kpiSampleCounts: String? = null,
 )
 
 /**

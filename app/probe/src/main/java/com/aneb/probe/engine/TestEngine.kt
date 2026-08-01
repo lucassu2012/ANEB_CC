@@ -805,6 +805,22 @@ class TestEngine(private val context: Context) {
         )
     }
 
+    /** per-KPI 名值对——lowConfidenceKpis 与 kpiSampleCounts 两列的**唯一**词汇来源(D-373)。 */
+    private fun kpiValuePairs(kpi: KpiResult): List<Pair<String, KpiValue>> = listOf(
+        "T1" to kpi.t1TtftMs,
+        "T2" to kpi.t2ItlP95Ms,
+        "T2_incl_coalesced" to kpi.t2ItlP95InclCoalescedMs,
+        "T3" to kpi.t3StallRate,
+        "T3_incl_resume" to kpi.t3StallRateInclResume,
+        "T4" to kpi.t4SevereStallRate,
+        "T5" to kpi.t5ResumeP95Ms,
+        "N1" to kpi.n1RttP50Ms,
+        "N2" to kpi.n2JitterMs,
+        "U1" to kpi.u1GoodputMbps,
+        "U1_excl_slow_start" to kpi.u1GoodputExclSlowStartMbps,
+        "U2" to kpi.u2ToolLoopP95Ms,
+    )
+
     private fun buildScenarioEntity(
         runId: String,
         profile: ScenarioProfile,
@@ -847,21 +863,12 @@ class TestEngine(private val context: Context) {
             u2Grade = KpiGrading.grade("U2", kpi.u2ToolLoopP95Ms.value),
             seqGapCount = kpi.seqGapCount,
             seqDupCount = kpi.seqDupCount,
-            // C07：per-KPI lowConfidence 持久化（结果页/导出标注用，KPI 文档 5.4）
-            lowConfidenceKpis = listOf(
-                "T1" to kpi.t1TtftMs,
-                "T2" to kpi.t2ItlP95Ms,
-                "T2_incl_coalesced" to kpi.t2ItlP95InclCoalescedMs,
-                "T3" to kpi.t3StallRate,
-                "T3_incl_resume" to kpi.t3StallRateInclResume,
-                "T4" to kpi.t4SevereStallRate,
-                "T5" to kpi.t5ResumeP95Ms,
-                "N1" to kpi.n1RttP50Ms,
-                "N2" to kpi.n2JitterMs,
-                "U1" to kpi.u1GoodputMbps,
-                "U1_excl_slow_start" to kpi.u1GoodputExclSlowStartMbps,
-                "U2" to kpi.u2ToolLoopP95Ms,
-            ).filter { it.second.lowConfidence }.joinToString(",") { it.first },
+            // C07：per-KPI lowConfidence 持久化（结果页/导出标注用，KPI 文档 5.4）;
+            // D-373：样本数列与之**同一清单派生**（§2.14 一处清单两个投影，两列词汇不可能分叉）
+            lowConfidenceKpis = kpiValuePairs(kpi)
+                .filter { it.second.lowConfidence }.joinToString(",") { it.first },
+            kpiSampleCounts = kpiValuePairs(kpi)
+                .joinToString(",") { "${it.first}:${it.second.sampleCount}" },
             offsetStartUs = track.start?.offsetUs,
             offsetStartErrUs = track.start?.errUs,
             offsetEndUs = track.end?.offsetUs,
