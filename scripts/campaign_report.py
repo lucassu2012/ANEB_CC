@@ -693,8 +693,12 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # 「位次不足 2」 about a profile with three positions — a false
         # explanation of a true refusal, which is worse than the refusal alone.
         # An unrecognised code prints itself rather than being dropped (R-10).
+        # `summarize` sets this key unconditionally, so `.get` could only ever
+        # turn a wrong key name into 「无可判定对象」 — a plausible sentence in
+        # place of a crash (D-325 / T13 F-1). Every other read of `osum` in this
+        # block already subscripts; this one was the odd man out.
         why = "、".join(_ORDER_UNJUDGED_WHY.get(code, code)
-                        for code in sorted(osum.get("unjudged_reasons") or ()))
+                        for code in sorted(osum["unjudged_reasons"]))
         if osum["confounded"] and not why:
             why = "所有 profile 的位次与单元不平衡"
         bullets.append(f"**序位效应**：已轮转，但{why or '无可判定对象'}"
@@ -717,7 +721,11 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     # repeat_index at all to "quick 模式" is a plausible lie about WHY warm-up
     # cannot be checked (D-364) — quick mode writes repeat_index=0 too.
     wsum = round_effect.summarize(records)
-    if wsum.get("no_round_labels"):
+    # Same asymmetry, and the worst-placed of the five: `.get` on a key the
+    # producer always sets means a rename silently makes this warning stop
+    # firing, and the corpus then reads as ordinary quick mode — precisely the
+    # plausible lie D-364 exists to prevent (D-325 / T13 F-1).
+    if wsum["no_round_labels"]:
         bullets.append("**预热效应**：场景**缺失轮次编号**（`repeat_index` 未写，"
                        f"{wsum['unknown_round_n']} 个场景有数无编号）——**无法核算**；"
                        "这**不是** quick 模式的正常形状（quick 也写 `repeat_index=0`），"
@@ -2344,10 +2352,15 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             _cell(e["warm_up_suspected"]),
                             _cell(e["not_computable_reason"]),
                             e["low_confidence"], e["unknown_round_n"],
-                            e.get("ruled_out_n", 0),
+                            # Subscript, not .get: `analyze_kpi` sets all four of
+                            # these unconditionally, so a default here can only
+                            # ever disguise a wrong key name as a real 0/False/
+                            # empty — and this CSV is the surface with no banner
+                            # to contradict it (D-325 / T13 F-1).
+                            e["ruled_out_n"],
                             wres["distinct_rounds"],
-                            _cell(e.get("round_cell_imbalance")),
-                            "; ".join(e.get("round_cells_uneven") or ())])
+                            _cell(e["round_cell_imbalance"]),
+                            "; ".join(e["round_cells_uneven"])])
     written.append(p)
 
     sscells = subscore_rollup.analyze(records, min_samples)["cells"]
