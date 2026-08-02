@@ -1,0 +1,18 @@
+{
+  "kind": "DEVICE_REAL",
+  "experiments": [
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "pkg": "com.aneb.e1stimulus",
+  "roi": [
+    200,
+    1000,
+    800,
+    600
+  ],
+  "device_window": "DW-20260802-01",
+  "serial": "8MY0221126002537",
+  "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3"
+}
