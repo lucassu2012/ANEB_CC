@@ -21,6 +21,18 @@ schema 的字段描述只写了前两个。`continuity`/`ab` 的记录落进这�
 非法 JSON 行由 `campaign_common.load_records()` 单独计入 `malformed`，
 不进入上面这个等式（它们从未成为一条"记录"）。
 
+失败即拒绝写出，不出半成品：输入路径读不了（含打错字的具体路径——
+`load_records` 对这种情况不抛异常，只把它计进 `unreadable_files`，
+不检查这个字段就会安静地写出两个空文件+一份看似正常的汇总）、或两个
+输出路径（含指回输入路径本身）相同，两种情况都直接非零退出、一个字节
+不写，不留下"看起来完整、实为半成品"的产物。
+
+本工具 `dedupe=False`——同一 `run_id` 两份不同 body 的冲突记录**不在这一层
+检测**，两份都会各自按 mode 落进对应子集（不影响本文件的守恒契约：那是
+两条不同的记录，各自应该被记一次）。下游 `stability.py`/`coverage_matrix.py`
+等默认 `dedupe=True`，冲突会在那一层被捕获+去重——本工具刻意不做，
+因为去重会与"每条输入记录恰好被记一次"这个单一职责冲突。
+
 用法：
     python split_by_run_mode.py in.jsonl --quick-out q.jsonl --forensic-out f.jsonl
     # 不给 --quick-out/--forensic-out 时默认写到 <stem>_quick.jsonl / <stem>_forensic.jsonl
@@ -86,6 +98,17 @@ def main(argv=None):
     records, files = cc.load_records([args.input], dedupe=False, stats=stats)
     if not files:
         raise SystemExit("no such file: %s" % args.input)
+    # `files` is populated with the literal path even when it couldn't be
+    # opened (campaign_common.load_records appends before it tries `open()`),
+    # so `not files` never catches a plain typo'd path — only `--input a/*.json`
+    # matching zero files hits that branch. `unreadable_files` is the only
+    # signal an open actually failed. Without this check, a typo silently
+    # produced exit 0 + two EMPTY output files + a summary that looked
+    # complete (D-328/D-330 shape: a loader field nobody downstream reads).
+    if stats.get("unreadable_files", 0):
+        raise SystemExit(
+            "cannot read %s (unreadable_files=%d) — refusing to write two empty "
+            "outputs and call it done" % (args.input, stats["unreadable_files"]))
 
     quick, forensic, rejected = split_records(records)
     # 守恒不是"应该成立"，是这段代码结构本身保证的：split_records 里每条记录
@@ -95,6 +118,21 @@ def main(argv=None):
 
     quick_out = args.quick_out or _default_out(args.input, "quick")
     forensic_out = args.forensic_out or _default_out(args.input, "forensic")
+    # 同路径（含指回输入本身）会让后写的静默覆盖先写的，而汇总行仍会对两个
+    # 路径分别报"写了 N 条"——对文件系统实际状态做了不实陈述。用 abspath 比较，
+    # 不信任字符串字面量是否相同（相对/绝对路径写法不同也要抓得到）。
+    outs = {"--quick-out": quick_out, "--forensic-out": forensic_out}
+    seen_abs = {}
+    for flag, path in outs.items():
+        ap_path = os.path.abspath(path)
+        if ap_path == os.path.abspath(args.input):
+            raise SystemExit("%s (%s) is the same file as the input — refusing "
+                             "to overwrite it" % (flag, path))
+        if ap_path in seen_abs:
+            raise SystemExit("%s and %s resolve to the same file (%s) — the "
+                             "second write would silently clobber the first"
+                             % (seen_abs[ap_path], flag, path))
+        seen_abs[ap_path] = flag
     _write_jsonl(quick_out, quick)
     _write_jsonl(forensic_out, forensic)
 

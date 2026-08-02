@@ -190,7 +190,11 @@ forensic 的采样密度截然不同，`stability.py --plan` 在两者混池的�
 （D-336 形状）；值只认恰好等于 `"quick"`/`"forensic"`，其余字符串（含 `continuity`/`ab`
 这类 `MainActivity.kt` 支持的真实模式）一律归入 `rejected` 的 `other_mode` 桶——不是
 "错误数据"，只是这个工具的切分范围之外，交下游按需处理。`--quick-out`/`--forensic-out`
-不给时默认写 `<stem>_quick.jsonl`/`<stem>_forensic.jsonl`。
+不给时默认写 `<stem>_quick.jsonl`/`<stem>_forensic.jsonl`；两个输出路径相同（含指回输入
+本身）或输入路径读不了都直接非零退出、不写半成品。**`dedupe=False`**：同 `run_id` 两份
+不同 body 的冲突记录不在这一层去重/检测，各自按 mode 落进对应子集——下游 `stability.py`
+等默认 `dedupe=True`，冲突留给那一层捕获，本工具不做是为了不与"每条输入记录恰好被记
+一次"这个单一职责冲突。
 ```
 python split_by_run_mode.py counted.jsonl --quick-out quick.jsonl --forensic-out forensic.jsonl
 ```

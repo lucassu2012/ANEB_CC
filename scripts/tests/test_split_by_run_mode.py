@@ -11,6 +11,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.dirname(HERE)
 sys.path.insert(0, SCRIPTS)
@@ -126,6 +128,31 @@ def test_a_valid_forensic_record_is_not_rejected():
     assert forensic == [rec] and quick == [] and rejected == []
 
 
+# ── run 键本身缺失/为 null（v2 T21③ 复核提出，此前零反例）─────────────────
+def test_run_key_entirely_missing_is_missing_mode_not_a_crash():
+    """违规夹具：记录里连 `run` 这个键都不存在（不是 run.mode 缺，是 run 本身缺）。
+
+    `cc.run_obj(rec)` = `rec.get("run") or {}`——这条防线此前只被"读代码"
+    信任过，从未被反例证明过。
+    """
+    rec = make_record()
+    del rec["run"]
+    quick, forensic, rejected = sbm.split_records([rec])
+    assert quick == [] and forensic == []
+    assert rejected[0]["reason"] == "missing_mode"
+
+
+def test_run_explicit_null_is_missing_mode_not_a_crash():
+    """违规夹具：`run` 键存在但值是 JSON null（`rec.get("run")` 返回 None，
+    `or {}` 兜底）——与"键不存在"是不同的输入形状，必须分别有反例。
+    """
+    rec = make_record()
+    rec["run"] = None
+    quick, forensic, rejected = sbm.split_records([rec])
+    assert quick == [] and forensic == []
+    assert rejected[0]["reason"] == "missing_mode"
+
+
 # ── 端到端 CLI 往返（catch 纯函数测试摸不到的 I/O 层问题）───────────────────
 def test_cli_round_trip_writes_two_files_with_the_right_counts():
     d = tempfile.mkdtemp(prefix="split_by_run_mode_")
@@ -174,6 +201,77 @@ def test_cli_default_output_paths_are_derived_from_the_input_stem():
         assert os.path.exists(os.path.join(d, "batch_forensic.jsonl"))
     finally:
         for name in ("batch.jsonl", "batch_quick.jsonl", "batch_forensic.jsonl"):
+            p = os.path.join(d, name)
+            if os.path.exists(p):
+                os.remove(p)
+        os.rmdir(d)
+
+
+# ── 大脑核验揪出的两条真缺陷（对抗核验批）──────────────────────────────────
+def test_unreadable_input_path_exits_nonzero_not_two_silent_empty_files():
+    """违规夹具：输入路径打错（文件不存在，且不是 glob 通配）。
+
+    修前的形状：`campaign_common.load_records()` 把字面路径先 append 进
+    `files`、再尝试 open——open 失败被计入 `unreadable_files`+打印到
+    stderr，但从不抛异常。旧版 `main()` 只检查 `if not files`，对这种
+    情况永远为 False（`files` 里明明有那个打不开的路径），于是继续往下跑：
+    `records=[]` → `split_records([])` 三个空列表 → 写出两个空文件 →
+    打印"input records: 0"这条听起来完全正常的汇总——退出码还是 0
+    （D-328/D-330 形状：loader 算出的信号，没有一个消费方在读）。
+    """
+    d = tempfile.mkdtemp(prefix="split_by_run_mode_badpath_")
+    try:
+        bad_path = os.path.join(d, "does_not_exist.jsonl")
+        quick_out = os.path.join(d, "q.jsonl")
+        forensic_out = os.path.join(d, "f.jsonl")
+        with pytest.raises(SystemExit):
+            sbm.main([bad_path, "--quick-out", quick_out, "--forensic-out", forensic_out])
+        # 修复后必须整个拒绝——不能把"打不开"悄悄处理成"两个空子集"。
+        assert not os.path.exists(quick_out)
+        assert not os.path.exists(forensic_out)
+    finally:
+        for name in ("q.jsonl", "f.jsonl"):
+            p = os.path.join(d, name)
+            if os.path.exists(p):
+                os.remove(p)
+        os.rmdir(d)
+
+
+def test_same_quick_and_forensic_output_path_is_rejected():
+    """违规夹具：`--quick-out` 与 `--forensic-out` 指向同一个文件——
+    后写的会静默覆盖先写的，而汇总行仍会对两个路径各自报告"写了 N 条"，
+    对文件系统的实际状态做了不实陈述。
+    """
+    d = tempfile.mkdtemp(prefix="split_by_run_mode_samepath_")
+    try:
+        src = os.path.join(d, "in.jsonl")
+        with open(src, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(_with_mode(sbm.MODE_QUICK), ensure_ascii=False) + "\n")
+        same = os.path.join(d, "same.jsonl")
+        with pytest.raises(SystemExit):
+            sbm.main([src, "--quick-out", same, "--forensic-out", same])
+    finally:
+        for name in ("in.jsonl", "same.jsonl"):
+            p = os.path.join(d, name)
+            if os.path.exists(p):
+                os.remove(p)
+        os.rmdir(d)
+
+
+def test_output_path_pointing_back_at_the_input_is_rejected():
+    """违规夹具：`--quick-out`/`--forensic-out` 指回输入文件本身——
+    这会在读完之前就地覆盖输入（视写入时机而定，属于最危险的一种同路径碰撞）。
+    """
+    d = tempfile.mkdtemp(prefix="split_by_run_mode_selfpath_")
+    try:
+        src = os.path.join(d, "in.jsonl")
+        with open(src, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(_with_mode(sbm.MODE_QUICK), ensure_ascii=False) + "\n")
+        other_out = os.path.join(d, "f.jsonl")
+        with pytest.raises(SystemExit):
+            sbm.main([src, "--quick-out", src, "--forensic-out", other_out])
+    finally:
+        for name in ("in.jsonl", "f.jsonl"):
             p = os.path.join(d, name)
             if os.path.exists(p):
                 os.remove(p)
