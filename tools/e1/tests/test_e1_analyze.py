@@ -99,6 +99,30 @@ def test_duplicate_seq_is_counted_not_silent():
     lines = _stim_lines(count=3, warmup=0) + _stim_lines(count=3, warmup=0)[1:]
     cfg, _flips = ea.parse_stim_log(lines)
     assert cfg.get("duplicate_seq") == 3
+    # 这份夹具用 [1:] 剥掉了第二段的 CFG 行——只有一个 CFG 块，
+    # 不该触发多块告警；反例见下面两条（D-409 K-2）。
+    assert cfg.get("cfg_blocks") is None
+
+
+def test_single_cfg_block_is_not_flagged_as_multi_block():
+    """合规夹具：一次会话只有一个 CFG 块，不该出现多块告警键。"""
+    cfg, _flips = ea.parse_stim_log(_stim_lines(count=6, warmup=0))
+    assert cfg.get("cfg_blocks") is None
+    md = ea.render_markdown(ea.analyze(_stim_lines(count=6, warmup=0), [], "", "", []))
+    assert "CFG 块" not in md
+
+
+def test_multiple_cfg_blocks_are_counted_and_the_header_caveat_renders():
+    """违规夹具（D-409 K-2 原始形状）：App 重启产生两段完整 CFG，
+    表头只反映最后一段，必须显式告警，不能让读者拿表头 interval_ms 当全局配置用。
+    """
+    lines = _stim_lines(count=3, warmup=0, interval_ms=2000) + \
+        _stim_lines(count=3, warmup=0, interval_ms=800)
+    cfg, _flips = ea.parse_stim_log(lines)
+    assert cfg.get("cfg_blocks") == 2
+    assert cfg["interval_ms"] == 800  # 表头 = 最后一块，不是合并值
+    md = ea.render_markdown(ea.analyze(lines, [], "", "", []))
+    assert "2 个 CFG 块" in md and "D-409 K-2" in md
 
 
 def test_warmup_flips_dropped_and_commitless_dropped():

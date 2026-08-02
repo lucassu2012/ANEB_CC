@@ -108,11 +108,12 @@ def parse_stim_log(lines):
     重复 seq（App 被重启过）时**后者覆盖前者**并计入 cfg['duplicate_seq']——
     静默覆盖会让分母悄悄变小，故计数留痕。
     """
-    cfg, flips, dup = {}, {}, 0
+    cfg, flips, dup, cfg_blocks = {}, {}, 0, 0
     for raw in lines:
         line = raw.rstrip("\n")
         m = _CFG_RE.search(line)
         if m:
+            cfg_blocks += 1
             d = _kv(m.group("kv"))
             cfg = {
                 "interval_ms": _int(d, "interval_ms"),
@@ -153,6 +154,11 @@ def parse_stim_log(lines):
             flips[seq]["t_commit_mono_ns"] = _int(d, "t_commit_mono_ns")
     if dup:
         cfg["duplicate_seq"] = dup
+    if cfg_blocks > 1:
+        # 表头 cfg 只反映**最后一个** CFG 块（App 被重启过，前面的块被整段覆盖）——
+        # 多数可用翻转很可能来自更早的块，读表头 interval_ms 去算「期望节奏」会算错
+        # （D-409 K-2：一次真机窗里 48 个可用翻转，约 43 个来自被覆盖的早期块）。
+        cfg["cfg_blocks"] = cfg_blocks
     return cfg, flips
 
 
@@ -535,6 +541,11 @@ def render_markdown(res):
              % (res["flips_total"], res["flips_usable"]))
     if cfg.get("duplicate_seq"):
         L.append("| ⚠ 重复 seq（App 被重启过，后者覆盖前者） | %s |" % cfg["duplicate_seq"])
+    if cfg.get("cfg_blocks"):
+        L.append("| ⚠ 本次日志含 %d 个 CFG 块，上表只反映**最后一个**——"
+                 "多数可用翻转可能来自更早、已被覆盖的块，勿拿本表 `interval_ms` "
+                 "去算「期望节奏」再跟翻转总数比对（D-409 K-2） | — |"
+                 % cfg["cfg_blocks"])
     L.append("")
     L.append("**一帧 = %s ms**（实测，非硬编码 33ms —— spec §3.1）。"
              % _fmt(res["frame_ms_measured"]))
