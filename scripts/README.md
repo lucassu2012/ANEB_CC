@@ -182,6 +182,19 @@ quick-forensic / 时钟跳变 / 极端离群 / 全无效格 / 未标注记录）
 R-10 红线）、缺 run 体。**WARN（exit 0，值得知道但不致错）**：良性重复 run_id（D-09 双写的
 预期重导，加载时去重）、无 run_id 记录、混 `schema_version`、缺 AQS/战役标签。`--json` 出机读结果。
 
+### `split_by_run_mode.py` — 按 `run.mode` 切 quick/forensic 分面（D-415②/T20①）
+扩展轮出发前必做：`run.mode` 是契约必填字段（`result-run.schema.json:25`），quick 与
+forensic 的采样密度截然不同，`stability.py --plan` 在两者混池的语料上核算出的"够不够量"
+没有意义（现场当天要跑的两条 `--plan`，见 `M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md` §5
+第 4 项）。缺 `mode` 的记录 = 违约数据，如实拒绝并计数，**不是第三种 mode，不静默丢**
+（D-336 形状）；值只认恰好等于 `"quick"`/`"forensic"`，其余字符串（含 `continuity`/`ab`
+这类 `MainActivity.kt` 支持的真实模式）一律归入 `rejected` 的 `other_mode` 桶——不是
+"错误数据"，只是这个工具的切分范围之外，交下游按需处理。`--quick-out`/`--forensic-out`
+不给时默认写 `<stem>_quick.jsonl`/`<stem>_forensic.jsonl`。
+```
+python split_by_run_mode.py counted.jsonl --quick-out quick.jsonl --forensic-out forensic.jsonl
+```
+
 ### `round_effect.py` — 预热效应诊断（首轮是否系统性更差，D-356）
 取证模式每场景跑多遍，`scenarios[].repeat_index` 就是**轮次**（快测恒 0）。本工具按轮次切，
 问：**第一轮是不是系统性更差**？首轮中位 vs 其后各轮中位的中位数，按各 KPI 自己的好坏方向
