@@ -5,7 +5,7 @@
     "display_name": "豆包",
     "app_id": "doubao-android",
     "package": "com.larus.nova",
-    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list 与前台窗口实况均为 com.larus.nova，对话页 Activity=com.larus.bmhome.chat.ChatActivity；ADAPTER_OBS 日志 pkg 字段实测命中（mode=doubao）",
+    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list 与前台窗口实况均为 com.larus.nova，对话页 Activity=com.larus.bmhome.chat.ChatActivity；ADAPTER_OBS 日志 pkg 字段实测命中（mode=doubao）。〔2026-08-02 过渡标注〕上面那句 07-18 核实之后该 App 已更新过：机上实测 versionName=14.4.0（versionCode=14040001），lastUpdateTime=2026-07-30 09:42:59，晚于核实日 12 天，故上述界面观察不保证仍成立。未回填 validated_against_version：本次只测到「现在装的是哪个版本」，不是「规格是对着哪个版本验的」，拿前者填后者会凭空造出一份不存在的验证记录；缺席=「不知道对哪个版本验过」，是合法且诚实的状态。三条节点规则本就全 PENDING-VALIDATION（正则全 null、宿主走 generic 兜底、规则不作打点闸门），今天没有任何打点依赖这些可能过期的特征，故只标注不停用。再验证并入 E1 真机设备窗。证据 evidence/adapter_versions_20260802/",
     "status": "VALIDATED-OBSERVED",
     "launch_hint": "由用户手动启动豆包并进入对话页；宿主为观察模式 only——绝不代启动 App、绝不 performAction/注入任何操作（动真实账号是用户红线）",
     "input_node": {

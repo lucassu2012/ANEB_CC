@@ -5,7 +5,7 @@
     "display_name": "Kimi",
     "app_id": "kimi-android",
     "package": "com.moonshot.kimichat",
-    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list packages 命中 com.moonshot.kimichat（主对话 App，非 com.moonshot.kimiclaw），前台窗口实况确认为 Kimi 主对话 App；ADAPTER_OBS pkg 字段预期命中（mode=kimi）。节点规则/发送锚点待真机 uiautomator dump + ADAPTER_EVT 诊断回填",
+    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list packages 命中 com.moonshot.kimichat（主对话 App，非 com.moonshot.kimiclaw），前台窗口实况确认为 Kimi 主对话 App；ADAPTER_OBS pkg 字段预期命中（mode=kimi）。节点规则/发送锚点待真机 uiautomator dump + ADAPTER_EVT 诊断回填。〔2026-08-02 过渡标注〕上面那句 07-18 核实之后，该 App 已更新过：机上实测 versionName=3.0.5 (versionCode=361)，lastUpdateTime=2026-08-01 22:57:13——晚于核实日 14 天。故上述界面观察**不保证仍成立**。未回填 validated_against_version：本次只测到「现在装的是哪个版本」，不是「规格是对着哪个版本验的」，拿前者填后者会凭空造出一份不存在的验证记录；缺席=「不知道对哪个版本验过」，是合法且诚实的状态。三条节点规则本就全 PENDING-VALIDATION（正则全 null、宿主走 generic 兜底、规则不作打点闸门），故今天没有任何打点依赖这些可能过期的特征——只标注不停用。再验证并入 E1 真机设备窗。证据：evidence/adapter_versions_20260802/",
     "status": "VALIDATED-OBSERVED",
     "launch_hint": "由用户手动启动 Kimi 并进入对话页；宿主为观察模式 only——绝不代启动 App、绝不 performAction/注入任何操作（动真实账号是用户红线）",
     "input_node": {

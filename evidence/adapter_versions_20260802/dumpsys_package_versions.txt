@@ -1,0 +1,26 @@
+# adb -s <serial> shell "dumpsys package <pkg> | grep -E 'versionName|versionCode|firstInstallTime|lastUpdateTime'"
+# captured_at=2026-08-02T13:17:29+08:00  device=P40 Pro (serial redacted)
+
+--- com.deepseek.chat ---
+versionCode=233 minSdk=23 targetSdk=36
+versionName=2.2.2
+firstInstallTime=2026-07-19 15:02:06
+lastUpdateTime=2026-07-19 15:02:06
+
+--- com.larus.nova ---
+versionCode=14040001 minSdk=21 targetSdk=35
+versionName=14.4.0
+firstInstallTime=2026-07-17 23:49:18
+lastUpdateTime=2026-07-30 09:42:59
+
+--- com.aliyun.tongyi ---
+versionCode=61406 minSdk=24 targetSdk=30
+versionName=6.14.6.2959
+firstInstallTime=2026-07-17 23:49:49
+lastUpdateTime=2026-07-29 05:09:24
+
+--- com.moonshot.kimichat ---
+versionCode=361 minSdk=26 targetSdk=36
+versionName=3.0.5
+firstInstallTime=2026-07-17 23:50:08
+lastUpdateTime=2026-08-01 22:57:13
