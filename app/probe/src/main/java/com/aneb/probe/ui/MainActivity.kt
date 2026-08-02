@@ -3,6 +3,7 @@ package com.aneb.probe.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -90,6 +91,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var radioCollector: RadioCollector
     private lateinit var db: AnebDatabase
 
+    /** autorun 测量窗常亮策略（T25，D-427）；生命周期在 onCreate/onDestroy 驱动。 */
+    private val keepScreenOnPolicy = KeepScreenOnPolicy()
+
     private var intentServer: String? = null
     private var intentAutorun: Boolean = false
     private var intentMode: TestEngine.Mode = TestEngine.Mode.QUICK
@@ -138,6 +142,14 @@ class MainActivity : ComponentActivity() {
         db = AnebDatabase.get(applicationContext)
         intentServer = intent?.getStringExtra("server")
         intentAutorun = intent?.getBooleanExtra("autorun", false) == true
+        // T25/D-427：autorun 测量窗内常亮，避免 EMUI 息屏节流 cell info 采样降级为 stale
+        // （三个替代假说均已实测排除，见 D-426/D-427）；这同时是口径正确性修复——试点
+        // LTE 语料是屏亮态采集的，保持同态才可比（详述见 KeepScreenOnPolicy 类注释）。
+        // 手动模式 autorun=false，held 恒为 false，窗口 flag 从不被设置——零改动。
+        keepScreenOnPolicy.onCreate(intentAutorun)
+        if (keepScreenOnPolicy.held) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         intentMode = when (intent?.getStringExtra("mode")?.lowercase()) {
             "forensic" -> TestEngine.Mode.FORENSIC
             else -> TestEngine.Mode.QUICK
@@ -686,6 +698,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        // T25/D-427：无条件释放（未持有时是安全的空操作，不会误清手动模式的窗口态；
+        // 手动模式下 keepScreenOnPolicy.held 恒为 false，本分支从不执行）。
+        if (keepScreenOnPolicy.held) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        keepScreenOnPolicy.onDestroy()
+        super.onDestroy()
     }
 
     // ------------------------------------------------------------------
