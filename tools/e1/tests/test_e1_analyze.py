@@ -151,6 +151,86 @@ def test_sf_latency_drops_pending_frames_not_counts_them_as_zero():
     assert [f["actual_ns"] for f in frames] == [2000, 4000]
 
 
+def _framestats_text(count=6, interval_ms=2000, commit_gap_ns=5_000_000,
+                     present_delay_ns=8_000_000):
+    """与 `_stim_lines` 对得上的一份 framestats（L-2）。同构 `_sf_text`。"""
+    header = "Flags,IntendedVsync,Vsync,SwapBuffersCompleted"
+    lines = [header]
+    for seq in range(1, count + 1):
+        mono = 1_000_000_000 + seq * interval_ms * 1_000_000
+        actual = mono + commit_gap_ns + present_delay_ns
+        lines.append("0,0,0,%d" % actual)
+    return "\n".join(lines)
+
+
+# ── L-2（2026-08-02）：framestats 交叉验证 ───────────────────────────────────
+def test_dedup_framestats_present_times_collapses_exact_duplicates():
+    """`_dump_channel_c` 周期性重叠 dump 会把同一帧的 SwapBuffersCompleted 重复
+    落两次——run3 真实数据里 23 行去重后只剩 10 条，本条钉住去重本身。"""
+    rows = [{"SwapBuffersCompleted": 100}, {"SwapBuffersCompleted": 200},
+            {"SwapBuffersCompleted": 100}]      # 100 出现两次
+    out = ea.dedup_framestats_present_times(rows)
+    assert out == [{"actual_ns": 100}, {"actual_ns": 200}]
+
+
+def test_dedup_framestats_skips_missing_or_zero_present_time():
+    """该字段没测到时是 0（R-10：不当真值用），不是"合法的第 0 纳秒"。"""
+    rows = [{"SwapBuffersCompleted": 0}, {}, {"SwapBuffersCompleted": 50}]
+    assert ea.dedup_framestats_present_times(rows) == [{"actual_ns": 50}]
+
+
+def test_cross_check_refuses_to_fabricate_when_one_side_has_no_data():
+    """只有一条支路有数据时不虚构交叉验证结论——这条要造反例证明，不能靠推理
+    （D-322）。这正是 run3 真实数据的形状：framestats 只覆盖会话头 7.2s，
+    --latency 覆盖 43.6s，两者交集处的翻转仍可能一个都对不上。"""
+    have_data = {"status": ea.PASS, "p50_ms": 5.0}
+    no_data = {"status": ea.NOT_EXECUTED, "n": 0}
+    for a, b in ((have_data, no_data), (no_data, have_data), (no_data, no_data)):
+        r = ea.cross_check_channel_c(a, b, 16.667)
+        assert r["status"] == ea.NOT_EXECUTED, r
+        assert "p50_delta_ms" not in r, "没有可比的两侧就不该算出一个差值"
+
+
+def test_cross_check_agrees_within_one_frame():
+    a = {"status": ea.PASS, "p50_ms": 20.0}
+    b = {"status": ea.PASS, "p50_ms": 25.0}     # 差 5ms，小于 16.667ms
+    r = ea.cross_check_channel_c(a, b, 16.667)
+    assert r["status"] == ea.PASS
+    assert abs(r["p50_delta_ms"] - 5.0) < 1e-9
+
+
+def test_cross_check_disagrees_beyond_one_frame_names_a_candidate_explanation_not_a_verdict():
+    """分歧超过 1 帧时如实报，且不预设哪边对——措辞里不能出现"latency 错了"
+    这类单方定论，只能是候选解释。"""
+    a = {"status": ea.PASS, "p50_ms": 5.0}
+    b = {"status": ea.PASS, "p50_ms": 30.0}     # 差 25ms，大于 16.667ms
+    r = ea.cross_check_channel_c(a, b, 16.667)
+    assert r["status"] == ea.FAIL
+    assert abs(r["p50_delta_ms"] - 25.0) < 1e-9
+    assert "不预设哪边对" in r["reason"]
+
+
+def test_analyze_wires_framestats_channel_and_cross_check_end_to_end():
+    """`analyze()` 端到端：framestats 支路与 --latency 对上同一批真值时二者一致，
+    交叉验证给 PASS——同一批合成数据下两条支路本该完全一致。"""
+    res = ea.analyze(_stim_lines(count=4, warmup=0), [],
+                     _sf_text(count=4), _framestats_text(count=4), [])
+    assert res["channel_c_framestats"]["status"] == ea.PASS
+    assert res["channel_c_cross_check"]["status"] == ea.PASS
+    md = ea.render_markdown(res)
+    assert "C（framestats，L-2）" in md
+    assert "通道 C 交叉验证" in md
+    assert md.count("| C 渲染时间线") == 1     # 既有行的字面量没被撞车
+
+
+def test_analyze_framestats_absent_reports_not_executed_not_zero():
+    res = ea.analyze(_stim_lines(count=4, warmup=0), [], _sf_text(count=4), "", [])
+    assert res["channel_c_framestats"]["status"] == ea.NOT_EXECUTED
+    assert res["channel_c_cross_check"]["status"] == ea.NOT_EXECUTED
+    md = ea.render_markdown(res)
+    assert "NOT_EXECUTED" in md.split("交叉验证")[1]
+
+
 def test_sf_latency_empty_input_is_none_not_zero():
     period, frames = ea.parse_sf_latency("")
     assert period is None and frames == []

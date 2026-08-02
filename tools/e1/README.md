@@ -75,7 +75,7 @@ app/gradlew -p tools/e1_stimulus assembleDebug
 |---|---|---|---|
 | run1 | `evidence/e1_realdevice_20260802/E1_JUDGMENT_v4.md`（D-408） | `NOT_EXECUTED` | 观测窗排在 `_pin` 之间而非期间，与刺激翻转零重叠——采集脚本时序缺陷，非设备限制 |
 | run2 | `evidence/e1_realdevice_20260802_run2/E1_JUDGMENT_v4_run2.md`（D-409） | `NOT_EXECUTED` | 同一根因原样复现（刺激时长拉长到 2 分钟也没用）；期间发现的"通道 B 检出翻转"实为一次孤立瞬变，与刺激事件无关，拒绝据此产出假分布 |
-| run3 | `evidence/e234/20260802-173031/JUDGMENT_v4_run3.md`（D-413） | **`FAIL`**（n=53, p99=29.427ms > 16.667ms） | `--pin-through-session` 修复生效——**W-2 转为可判定**；FAIL 判定完全来自 `--latency` 支路的真实帧，`framestats` 的 PROFILEDATA 目前零消费（L-2，排期中） |
+| run3 | `evidence/e234/20260802-173031/JUDGMENT_v4_run3.md`（D-413） | **`FAIL`**（n=53, p99=29.427ms > 16.667ms） | `--pin-through-session` 修复生效——**W-2 转为可判定**；FAIL 判定完全来自 `--latency` 支路的真实帧 |
 
 ### G-2（spec §3.4）口径解读——PASS/FAIL 量的是什么
 
@@ -97,6 +97,31 @@ FAIL 结论对两个候选阈值都成立（29.427ms 两个都超），但**这�
 （「1 帧」到底该按满刷态还是当下实测的合成态算）**是 M3 门可达性的口径议题，
 上交大脑/PO 层，本工具不代为裁定**——只保证分歧永远显式可见、可审计
 （`test_frame_ms_source_prefers_measured_and_flags_disagreement` 等三条反例钉住）。
+
+### framestats 交叉验证——L-2，给 W-2 找第二个独立数据源
+
+`analyze()` 现在**同时**跑两条通道 C 支路：既有的 `--latency`（`ch_c`），
+以及新接入的 `framestats` PROFILEDATA（`ch_c_framestats`，取
+`SwapBuffersCompleted` 列——`DisplayPresentTime` 在本设备/API 级别实测恒为 0，
+不可用）。两支路用**同一批**已知真值翻转、**同一个** `frame_ms_c`/`max_gap_ns`
+对齐，产出 `channel_c_cross_check`：两个 p50 之差 ≤1 帧记 `PASS`（W-2 结论因此
+有第二个独立数据源支撑），超过记 `FAIL` 且**不预设哪边对**（两支路锚点是渲染
+管线里不同阶段——SurfaceFlinger 合成 actual vs 应用侧缓冲区交换完成——几毫秒
+系统性差异可能是阶段间真实间隔）；**只要有一侧无数据就报 `NOT_EXECUTED`，
+绝不虚构一个比较结论**（`test_cross_check_refuses_to_fabricate_when_one_side_has_no_data`
+造反例钉住，不靠推理）。
+
+**用 run3 真实数据跑通后的结果是 `NOT_EXECUTED`，且这本身是一条值得记的发现**：
+去重后 `--latency` 覆盖了会话的 **43.6 秒**（57 帧），`framestats` 只覆盖了
+**7.2 秒**（10 帧，集中在会话最开头）——同一套周期性 dump 机制（`_dump_channel_c`，
+相同 dump 周期、相同会话），两条支路捕捉到的历史深度差了 6 倍。7.2 秒窗口内
+理论上有 7 次翻转的 commit 落在这个范围，但逐个核对后最近的 framestats 帧都在
+~800ms 之外（对齐容差是 4 帧 ≈66.7ms）——不是没重叠，是重叠了也对不上，
+说明 `gfxinfo framestats` 在这台设备上的取样密度、或它的环缓冲实际保留深度，
+明显不如 `SurfaceFlinger --latency`。**这条差异本身没有深究成因**（Android
+`gfxinfo`/`SurfaceFlinger` 两套 API 的环缓冲实现细节不同是完全合理的解释，
+但本文件不猜测，只如实记录观察到的覆盖窗口比例）——留给下一次真机窗验证，
+或者调小 `--framestats-period-s` 提高 framestats 的取样密度再试。
 
 ## 4. dry-run 抓出的两个真缺陷（装置存在的意义）
 

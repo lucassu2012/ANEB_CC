@@ -329,6 +329,71 @@ def parse_sf_latency(text):
     return period, frames
 
 
+# ── L-2（2026-08-02）：framestats PROFILEDATA 接入判读链路，与 --latency 交叉验证 ──
+# 目标不是取代 --latency，是给 W-2「通道 C 在 P40 可用」找第二个独立数据源
+# （D-413 订正②钉死：run3 的 FAIL 判定此前完全来自 --latency，framestats 的 23 行
+# 真实数据一直是只写不读的计数字段）。
+#
+# 取哪一列当"present"：`DisplayPresentTime`（最贴近字面意义）在本设备/API 级别上
+# 实测**恒为 0**（未实现或需要额外的 vsync-id 支持，本文件不猜测成因），不可用。
+# `SwapBuffersCompleted`（缓冲区交换完成，帧被移交给合成管线的那一刻）是下一个
+# 最接近"上屏"语义的列，取它。`FrameCompleted`（UI 线程渲染工作标记完成）是
+# 另一个很接近的候选，但语义更偏"渲染完成"而非"提交给显示"，不用它——
+# 两个候选选一个就够，混用两个含义相近但不同的列反而制造第二层歧义。
+PRESENT_TIME_KEY_FRAMESTATS = "SwapBuffersCompleted"
+
+
+def dedup_framestats_present_times(rows, key=PRESENT_TIME_KEY_FRAMESTATS):
+    """framestats 行 -> 去重排序后的 `[{"actual_ns": ...}]`（`align_present` 要的形状）。
+
+    为什么要去重：`_dump_channel_c`（e234_collect.py）周期性追加 dump，相邻两次
+    必然重叠——同一帧的 `SwapBuffersCompleted` 纳秒级时间戳会在多个 dump 里原样
+    重复出现。两个不同帧撞到同一纳秒是天文数字概率，故按这一列**精确相等**去重
+    是安全的（不是近似匹配，没有引入容差判据）。不去重会让同一帧被计入多次，
+    直接扭曲下游的分位数。
+
+    某行缺这一列，或值为 0（该行这个字段本就没测到，R-10：不当真值用）时跳过。
+    """
+    seen, out = set(), []
+    for r in rows:
+        v = r.get(key)
+        if not v or v in seen:      # v 为 None/0 一律跳过，不当真值用（R-10）
+            continue
+        seen.add(v)
+        out.append({"actual_ns": v})
+    out.sort(key=lambda f: f["actual_ns"])
+    return out
+
+
+def cross_check_channel_c(latency_summary, framestats_summary, frame_ms):
+    """`--latency` 与 `framestats` 两条支路对同一批翻转的分布对不对得上。
+
+    **只有一条支路有数据时不虚构结论**——这条规则本身要造反例证明，不能靠推理
+    （D-322 一贯要求）。判据：两个 p50 之差是否在 1 帧以内。用 1 帧当容差不是
+    随手取的：这是本工具自己对"1 帧"的定义，用它做两条支路的一致性容差，
+    跟用它判 M3 门是同一把尺子，不另立一个新常量。
+
+    差距超过容差时**不预设哪边对**——两条支路的锚点本就是渲染管线里两个不同
+    阶段（`--latency` 是 SurfaceFlinger 的合成 actual，`framestats` 的
+    `SwapBuffersCompleted` 是应用侧缓冲区交换完成），几毫秒的系统性差异是这两个
+    阶段之间本就存在的真实间隔，不必然是任一支路测错。
+    """
+    if latency_summary.get("status") != PASS or framestats_summary.get("status") != PASS:
+        return {"status": NOT_EXECUTED,
+               "reason": "至少一条支路无可用样本，跨支路比较不可做"}
+    d = abs(latency_summary["p50_ms"] - framestats_summary["p50_ms"])
+    if d <= frame_ms:
+        return {"status": PASS, "p50_delta_ms": d,
+               "reason": "两支路 p50 相差 %.3fms，在 1 帧（%.3fms）以内——互相印证，"
+                         "W-2「通道 C 在 P40 可用」的结论因此有第二个独立数据源支撑"
+                         % (d, frame_ms)}
+    return {"status": FAIL, "p50_delta_ms": d,
+           "reason": "两支路 p50 相差 %.3fms，超过 1 帧（%.3fms）。不预设哪边对——"
+                     "两条支路量的是渲染管线里两个不同阶段（SurfaceFlinger 合成 actual "
+                     "vs 应用侧 SwapBuffersCompleted），几毫秒的系统性差异本就可能是"
+                     "两阶段之间真实存在的间隔，不必然是任一支路出错" % (d, frame_ms)}
+
+
 def align_present(flips, frames, max_gap_ns):
     """把每次翻转对到「commit 之后最近的一次上屏」。
 
@@ -508,6 +573,15 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
     ch_c = summarize([a["delta_ms"] for a in aligned], dropped=len(missed))
     verdict_c, reason_c = gate_verdict(ch_c, frame_ms_c)
 
+    # L-2：framestats 是 --latency 之外的第二条通道 C 支路，同一批 good flips、
+    # 同一个 frame_ms_c/max_gap_ns，对齐逻辑复用 align_present（不新写一套判据）。
+    fs_rows_parsed = parse_framestats(framestats_text or "")
+    fs_frames = dedup_framestats_present_times(fs_rows_parsed)
+    aligned_fs, missed_fs = align_present(good, fs_frames, max_gap_ns)
+    ch_c_framestats = summarize([a["delta_ms"] for a in aligned_fs], dropped=len(missed_fs))
+    verdict_c_fs, reason_c_fs = gate_verdict(ch_c_framestats, frame_ms_c)
+    cross_check = cross_check_channel_c(ch_c, ch_c_framestats, frame_ms_c)
+
     evts = parse_adapter_events(adapter_lines or [])
     obs = parse_adapter_obs(adapter_lines or [])
     if not evts:
@@ -533,10 +607,13 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
         "frame_ms_measured": frame_ms_c,
         "frame_ms_from_stimulus": frame_ms,
         "frame_ms_source": frame_ms_source,
-        "framestats_rows": len(parse_framestats(framestats_text or "")),
+        "framestats_rows": len(fs_rows_parsed),
         "channel_a": ch_a, "channel_a_verdict": (verdict_a, reason_a),
         "channel_b": ch_b,
         "channel_c": ch_c, "channel_c_verdict": (verdict_c, reason_c),
+        "channel_c_framestats": ch_c_framestats,
+        "channel_c_framestats_verdict": (verdict_c_fs, reason_c_fs),
+        "channel_c_cross_check": cross_check,
         "adapter_obs_lines": obs,
         "cadence_check": _cadence_check(obs, cfg.get("interval_ms")),
     }
@@ -613,6 +690,11 @@ def render_markdown(res):
         L.append("| %s | %s | %s | %s | %s | %s | %s | **%s** — %s |" % (
             name, what, s.get("n", 0), s.get("dropped", "—"),
             _fmt(s.get("p50_ms")), _fmt(s.get("p90_ms")), _fmt(s.get("p99_ms")), v, r))
+    fc = res["channel_c_framestats"]
+    vfc, rfc = res["channel_c_framestats_verdict"]
+    L.append("| C（framestats，L-2） | t_commit → SwapBuffersCompleted（同基，第二支路） | %s | %s | %s | %s | %s | **%s** — %s |"
+             % (fc.get("n", 0), fc.get("dropped", "—"), _fmt(fc.get("p50_ms")),
+                _fmt(fc.get("p90_ms")), _fmt(fc.get("p99_ms")), vfc, rfc))
     b = res["channel_b"]
     L.append("| B screencap 帧差 | **不报时间误差**，只报采样周期 | %s | — | %s | %s | %s | %s |"
              % (b.get("n", 0), _fmt(b.get("period_ms_p50")), _fmt(b.get("period_ms_p90")),
@@ -626,6 +708,10 @@ def render_markdown(res):
                  "只说明 ROI 与阈值选得对不对。"
                  % (b.get("transitions_detected"), _fmt(cfg.get("count"))))
         L.append("")
+    cross = res["channel_c_cross_check"]
+    L.append("**通道 C 交叉验证（`--latency` vs `framestats`，L-2，spec `INSTRUMENTATION_SPEC` "
+             "§6 K-2）**：%s — %s" % (cross["status"], cross["reason"]))
+    L.append("")
     cc = res["cadence_check"]
     L.append("## 3. 通道 A 弱检查（今天就能跑的那条）")
     L.append("")
