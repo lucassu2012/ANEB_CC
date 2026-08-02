@@ -234,6 +234,23 @@ def parse_adapter_obs(lines):
 
 
 # ── 通道 C：渲染时间线 ─────────────────────────────────────────────────────
+def _drop_trailing_blank(fields):
+    """`a,b,c,` -> ['a','b','c']。真实 framestats **每一行末尾都有一个逗号**。
+
+    出处是归档语料自己：`evidence/e1/20260801-170127/framestats.txt` 的表头逐字以
+    `…,CommandSubmissionCompleted,` 结尾。首版不剥这个空字段，于是**任何一份真实
+    framestats 都解析出 0 行**——带尾逗号的数据行 `int("")` 抛而被 `continue` 丢掉，
+    不带尾逗号的又与表头宽度对不上，两条路都是 0。它一直没被发现有两个原因：
+    模拟器上 `PROFILEDATA` 块本来就是空的（T7 记的通道 C `BLOCKED_EXTERNAL`），
+    而 `framestats_rows` 是**只写不读**字段（T14 §4.2 已在册），没有任何一个面
+    会因为它恒等于 0 而变红。D-309 的原样形状：夹具自造了一个真实生产者不写的形状。
+    """
+    out = [f.strip() for f in fields]
+    while out and out[-1] == "":
+        out.pop()
+    return out
+
+
 def parse_framestats(text):
     """`dumpsys gfxinfo <pkg> framestats` -> [dict]，键取自表头。
 
@@ -247,11 +264,11 @@ def parse_framestats(text):
         if not line:
             continue
         if "IntendedVsync" in line and "," in line:
-            header = [h.strip() for h in line.split(",")]
+            header = _drop_trailing_blank(line.split(","))
             continue
         if header is None or "," not in line:
             continue
-        parts = [p.strip() for p in line.split(",")]
+        parts = _drop_trailing_blank(line.split(","))
         if len(parts) != len(header):
             continue  # 截断行/说明行，不猜
         try:

@@ -145,6 +145,34 @@ def test_framestats_skips_rows_whose_width_mismatches():
     assert len(ea.parse_framestats(text)) == 1
 
 
+# 下面这一行是 `evidence/e1/20260801-170127/framestats.txt` 的**逐字表头**
+# （2026-08-01 模拟器 dry-run 归档）。它以逗号结尾——首版解析器不剥这个空字段，
+# 于是真实 framestats 无论数据行带不带尾逗号都解析出 **0 行**。
+# 该缺陷此前无人察觉：模拟器上 PROFILEDATA 本就是空的，而 `framestats_rows`
+# 是只写不读字段（T14 §4.2），没有任何一个面会因为它恒为 0 而变红。
+_REAL_FRAMESTATS_HEADER = (
+    "Flags,FrameTimelineVsyncId,IntendedVsync,Vsync,InputEventId,HandleInputStart,"
+    "AnimationStart,PerformTraversalsStart,DrawStart,FrameDeadline,FrameInterval,"
+    "FrameStartTime,SyncQueued,SyncStart,IssueDrawCommandsStart,SwapBuffers,"
+    "FrameCompleted,DequeueBufferDuration,QueueBufferDuration,GpuCompleted,"
+    "SwapBuffersCompleted,DisplayPresentTime,CommandSubmissionCompleted,")
+
+
+def test_framestats_parses_the_real_header_shape_which_ends_in_a_comma():
+    row = ",".join(str(100 + i) for i in range(23)) + ","
+    rows = ea.parse_framestats(_REAL_FRAMESTATS_HEADER + "\n" + row + "\n")
+    assert len(rows) == 1, "真实 framestats 形状解析出 0 行"
+    assert rows[0]["FrameCompleted"] == 116
+    assert "" not in rows[0]
+
+
+def test_framestats_still_accepts_rows_without_the_trailing_comma():
+    """剥尾逗号不能把「表头有、数据行没有」这一路也一起放行错列。"""
+    row = ",".join(str(100 + i) for i in range(23))
+    rows = ea.parse_framestats(_REAL_FRAMESTATS_HEADER + "\n" + row + "\n")
+    assert len(rows) == 1 and rows[0]["Flags"] == 100
+
+
 # ── 对齐 ──────────────────────────────────────────────────────────────────
 def test_align_picks_first_frame_after_commit():
     _cfg, flips = ea.parse_stim_log(_stim_lines(count=4, warmup=0))
