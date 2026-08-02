@@ -156,9 +156,15 @@ def test_simulated_artifacts_parse_with_the_e1_parsers_not_just_with_mine():
     try:
         s = sim.write(d, "e3_input_timeline_present")
         period, frames = ec.ea.parse_sf_latency(ec.read_text(d, "sf_latency.txt"))
+        # 语料是**多块重叠**的（环缓冲装不下一次会话，采集侧周期性追加）：
+        # 先去重再比数，这一步本身就是判读侧必须做的那一步。
+        frames, dup_sf = ec.dedupe_by(frames, "actual_ns")
         assert period == sim.FRAME_NS and len(frames) == len(s["frames"])
+        assert dup_sf > 0, "夹具没造出重叠 dump —— 去重那条路一次没走到"
         rows = ec.ea.parse_framestats(ec.read_text(d, "framestats.txt"))
-        assert len(rows) == len(s["frames"]), "真实形状的 framestats 解析出 0 行"
+        assert rows, "真实形状的 framestats 解析出 0 行"
+        rows, dup_fs = ec.dedupe_by(rows, "IntendedVsync")
+        assert len(rows) == len(s["frames"]) and dup_fs > 0
         assert "NewestInputEvent" in rows[0]
         evts, other, bad = es.content_events(ec.read_lines(d, "adapter.log"), sim.SIM_PKG)
         assert len(evts) == len(s["events"]) and other == 1 and bad == 0

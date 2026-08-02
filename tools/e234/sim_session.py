@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """会话模拟器 —— 生成与 `e234_collect.py` **逐字段同形**的合成语料，供 dry-run。
 
@@ -65,14 +65,14 @@ SCENARIOS = {
     # —— E3：A0→A0′ ——
     "e3_input_timeline_present": {
         "purpose": "E3 装置校验：framestats 带输入事件时戳列，A0 可锚，注入间隔 180ms",
-        "turns": 6, "stream_events": 12, "a_lag_ms": [3.0, 5.0],
+        "turns": 6, "stream_events": 25, "a_lag_ms": [3.0, 5.0],
         "ttft_ms": 1900, "a0_gap_ms": 180, "stream_gap_ms": [90, 130],
         "post_silence_ms": [4000], "framestats": "old",
     },
     "e3_input_timeline_absent": {
         "purpose": "E3 装置校验：framestats 只有 InputEventId（实测归档的那种表头），"
                    "A0 不可锚 —— 判读必须 NOT_EXECUTED 并点名，不得拿别的列顶替",
-        "turns": 6, "stream_events": 12, "a_lag_ms": [3.0, 5.0],
+        "turns": 6, "stream_events": 25, "a_lag_ms": [3.0, 5.0],
         "ttft_ms": 1900, "a0_gap_ms": 180, "stream_gap_ms": [90, 130],
         "post_silence_ms": [4000], "framestats": "new",
     },
@@ -216,38 +216,62 @@ def _adapter_log(sim):
     return "\n".join(r[1] for r in rows) + "\n"
 
 
+RING_DEPTH = 120       # gfxinfo / SurfaceFlinger 的环缓冲深度（量级；两者 120/128）
+RING_STEP = 90         # 相邻两次 dump 的推进量 -> 必然重叠，判读侧必须去重
+
+
+def _ring_chunks(frames):
+    """把帧序列切成**相互重叠**的若干块，模拟周期性 dump 的真实产物。
+
+    采集侧是边跑边追加的（环缓冲装不下一次会话），所以相邻 dump 一定重叠。
+    模拟器如果只写一份不重叠的全量，就是又一次「夹具自造了生产者不写的形状」
+    （D-309）—— 那样去重逻辑永远不会被走到。
+    """
+    if not frames:
+        return []
+    out, i = [], 0
+    while i < len(frames):
+        out.append(frames[i:i + RING_DEPTH])
+        if i + RING_DEPTH >= len(frames):
+            break
+        i += RING_STEP
+    return out
+
+
 def _sf_latency(sim):
-    L = [str(FRAME_NS)]
-    for f in sim["frames"]:
-        L.append("%d\t%d\t%d" % (f["mono"] - FRAME_NS, f["mono"], f["mono"] - 1_000_000))
-    return "\n".join(L) + "\n"
+    blocks = []
+    for chunk in _ring_chunks(sim["frames"]):
+        L = [str(FRAME_NS)]
+        for f in chunk:
+            L.append("%d\t%d\t%d" % (f["mono"] - FRAME_NS, f["mono"],
+                                     f["mono"] - 1_000_000))
+        blocks.append("\n".join(L))
+    return "\n".join(blocks) + "\n"
 
 
 def _framestats(sim, variant):
-    """真实形状：**每行末尾都有一个逗号**（归档语料如此）。"""
-    if variant == "old":
-        head, ncol = OLD_HEADER, 14
-        rows = [head]
-        for f in sim["frames"]:
+    """真实形状：**每行末尾都有一个逗号**（归档语料如此），且**多块重叠**。"""
+    head, ncol = (OLD_HEADER, 14) if variant == "old" else (NEW_HEADER, 23)
+    blocks = []
+    for chunk in _ring_chunks(sim["frames"]):
+        rows = ["Stats since: 1ns", "---PROFILEDATA---", head]
+        for f in chunk:
             vals = [0] * ncol
-            vals[1] = f["mono"] - FRAME_NS          # IntendedVsync
-            vals[2] = f["mono"] - FRAME_NS          # Vsync
-            vals[3] = f["input_mono"]               # OldestInputEvent
-            vals[4] = f["input_mono"]               # NewestInputEvent
-            vals[13] = f["mono"]                    # FrameCompleted
+            if variant == "old":
+                vals[1] = f["mono"] - FRAME_NS      # IntendedVsync
+                vals[2] = f["mono"] - FRAME_NS      # Vsync
+                vals[3] = f["input_mono"]           # OldestInputEvent
+                vals[4] = f["input_mono"]           # NewestInputEvent
+                vals[13] = f["mono"]                # FrameCompleted
+            else:
+                vals[2] = f["mono"] - FRAME_NS      # IntendedVsync
+                vals[3] = f["mono"] - FRAME_NS      # Vsync
+                vals[4] = 0 if not f["input_mono"] else 7  # InputEventId：id 不是时戳
+                vals[16] = f["mono"]                # FrameCompleted
+                vals[21] = f["mono"]                # DisplayPresentTime
             rows.append(",".join(str(v) for v in vals) + ",")
-        return "\n".join(["Stats since: 1ns", "---PROFILEDATA---"] + rows) + "\n"
-    head, ncol = NEW_HEADER, 23
-    rows = [head]
-    for f in sim["frames"]:
-        vals = [0] * ncol
-        vals[2] = f["mono"] - FRAME_NS              # IntendedVsync
-        vals[3] = f["mono"] - FRAME_NS              # Vsync
-        vals[4] = 0 if not f["input_mono"] else 7   # InputEventId：是 id，不是时戳
-        vals[16] = f["mono"]                        # FrameCompleted
-        vals[21] = f["mono"]                        # DisplayPresentTime
-        rows.append(",".join(str(v) for v in vals) + ",")
-    return "\n".join(["Stats since: 1ns", "---PROFILEDATA---"] + rows) + "\n"
+        blocks.append("\n".join(rows))
+    return "\n".join(blocks) + "\n"
 
 
 def _screencap_index(sim, period_ms=400):

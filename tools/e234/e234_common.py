@@ -349,6 +349,25 @@ def banner_lines(run_kind):
     return []
 
 
+def dedupe_by(rows, key):
+    """按 `key` 去重，保留首次出现的顺序。返回 (rows, dropped)。
+
+    为什么需要它：`dumpsys gfxinfo … framestats` 与 `SurfaceFlinger --latency`
+    读的都是**环形缓冲**（各约 120/128 帧）。一次真实会话的帧数远超环缓冲深度，
+    所以采集侧必须**周期性地反复 dump 并追加**，而相邻两次 dump 必然重叠。
+    不去重就是把同一帧数进去两次 —— 一次物理上屏被算成两个样本，
+    正是 T14 §2.1③ 记的那个形状，只不过换了一个入口。
+    """
+    seen, out = set(), []
+    for r in rows:
+        k = r.get(key)
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(r)
+    return out, len(rows) - len(out)
+
+
 def read_lines(run_dir, name):
     p = os.path.join(run_dir, name)
     if not os.path.exists(p):

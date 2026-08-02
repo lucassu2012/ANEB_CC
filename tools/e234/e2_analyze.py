@@ -55,6 +55,9 @@ def analyze(run_dir, pkg):
     pin = ec.clock_pin(ec.read_lines(run_dir, "stim_pre.log"),
                        ec.read_lines(run_dir, "stim_post.log"), None)
     period_ns, frames = ec.ea.parse_sf_latency(ec.read_text(run_dir, "sf_latency.txt"))
+    # 采集侧是周期性追加的（环缓冲装不下一次会话），相邻 dump 必然重叠。
+    # 不去重就是把同一帧数两次 —— T14 §2.1③ 那个形状换了个入口。
+    frames, dup_frames = ec.dedupe_by(frames, "actual_ns")
     frame_ms = (period_ns / ec.NS_PER_MS) if period_ns else pin.get("frame_ms")
 
     res = {
@@ -65,7 +68,7 @@ def analyze(run_dir, pkg):
         "events_bad_dimension": dropped_dim,
         "wall_to_boot": fit, "clock_pin": pin, "turn_method": turn_method,
         "turns_total": len(turns), "frames_total": len(frames),
-        "frame_ms": frame_ms,
+        "frames_duplicate_dropped": dup_frames, "frame_ms": frame_ms,
         "channel_b": ec.ea.screencap_sampling_stats(
             ec.ea.parse_screencap_index(ec.read_jsonl(run_dir, "screencap_index.jsonl")),
             8.0),
@@ -139,7 +142,8 @@ def render_markdown(res):
           % (res["events_used"], res["events_other_pkg"], res["events_bad_dimension"]),
           "| 切轮方式 | `%s`（轮数 %s） |" % (res["turn_method"], res["turns_total"]),
           "| 一帧 | %s ms（实测，非硬编码 33ms —— spec §3.1） |" % _f(res["frame_ms"]),
-          "| 帧记录条数 | %s |" % res["frames_total"]]
+          "| 帧记录条数（去重后 / 重复丢弃） | %s / %s |"
+          % (res["frames_total"], res["frames_duplicate_dropped"])]
     fit = res["wall_to_boot"]
     L.append("| 墙钟↔BOOTTIME 标定 | %s（n=%s，残差 p50 %s ms / max %s ms） |"
              % (fit.get("status"), fit.get("n"), _f(fit.get("residual_ms_p50")),

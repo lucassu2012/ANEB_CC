@@ -94,7 +94,8 @@ def segment_turns(events, marks):
     if not ends:
         return ([{"idx": 0, "t_start_ns": events[0]["t_boot_ns"],
                   "t_end_ns": events[-1]["t_boot_ns"], "answer_start_ns": None,
-                  "events": list(events)}], TURN_METHOD_WHOLE_RUN)
+                  "start_explicit": False, "events": list(events)}],
+                TURN_METHOD_WHOLE_RUN)
     starts = [m for m in marks if m["kind"] == KIND_TURN_START
               and m.get("t_boot_ns") is not None]
     a_starts = [m for m in marks if m["kind"] == KIND_ANSWER_START
@@ -112,6 +113,12 @@ def segment_turns(events, marks):
             "idx": i,
             "t_start_ns": lo + 1,
             "t_end_ns": e["t_boot_ns"],
+            # 轮窗的**下界从哪来**，消费方需要知道：
+            # - 上一轮的结束标记 / 显式 `turn_start` -> 下界可信，窗外的东西不属于本轮；
+            # - 第一轮且无显式标记 -> 下界只是「第一条事件」，而 A0（手指离屏）
+            #   在第一条事件**之前**。拿它当下界会把首轮的 A0 挡在窗外（E3 首跑实测：
+            #   6 轮里恰好丢 1 轮，就是这一轮）。这个布尔让消费方自己决定要不要放宽。
+            "start_explicit": bool(explicit) or prev is not None,
             "answer_start_ns": min(a_s) if a_s else None,
             "events": [ev for ev in events
                        if lo < ev["t_boot_ns"] <= e["t_boot_ns"]],

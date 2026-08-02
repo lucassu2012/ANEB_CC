@@ -188,7 +188,8 @@ class _MarkPump(object):
 
 
 def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
-            pin_flips, pin_interval_ms, interactive, device_window):
+            pin_flips, pin_interval_ms, interactive, device_window,
+            framestats_period_s=20):
     ec.write_run_kind(out_dir, ec.KIND_DEVICE, {
         "experiments": ["E2", "E3", "E4"],
         "pkg": pkg, "roi": list(roi), "device_window": device_window,
@@ -212,6 +213,21 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
         marker = _MarkPump(adb, os.path.join(out_dir, "mark_rtt.jsonl"))
         threading.Thread(target=marker.loop, daemon=True).start()
 
+    # 通道 C 必须**周期性**取：`framestats` 与 `--latency` 读的都是环形缓冲
+    # （各约 120/128 帧）。一次真实会话的帧数远超环缓冲深度 —— 会话结束才 dump
+    # 一次，拿到的只是最后十几秒。这与 logcat 环缓冲七分钟冲净是同一类问题
+    # （任务板设备注意条），处置也一样：边跑边落盘。判读侧按帧时戳去重。
+    layer = e1c.find_layer_name(adb, pkg)
+    notes["layer"] = layer
+    if not layer:
+        # 「图层没找到」与「图层找到但零帧」必须分得开 —— e1 就是在这上面
+        # 一度把环境边界误判成自己的 bug（README §4 第 2 条的连带后果）。
+        notes["sf_status"] = "NOT_EXECUTED: SurfaceFlinger --list 未找到该包的图层"
+    stop_c = {"stop": False}
+    tc = threading.Thread(target=_dump_channel_c, daemon=True,
+                          args=(adb, out_dir, pkg, layer, framestats_period_s, stop_c))
+    tc.start()
+
     idx_path = os.path.join(out_dir, "screencap_index.jsonl")
     notes["screencap_samples"] = _sample_roi(
         adb, idx_path, roi, screencap_period_ms, session_seconds,
@@ -220,6 +236,8 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
         marker.stop = True
         notes["marks"] = marker.n
 
+    stop_c["stop"] = True
+    tc.join(timeout=60)
     time.sleep(1.0)
     proc.terminate()
     pump.join(timeout=5)
@@ -227,20 +245,30 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
 
     notes["stim_post"] = _pin(adb, out_dir, "post", pin_flips, pin_interval_ms)
 
-    layer = e1c.find_layer_name(adb, pkg)
-    notes["layer"] = layer
-    sf = adb.text("shell", "dumpsys", "SurfaceFlinger", "--latency", layer) if layer else ""
-    _write(os.path.join(out_dir, "sf_latency.txt"), sf)
-    if not layer:
-        # 「图层没找到」与「图层找到但零帧」必须分得开 —— e1 就是在这上面
-        # 一度把环境边界误判成自己的 bug（README §4 第 2 条的连带后果）。
-        notes["sf_status"] = "NOT_EXECUTED: SurfaceFlinger --list 未找到该包的图层"
-    _write(os.path.join(out_dir, "framestats.txt"),
-           adb.text("shell", "dumpsys", "gfxinfo", pkg, "framestats", timeout=45))
-
     _write(os.path.join(out_dir, "collect_notes.json"),
            json.dumps(notes, ensure_ascii=False, indent=2))
     return notes
+
+
+def _dump_channel_c(adb, out_dir, pkg, layer, period_s, stop):
+    """周期性追加通道 C 的两条支路。相邻 dump 必然重叠，去重是判读侧的事。"""
+    sf_path = os.path.join(out_dir, "sf_latency.txt")
+    fs_path = os.path.join(out_dir, "framestats.txt")
+    while not stop["stop"]:
+        if layer:
+            _append(sf_path, adb.text("shell", "dumpsys", "SurfaceFlinger",
+                                      "--latency", layer))
+        _append(fs_path, adb.text("shell", "dumpsys", "gfxinfo", pkg,
+                                  "framestats", timeout=45))
+        for _ in range(int(max(1, period_s) * 4)):
+            if stop["stop"]:
+                return
+            time.sleep(0.25)
+
+
+def _append(path, text):
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write((text or "") + "\n")
 
 
 def _sample_roi(adb, idx_path, roi, period_ms, duration_s, stop_flag):
@@ -289,6 +317,8 @@ def main(argv=None):
     ap.add_argument("--session-seconds", type=int, default=600)
     ap.add_argument("--pin-flips", type=int, default=6)
     ap.add_argument("--pin-interval-ms", type=int, default=800)
+    ap.add_argument("--framestats-period-s", type=int, default=20,
+                    help="通道 C 的取样周期；环缓冲约 120 帧，取得太稀就丢帧")
     ap.add_argument("--no-marks", action="store_true",
                     help="不收操作者标记（那时整段=一轮，E4 结构上判不了，判读侧会说）")
     args = ap.parse_args(argv)
@@ -324,7 +354,7 @@ def main(argv=None):
 
     notes = collect(adb, out, args.pkg, roi, args.screencap_period_ms,
                     args.session_seconds, args.pin_flips, args.pin_interval_ms,
-                    not args.no_marks, args.device_window)
+                    not args.no_marks, args.device_window, args.framestats_period_s)
     sys.stdout.write("collected -> %s\n%s\n"
                      % (out, json.dumps(notes, ensure_ascii=False)))
     return 0

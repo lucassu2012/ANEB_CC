@@ -28,6 +28,7 @@
   "turn_method": "operator-marks",
   "turns_total": 6,
   "frames_total": 174,
+  "frames_duplicate_dropped": 30,
   "frame_ms": 16.666666,
   "channel_b": {
     "status": "PASS",

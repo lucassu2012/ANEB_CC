@@ -1,0 +1,108 @@
+{
+  "experiment": "E3",
+  "run_dir": "evidence/e234_dryrun_20260802/dryrun-e3-present",
+  "pkg": "com.larus.nova",
+  "dry_run": true,
+  "run_kind": "DRY_RUN_SIMULATED",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E3 / §6-6 / §3.4 G-4",
+  "events_used": 174,
+  "events_other_pkg": 1,
+  "events_bad_dimension": 0,
+  "turn_method": "operator-marks",
+  "turns_total": 6,
+  "framestats_rows": 174,
+  "framestats_duplicate_dropped": 30,
+  "framestats_columns": [
+    "Flags",
+    "IntendedVsync",
+    "Vsync",
+    "OldestInputEvent",
+    "NewestInputEvent",
+    "HandleInputStart",
+    "AnimationStart",
+    "PerformTraversalsStart",
+    "DrawStart",
+    "SyncQueued",
+    "SyncStart",
+    "IssueDrawCommandsStart",
+    "SwapBuffers",
+    "FrameCompleted"
+  ],
+  "a0_method": "framestats-input-event",
+  "a0_unavailable_reason": null,
+  "a0p_method": "v3-cluster",
+  "clock_pin": {
+    "status": "PASS",
+    "offset_ns": 3000000000000,
+    "drift_ns": 0,
+    "frame_ms": 16.667,
+    "pre_n": 5,
+    "post_n": 5,
+    "pre_spread_ns": 0,
+    "post_spread_ns": 0
+  },
+  "per_turn": [
+    {
+      "turn": 0,
+      "clusters": 2,
+      "input_candidates": 1,
+      "a0_mono_ns": 5000000000000,
+      "interval_ms": 180.0
+    },
+    {
+      "turn": 1,
+      "clusters": 2,
+      "input_candidates": 1,
+      "a0_mono_ns": 5008905000000,
+      "interval_ms": 180.0
+    },
+    {
+      "turn": 2,
+      "clusters": 2,
+      "input_candidates": 1,
+      "a0_mono_ns": 5017810000000,
+      "interval_ms": 180.0
+    },
+    {
+      "turn": 3,
+      "clusters": 2,
+      "input_candidates": 1,
+      "a0_mono_ns": 5026715000000,
+      "interval_ms": 180.0
+    },
+    {
+      "turn": 4,
+      "clusters": 2,
+      "input_candidates": 1,
+      "a0_mono_ns": 5035620000000,
+      "interval_ms": 180.0
+    },
+    {
+      "turn": 5,
+      "clusters": 2,
+      "input_candidates": 1,
+      "a0_mono_ns": 5044525000000,
+      "interval_ms": 180.0
+    }
+  ],
+  "drop_reasons": {},
+  "interval": {
+    "status": "PASS",
+    "n": 6,
+    "dropped": 0,
+    "p50_ms": 180.0,
+    "p90_ms": 180.0,
+    "p99_ms": 180.0,
+    "min_ms": 180.0,
+    "max_ms": 180.0
+  },
+  "verdict": [
+    "PASS",
+    "已给出 A0→A0′ 分布（method=framestats-input-event，n=6）"
+  ],
+  "for_6_6": {
+    "a0_to_a0p_p50_ms": 180.0,
+    "a0_to_a0p_p99_ms": 180.0,
+    "note": "§6-6 待裁：ttft_ui_ms 改口径为 A0′→A2，或在其上加这一段。本脚本不代裁。"
+  }
+}
