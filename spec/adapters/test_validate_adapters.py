@@ -74,20 +74,34 @@ def test_unknown_key_inside_kpi_mapping_entry_is_caught():
     assert "A1" in _codes(va.check_one("doubao.json", d, REAL_DTOS))
 
 
-def test_validated_against_version_is_rejected_today():
-    """T11 ① 被阻塞的机器可判证据。
+def test_validated_against_version_is_now_declared_and_accepted():
+    """字段已落地（D-387 / 裁定 6-4，2026-08-02 由 v2 落）——本条钉的是**落地后**的状态。
 
-    DTO 目前没有这个字段，App 又是严格解析——所以今天把它写进 JSON，
-    设备上的后果是解析抛异常 → fail-safe 空列表 → 全部降级 generic →
-    adapter_obs 停止入库，而且**没有任何一处会报错**。门必须替我们拦住。
+    上一版这条叫 `..._is_rejected_today`，钉的是「DTO 还没有这个字段，所以门必须拦住它」。
+    那个状态在 2026-08-02 结束了：`VersionStampDto` 已声明在 `AdapterSpec.kt` **同文件内**
+    （必须同文件——T14 用 ghost 键做过对照：放别的文件时这一整段一个键都不查）。
+    **函数不删只改写**：删掉就没人再钉「它到底有没有被派生出来」这件事，
+    而那正是「放错文件」这个失效模式唯一会露头的地方。
     """
-    d = copy.deepcopy(GOOD)
-    d["adapter"]["validated_against_version"] = {
-        "version_name": "1.2.3", "version_code": 1203,
-        "captured_at": "2026-08-02", "source": "dumpsys package com.larus.nova",
-    }
-    assert "A1" in _codes(va.check_one("doubao.json", d, REAL_DTOS))
-    assert "validated_against_version" not in REAL_DTOS[va.DTO_OF_ADAPTER]["allowed"]
+    d, _ = _with_version()
+    # 真派生表里必须有它——A2/A4 的下钻全靠这个键存在，缺了就是静默失明。
+    assert "validated_against_version" in REAL_DTOS[va.DTO_OF_ADAPTER]["allowed"]
+    assert "VersionStampDto" in REAL_DTOS, "VersionStampDto 必须能从 AdapterSpec.kt 派生出来"
+    # 完整戳照真派生表过门，零违规。
+    assert va.check_one("doubao.json", d, REAL_DTOS) == []
+
+
+def test_a_half_filled_version_stamp_is_still_rejected():
+    """`= null` 默认让「没核对过」合法，但**半填**不合法——缺席 ≠ 半填（R21a/A2）。
+
+    这条是上一条的反面：字段可选**不等于**它的内部可以缺。四份 JSON 今天一个都没填
+    （四个 App 全部在规格成文之后更新过，填现装版本等于伪造溯源），
+    所以真语料证不了这一侧——只能由这里的反例证。
+    """
+    d, _ = _with_version()
+    del d["adapter"]["validated_against_version"]["source"]
+    codes = _codes(va.check_one("doubao.json", d, REAL_DTOS))
+    assert "A2" in codes, codes
 
 
 def test_the_same_field_passes_once_the_dto_declares_it():

@@ -94,6 +94,38 @@ object AdapterSpecLoader {
         val adapter: AdapterDto,
     )
 
+    /**
+     * 规格核对时的 App 版本戳（D-387 / T11 裁定 6-4）。
+     *
+     * **必须声明在本文件内**，不是风格偏好而是硬约束：`spec/adapters/validate_adapters.py`
+     * 用正则从 **`AdapterSpec.kt` 这一个文件**派生允许键/必填键/类型（其 L55 硬编码路径、
+     * L65 抓 `@SerialName`）。T14 用一个 ghost 键做过对照实验——**把本 DTO 挪到别的文件，
+     * 门印 `OK: all adapter-spec invariants hold`、零违规；挪回同文件，四份 JSON 逐一被点名**。
+     * 也就是说放在别处时，这一整段**一个键都不会被检查**。
+     *
+     * 四个序列名照 T14 报告 §2.2 定案，**不要另起**（改掉会触发 `R21b`/`R21c`/`R21d`，
+     * 而设备侧照样接受该文件——又一个「门说没问题、其实没查」的形状）。
+     */
+    @Serializable
+    data class VersionStampDto(
+        /** 核对时的 `versionName`，如 `"1.2.3"`。 */
+        @SerialName("version_name") val versionName: String,
+        /** 核对时的 `versionCode`（`dumpsys package <pkg>` 只读取得，不改设备）。 */
+        @SerialName("version_code") val versionCode: Long,
+        /**
+         * 核对日期，**`YYYY-MM-DD`**，如 `"2026-01-01"`。
+         *
+         * 不是 ISO-8601 带时刻——门 `R21d` 只认日期形态（`validate_adapters.py`）。
+         * 初稿这里写的是 `"2026-01-01T00:00:00Z"`，被 R21d 当场咬住；
+         * **KDoc 与门不一致时，以门为准**，因为门是唯一会拦住错误数据的那一侧。
+         */
+        @SerialName("captured_at") val capturedAt: String,
+        /**
+         * 版本号怎么来的，如 `"dumpsys package"`——写下来才好判断它可不可信（门 `R21e`）。
+         */
+        @SerialName("source") val source: String,
+    )
+
     @Serializable
     data class AdapterDto(
         val id: String,
@@ -109,6 +141,14 @@ object AdapterSpecLoader {
         @SerialName("observe_events") val observeEvents: List<String>,
         @SerialName("kpi_mapping") val kpiMapping: Map<String, KpiProxyDto>,
         @SerialName("caliber_redlines") val caliberRedlines: CaliberDto,
+        /**
+         * 该规格最后一次**在真机上核对过**的 App 版本（D-387 / T11 裁定 6-4）。
+         *
+         * `= null` 默认：**规格没核对过是合法状态**，不是错误——四份数据文件里没有这一段时
+         * 照常解析。缺席的语义是「不知道对哪个版本验过」，而不是「对任何版本都成立」；
+         * 消费侧据此把该规格标 `STALE`，**绝不静默当作最新**（R-10：不可计算 ≠ 零）。
+         */
+        @SerialName("validated_against_version") val validatedAgainstVersion: VersionStampDto? = null,
     ) {
         fun toModel() = AdapterSpec(
             id = id,
@@ -128,6 +168,14 @@ object AdapterSpecLoader {
                 confidenceCeiling = caliberRedlines.confidenceCeiling,
                 r10 = caliberRedlines.r10,
             ),
+            validatedAgainstVersion = validatedAgainstVersion?.let {
+                VersionStamp(
+                    versionName = it.versionName,
+                    versionCode = it.versionCode,
+                    capturedAt = it.capturedAt,
+                    source = it.source,
+                )
+            },
         )
     }
 
@@ -195,10 +243,39 @@ data class AdapterSpec(
     val observeEvents: List<String>,
     val kpiMapping: Map<String, KpiProxy>,
     val caliber: CaliberRedlines,
+    /**
+     * 最后一次在真机上核对该规格时的 App 版本；**null = 从未核对过**（D-387 / 裁定 6-4）。
+     * 缺席是合法状态，语义是「不知道对哪个版本验过」——**不是**「对任何版本都成立」。
+     */
+    val validatedAgainstVersion: VersionStamp? = null,
 ) {
     /** 真机验证前恒 true——驱动的一切输出恒标 LOW/INCONCLUSIVE。 */
     val pendingValidation: Boolean get() = status == AdapterSpecLoader.STATUS_PENDING
+
+    /**
+     * 规格是否**可能**已过期：宿主 App 现装版本与核对版本对不上，或压根没核对过。
+     *
+     * 三态刻意不折叠成布尔：`null`（没核对过）与「核对过但版本变了」是两回事——
+     * 前者是**没有证据**，后者是**有证据表明它变了**，把两者当同一件事上报，
+     * 读者就分不清「不知道」和「知道不对」（R-10）。
+     */
+    fun stalenessAgainst(installedVersionCode: Long?): Staleness = when {
+        validatedAgainstVersion == null -> Staleness.NEVER_VALIDATED
+        installedVersionCode == null -> Staleness.INSTALLED_VERSION_UNKNOWN
+        installedVersionCode != validatedAgainstVersion.versionCode -> Staleness.STALE
+        else -> Staleness.CURRENT
+    }
+
+    enum class Staleness { CURRENT, STALE, NEVER_VALIDATED, INSTALLED_VERSION_UNKNOWN }
 }
+
+/** 规格核对时的 App 版本戳（D-387 / 裁定 6-4）。 */
+data class VersionStamp(
+    val versionName: String,
+    val versionCode: Long,
+    val capturedAt: String,
+    val source: String,
+)
 
 /**
  * 发送按钮匹配规则（send-anchor v2 点击锚点）。四正则维度均可空=不启用该维度；
