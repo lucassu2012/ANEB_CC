@@ -15,11 +15,22 @@ import sys
 import traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))  # tools/e1/
-sys.path.insert(0, HERE)                   # tools/e1/tests/
 
-TEST_MODULES = sorted(
-    f[:-3] for f in os.listdir(HERE) if f.startswith("test_") and f.endswith(".py"))
+
+def discover(here):
+    """枚举 `here` 下的测试模块，并把它与其父目录接进 `sys.path`。
+
+    抽成函数是为了让**同构的第二个包**（`tools/e234/tests/`）复用这只跑器，
+    而不是把它复制一份 —— 复制出来的跑器不会跟着这里的三态退出码演进，
+    而「没有依赖边的副本」正是最难察觉的那种分叉（D-315）。
+    """
+    sys.path.insert(0, os.path.dirname(here))
+    sys.path.insert(0, here)
+    return sorted(
+        f[:-3] for f in os.listdir(here) if f.startswith("test_") and f.endswith(".py"))
+
+
+TEST_MODULES = discover(HERE)
 
 
 def _say(text):
@@ -39,10 +50,10 @@ def _say(text):
     print(text)
 
 
-def main():
+def main(here=None, label="e1"):
     total = passed = 0
     failures = []
-    for modname in TEST_MODULES:
+    for modname in (TEST_MODULES if here is None else discover(here)):
         mod = importlib.import_module(modname)
         for name in sorted(dir(mod)):
             if not name.startswith("test_"):
@@ -58,7 +69,7 @@ def main():
                 failures.append("%s::%s\n%s" % (modname, name, traceback.format_exc()))
     for f in failures:
         _say(f)
-    _say("e1 reflex: %d/%d passed" % (passed, total))
+    _say("%s reflex: %d/%d passed" % (label, passed, total))
     if total == 0:
         return 5
     return 0 if not failures else 1
