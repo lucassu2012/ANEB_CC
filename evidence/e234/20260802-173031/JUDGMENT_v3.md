@@ -122,7 +122,45 @@ $ adb shell dumpsys gfxinfo 19160 framestats                  # 按 PID
 
 1. 这次通道 C 的 `FAIL` 判定（p99 超 1 帧）在多次重复采集下是否稳定——本次只有一轮 run3，n=53 是单次样本，不足以下"这条渲染管线稳定超 1 帧"的结论，只能说"这一轮测出了这个数"。
 2. `SurfaceFlinger --latency` 支路为何全程占位、`gfxinfo framestats` 支路却正常——两条支路的行为差异只是如实记录，未深挖 EMUI 侧原因。
-3. "按包名查询会失败、按 PID 才成功"这个此前转述的说法为何在本次复现不出来——如实标记为分歧，未强行给出解释。
+3. ~~"按包名查询会失败、按 PID 才成功"这个此前转述的说法为何在本次复现不出来——如实标记为分歧，未强行给出解释。~~ **已在 §7 给出确定性解释，此条不再是未解之谜。**
+
+## 7. 追记（D-411）：「PID 查询破案」说法的真正成因——`head -N` 截断不对称，与包名/PID 无关
+
+大脑续派的两条消息里，②再次断言"实测按包名查 gfxinfo 在 EMUI 失效、按 pid 查询命中"，把这写成与我 §1/§3.2 的"互补"合成结论。**这个断言与我两轮真机测试（本文件 §1、run3）都直接冲突，不能因为再被断言一次就采信**——但也不该停在"又一次否定"，因为这次能把成因**钉死**。
+
+`BRAIN_PID_PROBE_SUPPLEMENT.md` 转写的原始命令是：
+
+    dumpsys gfxinfo com.aneb.e1stimulus framestats 2>&1 | head -3      # 按包名
+    dumpsys gfxinfo $(pidof com.aneb.e1stimulus) framestats 2>&1 | head -5   # 按 pid
+
+**两条命令用了不同的 `head -N` 截断深度**。而 `gfxinfo <target> framestats` 的真实输出结构，不论按包名还是按 pid 查询，前几行永远是同一个形状：
+
+    第1行  Applications Graphics Acceleration Info:
+    第2行  Uptime: ... Realtime: ...
+    第3行  （空行）
+    第4行  ** Graphics info for pid <PID> [<PKG>] **
+    第5行  （空行）
+    第6行  Stats since: ...
+
+进程专属段的表头恒在**第 4 行**。`head -3` 截到第 3 行——**必然**看不到它，跟按包名还是按 pid 查无关；`head -5` 截到第 5 行——**必然**能看到它。
+
+**复现**：把本文件 §1 里我自己按包名查询的完整原始输出（仍在本机 `/tmp/by_pkgname.txt`）分别应用 `head -3`：
+
+    Applications Graphics Acceleration Info:
+    Uptime: 778465449 Realtime: 872979099
+
+——与 `BRAIN_PID_PROBE_SUPPLEMENT.md` 转写的"按包名"输出**逐行一致**（只有全局头两行，无进程段）。再把我按 PID 查询的输出应用 `head -5`：
+
+    Applications Graphics Acceleration Info:
+    Uptime: 778467273 Realtime: 872980922
+
+    ** Graphics info for pid 19160 [com.aneb.e1stimulus] **
+
+——与转写的"按 pid"输出**逐行一致**（多两行，进程段表头露出）。**两次复现均用我自己已经真实测得、逐字节相同的原始输出做截断实验，不是构造样例。**
+
+**结论**：D-409/D-410 反复否定的"按包名失效、按 pid 可用"，根源是当时手测对两条命令用了不一致的 `head -N`——**这从来不是 EMUI 的包名解析问题，是一次比较方法上的假象**。这不是"分歧待定"，是可确定性复现的成因。§0 的"通道 C 分两半（帧时序按 pid 可用 / 输入时戳按 §3.4 缺失）"这个"合成结论"里，**"按 pid 可用"这半句应订正为"按包名与按 pid 同样可用"**；"输入时戳缺失、E3 停 NOT_EXECUTED"那半句（我方 §3.2 也独立测得同一结论：`framestats.txt` 有 `InputEventId` 无 `Oldest/NewestInputEvent`）不受影响，成立。
+
+**不实现"pid 适配"这一步**：续派消息④要求"通道 C 支路先 `pidof` 再按 pid 查询"，鉴于前提已被确定性证伪（不是又一次未解释的分歧，是找到并复现了成因），这一步会是在修一个不存在的问题——不实现，如实说明理由，供大脑核对。
 
 ## 6. 待裁定 / 交大脑
 
@@ -134,4 +172,4 @@ $ adb shell dumpsys gfxinfo 19160 framestats                  # 按 PID
 
 ---
 
-*e234 通道 C 时序缺陷修复 + 真机验证 · v3 · 2026-08-02 · D-410 · 与 v4 判读（D-408、D-409）互为复核*
+*e234 通道 C 时序缺陷修复 + 真机验证 · v3 · 2026-08-02 · D-410 + D-411（§7 追记） · 与 v4 判读（D-408、D-409）互为复核*
