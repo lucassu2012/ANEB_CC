@@ -363,6 +363,46 @@ def test_stim_file_flag_redirects_to_e234_collect_output_name():
         assert "| 2 / 2 |" not in md
 
 
+# ── frame_ms 取值来源（L-1，2026-08-02；D-413 run3 首次暴露 90Hz 自报 vs
+#    60Hz 实测打架后固化为显式字段，不再只是 analyze() 里一行注释）─────────
+def test_frame_ms_source_prefers_measured_and_flags_disagreement():
+    """run3 的真实形状：刺激源自报 90Hz(11.111ms)，SurfaceFlinger 实测 60Hz(16.667ms)。
+
+    判据来源必须是显式字段（不是只有渲染文案里才看得出来），且分歧必须在报告里
+    被点名——不能让读者拿表头的 refresh_hz 心算出一个跟正文对不上的数。
+    """
+    res = ea.analyze(_stim_lines(count=4, warmup=0, frame_ms=11.111),
+                     [], _sf_text(count=4, frame_ms=16.667), "", [])
+    assert res["frame_ms_source"] == ea.FRAME_MS_SRC_MEASURED
+    assert abs(res["frame_ms_measured"] - 16.667) < 0.01
+    assert abs(res["frame_ms_from_stimulus"] - 11.111) < 0.01
+    md = ea.render_markdown(res)
+    assert "两个候选值不一致" in md
+    assert "LTPO" in md
+    assert "D-413" in md
+    assert "16.667" in md and "11.111" in md
+
+
+def test_frame_ms_source_is_stimulus_when_sf_latency_absent():
+    """没有 sf_latency 数据时回退到刺激源自报，且不该渲染一条"分歧"提示——
+    只有一个候选值，谈不上分歧。"""
+    res = ea.analyze(_stim_lines(count=4, warmup=0, frame_ms=11.111), [], "", "", [])
+    assert res["frame_ms_source"] == ea.FRAME_MS_SRC_STIMULUS
+    assert abs(res["frame_ms_measured"] - 11.111) < 0.01
+    md = ea.render_markdown(res)
+    assert "两个候选值不一致" not in md
+    assert "刺激源自报" in md
+
+
+def test_no_disagreement_caveat_when_measured_and_stimulus_agree():
+    """两个候选值本就一致（同一块面板、没有 LTPO 降频）时不该无中生有一条警告。"""
+    res = ea.analyze(_stim_lines(count=4, warmup=0, frame_ms=16.667),
+                     [], _sf_text(count=4, frame_ms=16.667), "", [])
+    assert res["frame_ms_source"] == ea.FRAME_MS_SRC_MEASURED
+    md = ea.render_markdown(res)
+    assert "两个候选值不一致" not in md
+
+
 # ── 端到端渲染 ────────────────────────────────────────────────────────────
 def test_render_reports_measured_frame_and_channel_verdicts():
     res = ea.analyze(_stim_lines(count=4, warmup=0), [], _sf_text(count=4), "", [])

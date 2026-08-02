@@ -54,6 +54,8 @@
 
   **〔v4 判读 run3 完成，2026-08-02〕** run3（v3 采集，`evidence/e234/20260802-173031/`）独立判读，先分析原始文件+重跑 `e1_analyze.py`、最后才读 `JUDGMENT_v3.md`。**`--pin-through-session` 修复独立确认有效**：`layer` 首次非空、通道 C 首次给出非 `NOT_EXECUTED` 判定（n=53/dropped=23/p99=29.427ms，**FAIL**——超 1 帧 16.667ms）；独立重跑与既有报告**逐字节一致**；通道 B 在真正重叠的观测窗下仍检出 0 次，进一步坐实 spec §2.2「B 采样率不够」是通道本身限制。**对 `JUDGMENT_v3.md` 两处订正**（追代码得出，非转述）：①称 `sf_latency.txt`"全部占位"——实测 95 行非占位（去重 58 条），不准确；②称"逐帧数据来自 framestats 的 PROFILEDATA"——追踪 `e1_analyze.py:analyze()` 源码，`frames` 只从 `parse_sf_latency()`（`--latency` 支路）赋值，`framestats_text` 全函数唯一用途是只写不读的计数字段，**FAIL 判定完全来自 `--latency` 的 58 条真实帧**，与 framestats 无关——两处订正互相印证。**本文件新发现**：`render_markdown` 表头 `refresh_hz`（90.0 自报）与正文"一帧=16.667ms"（SurfaceFlinger 实测优先）是两个不同来源、彼此不等的数字，报告面无交叉引用；本次判定不受影响，但下次 p99 若恰好落在两者之间，判定会随这条未文档化规则翻转而读者看不出来。决策入册 **D-413**；完整判读 `evidence/e234/20260802-173031/JUDGMENT_v4_run3.md`（含 L-1..L-3 待裁）。不改 `JUDGMENT_v3.md`，两份判读并列存档。
 
+  **〔v4 L-1 落地完成，2026-08-02，待命〕** `frame_ms` 取值优先级从代码注释固化为显式字段 `frame_ms_source`（`FRAME_MS_SRC_MEASURED`/`FRAME_MS_SRC_STIMULUS`，与既有取值逻辑同一处代码派生）；渲染面新增判据来源行，两候选值不一致时追加 `⚠`（写明 P40 是 LTPO 变刷屏、SF 实测周期可能是真实降频态，"1 帧该按哪个算"是 M3 门 G-5 口径议题、本工具不代为裁定）；`gate_verdict()` docstring 补 G-2 语义（FAIL=该通道单独不足以支撑 1 帧断言，非设备/方法失败）；`tools/e1/README.md` §3.5 记录三轮真机窗结果+口径解读。**用真实 run3 数据验证**：独立重跑 vs archived `e1_report_through.md`，diff 只多了来源标注+分歧提示三行，其余逐字节不变。3 条新反例，`tools/e1` **56/56** 全绿。决策入册 **D-414**。L-2（framestats 交叉验证）明确延后，未做。
+
   **〔v3 窗总结，DW-20260802-01 实质闭环，2026-08-02〕** 大脑回执"全盘接受"（含 `c2557f9` 自我记一笔"犯者=大脑"）后，按其收尾指示把 D-408/D-409/D-410 三份判读里的 J/K 系待裁清了一遍：
 
   - **J-1（谁修）** → done，`--pin-through-session`（D-410）。

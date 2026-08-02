@@ -60,6 +60,19 @@ PASS = "PASS"
 FAIL = "FAIL"
 NOT_EXECUTED = "NOT_EXECUTED"
 
+# ── 「1 帧」取值来源（L-1，2026-08-02；此前只是 analyze() 里一行注释，
+#    D-413 run3 第一次暴露它会与刺激源自报的 refresh_hz 打架后固化为显式判据）──
+# P40 是 LTPO 变刷屏（90Hz 满刷 / 静态内容可能降频合成）。SurfaceFlinger 实测的
+# 合成周期与 App 侧 `Display.getRefreshRate()` 的名义值在这类屏幕上**允许不同**
+# ——静态画面时 SF 完全可能真的在按更低频率合成，那不是 bug，是省电。
+# 本工具选哪个当「1 帧」直接决定 G-2（spec §3.4）的 PASS/FAIL，
+# 这条规则因此必须是显式、可审计的字段，不能只是渲染文案里的一句话。
+FRAME_MS_SRC_MEASURED = "surfaceflinger_measured"   # 优先：来自 sf_latency.txt 首行周期
+FRAME_MS_SRC_STIMULUS = "stimulus_self_report"      # 回退：sf_latency 缺失时，用刺激源 CFG 的 refresh_hz
+# 两个候选值差多少才值得渲染分歧提示——远小于任何有意义的帧周期差（run3 的
+# 90Hz/60Hz 之差 ≈5.6ms），只用来滤掉浮点表示误差级别的假分歧，不是精度判据。
+FRAME_MS_DISAGREEMENT_EPSILON_MS = 0.05
+
 # ── 刺激源日志 ────────────────────────────────────────────────────────────
 # 锚定方式：先要求行里出现标签 `E1_STIM`，再宽松地跳到标记词。
 #
@@ -405,6 +418,16 @@ def gate_verdict(summary, frame_ms):
 
     frame_ms 由实测刷新率换算得出，**不硬编码 33**（spec §3.1；D-312 形状）。
     信息不足一律 NOT_EXECUTED —— 没测过不能判 FAIL。
+
+    **口径解读（大脑裁示，2026-08-02，run3 首个实测 29.427ms 后固化）**：
+    这里的 PASS/FAIL 量的是**该通道自身观测链**（此函数被哪条通道调用，就是那条
+    通道的 t_commit→t_present 残余）能不能撑起「≤1 帧」这句话，**不是**在给设备
+    或采集方法打分。FAIL 的含义准确写法是「这条通道单独不足以支撑 1 帧精度断言」，
+    不是「设备不行」或「方法错了」——E1 实验本身若真的量出了这条残余（有 n、有
+    p99），实验就已经成功；PASS/FAIL 只是那个残余相对 1 帧门限的大小关系。
+    「1 帧到底该取多少 ms 才对」（尤其 LTPO 变刷屏下 SurfaceFlinger 实测值可能是
+    降频态而非满刷态）是另一个问题，见 `FRAME_MS_SRC_*` 与 spec §3.4 G-5 —— 那是
+    大脑/PO 层的口径议题，本函数不代为裁定，只如实拿传入的 frame_ms 去比。
     """
     if summary.get("status") != PASS or frame_ms is None:
         return NOT_EXECUTED, "缺分布或缺实测刷新率"
@@ -476,7 +499,9 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
 
     period_ns, frames = parse_sf_latency(sf_text or "")
     # 帧周期优先取 SurfaceFlinger 实测；缺则退回刺激源报的刷新率换算。
+    # 这条规则现在同时是一个显式、可审计的字段（L-1）——不再只活在这行注释里。
     frame_ms_c = (period_ns / NS_PER_MS) if period_ns else frame_ms
+    frame_ms_source = FRAME_MS_SRC_MEASURED if period_ns else FRAME_MS_SRC_STIMULUS
     max_gap_ns = int((frame_ms_c or 16.667) * max_gap_frames * NS_PER_MS)
 
     aligned, missed = align_present(good, frames, max_gap_ns)
@@ -507,6 +532,7 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
         "clock": {"boot_minus_mono_ns": off_ns, "spread_ns": off_spread_ns, "n": off_n},
         "frame_ms_measured": frame_ms_c,
         "frame_ms_from_stimulus": frame_ms,
+        "frame_ms_source": frame_ms_source,
         "framestats_rows": len(parse_framestats(framestats_text or "")),
         "channel_a": ch_a, "channel_a_verdict": (verdict_a, reason_a),
         "channel_b": ch_b,
@@ -547,8 +573,23 @@ def render_markdown(res):
                  "去算「期望节奏」再跟翻转总数比对（D-409 K-2） | — |"
                  % cfg["cfg_blocks"])
     L.append("")
-    L.append("**一帧 = %s ms**（实测，非硬编码 33ms —— spec §3.1）。"
-             % _fmt(res["frame_ms_measured"]))
+    src_label = {FRAME_MS_SRC_MEASURED: "SurfaceFlinger 实测（优先，L-1）",
+                FRAME_MS_SRC_STIMULUS: "刺激源自报 refresh_hz（sf_latency 缺失时回退）"
+                }[res["frame_ms_source"]]
+    L.append("**一帧 = %s ms**（来源：%s；非硬编码 33ms —— spec §3.1）。"
+             % (_fmt(res["frame_ms_measured"]), src_label))
+    stim_ms, measured_ms = res.get("frame_ms_from_stimulus"), res.get("frame_ms_measured")
+    if (res["frame_ms_source"] == FRAME_MS_SRC_MEASURED and stim_ms is not None
+            and measured_ms is not None
+            and abs(measured_ms - stim_ms) > FRAME_MS_DISAGREEMENT_EPSILON_MS):
+        L.append("")
+        L.append("> ⚠ **两个候选值不一致**：SurfaceFlinger 实测 %s ms，刺激源自报"
+                 "（`Display.getRefreshRate()`）算出的却是 %s ms——本工具按上面的判据来源"
+                 "取了前者。P40 是 LTPO 变刷屏（90Hz 满刷 / 静态内容可能降频合成），"
+                 "SurfaceFlinger 此刻测到的合成周期完全可能是一次真实的降频态，不必然是 bug。"
+                 "**「1 帧」该按哪个算，是 M3 门（spec §3.4 G-5）可达性的口径问题，"
+                 "本工具不代为裁定**——此处只如实报告两个数字都存在且不相等（G-2 首次实测，"
+                 "D-413 run3）。" % (_fmt(measured_ms), _fmt(stim_ms)))
     L.append("")
     c = res["clock"]
     L.append("## 1. 时钟基（跨通道比较的前提）")
