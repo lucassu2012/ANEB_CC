@@ -369,9 +369,14 @@ private fun VoiceConclusionCard(sample: VoiceRunner.Sample) {
         Spacer(Modifier.height(6.dp))
         Text(verdict, color = c.ink, fontSize = 13.sp)
         Spacer(Modifier.height(8.dp))
+        // 表名由 aqsVersion 派生，不再按 caliber 另算一遍：这两个字段并排印给用户，各算各的就会
+        // 逐字打架（v0.2 出分却印 v0.1 的表名）。aqsVersion 是落库产物，表名可由它推出 → 取它为准
+        // （D-02：展示层只消费落库产物）。查不到即印 "?"，不猜——未知版本印一个像样的表名，
+        // 比印问号危险得多。
+        val tableName = AqsScorer.VOICE_WEIGHTS_TABLE_BY_VERSION[result.aqsVersion] ?: "?"
         Text(
             "子分 " + result.subScores.entries.joinToString(" · ") { "${it.key} ${"%.0f".format(it.value)}" } +
-                "（表 ${if (sample.caliber == VoiceRunner.SIM_CALIBER) "WEIGHTS_VOICE_SIM" else "WEIGHTS_VOICE"} · ${result.aqsVersion}）",
+                "（表 $tableName · ${result.aqsVersion}）",
             color = c.muted,
             fontSize = 10.sp,
         )

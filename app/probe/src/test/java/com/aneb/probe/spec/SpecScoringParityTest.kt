@@ -207,7 +207,9 @@ class SpecScoringParityTest {
             "WEIGHTS_TOKEN_MM" to AqsScorer.AQS_VERSION_TOKEN,
             "WEIGHTS_TOKEN_TXT" to AqsScorer.AQS_VERSION_TOKEN,
             "WEIGHTS_VOICE" to AqsScorer.AQS_VERSION_VOICE,
+            "WEIGHTS_VOICE_V02" to AqsScorer.AQS_VERSION_VOICE_V02,
             "WEIGHTS_VOICE_SIM" to AqsScorer.AQS_VERSION_VOICE_SIM,
+            "WEIGHTS_VOICE_SIM_V02" to AqsScorer.AQS_VERSION_VOICE_SIM_V02,
         )
         assertEquals("version_id 映射覆盖漂移(新增权重表须补映射)", expected.keys.sorted(), tables.keys.sorted())
         for ((name, ver) in expected) {

@@ -1,0 +1,4 @@
+2026-08-02T09:27:22  NR pounce armed: poll=20s maxPounces=3 deadline=10h
+2026-08-02T10:29:35  NR pounce armed: poll=20s maxPounces=3 deadline=20h
+2026-08-02T10:29:55  PAUSED by sentinel E:\C Project\ANEB\evidence\nr_timeline_20260802\DEVICE_BUSY -- a manual device window is open
+2026-08-02T10:31:13  NR pounce armed: poll=20s maxPounces=3 deadline=20h

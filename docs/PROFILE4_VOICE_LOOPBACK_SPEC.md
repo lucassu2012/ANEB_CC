@@ -16,7 +16,7 @@
 | 层 | 预设 | 盘点实况 |
 |---|---|---|
 | App 实现 | 待建 | **已实现两代**：`VoiceRunner.kt`(34.7KB)、`RealtimeSimSession.kt`(11.9KB)、`VoiceTestScreen.kt`(18.4KB) |
-| 真机实测 | 无 | **已有**：D-38 记录真机总分 **79.8**，M1–M6 子分全部测出 |
+| 真机实测 | 无 | **已有**：D-38 记录真机总分 **79.8**（`aqs-voice-sim-v0.1`，M7 引入前口径，不与 v0.2 后的分数比较），M1–M6 子分全部测出 |
 | 评分规格 | 待建 | **已在 spec**：`anchors.yaml` 5 条 M 组锚、`weights.yaml` 两套权重、`vetoes.yaml` M1 硬否决 |
 | 单元测试 | 无 | **已有**：`VoiceContinuityPlanTest`、`RealtimeWireTest`、`AqsScorerVoiceTest` |
 | **Profile 执行计划描述文件** | — | **缺失**（见 §5.1）。⚠ 初版此格写「违反铁律 1」并指向服务端目录，**两处都已订正**：客户端 profile 未外化是**全体**客户端 profile 的既有偏离（`PLAN_ALIGNMENT` L71 早已登记），非 Profile 4 专属；且落位必须在**客户端**侧 |
@@ -472,7 +472,7 @@ D-311（runbook 仍指挥已放弃的镜像端）。
 
 代码注释指明其权威在 **Codex 树** `server/handlers_realtime_sim.go` + `TEST_SERVER_CAPABILITIES §2`
 （`RealtimeSimSession.kt:18-19`）。**本树无此 handler**，故本仓无法构建或重新部署该端点。
-D-38 记录 v2 曾在真机跑通并出分 79.8，说明它曾经可用。
+D-38 记录 v2 曾在真机跑通并出分 79.8（`aqs-voice-sim-v0.1`，M7 引入前口径，不与 v0.2 后的分数比较），说明它曾经可用。
 
 **我未能测定它今天是否在线**：PowerShell 5.1 的 schannel 对该端点 TLS 握手失败
 （同今日 `git push` 的 `schannel: failed to receive handshake`，已知本机环境问题），
@@ -713,7 +713,7 @@ vs IP 层丢包不可称——裁定前将读原文；若属层混淆则裁「§
   其「合起来的后果」表是**在这些事实上的算术**，不是又一次测量。
   该表用典型 `RTT_P50≈68 ms`（取自今日 T1 实测）代入；换别的 RTT 数字会变，**结论方向不变**
   （因 M2/M3 的 clamp 与 M1 的上界都与 RTT 无关）。
-- 本文**未验证 D-38 记录的 79.8 分**，仅引用。
+- 本文**未验证 D-38 记录的 79.8 分**，仅引用（`aqs-voice-sim-v0.1`，M7 引入前口径，不与 v0.2 后的分数比较）。
 - §5.5 的端点在线状态**未测定**——量法（PS 5.1 schannel）够不到，非「服务端下线」的证据。
 - `E_audio_chain`「预期主导」仍是**基于常数占比的推断，不是测量结论**——
   这正是实验 V1 要回答的，也是本规格唯一没有任何数据支撑的判断。

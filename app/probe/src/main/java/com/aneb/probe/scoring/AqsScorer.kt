@@ -162,6 +162,67 @@ object AqsScorer {
         "N2" to 0.10,
     )
 
+    /** 语音 v0.2 版本（D-390 §5.6；M7 入表）。旧 [AQS_VERSION_VOICE] 不动——见 [WEIGHTS_VOICE_V02]。 */
+    const val AQS_VERSION_VOICE_V02: String = "aqs-voice-v0.2"
+
+    /** 语音 sim v0.2 版本（同上）。 */
+    const val AQS_VERSION_VOICE_SIM_V02: String = "aqs-voice-sim-v0.2"
+
+    /**
+     * 语音 v0.2 权重表（Σ=1.0，单测守护）：v0.1 + M7=最长帧间静默 max。
+     *
+     * **为什么并列而不是把 [WEIGHTS_VOICE] 原地改**：spec/README.md §3「已发布权重表只增
+     * 不改不删，语义变化=新 id 并列」（先例 [WEIGHTS] → [WEIGHTS_V02]）。原地改会让语料里
+     * 已盖 `aqsVersion="aqs-voice-v0.1"` 的历史分数在 spec 里查无此表——版本戳指向一个不
+     * 存在的定义，而能重算历史分正是盖这个戳的全部理由。
+     *
+     * 0.10 从 M2（0.20→0.15）与 M3（0.15→0.10）出，M1/N1/N2 一分未动：这两项与 M7 量的是
+     * 同一串帧间间隔的两个尾巴（P95 vs max），稀释它们=同一现象内部重新分配；若从 M1/N 组
+     * 扣，等于用「静默变重要了」去论证「时延变次要了」，那是两件事。
+     */
+    val WEIGHTS_VOICE_V02: Map<String, Double> = mapOf(
+        "M1" to 0.30,
+        "M2" to 0.15,
+        "M3" to 0.10,
+        "M7" to 0.10,
+        "N1" to 0.15,
+        "N2" to 0.20,
+    )
+
+    /**
+     * 语音 sim v0.2 权重表（Σ=1.0，单测守护）：[WEIGHTS_VOICE_SIM] + M7。
+     *
+     * M7 在 sim 口径只拿 0.05（v1 口径的一半）：这里已有 M6=打断停帧 max 在管「最坏的一次卡」
+     * 的一部分。两者不同源（M6 是打断后的收敛，M7 是任意时刻的静默），但读者拿到的是同一类
+     * 信号，给满权重会把「卡」在总分里数两遍。0.05 从 M2/M3 出，理由同 [WEIGHTS_VOICE_V02]。
+     */
+    val WEIGHTS_VOICE_SIM_V02: Map<String, Double> = mapOf(
+        "M1" to 0.20,
+        "M2" to 0.12,
+        "M3" to 0.08,
+        "M4" to 0.15,
+        "M5" to 0.10,
+        "M6" to 0.10,
+        "M7" to 0.05,
+        "N1" to 0.10,
+        "N2" to 0.10,
+    )
+
+    /**
+     * 版本 id → 权重表名的单一事实源。
+     *
+     * 存在的理由是一处**已经在骗人**的展示：[com.aneb.probe.ui.VoiceTestScreen] 把表名与
+     * 版本号并排印给用户，而表名当时由 `if (caliber == SIM) "WEIGHTS_VOICE_SIM" else
+     * "WEIGHTS_VOICE"` 独立算出——口径一分叉（v0.2 出分却仍印 v0.1 的表名），并排的两个字段
+     * 就会逐字打架。凡「同一事实印在两处」，让第二处从第一处派生，而不是各算各的（§2.14）。
+     */
+    val VOICE_WEIGHTS_TABLE_BY_VERSION: Map<String, String> = mapOf(
+        AQS_VERSION_VOICE to "WEIGHTS_VOICE",
+        AQS_VERSION_VOICE_V02 to "WEIGHTS_VOICE_V02",
+        AQS_VERSION_VOICE_SIM to "WEIGHTS_VOICE_SIM",
+        AQS_VERSION_VOICE_SIM_V02 to "WEIGHTS_VOICE_SIM_V02",
+    )
+
     /**
      * 单调锚点表：(KPI 值, 分数) 对，按值升序。端点外 clamp。
      * 门限数字全部来自 KPI 文档 5.2（agent-qoe-kpi v0.1，实验性）。
@@ -226,6 +287,24 @@ object AqsScorer {
 
     /** M6 打断停帧（ms，D-38；55 分档=默认 expected_stop_within_ms=250） */
     internal val M6_STOP_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 80.0 to 85.0, 150.0 to 70.0, 250.0 to 55.0, 1000.0 to 0.0))
+
+    /**
+     * M7 最长帧间静默（ms，低者优；D-390 §5.6 订正后的首选判据）。
+     *
+     * **判据是 max 不是分位数**——这是 M7 存在的全部理由。M2 用 P95，而 P95 把「罕见但致命」
+     * 的长冻结整个丢掉：实测一次 4.55 秒冻结在 599 个间隔里只占 0.67%，落在分位点之上被切掉，
+     * 于是 M2 报 25.000ms 的饱和平台，读者拿不到「4.5 秒」这个数。
+     *
+     * 门限不发明新数字：60=[com.aneb.probe.engine.VoiceRunner.CODEC_JB_BUDGET_MS]（名义抖动
+     * 缓冲深度，低于它缓冲吸收得掉）；150/400=PROFILE_FRAMEWORK §4.1 口到耳自然度红线的第一/
+     * 第三档，其中 400 亦即 [M1_VETO_THRESHOLD_MS]。
+     *
+     * **1000 是 PROVISIONAL**：五个门限里唯一没有仓内出处的数。保留它而不用 400 作末点，是因为
+     * 400 末点会让 500ms 与 5s 同分（都 0），丢掉「严重度可传导」这个 M7 存在的意义。
+     * **第一批真实语音语料出来后必须回核**（同 PROFILE4_VOICE_LOOPBACK_SPEC §7 的回核义务）：
+     * 全仓零语音语料，今天判不了它对真实分布合不合适。
+     */
+    internal val M7_MAX_GAP_ANCHORS = AnchorMap(listOf(0.0 to 100.0, 60.0 to 85.0, 150.0 to 70.0, 400.0 to 40.0, 1000.0 to 0.0))
 
     /**
      * AQS 评分结果。
@@ -320,27 +399,7 @@ object AqsScorer {
         m2DownFrameJitterMs: KpiValue,
         m3UpFrameJitterMs: KpiValue,
     ): AqsResult = scoreWith(
-        KpiResult(
-            validity = Validity.VALID,
-            invalidReasons = emptyList(),
-            seqMissingCount = 0,
-            seqDupCount = 0,
-            seqGapCount = 0,
-            expectedTokenCount = 0,
-            t1TtftMs = KpiValue.empty("ms"),
-            t2ItlP95Ms = KpiValue.empty("ms"),
-            t2ItlP95InclCoalescedMs = KpiValue.empty("ms"),
-            t3StallRate = KpiValue.empty("ratio"),
-            t3StallRateInclResume = KpiValue.empty("ratio"),
-            t4SevereStallRate = KpiValue.empty("ratio"),
-            t5ResumeP95Ms = KpiValue.empty("ms"),
-            t5ResumeLatenciesMs = emptyList(),
-            n1RttP50Ms = n1RttMs,
-            n2JitterMs = n2JitterMs,
-            u1GoodputMbps = KpiValue.empty("Mbps"),
-            u1GoodputExclSlowStartMbps = KpiValue.empty("Mbps"),
-            u2ToolLoopP95Ms = KpiValue.empty("ms"),
-        ),
+        voiceKpiShell(n1RttMs, n2JitterMs),
         extraInputs = mapOf(
             "M1" to m1BudgetMs,
             "M2" to m2DownFrameJitterMs,
@@ -348,6 +407,42 @@ object AqsScorer {
         ),
         weights = WEIGHTS_VOICE,
         version = AQS_VERSION_VOICE,
+        applyM1Veto = true,
+    )
+
+    /**
+     * 语音 v0.2 出分入口（D-390 §5.6，additive）：在 v0.1 五项基础上加 M7=最长帧间静默 max，
+     * 走 [WEIGHTS_VOICE_V02] 并盖版本号 [AQS_VERSION_VOICE_V02]。上面的 5 参 [scoreVoice]
+     * **行为逐字不变**——签名、权重表、版本戳、出分全同（本轮只把它内部那段重复的 KpiResult
+     * 字面量抽成了 [voiceKpiShell]），**没有 M7 的 run（含全部历史语料）结论完全不变**。
+     *
+     * **选版本按「调用方有没有测这一项」，不按「测出来是不是 null」**（同 [score] 的
+     * `continuity` 先例）：
+     * - 调用 5 参重载 = 这次运行根本没有 M7 这个概念 → v0.1，天经地义；
+     * - 调用本重载而 `m7MaxFrameGapMs.value == null` = 测了但**失败** → 沿用 [scoreWith] 的
+     *   在表项 fail-closed，判 `KPI_MISSING:M7`（R-10）。
+     *
+     * 这里**故意不做**「M7 为 null 就悄悄退回 v0.1」的降级：那样出来的分会盖 v0.1 的戳，
+     * 而这一轮实际上是按 v0.2 口径跑的——版本戳会替一个它没算过的口径背书，
+     * 比不出分危险得多。丢一个分是可恢复的，一个说谎的版本戳不可恢复。
+     */
+    fun scoreVoice(
+        n1RttMs: KpiValue,
+        n2JitterMs: KpiValue,
+        m1BudgetMs: KpiValue,
+        m2DownFrameJitterMs: KpiValue,
+        m3UpFrameJitterMs: KpiValue,
+        m7MaxFrameGapMs: KpiValue,
+    ): AqsResult = scoreWith(
+        voiceKpiShell(n1RttMs, n2JitterMs),
+        extraInputs = mapOf(
+            "M1" to m1BudgetMs,
+            "M2" to m2DownFrameJitterMs,
+            "M3" to m3UpFrameJitterMs,
+            "M7" to m7MaxFrameGapMs,
+        ),
+        weights = WEIGHTS_VOICE_V02,
+        version = AQS_VERSION_VOICE_V02,
         applyM1Veto = true,
     )
 
@@ -368,27 +463,7 @@ object AqsScorer {
         m5TurnSwitchMs: KpiValue,
         m6BargeStopMs: KpiValue,
     ): AqsResult = scoreWith(
-        KpiResult(
-            validity = Validity.VALID,
-            invalidReasons = emptyList(),
-            seqMissingCount = 0,
-            seqDupCount = 0,
-            seqGapCount = 0,
-            expectedTokenCount = 0,
-            t1TtftMs = KpiValue.empty("ms"),
-            t2ItlP95Ms = KpiValue.empty("ms"),
-            t2ItlP95InclCoalescedMs = KpiValue.empty("ms"),
-            t3StallRate = KpiValue.empty("ratio"),
-            t3StallRateInclResume = KpiValue.empty("ratio"),
-            t4SevereStallRate = KpiValue.empty("ratio"),
-            t5ResumeP95Ms = KpiValue.empty("ms"),
-            t5ResumeLatenciesMs = emptyList(),
-            n1RttP50Ms = n1RttMs,
-            n2JitterMs = n2JitterMs,
-            u1GoodputMbps = KpiValue.empty("Mbps"),
-            u1GoodputExclSlowStartMbps = KpiValue.empty("Mbps"),
-            u2ToolLoopP95Ms = KpiValue.empty("ms"),
-        ),
+        voiceKpiShell(n1RttMs, n2JitterMs),
         extraInputs = mapOf(
             "M1" to m1MouthEarProxyMs,
             "M2" to m2DownNetJitterMs,
@@ -400,6 +475,69 @@ object AqsScorer {
         weights = WEIGHTS_VOICE_SIM,
         version = AQS_VERSION_VOICE_SIM,
         applyM1Veto = true,
+    )
+
+    /**
+     * 语音 sim v0.2 出分入口（D-390 §5.6，additive）：sim 六项 + M7，走 [WEIGHTS_VOICE_SIM_V02]
+     * 并盖 [AQS_VERSION_VOICE_SIM_V02]。上面的 8 参 [scoreVoiceSim] 行为逐字不变。
+     *
+     * 选版本与 null 语义同 6 参 [scoreVoice]（按「有没有测这一项」选，测了而失败 → `KPI_MISSING:M7`，
+     * **不**静默降级到 v0.1）——那条推理写在那边，此处不复制，避免两处解释各自漂移。
+     */
+    fun scoreVoiceSim(
+        n1RttMs: KpiValue,
+        n2JitterMs: KpiValue,
+        m1MouthEarProxyMs: KpiValue,
+        m2DownNetJitterMs: KpiValue,
+        m3UpFrameJitterMs: KpiValue,
+        m4TtfbMs: KpiValue,
+        m5TurnSwitchMs: KpiValue,
+        m6BargeStopMs: KpiValue,
+        m7MaxFrameGapMs: KpiValue,
+    ): AqsResult = scoreWith(
+        voiceKpiShell(n1RttMs, n2JitterMs),
+        extraInputs = mapOf(
+            "M1" to m1MouthEarProxyMs,
+            "M2" to m2DownNetJitterMs,
+            "M3" to m3UpFrameJitterMs,
+            "M4" to m4TtfbMs,
+            "M5" to m5TurnSwitchMs,
+            "M6" to m6BargeStopMs,
+            "M7" to m7MaxFrameGapMs,
+        ),
+        weights = WEIGHTS_VOICE_SIM_V02,
+        version = AQS_VERSION_VOICE_SIM_V02,
+        applyM1Veto = true,
+    )
+
+    /**
+     * 语音四个出分入口共用的 [KpiResult] 壳：语音口径不产出 T/U 组，按 R-10 一律 `empty`
+     * （**未测**，不是 0），只把 N1/N2 填进去；M 组一律走 `extraInputs`。
+     *
+     * 抽出来的理由是副本会漂：同一段 20 行字面量原本在 [scoreVoice]/[scoreVoiceSim] 各一份，
+     * 加上两个 v0.2 入口就是四份，而 [KpiResult] 每加一个字段就要人手同步四处——
+     * 漏掉任何一处都不会红，只会让那个入口的某项悄悄变成另一个值。
+     */
+    private fun voiceKpiShell(n1RttMs: KpiValue, n2JitterMs: KpiValue): KpiResult = KpiResult(
+        validity = Validity.VALID,
+        invalidReasons = emptyList(),
+        seqMissingCount = 0,
+        seqDupCount = 0,
+        seqGapCount = 0,
+        expectedTokenCount = 0,
+        t1TtftMs = KpiValue.empty("ms"),
+        t2ItlP95Ms = KpiValue.empty("ms"),
+        t2ItlP95InclCoalescedMs = KpiValue.empty("ms"),
+        t3StallRate = KpiValue.empty("ratio"),
+        t3StallRateInclResume = KpiValue.empty("ratio"),
+        t4SevereStallRate = KpiValue.empty("ratio"),
+        t5ResumeP95Ms = KpiValue.empty("ms"),
+        t5ResumeLatenciesMs = emptyList(),
+        n1RttP50Ms = n1RttMs,
+        n2JitterMs = n2JitterMs,
+        u1GoodputMbps = KpiValue.empty("Mbps"),
+        u1GoodputExclSlowStartMbps = KpiValue.empty("Mbps"),
+        u2ToolLoopP95Ms = KpiValue.empty("ms"),
     )
 
     private fun scoreWith(
@@ -466,6 +604,7 @@ object AqsScorer {
             "M4" to M4_TTFB_ANCHORS,
             "M5" to M5_TURN_SWITCH_ANCHORS,
             "M6" to M6_STOP_ANCHORS,
+            "M7" to M7_MAX_GAP_ANCHORS,
         )
         val subScores = inputs.mapValues { (id, v) -> anchorMaps.getValue(id).score(v.value!!) }
         var total = subScores.entries.sumOf { (id, s) -> s * weights.getValue(id) }
