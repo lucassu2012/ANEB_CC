@@ -538,3 +538,19 @@ def test_render_shows_total_and_g2_true_meaning_as_two_separate_lines():
     g2_lines = [ln for ln in md.splitlines() if ln.startswith("**G-2 本义")]
     assert len(g2_lines) == 1              # 判定行只出现一次，不重复
     assert ea.NOT_EXECUTED in g2_lines[0]  # 即便总量列（见上）是 PASS，这行仍是 NOT_EXECUTED
+
+
+def test_render_still_shows_g2_true_meaning_line_when_total_is_fail_shaped():
+    """上一条用的是总量=PASS 夹具——单靠它测不出"G-2 本义"这行是不是被悄悄
+    挂在了 `channel_c_verdict == PASS` 这个条件上（真实 run3 就是总量 FAIL
+    的形状：若未来有人这样改，PASS 形状的夹具全绿，run3 形状的报告却会
+    静默丢掉这行）。这里专门用总量 FAIL 的夹具钉住"该行不随总量判定的
+    正负而消失"（大脑 D-421 追补③）。
+    """
+    res = ea.analyze(_stim_lines(count=4, warmup=0), [],
+                     _sf_text(count=4, present_delay_ns=30_000_000), "", [])
+    assert res["channel_c_verdict"][0] == ea.FAIL   # 确认夹具真的是 FAIL 形状
+    md = ea.render_markdown(res)
+    g2_lines = [ln for ln in md.splitlines() if ln.startswith("**G-2 本义")]
+    assert len(g2_lines) == 1
+    assert ea.NOT_EXECUTED in g2_lines[0]
