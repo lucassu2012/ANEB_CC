@@ -1,0 +1,3 @@
+--------- beginning of main
+08-02 17:26:16.095 I/E1_STIM (20476): CFG interval_ms=800 count=114 roi_px=480 warmup=1 refresh_hz=90.0 frame_ms=11.111 density=3.3125 screen_px=1200x2486 boot_mono_offset_ns=94513649505249
+08-02 17:26:16.187 I/E1_STIM (20476): PAUSED seq=0

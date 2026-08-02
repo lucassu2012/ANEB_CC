@@ -1,0 +1,60 @@
+{
+  "experiment": "E2",
+  "run_dir": "E:/C Project/ANEB/evidence/e234/20260802-164148",
+  "pkg": "com.aneb.e1stimulus",
+  "dry_run": false,
+  "run_kind": "DEVICE_REAL",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E2 / §3.4 G-3",
+  "events_used": 0,
+  "events_other_pkg": 0,
+  "events_bad_dimension": 0,
+  "wall_to_boot": {
+    "status": "NOT_EXECUTED",
+    "n": 0,
+    "reason": "带 t_boot_ns 的 ADAPTER_EVT 行 <2，墙钟↔BOOTTIME 无从标定"
+  },
+  "clock_pin": {
+    "status": "PASS",
+    "offset_ns": 94513649503166,
+    "drift_ns": -1,
+    "frame_ms": 11.111,
+    "pre_n": 5,
+    "post_n": 5,
+    "pre_spread_ns": 2083,
+    "post_spread_ns": 2084
+  },
+  "turn_method": "whole-run",
+  "turns_total": 0,
+  "frames_total": 0,
+  "frames_duplicate_dropped": 0,
+  "frame_ms": 11.111,
+  "channel_b": {
+    "status": "PASS",
+    "n": 16,
+    "period_ms_p50": 5608.4168,
+    "period_ms_p90": 13791.8857,
+    "period_ms_p99": 18185.7943,
+    "period_ms_min": 2385.5909,
+    "period_ms_max": 18185.7943,
+    "transitions_detected": 4
+  },
+  "per_turn": [],
+  "drop_reasons": {},
+  "signed": {
+    "status": "NOT_EXECUTED",
+    "n": 0,
+    "dropped": 0,
+    "reason": "无可用样本"
+  },
+  "channel_a_vs_c": {
+    "status": "NOT_EXECUTED",
+    "n": 0,
+    "dropped": 0,
+    "reason": "无可用样本"
+  },
+  "verdict": [
+    "NOT_EXECUTED",
+    "缺分布或缺实测刷新率"
+  ],
+  "gate_caveat": "该判定未看 dropped、未设最小 n（T14 待裁 C-2）；本次 n=0 dropped=0"
+}

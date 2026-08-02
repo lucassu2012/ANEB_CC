@@ -1,0 +1,137 @@
+# e234 通道 C 时序缺陷修复 + 真机验证（v3，2026-08-02）—— D-410
+
+> 判读对象：本次修复引入的 `--pin-through-session`，验证产物为本目录
+> （`evidence/e234/20260802-173031/`，run3）与其失败对照
+> `evidence/e234/20260802-172614/`（同日更早一次尝试，锁屏陷阱，保留作反例）。
+> 复核对象：v4 独立判读 `evidence/e1_realdevice_20260802/E1_JUDGMENT_v4.md`（D-408）。
+> 状态词只用 `PASS`/`FAIL`/`NOT_EXECUTED`。
+
+---
+
+## 0. 一页结论
+
+| 问题 | 答案 |
+|---|---|
+| **D-408（v4）的根因判读是否成立** | **成立，已用真机独立复核确认**：`e234_collect.py` 把通道 B/C 观测窗排在两次 `_pin`（拉起→翻转→force-stop）**之间**，观测时刺激源已被杀掉。行号 201/220/229/232/240/246 与 v4 一致。 |
+| **W-2（通道 C 在 P40 的可用性）** | **PASS——可用**，且已拿到真实逐帧数据：进程存活期间，`dumpsys gfxinfo <pkg> framestats` 与 `SurfaceFlinger --list` 均正常返回，`---PROFILEDATA---` 块含真实逐帧行（本次验证 3 次 dump 共 23 行）。 |
+| **「PID 查询才是破案关键」这个说法** | **未获证实，且已被两条独立路径分别推翻**：①本次真机对照——进程存活时手测，按包名 `dumpsys gfxinfo com.aneb.e1stimulus framestats` 与按 PID `dumpsys gfxinfo 19160 framestats` 输出**逐字节相同**（84 行，`diff` 无差异）；②v4 逐字核对 `evidence/e1_realdevice_20260802_run2/` 后同样报告"没有任何按 pid 查询的记录能验证或证伪这条诊断"（D-409）。全仓 `grep -r pidof` 零命中。**如实登记**：这与此前转述的"run2 里刺激源全程存活、按包名仍失败、按 PID 才成功"不一致，两条独立核实路径都找不到支撑，**不代改口，只如实记两次否定**。 |
+| **修复** | `tools/e234/e234_collect.py` 新增 `--pin-through-session`（默认关闭，真实 App 测试路径零改动）：`--pkg` 为刺激源自身时，用一次长翻转序列贯穿整个会话窗口，取代原本两段式短 `_pin`，让通道 B/C 的观测窗与刺激源存活期真正重叠。 |
+| **验证** | run3：77 次真实 FLIP/COMMIT 横跨 61.4s 会话全程，`framestats.txt` 0 次「No process found」（此前每次都是 100%），图层找到（此前 `layer:null`），`e1_analyze.py` 首次对通道 C 给出非 `NOT_EXECUTED` 的实测判定：n=53 dropped=23，p50/p90/p99=16.512/28.748/29.427ms，判定 `FAIL`（p99 超 1 帧）——这是**装置本身**的判定，不是任何真实 App 的 KPI 结论。 |
+
+---
+
+## 1. 复核 D-408 的根因判读：真机独立确认
+
+在动代码前，先用真机而非改代码来验证 v4 的诊断——避免"预测会修好"变成没验证过的假设（D-325 一贯纪律：预测会存活/会被治好都要去验，不能只推理）。
+
+**测试**：手动拉起刺激源（`am start ... --ei count 30 --ei interval_ms 2000`，约 60 秒存活期），在进程存活期间直接查：
+
+```
+$ adb shell pidof com.aneb.e1stimulus
+19160
+$ adb shell dumpsys gfxinfo com.aneb.e1stimulus framestats   # 按包名
+$ adb shell dumpsys gfxinfo 19160 framestats                  # 按 PID
+```
+
+两次输出 84 行，`diff` 完全一致，均含 `** Graphics info for pid 19160 [com.aneb.e1stimulus] **` 与一段真实 `---PROFILEDATA---` 数据行。`dumpsys SurfaceFlinger --list` 同样在进程存活期间正常找到图层
+（`bb3b62f com.aneb.e1stimulus/com.aneb.e1stimulus.StimulusActivity#26238`）。
+
+**结论**：v4 的诊断——"进程不存在"是时序问题，不是包名解析或设备能力问题——**成立**。没有观察到任何按包名查询失败、按 PID 查询才成功的情形。
+
+**与 D-409（v4 对 run2 的独立判读）交叉验证**：v4 逐字核对 `evidence/e1_realdevice_20260802_run2/` 后同样得出"本目录没有任何按 pid 查询的记录能验证或证伪这条诊断"（D-409 §0/§5，K-1），且指出 run2 里通道 B 的"3 个不同值"是一次离最近翻转事件 37–87 秒的孤立瞬变，不构成"检出成功"。两条独立路径——v4 逐字核对既有文件、我本人现场手测——**在同一件事上得出同一个否定结论**：这不是巧合性的各自失手，是"PID 查询破案"这个说法本身查无实据。D-409 的 K-1（"是否有另一批未见到的证据"）与 K-3（"是否需要专门为 W-2 排一次窗"）由本文件一并作答：K-1=没有，K-3=已经排了（run3），答案见 §3.2。
+
+**K-1 的补充材料与其自我作废**：写到这里时发现 `git log` 多出一个我未见过的提交——大脑会话（Fable 5）补录了 `evidence/e1_realdevice_20260802_run2/BRAIN_PID_PROBE_SUPPLEMENT.md`，如实承认 2026-08-02 16:4x 曾做过一次未落盘的手动探测（违反证据落盘纪律，v4 判 D-409②③"查无实据"完全正确），事后转写命令与记忆中的输出，并**明确写下可证伪条件**："若 run3 复现：…可救；若 run3 不复现：本补录作废，以 run3 为准"。补录转写的输出显示"按包名查询只回两行全局头、无进程段；按 pid 查询才有 `** Graphics info for pid ... **` 进程段头"——**这个不对称在本文件 §1 与 run3（§3.2）里都没有复现**：两次真机测试，按包名与按 PID 的输出逐字节相同，均含完整进程段与 PROFILEDATA。按补录自己写下的规则，**该补录本身即告作废**，K-1 到此为止，不需要进一步的说法拉锯。
+
+---
+
+## 2. 修复：`--pin-through-session`
+
+### 2.1 为什么不是简单的"通道 B/C 线程提前启动"
+
+`e234_collect.py` 的既定架构（模块 docstring §"一次采集做四件事"）是：中段会话窗口由**操作者手动把目标 App 切到前台真人对话**驱动——`--pkg` 从未被脚本自己 `am start` 过（全文件唯一一处 `am start` 在 `_pin()` 里，目标恒为刺激源自己）。这对真实 App 测试场景（人在操作 Kimi/豆包/DeepSeek）没有问题：人本来就在中段窗口里把目标 App 摆在前台。
+
+缺陷只在**"`--pkg` 就是刺激源本身"**这个自测场景下才成立——这正是我们为了零真实账号风险而采用的管线验证方式（E1 装置校准 E234 管线，而非消耗真实 App 额度）。这个场景下没有人驱动刺激源，中段窗口因此天然静默。
+
+所以修法不是泛化地"提前启动通道 B/C 线程"（那对真实 App 路径没有意义，因为观测窗本来就覆盖操作者的操作时段），而是**专门给自测场景一条路：让刺激源在整段窗口内持续翻转**。
+
+### 2.2 改动
+
+`tools/e234/e234_collect.py`：
+
+- 新增 `_pin_through_count(session_seconds, interval_ms)`：算出能覆盖整段会话窗口的翻转次数，**+2 帧余量**（不是凑整——翻转序列必须跨过观测窗口两端，不能刚好卡在结束那一刻停）。
+- 新增 `_pin_through_start`/`_pin_through_stop`：镜像原 `_pin()` 的 adb 调用形状，但不在中途 force-stop，交由调用方决定何时收尾。
+- `collect()` 新增 `pin_through_session=False` 参数：为真（`--pin-through-session`）时用上面两个函数替代两次 `_pin()` 调用；为假（默认）时**原路径逐行未动**。
+- `main()` 新增 `--pin-through-session` CLI 旗标，帮助文本明确写明"真实 App 测试不要开"。
+
+**回归**：真实 App 测试的默认路径（`pin_through_session=False`）逐行未改，只是多一个未触发的 `if` 分支。`tools/e234` 82/82（新增 2 条）、`tools/e1` 51/51，全绿零回归。
+
+### 2.3 反例测试
+
+`tools/e234/tests/test_e234_collect.py` 新增两条：
+
+- `test_pin_through_count_covers_the_whole_session_window_with_margin`：钉住"不留余量的朴素算法会不够"——对比一个不 +2 的整除实现，断言真实实现的翻转总时长 ≥ 会话时长，且比朴素版本多。
+- `test_pin_through_count_never_returns_zero_for_a_short_session`：极端参数下不能算出 0 次翻转。
+
+---
+
+## 3. 真机验证：两次尝试，一败一成，均保留
+
+### 3.1 `evidence/e234/20260802-172614/`（第一次尝试，失败，保留作反例）
+
+`stim_through.log` 只有 `CFG` + `PAUSED seq=0`——刺激源启动后立刻被切到后台，**零次真实翻转**。核实设备状态：`isKeyguardShowing=true`——距离上一次滑动解锁已过去数分钟（中间跑了两轮 pytest），锁屏重新出现，`am start` 把 Activity 拉到了锁屏之上，触发即时 `onPause()`。
+
+**这不是修复代码的缺陷**：`framestats.txt` 仍然拿到了图层与若干 PROFILEDATA 行（说明"进程存活即可查到"这条本身没错），但刺激源没有真的持续翻转，所以这次不能用来判断"观测窗与翻转窗是否重叠"——如实标记为**操作层面的失败**（解锁手势与执行之间间隔过长），不用它的数字下结论。
+
+### 3.2 `evidence/e234/20260802-173031/`（run3，本文件判读对象，成功）
+
+重新确认滑动解锁真实生效（`isKeyguardShowing=false` 后立即执行采集，压缩间隔）后重跑：
+
+- `stim_through.log`：77 次 FLIP/COMMIT，配对完整，16:30:33.381 → 16:31:34.771（约 61.4s），横跨 `--session-seconds 60` 的整个采集窗口。
+- `collect_notes.json`：`"layer": "com.aneb.e1stimulus/com.aneb.e1stimulus.StimulusActivity#26282"`（此前两次真机窗均为 `null`）。
+- `framestats.txt`：275 行，3 次 dump 周期，**0 次**「No process found」（此前 100%），23 行真实 `---PROFILEDATA---` 数据（含 `DrawStart`/`SwapBuffers`/`FrameCompleted` 等真实时刻，相邻行时间戳间隔 ≈790–800ms，与 `interval_ms=800` 吻合）。
+- `sf_latency.txt`：首行 `16666666`（SurfaceFlinger 自报刷新周期 = 16.667ms / 60Hz——**与刺激源内部实测的 90Hz 不一致，如实登记，未深究**：可能是该层/该时刻的真实面板刷新率，也可能是 SurfaceFlinger 对这个特定图层的周期估计与 App 侧 `Choreographer` 读数不同源；不影响本次判读，留作后续若需要精细化 M3 门时的一个已知变量）；其后逐行 `0 0 0`——**全部是待判定占位**（`parse_sf_latency()` 的 R-10 规则一律剔除，不当 0 时刻用），说明 `SurfaceFlinger --latency` 这条支路本身在这次会话里没能拿到任何一帧的**真实**提交时刻。真正的逐帧数据来自 `gfxinfo framestats` 的 PROFILEDATA。**通道 C 的两条支路（`--latency` 与 `framestats`）在这台设备上表现不同——找到图层≠两条支路都出数，这是本次新发现的一层细节，此前的判读都还没来得及看到这个区分。**
+
+`e1_analyze.py --stim-file stim_through.log` 首次对通道 C 给出非 `NOT_EXECUTED` 的判定：
+
+| 通道 | n | dropped | p50 (ms) | p90 (ms) | p99 (ms) | 判定 |
+|---|---|---|---|---|---|---|
+| C 渲染时间线 | 53 | 23 | 16.512 | 28.748 | 29.427 | **FAIL** — p99 29.427ms > 1 帧 16.667ms |
+| B screencap 帧差 | 20 | — | 3050.987 | 4829.546 | 5089.520 | PASS（装置意义，检出翻转 0/77） |
+| A 无障碍事件 | 0 | — | — | — | — | NOT_EXECUTED（与 D-408 同因：无逐事件时戳；本次 `--pkg` 是刺激源，通道 A 本就无观察对象） |
+
+**这个 `FAIL` 判的是装置自己**（E1 刺激源的渲染管线延迟分布），不是任何真实 App 的 KPI 结论——`--pkg com.aneb.e1stimulus` 全程都是自测。它首次证明：修复后的采集链能让通道 C 走完"有真实分布→套用 1 帧门限→给出 PASS/FAIL"这条完整判读路径，这正是 J-2（D-408 待裁项）问的"修复后是否值得再验证 W-2"的答案——**值得，且已经验过，答案是可用**。
+
+---
+
+## 4. 数字账（本文件引用的全部实测数字，逐条标出处）
+
+| 数字 | 来源 |
+|---|---|
+| pidof/按包名/按PID gfxinfo 输出 84 行逐字节相同 | 本次真机手测，`diff` 核对 |
+| SurfaceFlinger --list 存活期间找到图层 | 本次真机手测终端输出 |
+| 全仓 `pidof` 零命中 | `grep -rl pidof` 实测 |
+| 172614 目录 `stim_through.log` 仅 CFG+PAUSED | 文件逐字读出 |
+| 172614 目录采集时 `isKeyguardShowing=true` | `dumpsys window` 实测（采集后立即查） |
+| 173031 目录 77 次 FLIP/COMMIT，16:30:33.381–16:31:34.771 | `stim_through.log` 逐字 + `grep -c` |
+| 173031 目录 `framestats.txt` 275 行/0 次失败/23 行 PROFILEDATA | 文件逐字 + `grep -c` + `awk` 统计 |
+| 173031 目录 `sf_latency.txt` 首行 16666666，其后全 `0 0 0` | 文件逐字节读出（`cat -A`） |
+| 通道 C n=53 dropped=23 p50/p90/p99=16.512/28.748/29.427ms FAIL | `e1_analyze.py --stim-file stim_through.log` 实跑输出 |
+| `tools/e234` 82/82、`tools/e1` 51/51 | `pytest -q` 实跑输出 |
+
+## 5. 本文件明确没有给出的量
+
+1. 这次通道 C 的 `FAIL` 判定（p99 超 1 帧）在多次重复采集下是否稳定——本次只有一轮 run3，n=53 是单次样本，不足以下"这条渲染管线稳定超 1 帧"的结论，只能说"这一轮测出了这个数"。
+2. `SurfaceFlinger --latency` 支路为何全程占位、`gfxinfo framestats` 支路却正常——两条支路的行为差异只是如实记录，未深挖 EMUI 侧原因。
+3. "按包名查询会失败、按 PID 才成功"这个此前转述的说法为何在本次复现不出来——如实标记为分歧，未强行给出解释。
+
+## 6. 待裁定 / 交大脑
+
+| # | 事项 | 本文件立场 |
+|---|---|---|
+| K-1 | §0 提到的"PID 查询"说法分歧 | **已闭环**：`evidence/e1_realdevice_20260802_run2/BRAIN_PID_PROBE_SUPPLEMENT.md`（大脑事后补录）自己写明"若 run3 不复现，本补录作废，以 run3 为准"——本文件 §1/§3.2 两次真机测试均未复现其转写的"按包名只回头两行、按 pid 才有进程段"这一不对称，按其自定规则该补录已作废，不需再拉锯 |
+| K-2 | `SurfaceFlinger --latency` 支路持续占位是否值得专门排查 | 建议按需——`gfxinfo framestats` 已能满足通道 C 的判读需要，`--latency` 支路目前不是唯一数据源 |
+| K-3 | run3 的 `FAIL` 判定是否需要多轮重复以判断稳定性 | 建议留到有真实 App KPI 判读需求时再排多轮；本轮目的是验证管线本身，已达成 |
+
+---
+
+*e234 通道 C 时序缺陷修复 + 真机验证 · v3 · 2026-08-02 · D-410 · 与 v4 判读（D-408、D-409）互为复核*

@@ -145,6 +145,50 @@ def _pin(adb, out_dir, tag, flips, interval_ms):
     return path
 
 
+def _pin_through_count(session_seconds, interval_ms):
+    """`--pin-through-session` 用：算出能覆盖整段会话窗口的翻转次数。
+
+    只在 `--pkg` 本身就是刺激源（E1 自测/管线验证，零真实账号风险）时才有意义 ——
+    真实 App 测试靠操作者手动前台驱动，中段窗口天然有内容，不需要这个。
+    默认两段式 `_pin`（钉桩·前/钉桩·后各一小段，中间 force-stop）在这种自测场景下
+    会让通道 B/C 的观测窗落在两次 force-stop 之间的空档：D-409 真机实测确认，
+    P40 上 `dumpsys gfxinfo <pkg>`/`SurfaceFlinger --list` 在刺激源**存活期间**
+    都能正常返回真实帧数据（含 `---PROFILEDATA---` 行），此前「查无此进程」
+    是时序问题，不是包名解析或设备能力问题。**+2 是刻意的余量**，不是凑整：
+    翻转序列必须**跨过**整段观测窗口两端，覆盖到秒数之外的边界，而不是
+    刚好卡在窗口结束的那一刻就停。
+    """
+    return max(1, int((session_seconds * 1000) / max(1, interval_ms)) + 2)
+
+
+def _pin_through_start(adb, out_dir, session_seconds, interval_ms):
+    """启动持续翻转（**不** force-stop），返回收尾用的句柄。"""
+    path = os.path.join(out_dir, "stim_through.log")
+    count = _pin_through_count(session_seconds, interval_ms)
+    adb.text("logcat", "-c", timeout=20)
+    fh = open(path, "wb")
+    proc = adb.popen("logcat", "-v", "time", "-s", "E1_STIM:I")
+    t = threading.Thread(target=e1c._pump, args=(proc, fh), daemon=True)
+    t.start()
+    adb.text("shell", "am", "force-stop", e1c.STIM_PKG, timeout=20)
+    adb.text("shell", "am", "start", "-n", e1c.STIM_ACT,
+             "--ei", "interval_ms", str(interval_ms),
+             "--ei", "count", str(count),
+             "--ei", "roi_px", "480",
+             "--ei", "warmup", "1", timeout=30)
+    return {"path": path, "proc": proc, "pump": t, "fh": fh}
+
+
+def _pin_through_stop(adb, handle):
+    """`_pin_through_start` 的收尾：此刻才 force-stop，不早不晚。"""
+    adb.text("shell", "am", "force-stop", e1c.STIM_PKG, timeout=20)
+    time.sleep(0.5)
+    handle["proc"].terminate()
+    handle["pump"].join(timeout=5)
+    handle["fh"].close()
+    return handle["path"]
+
+
 class _MarkPump(object):
     """操作者标记：敲一个键 -> 往**设备**的 logcat 里打一行。
 
@@ -189,7 +233,7 @@ class _MarkPump(object):
 
 def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
             pin_flips, pin_interval_ms, interactive, device_window,
-            framestats_period_s=20):
+            framestats_period_s=20, pin_through_session=False):
     ec.write_run_kind(out_dir, ec.KIND_DEVICE, {
         "experiments": ["E2", "E3", "E4"],
         "pkg": pkg, "roi": list(roi), "device_window": device_window,
@@ -198,7 +242,12 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
     })
     notes = {"device_window": device_window, "pkg": pkg}
 
-    notes["stim_pre"] = _pin(adb, out_dir, "pre", pin_flips, pin_interval_ms)
+    through = None
+    if pin_through_session:
+        through = _pin_through_start(adb, out_dir, session_seconds, pin_interval_ms)
+        notes["stim_through"] = through["path"]
+    else:
+        notes["stim_pre"] = _pin(adb, out_dir, "pre", pin_flips, pin_interval_ms)
 
     adb.text("logcat", "-c", timeout=20)
     adapter_path = os.path.join(out_dir, "adapter.log")
@@ -243,7 +292,10 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
     pump.join(timeout=5)
     fh.close()
 
-    notes["stim_post"] = _pin(adb, out_dir, "post", pin_flips, pin_interval_ms)
+    if pin_through_session:
+        notes["stim_through"] = _pin_through_stop(adb, through)
+    else:
+        notes["stim_post"] = _pin(adb, out_dir, "post", pin_flips, pin_interval_ms)
 
     _write(os.path.join(out_dir, "collect_notes.json"),
            json.dumps(notes, ensure_ascii=False, indent=2))
@@ -321,6 +373,11 @@ def main(argv=None):
                     help="通道 C 的取样周期；环缓冲约 120 帧，取得太稀就丢帧")
     ap.add_argument("--no-marks", action="store_true",
                     help="不收操作者标记（那时整段=一轮，E4 结构上判不了，判读侧会说）")
+    ap.add_argument("--pin-through-session", action="store_true",
+                    help="刺激源持续翻转直到会话窗口结束，不在中途 force-stop；"
+                         "仅用于 --pkg 就是刺激源本身的自测/管线验证场景（D-409）。"
+                         "真实 App 测试不要开——中段窗口靠操作者手动前台驱动，"
+                         "这个旗标对它无意义，--pin-flips/--pin-interval-ms 此时被忽略。")
     args = ap.parse_args(argv)
 
     try:
@@ -354,7 +411,8 @@ def main(argv=None):
 
     notes = collect(adb, out, args.pkg, roi, args.screencap_period_ms,
                     args.session_seconds, args.pin_flips, args.pin_interval_ms,
-                    not args.no_marks, args.device_window, args.framestats_period_s)
+                    not args.no_marks, args.device_window, args.framestats_period_s,
+                    args.pin_through_session)
     sys.stdout.write("collected -> %s\n%s\n"
                      % (out, json.dumps(notes, ensure_ascii=False)))
     return 0

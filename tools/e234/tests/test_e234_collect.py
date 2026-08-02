@@ -65,6 +65,26 @@ def test_the_gate_refuses_when_the_taskboard_cannot_be_read():
     assert ok is False and "读不到任务板" in why
 
 
+# ── --pin-through-session（D-409）────────────────────────────────────────
+def test_pin_through_count_covers_the_whole_session_window_with_margin():
+    """翻转序列必须**跨过**整段观测窗口，不能刚好卡在结束那一刻就停。
+
+    反例：一个朴素的「不留余量」算法（`session_seconds*1000 // interval_ms`，
+    整除截断、不 +2）在很多组合下会正好卡在或卡不满观测窗口末端——
+    这条测试同时钉住「真实实现有余量」与「余量不是可有可无的」两件事。
+    """
+    session_seconds, interval_ms = 600, 800
+    naive = (session_seconds * 1000) // interval_ms
+    real = e2c._pin_through_count(session_seconds, interval_ms)
+    assert real * interval_ms >= session_seconds * 1000
+    assert real > naive, "真实实现必须比不留余量的朴素算法多翻几次"
+
+
+def test_pin_through_count_never_returns_zero_for_a_short_session():
+    """极短会话/超长间隔也不能算出 0 次翻转——0 次意味着刺激源自测源根本没跑起来。"""
+    assert e2c._pin_through_count(1, 999999) >= 1
+
+
 # ── 参数解析 ──────────────────────────────────────────────────────────────
 def test_a_mistyped_roi_gets_a_sentence_not_a_stack_trace():
     """D-272：人手写的那条输入路径最容易漏，而它是以栈回溯崩掉的那条。"""

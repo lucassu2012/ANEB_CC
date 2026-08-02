@@ -1,0 +1,157 @@
+--------- beginning of main
+08-02 17:30:32.576 I/E1_STIM (21036): CFG interval_ms=800 count=77 roi_px=480 warmup=1 refresh_hz=90.0 frame_ms=11.111 density=3.3125 screen_px=1200x2486 boot_mono_offset_ns=94513649505770
+08-02 17:30:33.381 I/E1_STIM (21036): FLIP seq=1 color=B warmup=true t_req_boot_ns=874093814583169 t_req_mono_ns=779580165077919
+08-02 17:30:33.398 I/E1_STIM (21036): COMMIT seq=1 t_commit_boot_ns=874093831456606 t_commit_mono_ns=779580181951357
+08-02 17:30:34.189 I/E1_STIM (21036): FLIP seq=2 color=A warmup=false t_req_boot_ns=874094622018064 t_req_mono_ns=779580972514377
+08-02 17:30:34.207 I/E1_STIM (21036): COMMIT seq=2 t_commit_boot_ns=874094639547752 t_commit_mono_ns=779580990043023
+08-02 17:30:34.994 I/E1_STIM (21036): FLIP seq=3 color=B warmup=false t_req_boot_ns=874095427223273 t_req_mono_ns=779581777720106
+08-02 17:30:35.022 I/E1_STIM (21036): COMMIT seq=3 t_commit_boot_ns=874095455161814 t_commit_mono_ns=779581805658648
+08-02 17:30:35.800 I/E1_STIM (21036): FLIP seq=4 color=A warmup=false t_req_boot_ns=874096233202439 t_req_mono_ns=779582583701356
+08-02 17:30:35.815 I/E1_STIM (21036): COMMIT seq=4 t_commit_boot_ns=874096247944627 t_commit_mono_ns=779582598441461
+08-02 17:30:36.606 I/E1_STIM (21036): FLIP seq=5 color=B warmup=false t_req_boot_ns=874097038997231 t_req_mono_ns=779583389495627
+08-02 17:30:36.626 I/E1_STIM (21036): COMMIT seq=5 t_commit_boot_ns=874097059309210 t_commit_mono_ns=779583409806044
+08-02 17:30:37.410 I/E1_STIM (21036): FLIP seq=6 color=A warmup=false t_req_boot_ns=874097842655564 t_req_mono_ns=779584193151877
+08-02 17:30:37.430 I/E1_STIM (21036): COMMIT seq=6 t_commit_boot_ns=874097863160251 t_commit_mono_ns=779584213656044
+08-02 17:30:38.216 I/E1_STIM (21036): FLIP seq=7 color=B warmup=false t_req_boot_ns=874098648557126 t_req_mono_ns=779584999055523
+08-02 17:30:38.251 I/E1_STIM (21036): COMMIT seq=7 t_commit_boot_ns=874098684307126 t_commit_mono_ns=779585034805002
+08-02 17:30:39.022 I/E1_STIM (21036): FLIP seq=8 color=A warmup=false t_req_boot_ns=874099454512855 t_req_mono_ns=779585805012293
+08-02 17:30:39.045 I/E1_STIM (21036): COMMIT seq=8 t_commit_boot_ns=874099478015460 t_commit_mono_ns=779585828512293
+08-02 17:30:39.828 I/E1_STIM (21036): FLIP seq=9 color=B warmup=false t_req_boot_ns=874100261412855 t_req_mono_ns=779586611912293
+08-02 17:30:39.847 I/E1_STIM (21036): COMMIT seq=9 t_commit_boot_ns=874100280134730 t_commit_mono_ns=779586630632085
+08-02 17:30:40.640 I/E1_STIM (21036): FLIP seq=10 color=A warmup=false t_req_boot_ns=874101072652959 t_req_mono_ns=779587423151876
+08-02 17:30:40.656 I/E1_STIM (21036): COMMIT seq=10 t_commit_boot_ns=874101089284209 t_commit_mono_ns=779587439781043
+08-02 17:30:41.448 I/E1_STIM (21036): FLIP seq=11 color=B warmup=false t_req_boot_ns=874101880756084 t_req_mono_ns=779588231254481
+08-02 17:30:41.470 I/E1_STIM (21036): COMMIT seq=11 t_commit_boot_ns=874101903567022 t_commit_mono_ns=779588254063856
+08-02 17:30:42.256 I/E1_STIM (21036): FLIP seq=12 color=A warmup=false t_req_boot_ns=874102688808167 t_req_mono_ns=779589039306564
+08-02 17:30:42.277 I/E1_STIM (21036): COMMIT seq=12 t_commit_boot_ns=874102710013897 t_commit_mono_ns=779589060510210
+08-02 17:30:43.064 I/E1_STIM (21036): FLIP seq=13 color=B warmup=false t_req_boot_ns=874103497216501 t_req_mono_ns=779589847714897
+08-02 17:30:43.090 I/E1_STIM (21036): COMMIT seq=13 t_commit_boot_ns=874103523161813 t_commit_mono_ns=779589873658647
+08-02 17:30:43.874 I/E1_STIM (21036): FLIP seq=14 color=A warmup=false t_req_boot_ns=874104307096188 t_req_mono_ns=779590657594584
+08-02 17:30:43.890 I/E1_STIM (21036): COMMIT seq=14 t_commit_boot_ns=874104323242021 t_commit_mono_ns=779590673738855
+08-02 17:30:44.682 I/E1_STIM (21036): FLIP seq=15 color=B warmup=false t_req_boot_ns=874105114978480 t_req_mono_ns=779591465477397
+08-02 17:30:44.697 I/E1_STIM (21036): COMMIT seq=15 t_commit_boot_ns=874105130407125 t_commit_mono_ns=779591480902918
+08-02 17:30:45.493 I/E1_STIM (21036): FLIP seq=16 color=A warmup=false t_req_boot_ns=874105925419104 t_req_mono_ns=779592275918022
+08-02 17:30:45.515 I/E1_STIM (21036): COMMIT seq=16 t_commit_boot_ns=874105947716500 t_commit_mono_ns=779592298213334
+08-02 17:30:46.300 I/E1_STIM (21036): FLIP seq=17 color=B warmup=false t_req_boot_ns=874106733172229 t_req_mono_ns=779593083670105
+08-02 17:30:46.327 I/E1_STIM (21036): COMMIT seq=17 t_commit_boot_ns=874106759616500 t_commit_mono_ns=779593110113334
+08-02 17:30:47.108 I/E1_STIM (21036): FLIP seq=18 color=A warmup=false t_req_boot_ns=874107541469625 t_req_mono_ns=779593891967500
+08-02 17:30:47.122 I/E1_STIM (21036): COMMIT seq=18 t_commit_boot_ns=874107555382125 t_commit_mono_ns=779593905878438
+08-02 17:30:47.917 I/E1_STIM (21036): FLIP seq=19 color=B warmup=false t_req_boot_ns=874108350022750 t_req_mono_ns=779594700522188
+08-02 17:30:47.931 I/E1_STIM (21036): COMMIT seq=19 t_commit_boot_ns=874108364118583 t_commit_mono_ns=779594714615417
+08-02 17:30:48.730 I/E1_STIM (21036): FLIP seq=20 color=A warmup=false t_req_boot_ns=874109162583166 t_req_mono_ns=779595513082604
+08-02 17:30:48.746 I/E1_STIM (21036): COMMIT seq=20 t_commit_boot_ns=874109178738896 t_commit_mono_ns=779595529235209
+08-02 17:30:49.538 I/E1_STIM (21036): FLIP seq=21 color=B warmup=false t_req_boot_ns=874109970898270 t_req_mono_ns=779596321396667
+08-02 17:30:49.558 I/E1_STIM (21036): COMMIT seq=21 t_commit_boot_ns=874109990882125 t_commit_mono_ns=779596341378958
+08-02 17:30:50.347 I/E1_STIM (21036): FLIP seq=22 color=A warmup=false t_req_boot_ns=874110779861291 t_req_mono_ns=779597130360208
+08-02 17:30:50.371 I/E1_STIM (21036): COMMIT seq=22 t_commit_boot_ns=874110804203999 t_commit_mono_ns=779597154701354
+08-02 17:30:51.155 I/E1_STIM (21036): FLIP seq=23 color=B warmup=false t_req_boot_ns=874111587622229 t_req_mono_ns=779597938120104
+08-02 17:30:51.178 I/E1_STIM (21036): COMMIT seq=23 t_commit_boot_ns=874111611296187 t_commit_mono_ns=779597961792500
+08-02 17:30:51.963 I/E1_STIM (21036): FLIP seq=24 color=A warmup=false t_req_boot_ns=874112395607124 t_req_mono_ns=779598746101875
+08-02 17:30:51.981 I/E1_STIM (21036): COMMIT seq=24 t_commit_boot_ns=874112413885249 t_commit_mono_ns=779598764382083
+08-02 17:30:52.771 I/E1_STIM (21036): FLIP seq=25 color=B warmup=false t_req_boot_ns=874113204379520 t_req_mono_ns=779599554874270
+08-02 17:30:52.786 I/E1_STIM (21036): COMMIT seq=25 t_commit_boot_ns=874113219531603 t_commit_mono_ns=779599570026875
+08-02 17:30:53.580 I/E1_STIM (21036): FLIP seq=26 color=A warmup=false t_req_boot_ns=874114012826395 t_req_mono_ns=779600363321666
+08-02 17:30:53.601 I/E1_STIM (21036): COMMIT seq=26 t_commit_boot_ns=874114034448791 t_commit_mono_ns=779600384944062
+08-02 17:30:54.387 I/E1_STIM (21036): FLIP seq=27 color=B warmup=false t_req_boot_ns=874114819735770 t_req_mono_ns=779601170230520
+08-02 17:30:54.414 I/E1_STIM (21036): COMMIT seq=27 t_commit_boot_ns=874114846750353 t_commit_mono_ns=779601197247708
+08-02 17:30:55.195 I/E1_STIM (21036): FLIP seq=28 color=A warmup=false t_req_boot_ns=874115628109728 t_req_mono_ns=779601978604999
+08-02 17:30:55.209 I/E1_STIM (21036): COMMIT seq=28 t_commit_boot_ns=874115642175874 t_commit_mono_ns=779601992672708
+08-02 17:30:56.004 I/E1_STIM (21036): FLIP seq=29 color=B warmup=false t_req_boot_ns=874116436830561 t_req_mono_ns=779602787326353
+08-02 17:30:56.021 I/E1_STIM (21036): COMMIT seq=29 t_commit_boot_ns=874116453764936 t_commit_mono_ns=779602804261249
+08-02 17:30:56.811 I/E1_STIM (21036): FLIP seq=30 color=A warmup=false t_req_boot_ns=874117244094103 t_req_mono_ns=779603594588853
+08-02 17:30:56.825 I/E1_STIM (21036): COMMIT seq=30 t_commit_boot_ns=874117258524832 t_commit_mono_ns=779603609019582
+08-02 17:30:57.620 I/E1_STIM (21036): FLIP seq=31 color=B warmup=false t_req_boot_ns=874118052869103 t_req_mono_ns=779604403364895
+08-02 17:30:57.646 I/E1_STIM (21036): COMMIT seq=31 t_commit_boot_ns=874118079230561 t_commit_mono_ns=779604429727395
+08-02 17:30:58.426 I/E1_STIM (21036): FLIP seq=32 color=A warmup=false t_req_boot_ns=874118859524832 t_req_mono_ns=779605210020103
+08-02 17:30:58.438 I/E1_STIM (21036): COMMIT seq=32 t_commit_boot_ns=874118871606602 t_commit_mono_ns=779605222101874
+08-02 17:30:59.233 I/E1_STIM (21036): FLIP seq=33 color=B warmup=false t_req_boot_ns=874119665777436 t_req_mono_ns=779606016271665
+08-02 17:30:59.250 I/E1_STIM (21036): COMMIT seq=33 t_commit_boot_ns=874119683060769 t_commit_mono_ns=779606033557082
+08-02 17:31:00.037 I/E1_STIM (21036): FLIP seq=34 color=A warmup=false t_req_boot_ns=874120470185769 t_req_mono_ns=779606820680519
+08-02 17:31:00.056 I/E1_STIM (21036): COMMIT seq=34 t_commit_boot_ns=874120488656081 t_commit_mono_ns=779606839151874
+08-02 17:31:00.845 I/E1_STIM (21036): FLIP seq=35 color=B warmup=false t_req_boot_ns=874121278467019 t_req_mono_ns=779607628963332
+08-02 17:31:00.862 I/E1_STIM (21036): COMMIT seq=35 t_commit_boot_ns=874121295403998 t_commit_mono_ns=779607645901873
+08-02 17:31:01.654 I/E1_STIM (21036): FLIP seq=36 color=A warmup=false t_req_boot_ns=874122087020144 t_req_mono_ns=779608437515936
+08-02 17:31:01.673 I/E1_STIM (21036): COMMIT seq=36 t_commit_boot_ns=874122106097748 t_commit_mono_ns=779608456595102
+08-02 17:31:02.461 I/E1_STIM (21036): FLIP seq=37 color=B warmup=false t_req_boot_ns=874122894198268 t_req_mono_ns=779609244693540
+08-02 17:31:02.485 I/E1_STIM (21036): COMMIT seq=37 t_commit_boot_ns=874122917982643 t_commit_mono_ns=779609268479998
+08-02 17:31:03.266 I/E1_STIM (21036): FLIP seq=38 color=A warmup=false t_req_boot_ns=874123699434727 t_req_mono_ns=779610049929998
+08-02 17:31:03.286 I/E1_STIM (21036): COMMIT seq=38 t_commit_boot_ns=874123718968581 t_commit_mono_ns=779610069463852
+08-02 17:31:04.075 I/E1_STIM (21036): FLIP seq=39 color=B warmup=false t_req_boot_ns=874124507944102 t_req_mono_ns=779610858439373
+08-02 17:31:04.096 I/E1_STIM (21036): COMMIT seq=39 t_commit_boot_ns=874124528887852 t_commit_mono_ns=779610879384685
+08-02 17:31:04.883 I/E1_STIM (21036): FLIP seq=40 color=A warmup=false t_req_boot_ns=874125316238893 t_req_mono_ns=779611666734685
+08-02 17:31:04.907 I/E1_STIM (21036): COMMIT seq=40 t_commit_boot_ns=874125338598789 t_commit_mono_ns=779611689096144
+08-02 17:31:05.689 I/E1_STIM (21036): FLIP seq=41 color=B warmup=false t_req_boot_ns=874126122484726 t_req_mono_ns=779612472979998
+08-02 17:31:05.708 I/E1_STIM (21036): COMMIT seq=41 t_commit_boot_ns=874126141254518 t_commit_mono_ns=779612491749268
+08-02 17:31:06.498 I/E1_STIM (21036): FLIP seq=42 color=A warmup=false t_req_boot_ns=874126930946185 t_req_mono_ns=779613281441456
+08-02 17:31:06.513 I/E1_STIM (21036): COMMIT seq=42 t_commit_boot_ns=874126945767539 t_commit_mono_ns=779613296262289
+08-02 17:31:07.309 I/E1_STIM (21036): FLIP seq=43 color=B warmup=false t_req_boot_ns=874127741721184 t_req_mono_ns=779614092216977
+08-02 17:31:07.322 I/E1_STIM (21036): COMMIT seq=43 t_commit_boot_ns=874127755538372 t_commit_mono_ns=779614106033122
+08-02 17:31:08.117 I/E1_STIM (21036): FLIP seq=44 color=A warmup=false t_req_boot_ns=874128549619622 t_req_mono_ns=779614900115414
+08-02 17:31:08.131 I/E1_STIM (21036): COMMIT seq=44 t_commit_boot_ns=874128564283684 t_commit_mono_ns=779614914778435
+08-02 17:31:08.924 I/E1_STIM (21036): FLIP seq=45 color=B warmup=false t_req_boot_ns=874129357302434 t_req_mono_ns=779615707797185
+08-02 17:31:08.942 I/E1_STIM (21036): COMMIT seq=45 t_commit_boot_ns=874129375085247 t_commit_mono_ns=779615725579476
+08-02 17:31:09.734 I/E1_STIM (21036): FLIP seq=46 color=A warmup=false t_req_boot_ns=874130166734205 t_req_mono_ns=779616517228955
+08-02 17:31:09.748 I/E1_STIM (21036): COMMIT seq=46 t_commit_boot_ns=874130180961809 t_commit_mono_ns=779616531456560
+08-02 17:31:10.539 I/E1_STIM (21036): FLIP seq=47 color=B warmup=false t_req_boot_ns=874130972557642 t_req_mono_ns=779617323052914
+08-02 17:31:10.549 I/E1_STIM (21036): COMMIT seq=47 t_commit_boot_ns=874130982681601 t_commit_mono_ns=779617333175309
+08-02 17:31:11.347 I/E1_STIM (21036): FLIP seq=48 color=A warmup=false t_req_boot_ns=874131780480038 t_req_mono_ns=779618130974788
+08-02 17:31:11.364 I/E1_STIM (21036): COMMIT seq=48 t_commit_boot_ns=874131796864934 t_commit_mono_ns=779618147359163
+08-02 17:31:12.157 I/E1_STIM (21036): FLIP seq=49 color=B warmup=false t_req_boot_ns=874132589493059 t_req_mono_ns=779618939988330
+08-02 17:31:12.174 I/E1_STIM (21036): COMMIT seq=49 t_commit_boot_ns=874132606993579 t_commit_mono_ns=779618957488851
+08-02 17:31:12.965 I/E1_STIM (21036): FLIP seq=50 color=A warmup=false t_req_boot_ns=874133398099829 t_req_mono_ns=779619748595101
+08-02 17:31:12.979 I/E1_STIM (21036): COMMIT seq=50 t_commit_boot_ns=874133412468579 t_commit_mono_ns=779619762962288
+08-02 17:31:13.774 I/E1_STIM (21036): FLIP seq=51 color=B warmup=false t_req_boot_ns=874134207328996 t_req_mono_ns=779620557824267
+08-02 17:31:13.789 I/E1_STIM (21036): COMMIT seq=51 t_commit_boot_ns=874134222547746 t_commit_mono_ns=779620573041976
+08-02 17:31:14.584 I/E1_STIM (21036): FLIP seq=52 color=A warmup=false t_req_boot_ns=874135016845142 t_req_mono_ns=779621367341455
+08-02 17:31:14.598 I/E1_STIM (21036): COMMIT seq=52 t_commit_boot_ns=874135031583683 t_commit_mono_ns=779621382077913
+08-02 17:31:15.392 I/E1_STIM (21036): FLIP seq=53 color=B warmup=false t_req_boot_ns=874135824788371 t_req_mono_ns=779622175283121
+08-02 17:31:15.406 I/E1_STIM (21036): COMMIT seq=53 t_commit_boot_ns=874135839172746 t_commit_mono_ns=779622189666454
+08-02 17:31:16.201 I/E1_STIM (21036): FLIP seq=54 color=A warmup=false t_req_boot_ns=874136633780037 t_req_mono_ns=779622984275309
+08-02 17:31:16.226 I/E1_STIM (21036): COMMIT seq=54 t_commit_boot_ns=874136658996704 t_commit_mono_ns=779623009491454
+08-02 17:31:17.009 I/E1_STIM (21036): FLIP seq=55 color=B warmup=false t_req_boot_ns=874137441940454 t_req_mono_ns=779623792436246
+08-02 17:31:17.034 I/E1_STIM (21036): COMMIT seq=55 t_commit_boot_ns=874137467578995 t_commit_mono_ns=779623818073225
+08-02 17:31:17.816 I/E1_STIM (21036): FLIP seq=56 color=A warmup=false t_req_boot_ns=874138249022224 t_req_mono_ns=779624599518017
+08-02 17:31:17.842 I/E1_STIM (21036): COMMIT seq=56 t_commit_boot_ns=874138274959724 t_commit_mono_ns=779624625454475
+08-02 17:31:18.623 I/E1_STIM (21036): FLIP seq=57 color=B warmup=false t_req_boot_ns=874139055645662 t_req_mono_ns=779625406140933
+08-02 17:31:18.641 I/E1_STIM (21036): COMMIT seq=57 t_commit_boot_ns=874139074054516 t_commit_mono_ns=779625424548746
+08-02 17:31:19.431 I/E1_STIM (21036): FLIP seq=58 color=A warmup=false t_req_boot_ns=874139863820141 t_req_mono_ns=779626214315412
+08-02 17:31:19.451 I/E1_STIM (21036): COMMIT seq=58 t_commit_boot_ns=874139884448787 t_commit_mono_ns=779626234944058
+08-02 17:31:20.238 I/E1_STIM (21036): FLIP seq=59 color=B warmup=false t_req_boot_ns=874140670886807 t_req_mono_ns=779627021382600
+08-02 17:31:20.263 I/E1_STIM (21036): COMMIT seq=59 t_commit_boot_ns=874140696373266 t_commit_mono_ns=779627046868016
+08-02 17:31:21.044 I/E1_STIM (21036): FLIP seq=60 color=A warmup=false t_req_boot_ns=874141477621182 t_req_mono_ns=779627828116974
+08-02 17:31:21.070 I/E1_STIM (21036): COMMIT seq=60 t_commit_boot_ns=874141503104516 t_commit_mono_ns=779627853599266
+08-02 17:31:21.853 I/E1_STIM (21036): FLIP seq=61 color=B warmup=false t_req_boot_ns=874142285919620 t_req_mono_ns=779628636415412
+08-02 17:31:21.872 I/E1_STIM (21036): COMMIT seq=61 t_commit_boot_ns=874142304995141 t_commit_mono_ns=779628655489891
+08-02 17:31:22.658 I/E1_STIM (21036): FLIP seq=62 color=A warmup=false t_req_boot_ns=874143091444099 t_req_mono_ns=779629441938849
+08-02 17:31:22.675 I/E1_STIM (21036): COMMIT seq=62 t_commit_boot_ns=874143108086286 t_commit_mono_ns=779629458582078
+08-02 17:31:23.466 I/E1_STIM (21036): FLIP seq=63 color=B warmup=false t_req_boot_ns=874143898869619 t_req_mono_ns=779630249364891
+08-02 17:31:23.481 I/E1_STIM (21036): COMMIT seq=63 t_commit_boot_ns=874143914123786 t_commit_mono_ns=779630264617495
+08-02 17:31:24.270 I/E1_STIM (21036): FLIP seq=64 color=A warmup=false t_req_boot_ns=874144703662328 t_req_mono_ns=779631054157078
+08-02 17:31:24.277 I/E1_STIM (21036): COMMIT seq=64 t_commit_boot_ns=874144710518057 t_commit_mono_ns=779631061011766
+08-02 17:31:25.076 I/E1_STIM (21036): FLIP seq=65 color=B warmup=false t_req_boot_ns=874145509634203 t_req_mono_ns=779631860128953
+08-02 17:31:25.088 I/E1_STIM (21036): COMMIT seq=65 t_commit_boot_ns=874145521473265 t_commit_mono_ns=779631871967495
+08-02 17:31:25.882 I/E1_STIM (21036): FLIP seq=66 color=A warmup=false t_req_boot_ns=874146315232119 t_req_mono_ns=779632665727911
+08-02 17:31:25.892 I/E1_STIM (21036): COMMIT seq=66 t_commit_boot_ns=874146325678994 t_commit_mono_ns=779632676172703
+08-02 17:31:26.689 I/E1_STIM (21036): FLIP seq=67 color=B warmup=false t_req_boot_ns=874147122090973 t_req_mono_ns=779633472586244
+08-02 17:31:26.702 I/E1_STIM (21036): COMMIT seq=67 t_commit_boot_ns=874147135494098 t_commit_mono_ns=779633485988328
+08-02 17:31:27.497 I/E1_STIM (21036): FLIP seq=68 color=A warmup=false t_req_boot_ns=874147930244619 t_req_mono_ns=779634280740411
+08-02 17:31:27.519 I/E1_STIM (21036): COMMIT seq=68 t_commit_boot_ns=874147952497223 t_commit_mono_ns=779634302991453
+08-02 17:31:28.304 I/E1_STIM (21036): FLIP seq=69 color=B warmup=false t_req_boot_ns=874148737601390 t_req_mono_ns=779635088096661
+08-02 17:31:28.329 I/E1_STIM (21036): COMMIT seq=69 t_commit_boot_ns=874148762545660 t_commit_mono_ns=779635113040411
+08-02 17:31:29.112 I/E1_STIM (21036): FLIP seq=70 color=A warmup=false t_req_boot_ns=874149545214931 t_req_mono_ns=779635895710202
+08-02 17:31:29.127 I/E1_STIM (21036): COMMIT seq=70 t_commit_boot_ns=874149560658681 t_commit_mono_ns=779635911153432
+08-02 17:31:29.919 I/E1_STIM (21036): FLIP seq=71 color=B warmup=false t_req_boot_ns=874150352373264 t_req_mono_ns=779636702869056
+08-02 17:31:29.934 I/E1_STIM (21036): COMMIT seq=71 t_commit_boot_ns=874150367237848 t_commit_mono_ns=779636717733119
+08-02 17:31:30.726 I/E1_STIM (21036): FLIP seq=72 color=A warmup=false t_req_boot_ns=874151159023785 t_req_mono_ns=779637509518535
+08-02 17:31:30.748 I/E1_STIM (21036): COMMIT seq=72 t_commit_boot_ns=874151180987327 t_commit_mono_ns=779637531482077
+08-02 17:31:31.533 I/E1_STIM (21036): FLIP seq=73 color=B warmup=false t_req_boot_ns=874151966089410 t_req_mono_ns=779638316584681
+08-02 17:31:31.548 I/E1_STIM (21036): COMMIT seq=73 t_commit_boot_ns=874151981428993 t_commit_mono_ns=779638331923744
+08-02 17:31:32.340 I/E1_STIM (21036): FLIP seq=74 color=A warmup=false t_req_boot_ns=874152772849306 t_req_mono_ns=779639123345098
+08-02 17:31:32.356 I/E1_STIM (21036): COMMIT seq=74 t_commit_boot_ns=874152789197743 t_commit_mono_ns=779639139691973
+08-02 17:31:33.147 I/E1_STIM (21036): FLIP seq=75 color=B warmup=false t_req_boot_ns=874153579563368 t_req_mono_ns=779639930059681
+08-02 17:31:33.162 I/E1_STIM (21036): COMMIT seq=75 t_commit_boot_ns=874153595260764 t_commit_mono_ns=779639945755514
+08-02 17:31:33.953 I/E1_STIM (21036): FLIP seq=76 color=A warmup=false t_req_boot_ns=874154386103993 t_req_mono_ns=779640736598743
+08-02 17:31:33.967 I/E1_STIM (21036): COMMIT seq=76 t_commit_boot_ns=874154400257639 t_commit_mono_ns=779640750752389
+08-02 17:31:34.758 I/E1_STIM (21036): FLIP seq=77 color=B warmup=false t_req_boot_ns=874155191525347 t_req_mono_ns=779641542020097
+08-02 17:31:34.759 I/E1_STIM (21036): DONE flips=77 warmup=1
+08-02 17:31:34.771 I/E1_STIM (21036): COMMIT seq=77 t_commit_boot_ns=874155204604514 t_commit_mono_ns=779641555099264

@@ -1,0 +1,9 @@
+{
+  "device_window": "DW-20260802-01",
+  "pkg": "com.aneb.e1stimulus",
+  "stim_pre": "E:\\C Project\\ANEB\\evidence\\e234\\20260802-163504\\stim_pre.log",
+  "layer": null,
+  "sf_status": "NOT_EXECUTED: SurfaceFlinger --list 未找到该包的图层",
+  "screencap_samples": 22,
+  "stim_post": "E:\\C Project\\ANEB\\evidence\\e234\\20260802-163504\\stim_post.log"
+}
