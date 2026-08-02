@@ -77,13 +77,28 @@ app/gradlew -p tools/e1_stimulus assembleDebug
 | run2 | `evidence/e1_realdevice_20260802_run2/E1_JUDGMENT_v4_run2.md`（D-409） | `NOT_EXECUTED` | 同一根因原样复现（刺激时长拉长到 2 分钟也没用）；期间发现的"通道 B 检出翻转"实为一次孤立瞬变，与刺激事件无关，拒绝据此产出假分布 |
 | run3 | `evidence/e234/20260802-173031/JUDGMENT_v4_run3.md`（D-413） | **`FAIL`**（n=53, p99=29.427ms > 16.667ms） | `--pin-through-session` 修复生效——**W-2 转为可判定**；FAIL 判定完全来自 `--latency` 支路的真实帧 |
 
-### G-2（spec §3.4）口径解读——PASS/FAIL 量的是什么
+### 「总量 vs 1 帧」判定 vs G-2 本义——D-417/D-418 后必须分开读
 
-`gate_verdict()` 的 PASS/FAIL 描述的是**该通道自身观测链**能不能撑起「≤1 帧」这句话，
-**不是**在给设备或采集方法打分。run3 的 FAIL（29.427ms）准确读法是**"通道 C 单独
-不足以支撑 1 帧精度断言"**——E1 实验本身已经成功量出了那条 t_commit→t_present 残余
-（有 n、有分布），实验的目的就是量出这个数，FAIL 只是那个数相对门限的大小关系，
-不是"实验失败"或"设备不行"。
+**本节取代此前（D-414）的「G-2 口径解读」小节。旧版把 `gate_verdict()` 的
+PASS/FAIL 直接当成 G-2 的机器判读、把总量说成"该通道自身观测链"——run3 首次
+实测暴露 `E_pipeline`（见下）之后，这个说法不准确，已改写。**
+
+`gate_verdict()` 对通道 C 系（`--latency`/`framestats`）算出的 PASS/FAIL，量的是
+`t_commit → t_present` 的**实测总量**，跟 1 帧门限比。run3 的 FAIL（29.427ms）
+只代表**这个总量**超过了 16.667ms 这一帧——**不能**再照旧说法读成"通道 C 单独
+不足以支撑 1 帧精度断言"：那句话把总量当成了纯粹的通道/观测误差，但 spec §3.2
+（D-417/D-418 新增第五项）指出这个总量里必然混着 `E_pipeline`——设备渲染管线
+commit→present 的固有延迟，**是设备的性质，不是打点方法或观测通道的性质**，
+哪怕通道零延迟、零量化误差也不会消失。
+
+`gate_verdict()` 因此只回答"总量 vs 1 帧"这道机械比较，**不等于** spec §3.4 的
+G-2 本义（纯 `E_transport⊕E_quant` ≤ 1 帧）。G-2 本义在 E2 把 `E_pipeline` 从
+总量里分解出去之前恒为 `NOT_EXECUTED`——工具侧把这两件事拆成两个独立字段
+（`channel_c_verdict`/`channel_c_framestats_verdict` vs `g2_true_meaning()`），
+报告同时印出两行：run3 上，总量列是 `FAIL`，G-2 本义行是 `NOT_EXECUTED`，
+互不代表（`test_g2_true_meaning_does_not_move_with_the_total_verdict` 等反例
+钉住这两个字段不会互相牵动）。E1 实验本身仍然成功——量出了这条总量（有 n、
+有分布）——只是这个总量还不能直接兑现成 G-2 本义的答案，那要等 E2。
 
 ### frame_ms 取值来源——L-1，显式判据，不再只是注释
 

@@ -494,3 +494,47 @@ def test_render_reports_measured_frame_and_channel_verdicts():
     assert md.count("| A 无障碍事件") == 1
     assert md.count("| C 渲染时间线") == 1
     assert md.count("| B screencap 帧差") == 1
+
+
+# ── G-2 本义独立于「总量 vs 1 帧」（D-417/D-418）────────────────────────────
+def test_g2_true_meaning_is_a_fixed_not_executed_value():
+    """G-2 本义在 E2 把 E_pipeline 从总量里分解出去之前恒为 NOT_EXECUTED——
+    这是一个固定值，不看任何输入（D-417/D-418）。"""
+    assert ea.g2_true_meaning()[0] == ea.NOT_EXECUTED
+
+
+def test_g2_true_meaning_does_not_move_with_the_total_verdict():
+    """总量判定可以是 PASS 也可以是 FAIL，G-2 本义两种情况下都不变——
+    证明两者是独立字段，不是同一个判断换了个措辞（D-417/D-418 形状）。
+    """
+    passing = {"status": ea.PASS, "p99_ms": 1.0}
+    failing = {"status": ea.PASS, "p99_ms": 999.0}
+    assert ea.gate_verdict(passing, 16.667)[0] == ea.PASS
+    assert ea.g2_true_meaning()[0] == ea.NOT_EXECUTED
+    assert ea.gate_verdict(failing, 16.667)[0] == ea.FAIL
+    assert ea.g2_true_meaning()[0] == ea.NOT_EXECUTED
+
+
+def test_analyze_carries_g2_true_meaning_independent_of_channel_c_verdict():
+    """端到端：合规夹具下通道 C 总量本该 PASS，但 g2_true_meaning 字段
+    仍独立存在且为 NOT_EXECUTED——不是从 channel_c_verdict 派生或复制出来的
+    （run3 真机数据是反过来的形状：总量 FAIL、G-2 本义同样 NOT_EXECUTED，
+    见 docs/G2_REACHABILITY_MEMO_20260802.md；这里用合成数据钉住"不管总量
+    是哪个状态词，G-2 本义都不跟着变"这条不变量）。
+    """
+    res = ea.analyze(_stim_lines(count=4, warmup=0), [], _sf_text(count=4), "", [])
+    assert res["channel_c_verdict"][0] == ea.PASS
+    assert res["g2_true_meaning"][0] == ea.NOT_EXECUTED
+    assert res["g2_true_meaning"] != res["channel_c_verdict"]
+
+
+def test_render_shows_total_and_g2_true_meaning_as_two_separate_lines():
+    """渲染层：「总量 vs 1 帧」列头与「G-2 本义」是两处独立文本，各出现一次，
+    且 G-2 本义那一行的状态词固定为 NOT_EXECUTED，不随总量列的判定变化。
+    """
+    res = ea.analyze(_stim_lines(count=4, warmup=0), [], _sf_text(count=4), "", [])
+    md = ea.render_markdown(res)
+    assert "总量 vs 1 帧" in md
+    g2_lines = [ln for ln in md.splitlines() if ln.startswith("**G-2 本义")]
+    assert len(g2_lines) == 1              # 判定行只出现一次，不重复
+    assert ea.NOT_EXECUTED in g2_lines[0]  # 即便总量列（见上）是 PASS，这行仍是 NOT_EXECUTED

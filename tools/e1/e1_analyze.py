@@ -65,7 +65,9 @@ NOT_EXECUTED = "NOT_EXECUTED"
 # P40 是 LTPO 变刷屏（90Hz 满刷 / 静态内容可能降频合成）。SurfaceFlinger 实测的
 # 合成周期与 App 侧 `Display.getRefreshRate()` 的名义值在这类屏幕上**允许不同**
 # ——静态画面时 SF 完全可能真的在按更低频率合成，那不是 bug，是省电。
-# 本工具选哪个当「1 帧」直接决定 G-2（spec §3.4）的 PASS/FAIL，
+# 本工具选哪个当「1 帧」直接决定通道 C 系「t_commit→t_present 实测总量 vs 1 帧」
+# 的 PASS/FAIL（D-417/D-418 起：这**不等于** G-2 本义，见 gate_verdict()/
+# g2_true_meaning() 的 docstring——但仍是同一个「1 帧取多少」的口径问题），
 # 这条规则因此必须是显式、可审计的字段，不能只是渲染文案里的一句话。
 FRAME_MS_SRC_MEASURED = "surfaceflinger_measured"   # 优先：来自 sf_latency.txt 首行周期
 FRAME_MS_SRC_STIMULUS = "stimulus_self_report"      # 回退：sf_latency 缺失时，用刺激源 CFG 的 refresh_hz
@@ -479,19 +481,35 @@ def summarize(deltas_ms, dropped=0):
 
 
 def gate_verdict(summary, frame_ms):
-    """spec §3.4 G-2 的机器判读：主用通道 p99 ≤ 1 帧 ?
+    """通用判据：一份分布的 p99 是否 ≤ 1 帧。被通道 A/C/C-framestats 复用。
 
     frame_ms 由实测刷新率换算得出，**不硬编码 33**（spec §3.1；D-312 形状）。
     信息不足一律 NOT_EXECUTED —— 没测过不能判 FAIL。
 
-    **口径解读（大脑裁示，2026-08-02，run3 首个实测 29.427ms 后固化）**：
-    这里的 PASS/FAIL 量的是**该通道自身观测链**（此函数被哪条通道调用，就是那条
-    通道的 t_commit→t_present 残余）能不能撑起「≤1 帧」这句话，**不是**在给设备
-    或采集方法打分。FAIL 的含义准确写法是「这条通道单独不足以支撑 1 帧精度断言」，
-    不是「设备不行」或「方法错了」——E1 实验本身若真的量出了这条残余（有 n、有
-    p99），实验就已经成功；PASS/FAIL 只是那个残余相对 1 帧门限的大小关系。
+    **本函数只做这一件机械的事，不代表任何单一通道的最终口径结论**——它是否等于
+    spec §3.4 的 G-2 本义，**取决于调用方喂给它的 summary 量的是什么**，本函数
+    不知道也不该假装知道。这条界线是 D-417/D-418 划的（此前 D-414 版本的这份
+    docstring 曾把"通道 C 系的这个判定"直接等同于"G-2 的机器判读"，**在新口径下
+    不准确，已改写**——当时的理由"PASS/FAIL 只是残余相对门限的大小关系，不是给
+    设备打分"对通道 C 系不再成立：见下。
+
+    **通道 C 系（t_commit→t_present，`ch_c`/`ch_c_framestats`）调用本函数时**：
+    喂进来的 summary 量的是**实测总量**，其中混着 `E_pipeline`（设备渲染管线
+    commit→present 的固有延迟，spec §3.2 新增第五项，D-417 §1 口径审计）——
+    这一项**是**设备的性质，不是打点方法或观测通道的性质，且哪怕通道零延迟
+    零量化误差也不会消失。因此对通道 C 系而言，本函数返回的 PASS/FAIL **不是**
+    G-2 本义（纯 `E_transport⊕E_quant`）的判定，只是"总量 vs 1 帧"这道机械比较
+    的结果——G-2 本义在 E2 把 `E_pipeline` 分解出去之前恒为 `NOT_EXECUTED`
+    （见 `g2_true_meaning()`，两者是**两个独立字段**，不要把其中一个的
+    PASS/FAIL 读成另一个的结论）。
+
+    **通道 A 调用本函数时**：喂进来的 summary 量的是 `t_event − t_present`
+    （事件 vs 通道 C 已对齐的呈现时刻），不是 `t_commit − t_present`，上面这条
+    E_pipeline 混入的论证**不直接套用**——通道 A 的口径问题是另一件事（§1.2 的
+    A0/A0′ 缺口），本函数同样不代为裁定。
+
     「1 帧到底该取多少 ms 才对」（尤其 LTPO 变刷屏下 SurfaceFlinger 实测值可能是
-    降频态而非满刷态）是另一个问题，见 `FRAME_MS_SRC_*` 与 spec §3.4 G-5 —— 那是
+    降频态而非满刷态）也是另一个问题，见 `FRAME_MS_SRC_*` 与 spec §3.4 G-5 —— 那是
     大脑/PO 层的口径议题，本函数不代为裁定，只如实拿传入的 frame_ms 去比。
     """
     if summary.get("status") != PASS or frame_ms is None:
@@ -502,6 +520,23 @@ def gate_verdict(summary, frame_ms):
     if p99 <= frame_ms:
         return PASS, "p99 %.3fms <= 1 帧 %.3fms" % (p99, frame_ms)
     return FAIL, "p99 %.3fms > 1 帧 %.3fms" % (p99, frame_ms)
+
+
+def g2_true_meaning():
+    """spec §3.4 G-2 本义（纯 `E_transport⊕E_quant` ≤ 1 帧）的当前判定。
+
+    与 `gate_verdict()` 对通道 C 系算出的「t_commit→t_present 实测总量 vs 1 帧」
+    是**两个独立字段**——不要把其中一个的 PASS/FAIL 读成另一个的结论。
+
+    D-417/D-418：E1 目前拿 `t_commit` 代替语义真值 `t0`（§1.2 既有缺口），实测
+    总量因此必然混入 `E_pipeline`（spec §3.2 新增第五项，设备渲染管线固有延迟，
+    不是通道或方法的性质）。在 E2 把 `E_pipeline` 从总量里分解出去之前，G-2
+    本义恒为 `NOT_EXECUTED`——这是一个**固定值**，不依赖本次跑出的任何数字
+    （即便总量 PASS，也不代表 G-2 本义 PASS：上界不超门 ≠ 本体不超门）。
+    """
+    return (NOT_EXECUTED,
+            "G-2 本义需 E2 把 E_pipeline 从总量中分解出去后才可判——E1 未做"
+            "（spec §3.2/§3.4，D-417/D-418）")
 
 
 def _analyze_channel_a(good, aligned, evts, off_ns, frame_ms_c, max_gap_ns):
@@ -614,6 +649,7 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
         "channel_c_framestats": ch_c_framestats,
         "channel_c_framestats_verdict": (verdict_c_fs, reason_c_fs),
         "channel_c_cross_check": cross_check,
+        "g2_true_meaning": g2_true_meaning(),
         "adapter_obs_lines": obs,
         "cadence_check": _cadence_check(obs, cfg.get("interval_ms")),
     }
@@ -680,11 +716,12 @@ def render_markdown(res):
     L.append("")
     L.append("## 2. 按通道分列")
     L.append("")
-    L.append("| 通道 | 量的是什么 | n | dropped | p50 (ms) | p90 (ms) | p99 (ms) | 判定 |")
+    L.append("| 通道 | 量的是什么 | n | dropped | p50 (ms) | p90 (ms) | p99 (ms) | 总量 vs 1 帧 |")
     L.append("|---|---|---|---|---|---|---|---|")
     for key, name, what in (
             ("channel_a", "A 无障碍事件", "t_event → t_present（跨基，已换算）"),
-            ("channel_c", "C 渲染时间线", "t_commit → t_present（同基）")):
+            ("channel_c", "C 渲染时间线",
+             "t_commit → t_present（同基，**实测总量**——含 E_pipeline，非纯通道误差，D-417/D-418）")):
         s = res[key]
         v, r = res[key + "_verdict"]
         L.append("| %s | %s | %s | %s | %s | %s | %s | **%s** — %s |" % (
@@ -692,7 +729,8 @@ def render_markdown(res):
             _fmt(s.get("p50_ms")), _fmt(s.get("p90_ms")), _fmt(s.get("p99_ms")), v, r))
     fc = res["channel_c_framestats"]
     vfc, rfc = res["channel_c_framestats_verdict"]
-    L.append("| C（framestats，L-2） | t_commit → SwapBuffersCompleted（同基，第二支路） | %s | %s | %s | %s | %s | **%s** — %s |"
+    L.append("| C（framestats，L-2） | t_commit → SwapBuffersCompleted（同基，第二支路，**实测总量**——"
+             "含 E_pipeline，非纯通道误差，D-417/D-418） | %s | %s | %s | %s | %s | **%s** — %s |"
              % (fc.get("n", 0), fc.get("dropped", "—"), _fmt(fc.get("p50_ms")),
                 _fmt(fc.get("p90_ms")), _fmt(fc.get("p99_ms")), vfc, rfc))
     b = res["channel_b"]
@@ -711,6 +749,12 @@ def render_markdown(res):
     cross = res["channel_c_cross_check"]
     L.append("**通道 C 交叉验证（`--latency` vs `framestats`，L-2，spec `INSTRUMENTATION_SPEC` "
              "§6 K-2）**：%s — %s" % (cross["status"], cross["reason"]))
+    L.append("")
+    g2v, g2r = res["g2_true_meaning"]
+    L.append("**G-2 本义（spec §3.4，纯 `E_transport⊕E_quant` ≤ 1 帧）**：**%s** — %s" % (g2v, g2r))
+    L.append("")
+    L.append("> 上面「总量 vs 1 帧」那一列是**独立字段**，不是 G-2 本义——两者语义不同、"
+             "互不代表（D-417/D-418）：即便总量列 PASS，也不能读成 G-2 本义 PASS。")
     L.append("")
     cc = res["cadence_check"]
     L.append("## 3. 通道 A 弱检查（今天就能跑的那条）")
