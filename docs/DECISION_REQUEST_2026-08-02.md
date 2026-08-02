@@ -71,7 +71,7 @@
 
 ---
 
-## 3. 🟠 FRLOSS 层混淆裁定（框架内部自相矛盾，两处必须改一处）
+## 3. ✅ FRLOSS 层混淆裁定（已裁 2026-08-02，**D-406**：层混淆，两处语义都对、只是措辞打架；已落两处消歧，FRLOSS 维持 `NOT_MEASURABLE` 待 E-06。**残留待裁**：生产端 FRLOSS 条目仍各取一半——`scored=false` 跟 §5 而 `target.good=0.01` 跟 §4.1）
 
 **两段原文并列，未改一字**（`docs/PROFILE_FRAMEWORK.md`）：
 
