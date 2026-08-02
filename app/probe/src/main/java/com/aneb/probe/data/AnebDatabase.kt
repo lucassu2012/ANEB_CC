@@ -48,7 +48,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      场景级无线导出进上报体 network_snapshot.radio;全部可空,历史行 NULL,additive）
     // v17：scenario_result 增 kpiSampleCounts 列（D-373:per-KPI 有效样本数进上报体
     //      kpi_quality;低置信判词从此带理由;可空,历史行 NULL,additive ADD COLUMN）
-    version = 17,
+    // v18：voice_result 增 m7MaxFrameGapMs / voiceNearZeroArrivalRatio 两列（D-390 §5 B′：
+    //      M7「最长帧间静默」用 max 而非分位数——P95 会把罕见但致命的长冻结丢掉;
+    //      先落库不等计分实施,理由=chunk_us 被点名 20 处却从未落盘、M3 至今无法复核;
+    //      可空,历史行 NULL＝「跑在 M7 之前」而非「为零」,additive ADD COLUMN）
+    version = 18,
     exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -432,6 +436,40 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v17 → v18 的全部语句（M7 输入落库，additive-only，D-390 §5 待裁 B′ 经大脑批准）：
+         * `voice_result` 加两列——
+         * - `m7MaxFrameGapMs`：下行帧到达序列的 `max(相邻帧间隔)`，**max 而非分位数**。
+         *   这正是它存在的理由：M2 用 P95，而 P95 会把「罕见但致命」的长冻结丢掉
+         *   （实测单次最大偏差 4523.9ms 只占 0.67%，被切在分位点之上，D-390 §5.6）。
+         * - `voiceNearZeroArrivalRatio`：`count(帧间隔 ∈ [0,1000µs)) / n`，复用
+         *   `BufferingDetector.NEAR_ZERO_ARRIVAL_US`。它答「有没有发生」（批化投递），
+         *   **不计分**；严重度由 `m7MaxFrameGapMs` 承担。
+         *
+         * **为什么先落库、不等 M7 计分实施**：`chunk_us` 的教训——那个字段被源码与规格点名
+         * 20 处、自称 M3 的服务端权威，却**从未落盘**，于是 M3 至今无法从任何语料复核
+         * （D-390 §4.2）。今天不落盘，明天就没人能复核 M7。
+         *
+         * ALTER TABLE ADD COLUMN 追加为末列，与 Entities.kt VoiceResultEntity 末尾新字段的
+         * KSP 期望 schema 一致（affinity REAL、可空、**无默认值**——R-10）。既有行补 NULL
+         * （=「该 run 跑在 M7 落地之前」，**不是**「静默期为零」），不触碰其他表/列＝v17 旧数据全存活。
+         */
+        internal val MIGRATION_17_18_SQL: List<String> = listOf(
+            "ALTER TABLE `voice_result` ADD COLUMN `m7MaxFrameGapMs` REAL",
+            "ALTER TABLE `voice_result` ADD COLUMN `voiceNearZeroArrivalRatio` REAL",
+        )
+
+        /**
+         * v17 → v18（M7 输入落库，additive）：只加列不动数据。人工验证同 [MIGRATION_16_17]
+         * KDoc（覆盖安装后既有语音行可见且两列 =NULL、`.schema voice_result` 输出含新列、
+         * 跑一次语音后新行有值、logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_17_18_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -444,7 +482,7 @@ abstract class AnebDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                        MIGRATION_15_16, MIGRATION_16_17,
+                        MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()

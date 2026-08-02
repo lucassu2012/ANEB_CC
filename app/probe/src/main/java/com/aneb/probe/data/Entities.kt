@@ -449,6 +449,28 @@ data class VoiceResultEntity(
     val bargeStopMaxMs: Double?,
     /** protocol_ok 轮数（诚实对账） */
     val turnsOk: Int?,
+    // ---- v18：M7 输入（D-390 §5 B′；计分实施另批，本轮只落库） ----
+    /**
+     * M7 最长帧间静默（ms）＝下行帧到达序列的 `max(相邻帧间隔)`。
+     *
+     * **max 而非分位数**是这个字段的全部意义：M2 用 P95，而 P95 会把「罕见但致命」的
+     * 长冻结整个丢掉——实测一次 4.55 秒的冻结在 599 个间隔里只占 0.67%，被切在分位点
+     * 之上，于是 M2 报 25.000ms（饱和平台）而读者拿不到「4.5 秒」这个数（D-390 §5.6）。
+     *
+     * null ＝ 该 run 跑在 M7 落地之前，**不是**「没有静默」。
+     */
+    val m7MaxFrameGapMs: Double? = null,
+    /**
+     * 近零到达间隔占比＝`count(帧间隔 ∈ [0, NEAR_ZERO_ARRIVAL_US)) / n`，
+     * 复用 `BufferingDetector.NEAR_ZERO_ARRIVAL_US`（1000µs）。
+     *
+     * 它答**「有没有发生」**（帧是不是批着到的），**不计分**——严重度由
+     * [m7MaxFrameGapMs] 承担。两者分工刻意分开：比例量与时长量合成一个分数，
+     * 读者就说不出「发生了」和「有多糟」哪个在推动结论（D-390 §5.6 建议 ②③）。
+     *
+     * null ＝ 该 run 跑在 M7 落地之前。
+     */
+    val voiceNearZeroArrivalRatio: Double? = null,
 )
 
 // ---------------------------------------------------------------------------
