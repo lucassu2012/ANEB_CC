@@ -75,6 +75,7 @@ def test_cluster_gap_is_read_from_the_producer_not_typed_here():
 
 
 def test_cluster_gap_refuses_to_fall_back_to_a_literal_when_the_producer_renames_it():
+    """⚠ SOLE targeted guard（突变审计 M7：门限退回硬编码字面量 -> 只有这一条变红）。"""
     d = tempfile.mkdtemp(prefix="e234_kt_")
     try:
         p = os.path.join(d, "ObsStats.kt")
@@ -127,6 +128,7 @@ def test_v3_anchors_are_absent_not_zero_when_the_stream_never_closes_a_cluster()
 
 # ── T14 §2.1③ 一次物理事件被复用成多个样本 ────────────────────────────────
 def test_nearest_after_refuses_to_hand_the_same_frame_to_a_second_caller():
+    """⚠ SOLE targeted guard（突变审计 M6：去掉复用检查 -> 只有这一条变红）。"""
     frames = [{"actual_ns": 1000}]
     used = set()
     c1, w1 = ec.nearest_after(500, frames, "actual_ns", 10_000, used)
@@ -153,6 +155,7 @@ def test_wall_to_boot_offset_is_measured_and_carries_a_residual():
 
 
 def test_wall_to_boot_refuses_when_the_wall_clock_goes_backwards():
+    """⚠ SOLE targeted guard（突变审计 M11：去掉单调性检查 -> 只有这一条变红）。"""
     lines = [_evt(5000, BOOT0), _evt(1000, BOOT0 + 1_000_000_000)]
     fit = ec.fit_wall_to_boot(lines)
     assert fit["status"] == ec.NOT_EXECUTED and "单调" in fit["reason"]

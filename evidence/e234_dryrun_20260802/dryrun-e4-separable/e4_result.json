@@ -1,0 +1,158 @@
+{
+  "experiment": "E4",
+  "run_dir": "evidence/e234_dryrun_20260802/dryrun-e4-separable",
+  "pkg": "com.larus.nova",
+  "dry_run": true,
+  "run_kind": "DRY_RUN_SIMULATED",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E4 / §1.5 C-1",
+  "events_used": 340,
+  "events_other_pkg": 1,
+  "events_bad_dimension": 0,
+  "turn_method": "operator-marks",
+  "turns_total": 10,
+  "a2_method": "v3-cluster",
+  "post_silence_caliber": "本轮最后一个增量 → 下一轮第一个事件；**含操作者停顿**，故是分离性的上界估计",
+  "per_turn": [
+    {
+      "turn": 0,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 3150.0
+    },
+    {
+      "turn": 1,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 4350.0
+    },
+    {
+      "turn": 2,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 5650.0
+    },
+    {
+      "turn": 3,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 6150.0
+    },
+    {
+      "turn": 4,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 3150.0
+    },
+    {
+      "turn": 5,
+      "events": 34,
+      "clusters": 12,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 4350.0
+    },
+    {
+      "turn": 6,
+      "events": 34,
+      "clusters": 12,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 5650.0
+    },
+    {
+      "turn": 7,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 6150.0
+    },
+    {
+      "turn": 8,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0,
+      "post_silence_ms": 3150.0
+    },
+    {
+      "turn": 9,
+      "events": 34,
+      "clusters": 11,
+      "answer_events": 31,
+      "max_intra_gap_ms": 900.0,
+      "mark_lag_ms": 350.0
+    }
+  ],
+  "drop_reasons": {
+    "末轮之后没有下一轮事件：结束后静默无从量": 1
+  },
+  "intra_gaps": {
+    "status": "PASS",
+    "n": 300,
+    "dropped": 0,
+    "p50_ms": 200.0,
+    "p90_ms": 900.0,
+    "p99_ms": 900.0,
+    "min_ms": 60.0,
+    "max_ms": 900.0
+  },
+  "post_silences": {
+    "status": "PASS",
+    "n": 9,
+    "dropped": 0,
+    "p50_ms": 4350.0,
+    "p90_ms": 6150.0,
+    "p99_ms": 6150.0,
+    "min_ms": 3150.0,
+    "max_ms": 6150.0
+  },
+  "mark_lag": {
+    "status": "PASS",
+    "n": 10,
+    "dropped": 0,
+    "p50_ms": 350.0,
+    "p90_ms": 350.0,
+    "p99_ms": 350.0,
+    "min_ms": 350.0,
+    "max_ms": 350.0
+  },
+  "separation": {
+    "n_intra": 300,
+    "n_post": 9,
+    "intra_max_ms": 900.0,
+    "intra_p50_ms": 200.0,
+    "intra_p99_ms": 900.0,
+    "post_min_ms": 3150.0,
+    "post_p50_ms": 4350.0,
+    "verdict": "SEPARABLE",
+    "gap_lo_ms": 900.0,
+    "gap_hi_ms": 3150.0,
+    "candidate_t_quiet_ms": 2025.0,
+    "candidate_rationale": "开区间中点：§1.5 记的两个失效方向余量相等"
+  },
+  "c1_usable": true,
+  "t_quiet": {
+    "status": "NOT_EXECUTED",
+    "reason": "DRY_RUN_SIMULATED 语料：本工具拒绝产出 T_quiet 标定值。dry-run 只回答「判据实现得对不对」，不回答「T_quiet 是多少」"
+  }
+}

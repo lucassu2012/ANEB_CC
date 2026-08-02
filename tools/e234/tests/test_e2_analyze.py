@@ -73,7 +73,9 @@ def test_a_three_frame_anchor_offset_fails_the_gate():
 
 @_with_scenario("e2_negative_lag", "e2_over_one_frame", a_lag_ms=[-55.0, -45.0])
 def test_a_large_negative_offset_also_fails_instead_of_passing_a_one_sided_gate():
-    """T14 §2.1③ 的反向守卫：通道 A 的期望方向**就是负**。
+    """⚠ SOLE targeted guard（突变审计 M1：门改回单边 -> 只有这一条变红）。
+
+    T14 §2.1③ 的反向守卫：通道 A 的期望方向**就是负**。
 
     e1 的 `gate_verdict` 对通道 A 是单边的（`p99 <= frame_ms`），实测同一个 500ms
     滞后 C 报 FAIL、**A 报 PASS**，M3 门对通道 A 名存实亡。这里判据落在 `|Δ|` 上，
@@ -129,7 +131,10 @@ def test_without_marks_the_run_is_one_turn_and_the_result_says_which_method():
 
 
 def test_turns_that_cannot_yield_an_anchor_are_counted_with_a_reason():
-    """静默跳过会让分母悄悄变小（D-336）：未出数的轮次必须逐条留痕。"""
+    """⚠ SOLE targeted guard（突变审计 M10：不再计数未出数的轮次 -> 只有这一条变红）。
+
+    静默跳过会让分母悄悄变小（D-336）：未出数的轮次必须逐条留痕。
+    """
     def _flatten(d):
         # 把事件时戳压成等间隔 1ms：簇分割再也分不出两簇（DeepSeek 形状）
         p = os.path.join(d, "adapter.log")

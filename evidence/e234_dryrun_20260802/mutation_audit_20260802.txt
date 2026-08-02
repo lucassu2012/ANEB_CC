@@ -1,0 +1,50 @@
+﻿基线：129 条测试，失败 0 条
+
+M1 门改回单边（判有符号的 Δ 而非 |Δ|）                       CAUGHT    1 条承重（**单点守卫**）
+      test_e2_analyze::test_a_large_negative_offset_also_fails_instead_of_passing_a_one_sided_gate
+M2 隔离断言恒放行（写盘前不再拦）                             CAUGHT    4 条承重
+      test_e234_collect::test_the_simulator_refuses_to_write_outside_a_dryrun_directory
+      test_e234_common::test_a_real_capture_refuses_to_wear_the_dry_run_directory_name
+      test_e234_common::test_dry_run_products_refuse_to_be_written_outside_a_dryrun_directory
+      test_e234_common::test_the_isolation_assert_fires_before_the_directory_is_even_created
+M3 时戳量纲守卫恒真（截断的时戳照收）                           CAUGHT    4 条承重
+      test_e234_common::test_a_truncated_boot_timestamp_parses_as_int_but_fails_the_dimension_guard
+      test_e234_common::test_content_events_drop_truncated_timestamps_and_say_how_many
+      test_e234_common::test_reject_implausible_counts_what_it_dropped_instead_of_shrinking_the_denominator
+      test_e234_common::test_wall_to_boot_ignores_lines_whose_boot_ns_is_truncated
+M4 时钟钉桩不再查漂移                                   CAUGHT    2 条承重
+      test_e234_common::test_clock_pin_refuses_when_drift_exceeds_one_frame
+      test_e2_analyze::test_a_drifted_clock_pin_stops_the_whole_comparison
+M5 通道 A 不按 pkg 过滤                              CAUGHT    2 条承重
+      test_e234_collect::test_simulated_artifacts_parse_with_the_e1_parsers_not_just_with_mine
+      test_e234_common::test_content_events_are_filtered_by_package_not_merely_by_tag
+M6 nearest_after 允许一帧被配两次                      CAUGHT    1 条承重（**单点守卫**）
+      test_e234_common::test_nearest_after_refuses_to_hand_the_same_frame_to_a_second_caller
+M7 簇分割门限退回硬编码字面量                               CAUGHT    1 条承重（**单点守卫**）
+      test_e234_common::test_cluster_gap_refuses_to_fall_back_to_a_literal_when_the_producer_renames_it
+M8 framestats 不再剥尾部空字段                         CAUGHT    12 条承重
+      test_e1_analyze::test_framestats_parses_the_real_header_shape_which_ends_in_a_comma
+      test_e1_analyze::test_framestats_still_accepts_rows_without_the_trailing_comma
+      test_e234_collect::test_simulated_artifacts_parse_with_the_e1_parsers_not_just_with_mine
+      test_e234_collect::test_the_new_header_scenario_really_lacks_the_input_timestamp_columns
+      test_e3_analyze::test_a_header_without_input_timestamps_is_not_executed_and_names_the_columns
+      test_e3_analyze::test_overlapping_ring_buffer_dumps_are_deduped
+      test_e3_analyze::test_the_first_turn_is_not_dropped_by_a_window_that_starts_at_its_own_first_event
+      test_e3_analyze::test_the_injected_a0_to_a0p_interval_is_recovered
+      test_e3_analyze::test_the_interval_is_reported_not_gated
+      test_e3_analyze::test_the_proxy_when_opted_in_carries_its_own_method_tag
+      test_e3_analyze::test_the_two_numbers_for_ruling_6_6_are_handed_back_without_a_ruling
+      test_e3_analyze::test_turns_that_never_close_a_cluster_are_counted_with_a_reason
+M9 标定前门恒放行（dry-run 也能产 T_quiet）                CAUGHT    2 条承重
+      test_e234_common::test_the_calibration_front_door_refuses_a_dry_run_corpus
+      test_e4_analyze::test_a_dry_run_corpus_cannot_produce_a_t_quiet_value
+M10 未出数的轮次不再计数（静默改分母）                          CAUGHT    1 条承重（**单点守卫**）
+      test_e2_analyze::test_turns_that_cannot_yield_an_anchor_are_counted_with_a_reason
+M11 墙钟↔BOOTTIME 不再查单调性                         CAUGHT    1 条承重（**单点守卫**）
+      test_e234_common::test_wall_to_boot_refuses_when_the_wall_clock_goes_backwards
+M12 E4 分离判据只看中位数不看极值                           CAUGHT    3 条承重
+      test_e4_analyze::test_c1_usable_always_agrees_with_the_separation_verdict
+      test_e4_analyze::test_separation_uses_extremes_not_percentiles
+      test_e4_analyze::test_the_overlap_control_reports_c1_unusable_and_shows_the_overlap
+
+还原后复跑：失败 0 条（应为 0）

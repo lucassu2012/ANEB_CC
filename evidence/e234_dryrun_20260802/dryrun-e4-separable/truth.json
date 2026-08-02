@@ -1,0 +1,10 @@
+{
+  "a0_to_a0p_ms": 150,
+  "a_minus_c_ms_range": [
+    3.0,
+    5.0
+  ],
+  "max_intra_gap_ms": 900,
+  "min_post_silence_ms": 3000,
+  "separable_by_construction": true
+}

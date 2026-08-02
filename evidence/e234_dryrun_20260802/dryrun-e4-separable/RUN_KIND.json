@@ -1,0 +1,45 @@
+{
+  "kind": "DRY_RUN_SIMULATED",
+  "generator": "tools/e234/sim_session.py",
+  "scenario": "e4_separable",
+  "seed": 20260802,
+  "purpose": "E4 对照组·可分：流式内最大停顿 900ms，回答后静默 ≥3000ms",
+  "injected_truth": {
+    "a0_to_a0p_ms": 150,
+    "a_minus_c_ms_range": [
+      3.0,
+      5.0
+    ],
+    "max_intra_gap_ms": 900,
+    "min_post_silence_ms": 3000,
+    "separable_by_construction": true
+  },
+  "params": {
+    "turns": 10,
+    "stream_events": 30,
+    "a_lag_ms": [
+      3.0,
+      5.0
+    ],
+    "ttft_ms": 1900,
+    "a0_gap_ms": 150,
+    "stream_gap_ms": [
+      60,
+      90,
+      120,
+      200,
+      380,
+      640,
+      900
+    ],
+    "post_silence_ms": [
+      3000,
+      4200,
+      5500,
+      6000
+    ],
+    "framestats": "new"
+  },
+  "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3",
+  "warning": "⚠ DRY_RUN_SIMULATED —— 本页每一个数字都由模拟器生成，只证明装置本身是否正确；**不得入任何统计池、不得作标定值**。"
+}
