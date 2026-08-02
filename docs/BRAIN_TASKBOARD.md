@@ -46,7 +46,7 @@
 
 ### 明日排期（2026-08-02，大脑预排）
 
-1. **E1 真机窗（P40，白天，PO 已确认在场）**：跑通道 C 验证（framestats/--latency 在真机的可用性）+ E1 三通道对拍。前置：E1 刺激 APK 为全新包名，若侧载校验拦截（-115）由 PO 现场关校验或手动安装。
+1. **E1 真机窗（P40，PO 定时，全程约 30-40 分钟）**：①开窗前先建哨兵 `evidence/nr_timeline_20260802/DEVICE_BUSY`（暂停 nr_pounce 自动扑捉，结束后删除）；②通道 C 验证（framestats/--latency 真机可用性，M3 门唯一前置）+ E1 三通道对拍；③**四适配器观察重验**（豆包/DeepSeek/Kimi/通义各几分钟——四份规格验证版本已全部被 App 更新覆盖，重验后填真实版本戳归位）；④E1 刺激 APK 为全新包名，若侧载校验拦截（-115）由 PO 现场关校验或手动安装。
 2. **probe 补时间戳一行**（v2）：AnebAccessibilityService 逐观察事件 emit `elapsedRealtimeNanos`（解锁通道 A，T7 点名）+ App 宿主 `validated_against_version` 判断逻辑（T11 交接项），一次 :probe 构建面改动带两件事。
 3. T2 结果复盘 + 三时段无线图判定跟进（视今晚 T2 产出）。
 
