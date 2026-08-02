@@ -1,0 +1,8 @@
+2026-08-02T19:32:48  DW-20260802-02 brain batch armed: maxRuns=15 timeout=12m gap=30s (window open since ~16:53, pounce run #1 already banked)
+2026-08-02T19:32:49  wifi_on before=1
+2026-08-02T19:32:59  WINDOW CLOSED before run 1: ril=LTE -- stopping batch
+2026-08-02T19:33:07  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-02T19:33:07  wrap-up: wifi_on=1 stayon=0
+2026-08-02T19:33:08  wrap-up: leftover=(none)
+2026-08-02T19:33:09  sentinel DEVICE_BUSY removed
+2026-08-02T19:33:09  BATCH FINISHED runs=0 clean=0 (window total incl. pounce#1: 1)
