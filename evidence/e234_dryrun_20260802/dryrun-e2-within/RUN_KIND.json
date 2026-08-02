@@ -1,0 +1,40 @@
+{
+  "kind": "DRY_RUN_SIMULATED",
+  "generator": "tools/e234/sim_session.py",
+  "scenario": "e2_within_one_frame",
+  "seed": 20260802,
+  "purpose": "E2 装置校验：注入的 A−C 偏差在 1 帧以内，判读应给 PASS",
+  "injected_truth": {
+    "a0_to_a0p_ms": 120,
+    "a_minus_c_ms_range": [
+      2.0,
+      6.0
+    ],
+    "max_intra_gap_ms": 150,
+    "min_post_silence_ms": 4000,
+    "separable_by_construction": true
+  },
+  "params": {
+    "turns": 6,
+    "stream_events": 25,
+    "a_lag_ms": [
+      2.0,
+      6.0
+    ],
+    "ttft_ms": 1900,
+    "a0_gap_ms": 120,
+    "stream_gap_ms": [
+      80,
+      120,
+      95,
+      150,
+      110
+    ],
+    "post_silence_ms": [
+      4000
+    ],
+    "framestats": "new"
+  },
+  "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3",
+  "warning": "⚠ DRY_RUN_SIMULATED —— 本页每一个数字都由模拟器生成，只证明装置本身是否正确；**不得入任何统计池、不得作标定值**。"
+}
