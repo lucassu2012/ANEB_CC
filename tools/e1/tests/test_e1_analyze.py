@@ -9,6 +9,7 @@
 """
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/e1/
 
@@ -282,6 +283,60 @@ def test_channel_b_reports_period_never_a_timing_error():
 def test_channel_b_single_sample_is_not_executed():
     st = ea.screencap_sampling_stats([{"t_host_ns": 1, "roi_mean": 1.0}], 8.0)
     assert st["status"] == ea.NOT_EXECUTED
+
+
+# ── --stim-file（D-407：复用 e234_collect 产物，e1_collect 红线不动）───────
+def _write_run_dir(d, stim_name, count):
+    """在 run-dir 里落一份最小可判读的采集产物，stim 部分按 stim_name 命名。
+
+    `_stim_lines()` 返回的字符串不带尾部换行（供内存态直接喂给解析函数用）；
+    落盘时必须手动补 `\\n`——`writelines()` 不做这件事，漏了会把整批日志拼成一行，
+    真机文件必有换行、这个坑只在测试夹具里才会犯。
+    """
+    with open(os.path.join(d, stim_name), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(_stim_lines(count=count, warmup=0)) + "\n")
+    with open(os.path.join(d, "adapter.log"), "w", encoding="utf-8") as fh:
+        pass
+    with open(os.path.join(d, "sf_latency.txt"), "w", encoding="utf-8") as fh:
+        fh.write(_sf_text(count=count))
+    with open(os.path.join(d, "framestats.txt"), "w", encoding="utf-8") as fh:
+        pass
+    with open(os.path.join(d, "screencap_index.jsonl"), "w", encoding="utf-8") as fh:
+        pass
+
+
+def test_stim_file_default_still_reads_stim_log_not_a_renamed_file():
+    """不给 --stim-file 时必须还是读 stim.log——向后兼容，e1_collect 的老产物不受影响。"""
+    with tempfile.TemporaryDirectory() as d:
+        _write_run_dir(d, "stim.log", count=3)
+        # 同目录另放一份不同翻转数的 stim_pre.log：若默认值悄悄漂移到它身上，这条会把它测出来。
+        with open(os.path.join(d, "stim_pre.log"), "w", encoding="utf-8") as fh:
+            fh.write(chr(10).join(_stim_lines(count=9, warmup=0)) + chr(10))
+        out_md = os.path.join(d, "out.md")
+        rc = ea.main(["--run-dir", d, "--out-md", out_md])
+        assert rc == 0
+        with open(out_md, encoding="utf-8") as fh:
+            md = fh.read()
+        # 精确落在渲染出的那一行：数字来自 stim.log(3)，不是 stim_pre.log(9)。
+        assert "| 3 / 3 |" in md
+        assert "| 9 / 9 |" not in md
+
+
+def test_stim_file_flag_redirects_to_e234_collect_output_name():
+    """给 --stim-file stim_pre.log 时必须真的读它，而不是继续读默认的 stim.log。"""
+    with tempfile.TemporaryDirectory() as d:
+        _write_run_dir(d, "stim_pre.log", count=7)
+        # 同目录放一份翻转数不同的 stim.log：若旗标被忽略、悄悄退回默认值，这条会测出来。
+        with open(os.path.join(d, "stim.log"), "w", encoding="utf-8") as fh:
+            fh.write(chr(10).join(_stim_lines(count=2, warmup=0)) + chr(10))
+        out_md = os.path.join(d, "out.md")
+        rc = ea.main(["--run-dir", d, "--stim-file", "stim_pre.log", "--out-md", out_md])
+        assert rc == 0
+        with open(out_md, encoding="utf-8") as fh:
+            md = fh.read()
+        # 数字来自 stim_pre.log(7)，证明真的按旗标切换了文件，不是恒读 stim.log(2)。
+        assert "| 7 / 7 |" in md
+        assert "| 2 / 2 |" not in md
 
 
 # ── 端到端渲染 ────────────────────────────────────────────────────────────

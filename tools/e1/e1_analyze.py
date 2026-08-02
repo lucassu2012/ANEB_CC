@@ -594,6 +594,10 @@ def main(argv=None):
     ap.add_argument("--out-md", default=None, help="markdown 落点（默认 <run-dir>/e1_report.md）")
     ap.add_argument("--flip-threshold", type=float, default=8.0,
                     help="ROI 均值变化阈（0-255 灰度），超过即判一次翻转")
+    ap.add_argument("--stim-file", default="stim.log",
+                    help="真值刺激日志的文件名（run-dir 内），默认 stim.log（向后兼容）；"
+                         "e234_collect.py 产出的是 stim_pre.log/stim_post.log，"
+                         "指到其中之一即可复用本判读链（D-407）")
     args = ap.parse_args(argv)
 
     d = args.run_dir
@@ -629,7 +633,7 @@ def main(argv=None):
                 except ValueError:
                     continue  # 半行（采集被中断）——跳过，不让一行坏 JSON 毁掉整次判读
 
-    res = analyze(_read_lines("stim.log"), _read_lines("adapter.log"),
+    res = analyze(_read_lines(args.stim_file), _read_lines("adapter.log"),
                   _read_text("sf_latency.txt"), _read_text("framestats.txt"),
                   rows, flip_threshold=args.flip_threshold)
 
