@@ -311,25 +311,15 @@ class AnebAccessibilityService : AccessibilityService() {
         tBootNs: Long,
     ) {
         if (!BuildConfig.DEBUG) return
-        val cls = event.className ?: "null"
+        val cls = (event.className ?: "null").toString()
         val desc = event.contentDescription?.let(::truncateForLog) ?: "null"
         // Log.i 而非 Log.d：华为 EMUI 默认丢弃 D 级日志（真机实证 ADAPTER_EVT 恒不可见）；
         // BuildConfig.DEBUG 门控已保证 release 无输出，I 级仅影响 debug 构建可见性。
         //
-        // `t_boot_ns` 与 `type=content` 都不是我起的名字——它们是**消费方早已写好的契约**：
-        // `tools/e1/e1_analyze.py` 的 `parse_adapter_events()` **只收带 `t_boot_ns=` 的行**
-        // （没有该字段的行被如实忽略，其 docstring 写着「忽略比『用行到达顺序编个时戳』安全」），
-        // 而该文件第 40 行逐字给出了期望格式：
-        //   `ADAPTER_EVT type=content cls=<cls> txt_len=<n> pkg=<pkg> t_boot_ns=<ns>`。
-        // 若这里另起一个名字（如 obs_ns），字段就没有读者，通道 A 依旧 NOT_EXECUTED——
-        // 那正是 D-276 反复记的那个反面教材：**要一个没人读的字段**。
-        //
-        // 既有字段一个不动（additive）；`type` 由调用方给，click 保持原值。
-        Log.i(
-            TAG,
-            "ADAPTER_EVT type=$type cls=$cls desc=$desc" +
-                " txt_len=${textLenOf(event)} pkg=$pkg t_boot_ns=$tBootNs",
-        )
+        // 字符串拼接搬进 formatAdapterEvtLine（T27④）：那是唯一与 Android API 无关的部分，
+        // 拆出去才能在纯 JVM 单测里钉住这行的**字面契约**（消费方是 tools/e1/e1_analyze.py
+        // 的 parse_adapter_events()，字段名/顺序不是本类起的，见该函数处的注释）。
+        Log.i(TAG, formatAdapterEvtLine(type, cls, desc, textLenOf(event), pkg, tBootNs))
     }
 
     /** 诊断日志文本截断（防长文本刷屏；仅用于事件自带 contentDescription，非用户内容）。 */
@@ -392,6 +382,27 @@ class AnebAccessibilityService : AccessibilityService() {
 
         /** 事件级诊断日志 contentDescription 截断上限（防长文本刷屏，R-16；DEBUG only）。 */
         private const val EVT_LOG_DESC_MAX = 40
+
+        /**
+         * `ADAPTER_EVT` 行的纯格式化（T27④，从 [logAdapterEvent] 拆出）——不碰任何 Android API，
+         * 可在纯 JVM 单测里直接钉住这行的字面契约，无需 Robolectric（本模块未接入）。
+         *
+         * 字段名与顺序**不是本类起的**：是消费方早已写好的契约——`tools/e1/e1_analyze.py` 的
+         * `parse_adapter_events()` 只收带 `t_boot_ns=` 的行，该文件逐字给出期望格式
+         * `ADAPTER_EVT type=<t> cls=<c> desc=<d> txt_len=<n> pkg=<p> t_boot_ns=<ns>`。
+         * 若另起一个字段名（如 `obs_ns`），字段就没有读者——D-276 反复记的反面教材。
+         * `t_boot_ns` 置于行尾是安全位置：解析侧按 `k=v` 全局搜索、dict 后写覆盖先写，
+         * 真值取最后一次出现（`3d31512` 验证过带空格的 `desc` 值不会打断它）。
+         */
+        internal fun formatAdapterEvtLine(
+            type: String,
+            cls: String,
+            desc: String,
+            txtLen: Int,
+            pkg: String,
+            tBootNs: Long,
+        ): String = "ADAPTER_EVT type=$type cls=$cls desc=$desc" +
+            " txt_len=$txtLen pkg=$pkg t_boot_ns=$tBootNs"
 
         /**
          * 输入框判定兜底正则（generic mode / 规格缺 input_node.class_name_regex 时用；

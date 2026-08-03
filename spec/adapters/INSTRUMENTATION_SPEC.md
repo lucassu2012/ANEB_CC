@@ -177,6 +177,20 @@ v2 点击锚点（自定义 View 不派发 `TYPE_VIEW_CLICKED`，D-52）。
 - **采样率**：**非采样，事件驱动**——这是它与 B/C 的根本区别：没有固定采样周期，
   因而**没有量化误差**，但**有投递延迟与合流**。
 - **能锚**：A0′、A2、A3、A4(C-1/C-2)。**不能锚 A0、A1**。
+- **逐事件时戳（`t_boot_ns`，2026-08-02 落地，T27 补账）**：`ADAPTER_EVT` 行现携带
+  `elapsedRealtimeNanos()` 时戳——**click（`TYPE_VIEW_CLICKED`）与 content-change
+  （`TYPE_WINDOW_CONTENT_CHANGED`/`TYPE_VIEW_TEXT_CHANGED`）两类事件均已覆盖**；
+  E2 的 v3 簇分割（A2 锚点）只消费 content 类，click 类目前仅服务发送锚定诊断，
+  留作未来扩展。**域是 BOOTTIME（含深睡），与通道 C 的 MONOTONIC 域不同源，
+  不能直接相减**——须先经 §3.3 E2 的 `clock_pin`/`boot_to_mono_ns` 换算（E1
+  双次刺激钉桩测出的 BOOT−MONO 偏移）才可比，这与通道 A 早先"看不见帧"的
+  性质无关，是两条独立的口径约束。消费方＝`tools/e1/e1_analyze.py` 的
+  `parse_adapter_events()` + `tools/e234/`（`e234_session.py.content_events()`
+  → `e2_analyze.py` 的 `|t_A−t_C|` 判读），落地与判读均已完成且各有单测覆盖
+  （App 侧 `AnebAccessibilityServiceTest.kt`；判读侧 `tools/e234/tests/`）。
+  **当前唯一缺口是真机数据**：需一次真实目标 App 会话同时满足"无障碍观察到
+  内容变化事件"与"E1 刺激源完成会话前后双次钉桩"，属排窗问题非代码问题
+  （见 §3.3 E2 状态）。
 - **误差来源**（本文的分解，逐项待实测）：
 
   | 来源 | 说明 | 是否有界 |

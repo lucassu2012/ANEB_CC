@@ -216,8 +216,10 @@ _ADAPTER_OBS_RE = re.compile(r"ADAPTER_OBS (?P<kv>.+)$")
 def parse_adapter_events(lines):
     """`ADAPTER_EVT ... t_boot_ns=<ns>` -> [{'t_boot_ns','type','pkg'}]（按时戳升序）。
 
-    只收**带 t_boot_ns 的行**。既有实现的 click 行没有该字段，会被如实忽略——
-    忽略比"用行到达顺序编个时戳"安全得多。
+    只收**带 t_boot_ns 的行**，不按 `type` 区分——click 与 content 两类事件
+    2026-08-02 起均已携带该字段（`3d31512`，T27 补账）。**不假设一定有该字段**：
+    没有它的行（历史数据、或未来新增的事件类型忘了补）被如实忽略——忽略比
+    "用行到达顺序编个时戳"安全得多。
     """
     out = []
     for raw in lines:
