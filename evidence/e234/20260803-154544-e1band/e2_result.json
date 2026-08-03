@@ -1,0 +1,50 @@
+{
+  "experiment": "E2",
+  "run_dir": "evidence/e234/20260803-154544-e1band",
+  "pkg": "com.aneb.e1stimulus",
+  "dry_run": false,
+  "run_kind": "DEVICE_REAL",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E2 / §3.4 G-3",
+  "events_used": 167,
+  "events_other_pkg": 0,
+  "events_bad_dimension": 0,
+  "wall_to_boot": {
+    "status": "PASS",
+    "offset_ns": -18024140747194839,
+    "n": 167,
+    "residual_ms_p50": 0.250535,
+    "residual_ms_max": 4.07813
+  },
+  "clock_pin": {
+    "status": "NOT_EXECUTED",
+    "pre_n": 0,
+    "post_n": 0,
+    "reason": "前/后钉桩至少一侧无可用 commit 时戳对，跨基比较不可做"
+  },
+  "turn_method": "whole-run",
+  "turns_total": 1,
+  "frames_total": 164,
+  "frames_duplicate_dropped": 1014,
+  "frame_ms": 16.666666,
+  "channel_b": {
+    "status": "PASS",
+    "n": 164,
+    "period_ms_p50": 1747.0577,
+    "period_ms_p90": 2293.1032,
+    "period_ms_p99": 3364.8368,
+    "period_ms_min": 1269.7207,
+    "period_ms_max": 3685.0341,
+    "transitions_detected": 0
+  },
+  "per_turn": [],
+  "drop_reasons": {},
+  "channel_a_vs_c": {
+    "status": "NOT_EXECUTED",
+    "n": 0,
+    "reason": "时钟钉桩不可用：前/后钉桩至少一侧无可用 commit 时戳对，跨基比较不可做"
+  },
+  "verdict": [
+    "NOT_EXECUTED",
+    "跨基比较缺时钟钉桩"
+  ]
+}

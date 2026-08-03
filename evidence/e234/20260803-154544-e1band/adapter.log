@@ -1,0 +1,223 @@
+--------- beginning of main
+08-03 15:45:47.762 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954207014912992
+08-03 15:45:49.572 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954208824751012
+08-03 15:45:51.379 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954210631676012
+08-03 15:45:51.381 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=5 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1806.9 session_span_ms=5548.8 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:45:53.187 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954212439574970
+08-03 15:45:54.994 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954214246624970
+08-03 15:45:56.803 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954216055656740
+08-03 15:45:56.807 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=8 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1807.9 session_span_ms=10972.7 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:45:58.611 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954217864036948
+08-03 15:46:00.431 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954219683582781
+08-03 15:46:02.224 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954221476110906
+08-03 15:46:02.228 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=11 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1807.9 session_span_ms=16393.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:04.038 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954223291099447
+08-03 15:46:05.850 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954225103045281
+08-03 15:46:07.664 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954226916835384
+08-03 15:46:07.669 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=14 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.0 session_span_ms=21833.9 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:09.468 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954228720480697
+08-03 15:46:11.280 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954230532914030
+08-03 15:46:13.089 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954232342055696
+08-03 15:46:13.094 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=17 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.0 session_span_ms=27259.1 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:14.902 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954234154953612
+08-03 15:46:16.714 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954235966728612
+08-03 15:46:18.527 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954237779649966
+08-03 15:46:18.529 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=20 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=32696.7 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:20.329 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954239582079133
+08-03 15:46:22.141 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954241393468716
+08-03 15:46:23.950 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954243202258819
+08-03 15:46:23.952 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=23 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.1 session_span_ms=38119.4 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:25.761 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954245013352569
+08-03 15:46:27.567 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954246820058298
+08-03 15:46:29.379 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954248632026527
+08-03 15:46:29.383 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=26 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=43549.1 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:31.193 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954250445500485
+08-03 15:46:33.004 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954252257169235
+08-03 15:46:34.817 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954254069280693
+08-03 15:46:34.821 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=29 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1811.1 session_span_ms=48986.4 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:36.622 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954255874917672
+08-03 15:46:38.432 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954257684498401
+08-03 15:46:40.242 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954259495137984
+08-03 15:46:40.246 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=32 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1810.6 session_span_ms=54412.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:42.055 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954261307989025
+08-03 15:46:43.864 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954263116362462
+08-03 15:46:45.671 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954264923833816
+08-03 15:46:45.674 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=35 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=59840.9 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:47.482 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954266735270795
+08-03 15:46:49.294 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954268547153086
+08-03 15:46:51.105 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954270357331211
+08-03 15:46:51.108 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=38 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1810.6 session_span_ms=65274.4 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:52.913 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954272165413503
+08-03 15:46:54.720 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954273972584336
+08-03 15:46:56.526 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954275779297356
+08-03 15:46:56.529 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=41 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=70696.4 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:46:58.336 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954277588998398
+08-03 15:47:00.145 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954279397812460
+08-03 15:47:01.956 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954281208437980
+08-03 15:47:01.959 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=44 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=76125.5 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:03.766 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954283018193188
+08-03 15:47:05.573 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954284825720271
+08-03 15:47:07.385 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954286637633813
+08-03 15:47:07.389 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=47 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=81554.7 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:09.197 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954288449309333
+08-03 15:47:11.001 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954290254187979
+08-03 15:47:12.808 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954292060997354
+08-03 15:47:12.811 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=50 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=86978.1 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:14.618 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954293871214020
+08-03 15:47:16.430 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954295682856728
+08-03 15:47:18.241 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954297493541624
+08-03 15:47:18.244 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=53 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=92410.6 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:20.051 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954299304035373
+08-03 15:47:21.863 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954301114058290
+08-03 15:47:23.665 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954302917871310
+08-03 15:47:23.667 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=56 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1810.0 session_span_ms=97835.0 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:25.474 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954304726996831
+08-03 15:47:27.285 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954306537792664
+08-03 15:47:29.094 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954308347081726
+08-03 15:47:29.098 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=59 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=103264.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:30.904 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954310157006726
+08-03 15:47:32.715 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954311967770267
+08-03 15:47:34.524 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954313776332767
+08-03 15:47:34.528 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=62 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.9 session_span_ms=108693.4 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:36.332 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954315584488496
+08-03 15:47:38.143 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954317395595787
+08-03 15:47:39.952 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954319205229120
+08-03 15:47:39.956 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=65 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=114122.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:41.762 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954321014877558
+08-03 15:47:43.573 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954322825253599
+08-03 15:47:45.382 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954324635158807
+08-03 15:47:45.387 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=68 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.9 session_span_ms=119552.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:47.192 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954326444805161
+08-03 15:47:48.997 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954328250194744
+08-03 15:47:50.804 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954330056736410
+08-03 15:47:50.806 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=71 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=124973.8 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:52.615 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954331867882243
+08-03 15:47:54.421 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954333673657243
+08-03 15:47:56.228 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954335480696826
+08-03 15:47:56.230 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=74 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.8 session_span_ms=130397.8 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:47:58.034 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954337287086930
+08-03 15:47:59.841 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954339094034846
+08-03 15:48:01.651 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954340903142659
+08-03 15:48:01.654 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=77 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.6 session_span_ms=135820.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:03.459 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954342711959846
+08-03 15:48:05.268 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954344520971825
+08-03 15:48:07.075 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954346327685887
+08-03 15:48:07.079 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=80 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.6 session_span_ms=141244.8 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:08.883 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954348135487449
+08-03 15:48:10.692 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954349945046824
+08-03 15:48:12.496 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954351749252032
+08-03 15:48:12.499 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=83 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.6 session_span_ms=146666.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:14.306 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954353558253073
+08-03 15:48:16.112 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954355364609844
+08-03 15:48:17.922 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954357174255156
+08-03 15:48:17.926 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=86 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.6 session_span_ms=152091.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:19.736 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954358984727031
+08-03 15:48:21.540 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954360792959322
+08-03 15:48:23.348 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954362601124947
+08-03 15:48:23.352 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=89 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.6 session_span_ms=157518.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:25.154 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954364407187447
+08-03 15:48:26.963 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954366215702551
+08-03 15:48:28.770 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954368022792134
+08-03 15:48:28.773 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=92 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.3 session_span_ms=162939.9 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:30.579 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954369831702550
+08-03 15:48:32.388 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954371640281196
+08-03 15:48:34.195 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954373447670258
+08-03 15:48:34.198 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=95 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.1 session_span_ms=168364.8 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:36.003 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954375256222862
+08-03 15:48:37.811 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954377063340049
+08-03 15:48:39.620 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954378873235361
+08-03 15:48:39.624 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=98 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.1 session_span_ms=173790.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:41.430 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954380682845257
+08-03 15:48:43.239 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954382491564527
+08-03 15:48:45.047 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954384299579631
+08-03 15:48:45.051 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=101 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.1 session_span_ms=179216.7 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:46.853 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954386105489006
+08-03 15:48:48.659 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954387911388485
+08-03 15:48:50.468 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954389720987443
+08-03 15:48:50.472 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=104 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.1 session_span_ms=184638.1 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:52.278 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954391530148380
+08-03 15:48:54.087 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954393339279109
+08-03 15:48:55.892 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954395144364005
+08-03 15:48:55.894 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=107 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.1 session_span_ms=190061.5 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:48:57.698 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954396950500463
+08-03 15:48:59.505 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954398757772337
+08-03 15:49:01.314 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954400567182754
+08-03 15:49:01.319 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=110 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.1 session_span_ms=195484.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:03.125 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954402377773378
+08-03 15:49:04.934 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954404186231191
+08-03 15:49:06.743 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954405995245253
+08-03 15:49:06.746 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=113 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.0 session_span_ms=200912.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:08.551 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954407804041607
+08-03 15:49:10.357 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954409609627544
+08-03 15:49:12.166 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954411418879106
+08-03 15:49:12.170 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=116 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.0 session_span_ms=206336.0 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:13.973 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954413226047335
+08-03 15:49:15.782 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954415034662439
+08-03 15:49:17.589 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954416842070772
+08-03 15:49:17.592 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=119 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.0 session_span_ms=211759.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:19.397 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954418649836918
+08-03 15:49:21.206 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954420458291084
+08-03 15:49:23.020 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954422273036917
+08-03 15:49:23.024 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=122 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.0 session_span_ms=217190.1 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:24.824 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954424077205667
+08-03 15:49:26.632 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954425884482750
+08-03 15:49:28.439 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954427691947333
+08-03 15:49:28.442 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=125 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.9 session_span_ms=222609.0 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:30.249 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954429501553583
+08-03 15:49:32.059 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954431311706187
+08-03 15:49:33.867 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954433120197853
+08-03 15:49:33.872 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=128 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1809.0 session_span_ms=228037.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:35.671 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954434923890040
+08-03 15:49:37.479 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954436731467123
+08-03 15:49:39.286 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954438539231185
+08-03 15:49:39.290 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=131 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=233456.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:41.094 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954440347142644
+08-03 15:49:42.903 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954442155909831
+08-03 15:49:44.708 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954443960517122
+08-03 15:49:44.711 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=134 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=238877.6 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:46.513 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954445765983268
+08-03 15:49:48.323 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954447575583267
+08-03 15:49:50.132 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954449385161392
+08-03 15:49:50.136 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=137 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=244302.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:51.941 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954451194134309
+08-03 15:49:53.750 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954453002926496
+08-03 15:49:55.555 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954454808037954
+08-03 15:49:55.558 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=140 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=249725.1 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:49:57.361 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954456613343162
+08-03 15:49:59.168 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954458421248891
+08-03 15:50:00.974 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954460226719724
+08-03 15:50:00.978 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=143 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=255143.8 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:02.779 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954462032113474
+08-03 15:50:04.585 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954463837847327
+08-03 15:50:06.394 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954465647150452
+08-03 15:50:06.401 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=146 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=260564.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:08.201 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954467453311910
+08-03 15:50:10.010 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954469262815035
+08-03 15:50:11.817 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954471070122326
+08-03 15:50:11.821 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=149 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=265987.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:13.625 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954472877763472
+08-03 15:50:15.433 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954474685854617
+08-03 15:50:17.241 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954476493810867
+08-03 15:50:17.245 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=152 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.8 session_span_ms=271410.9 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:19.048 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954478300099409
+08-03 15:50:20.856 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954480108792117
+08-03 15:50:22.666 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954481918571804
+08-03 15:50:22.670 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=155 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.7 session_span_ms=276835.7 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:24.473 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954483726155137
+08-03 15:50:26.279 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954485532246282
+08-03 15:50:28.088 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954487341224928
+08-03 15:50:28.092 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=158 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.7 session_span_ms=282258.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:29.897 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954489149636386
+08-03 15:50:31.706 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954490958556698
+08-03 15:50:33.513 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954492766128052
+08-03 15:50:33.518 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=161 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.7 session_span_ms=287683.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:35.319 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954494571507739
+08-03 15:50:37.130 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954496381497322
+08-03 15:50:38.932 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954498185130656
+08-03 15:50:38.935 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=164 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.7 session_span_ms=293102.2 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:40.741 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954499993911384
+08-03 15:50:42.547 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954501800233259
+08-03 15:50:44.357 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954503609693676
+08-03 15:50:44.363 I/AnebProbe( 1061): ADAPTER_OBS pkg=com.aneb.e1stimulus mode=generic events=167 rule_matched=0 first_delta_ms=0 cadence_p50_ms=1808.7 session_span_ms=298526.8 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+08-03 15:50:46.162 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954505414724925
+08-03 15:50:47.969 I/AnebProbe( 1061): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.aneb.e1stimulus t_boot_ns=954507222073883
