@@ -1,0 +1,7 @@
+{
+  "point_id": [
+    "PENDING-PO-01", "PENDING-PO-02", "PENDING-PO-03"
+  ],
+  "carrier": ["ctcc", "cmcc"],
+  "time_band": ["busy", "idle"]
+}
