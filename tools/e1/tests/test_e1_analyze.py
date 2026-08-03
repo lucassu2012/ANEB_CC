@@ -556,42 +556,54 @@ def test_render_still_shows_g2_true_meaning_line_when_total_is_fail_shaped():
     assert ea.NOT_EXECUTED in g2_lines[0]
 
 
-# ── 候选 C 治理状态（T31，PO 批复 D-432②）──────────────────────────────────
+# ── 候选 C 治理状态（T31，PO 批复 D-432②；D-434 措辞订正）─────────────────
 def test_g2_candidate_c_is_a_fixed_governance_fact_not_a_measurement():
     """候选 C 是政策事实，不是测量结果——返回结构里不该出现 PASS/FAIL/NOT_EXECUTED
     三态词（那会诱人把治理决定读成又一次测量，同 `cadence_check()` 用
     MATCH/MISMATCH 而非 PASS/FAIL 的理由）。"""
-    cc = ea.g2_candidate_c()
+    cc = ea.g2_candidate_c(16.667)
     assert cc["active"] is True
     assert cc["band_frames"] == 2
     for word in (ea.PASS, ea.FAIL, ea.NOT_EXECUTED):
         assert word not in cc["note"]
 
 
+def test_g2_candidate_c_band_ms_is_derived_not_hardcoded():
+    """带宽毫秒数必须从传入的实测 `frame_ms` 派生（D-312/D-414 纪律的延伸），
+    不能是写死的 33.334——换一个帧基准，数字要跟着动；没有实测帧长时不编一个
+    默认值出来（R-10：宁可 `None`，不拿假数顶上）。
+    """
+    assert ea.g2_candidate_c(16.667)["band_ms"] == 2 * 16.667   # 60Hz 实测
+    assert ea.g2_candidate_c(11.111)["band_ms"] == 2 * 11.111   # 90Hz 自报兜底
+    assert ea.g2_candidate_c(None)["band_ms"] is None
+
+
 def test_g2_candidate_c_does_not_move_with_the_total_verdict():
-    """总量判定可以是 PASS 也可以是 FAIL，候选 C 的治理状态两种情况下都不变——
-    证明它与 `g2_true_meaning()` 一样，是独立于本次数据的固定字段。
+    """总量判定可以是 PASS 也可以是 FAIL，候选 C 的治理状态（同一 frame_ms 下）
+    两种情况下都不变——证明它与 `g2_true_meaning()` 一样，是独立于本次数据
+    的固定字段，只随 frame_ms 这个共享输入变，不随总量判定变。
     """
     passing = {"status": ea.PASS, "p99_ms": 1.0}
     failing = {"status": ea.PASS, "p99_ms": 999.0}
     assert ea.gate_verdict(passing, 16.667)[0] == ea.PASS
-    assert ea.g2_candidate_c() == ea.g2_candidate_c()
+    assert ea.g2_candidate_c(16.667) == ea.g2_candidate_c(16.667)
     assert ea.gate_verdict(failing, 16.667)[0] == ea.FAIL
-    assert ea.g2_candidate_c() == ea.g2_candidate_c()
+    assert ea.g2_candidate_c(16.667) == ea.g2_candidate_c(16.667)
 
 
 def test_render_shows_candidate_c_line_once_regardless_of_total_verdict():
     """渲染层：「候选 C 生效」这一行在总量 PASS 形状与 FAIL 形状下都恰好出现
-    一次，且提到 ~2 帧带与候选 B 升级路径——不随总量判定的正负而消失或复制
-    （与「G-2 本义」那两条测试同一形状，D-421 追补③的姊妹钉子）。
+    一次，带毫秒数（不是裸"~2 帧"，D-434 订正）与候选 B 升级路径——不随总量
+    判定的正负而消失或复制（与「G-2 本义」那两条测试同一形状）。
     """
     for res in (
         ea.analyze(_stim_lines(count=4, warmup=0), [], _sf_text(count=4), "", []),
         ea.analyze(_stim_lines(count=4, warmup=0), [],
                    _sf_text(count=4, present_delay_ns=30_000_000), "", []),
     ):
+        assert res["g2_candidate_c"]["band_ms"] == 2 * 16.667  # 两夹具帧长相同
         md = ea.render_markdown(res)
         lines = [ln for ln in md.splitlines() if ln.startswith("**候选 C 生效")]
         assert len(lines) == 1
-        assert "~2 帧" in lines[0]
+        assert "33.334ms" in lines[0]
         assert "候选 B" in lines[0]

@@ -541,25 +541,46 @@ def g2_true_meaning():
             "（spec §3.2/§3.4，D-417/D-418）")
 
 
-def g2_candidate_c():
+def g2_candidate_c(frame_ms):
     """候选 C 治理状态（PO 批复 D-432②，spec §3.4）——**不是**对 G-2 本义的判定，
     是治理层在 G-2 本义仍 `NOT_EXECUTED` 期间批准的一项操作性豁免。
 
     与 `g2_true_meaning()` 是两个独立字段：后者答"G-2 判过没有"（技术判断，
-    恒 `NOT_EXECUTED`）；本函数答"数据现在能不能带标注用"（治理判断，恒下述
-    固定值）。**故意不用 PASS/FAIL/NOT_EXECUTED 三态词**——那三个词是测量结果
-    的语汇，本函数返回的是一条政策事实，用同一套词会让读者把治理决定误读成
-    又一次测量（`cadence_check()` 用 `MATCH`/`MISMATCH` 而非 PASS/FAIL 是
-    同一形状的先例）。候选 B（E2 校正后误差）生效后，本函数应被替换或改写，
-    不属本轮范围。
+    恒 `NOT_EXECUTED`）；本函数答"数据现在能不能带标注用"（治理判断，恒定
+    `band_frames=2`，但 `band_ms` 随本次实测帧长而变）。**故意不用 PASS/FAIL/
+    NOT_EXECUTED 三态词**——那三个词是测量结果的语汇，本函数返回的是一条
+    政策事实，用同一套词会让读者把治理决定误读成又一次测量（`cadence_check()`
+    用 `MATCH`/`MISMATCH` 而非 PASS/FAIL 是同一形状的先例）。
+
+    **毫秒数不硬编码 33.334**（D-312/D-414 那条纪律的延伸应用：帧基准从
+    `frame_ms` 参数取——同一处代码派生的实测值，不是本函数另编一个）。
+    `frame_ms` 为 `None`（例如 sf_latency 缺失、又无刺激源自报兜底）时
+    `band_ms` 也是 `None`——**宁可报"本次无实测帧长"，不拿默认值顶上**
+    （R-10 同精神）。
+
+    **物理是单侧的，不是对称 ±**：commit ≤ present 恒成立，`band_ms` 描述
+    的是"若锚点语义实为 App 提交、只能反推"这一读法下 `t_commit` 相对
+    `t_present` 的**下探区间宽度**（`t_commit ∈ [t_present−band_ms,
+    t_present]`），不是"早也可能晚也可能"的对称带（大脑技术参谋四条前瞻，
+    2026-08-03，供 D-433 之后的措辞订正）。
+
+    候选 B（E2 校正后误差）生效后，本函数应被替换或改写，不属本轮范围。
     """
+    band_ms = 2.0 * frame_ms if frame_ms is not None else None
+    band_desc = ("%.3fms" % band_ms) if band_ms is not None else "（本次无实测帧长，带宽未定）"
     return {
         "active": True,
         "band_frames": 2,
-        "note": ("Profile 3 时间敏感数据带 ~2 帧不确定度带标注解锁使用，不再"
-                 "因 G-2 本义未判而恒 LOW/INCONCLUSIVE（spec §3.4 候选 C 例外）。"
-                 "这是 E2 分解前的当下语义，不是永久判据；升级路径=候选 B"
-                 "（E2 可跑后按 T29 占比门提案，阈值待真实数据）。"),
+        "band_ms": band_ms,
+        "note": ("Profile 3 时间敏感数据（通道 A 类比读法，借用通道 C 的"
+                 "commit→present 量级做保守上界）可读作呈现时刻的**下界**，"
+                 "真实呈现可能晚至 +%s（单侧，不是对称±；帧基准取值规则见"
+                 "frame_ms_source/D-414），不再因 G-2 本义未判而恒"
+                 "LOW/INCONCLUSIVE（spec §3.4 候选 C 例外）。依据=run3 单窗"
+                 "n=53、覆盖会话前~70%%（D-417 §4 截尾），T30 长窗批判读完成后"
+                 "应据新数据收窄或修订。这是 E2 分解前的当下语义，不是永久判据；"
+                 "升级路径=候选 B（E2 可跑后按 T29 占比门提案，阈值待真实数据）。"
+                 % band_desc),
     }
 
 
@@ -674,7 +695,7 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
         "channel_c_framestats_verdict": (verdict_c_fs, reason_c_fs),
         "channel_c_cross_check": cross_check,
         "g2_true_meaning": g2_true_meaning(),
-        "g2_candidate_c": g2_candidate_c(),
+        "g2_candidate_c": g2_candidate_c(frame_ms_c),
         "adapter_obs_lines": obs,
         "cadence_check": _cadence_check(obs, cfg.get("interval_ms")),
     }
