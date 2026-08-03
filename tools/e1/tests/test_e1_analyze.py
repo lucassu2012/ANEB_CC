@@ -236,6 +236,52 @@ def test_sf_latency_empty_input_is_none_not_zero():
     assert period is None and frames == []
 
 
+# ── T40：--latency 多 dump 拼接去重（DW-20260803-03 实测 86% 重复）───────────
+def test_dedup_sf_latency_frames_collapses_exact_duplicates():
+    """同结构、同根因的 `dedup_framestats_present_times` 姊妹测试——`_dump_
+    channel_c` 周期性重叠 dump 会把同一帧的 actual_ns 重复落两次。"""
+    frames = [{"actual_ns": 100, "desired_ns": 90, "ready_ns": 95},
+             {"actual_ns": 200, "desired_ns": 190, "ready_ns": 195},
+             {"actual_ns": 100, "desired_ns": 90, "ready_ns": 95}]      # 100 重复
+    out = ea.dedup_sf_latency_frames(frames)
+    assert [f["actual_ns"] for f in out] == [100, 200]
+
+
+def test_dedup_sf_latency_frames_preserves_full_dict_not_just_actual_ns():
+    """去重不能把 `desired_ns`/`ready_ns` 丢掉——跟 framestats 那份不同，
+    sf_latency 的帧字典本来就带这些字段，去重只应该做去重这一件事。"""
+    frames = [{"actual_ns": 100, "desired_ns": 90, "ready_ns": 95}]
+    out = ea.dedup_sf_latency_frames(frames)
+    assert out == frames
+
+
+def test_analyze_multi_dump_sf_latency_dedup_does_not_change_the_verdict():
+    """核心不变量（DW-20260803-03 实测证实）：把同一份 dump 拼接两次（模拟周期性
+    重叠采集），去重前后 `align_present` 的判定结果必须逐位相同——`align_present`
+    对每次翻转只取"commit 之后最近一帧"的单一匹配，重复行不改变匹配到的时刻。
+    """
+    stim = _stim_lines(count=4, warmup=0)
+    single = _sf_text(count=4)
+    duplicated = single + "\n" + single       # 两份完全相同的 dump 拼接
+    res_single = ea.analyze(stim, [], single, "", [])
+    res_dup = ea.analyze(stim, [], duplicated, "", [])
+    assert res_dup["channel_c"] == res_single["channel_c"]
+    assert res_dup["channel_c_verdict"] == res_single["channel_c_verdict"]
+    assert res_dup["sf_frames"]["duplicate_dropped"] > 0
+    assert res_single["sf_frames"]["duplicate_dropped"] == 0
+
+
+def test_render_reports_dedup_line_only_when_duplicates_exist():
+    """单 dump（无重复）时不冒出"原始行数不等于捕捉到的帧数"这行——避免给
+    每一份正常报告都加一句用不上的免责声明。"""
+    stim = _stim_lines(count=4, warmup=0)
+    single = _sf_text(count=4)
+    md_single = ea.render_markdown(ea.analyze(stim, [], single, "", []))
+    md_dup = ea.render_markdown(ea.analyze(stim, [], single + "\n" + single, "", []))
+    assert "原始行" not in md_single
+    assert "原始行" in md_dup
+
+
 def test_framestats_read_by_header_name_not_index():
     """列集变了也要读对：加一列 GpuCompleted 后 FrameCompleted 仍须取到同一个值。"""
     a = "Flags,IntendedVsync,Vsync,FrameCompleted\n0,10,20,30\n"

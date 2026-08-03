@@ -333,6 +333,35 @@ def parse_sf_latency(text):
     return period, frames
 
 
+def dedup_sf_latency_frames(frames):
+    """`parse_sf_latency` 的输出 -> 按 `actual_ns` 去重排序后的同结构列表。
+
+    为什么要去重（T40；与 `dedup_framestats_present_times` 同一根因，D-416 先例）：
+    `_dump_channel_c`（e234_collect.py）周期性追加 dump，`--latency` 的环缓冲每次
+    dump 都读一遍**当前**全部驻留帧——两次 dump 之间若帧产出速度跟不上
+    `--framestats-period-s`，相邻 dump 就会大量重叠。DW-20260803-03 实测：15 段
+    dump 拼出 1178 行原始记录，`actual_ns` 唯一值只有 164 个（86% 是重复行）。
+    两个不同物理帧撞到同一纳秒是天文数字概率，故按 `actual_ns` **精确相等**去重
+    是安全的（不是近似匹配，没有引入容差判据）。
+
+    **对 `align_present` 的判定结果无影响，但仍然值得做**：`align_present` 对每次
+    翻转只取"commit 之后最近一帧"（`next()` 单一匹配），重复行的 `actual_ns` 值
+    相同，不会改变匹配到的时刻本身——DW-20260803-03 实测去重前后 `n`/`dropped`/
+    `p50`/`p90`/`p99` 逐位相同。去重要解决的是**另一件事**：不去重时"原始行数"
+    会被读成"捕捉到的帧数"，1178 行读起来像是覆盖密度很高，实际只有 164 个
+    不同的物理帧——这是一处会误导读者的计数，不是一处会算错判据的 bug。
+    """
+    seen, out = set(), []
+    for f in frames:
+        v = f.get("actual_ns")
+        if v is None or v in seen:
+            continue
+        seen.add(v)
+        out.append(f)
+    out.sort(key=lambda f: f["actual_ns"])
+    return out
+
+
 # ── L-2（2026-08-02）：framestats PROFILEDATA 接入判读链路，与 --latency 交叉验证 ──
 # 目标不是取代 --latency，是给 W-2「通道 C 在 P40 可用」找第二个独立数据源
 # （D-413 订正②钉死：run3 的 FAIL 判定此前完全来自 --latency，framestats 的 23 行
@@ -576,10 +605,9 @@ def g2_candidate_c(frame_ms):
                  "commit→present 量级做保守上界）可读作呈现时刻的**下界**，"
                  "真实呈现可能晚至 +%s（单侧，不是对称±；帧基准取值规则见"
                  "frame_ms_source/D-414），不再因 G-2 本义未判而恒"
-                 "LOW/INCONCLUSIVE（spec §3.4 候选 C 例外）。依据=run3 单窗"
-                 "n=53、覆盖会话前~70%%（D-417 §4 截尾），下一个 E1 型设备窗"
-                 "（可与 E2 真机窗并窗；T30 是 forensic KPI 批、不产本条依赖"
-                 "的装置标定数据，D-438）后应据新数据收窄或修订。这是 E2 分解"
+                 "LOW/INCONCLUSIVE（spec §3.4 候选 C 例外）。依据=两个独立"
+                 "E1 型窗（run3 n=53 + DW-20260803-03 n=160，T40），双峰形状"
+                 "互相印证、p99 均在带内，判断=维持带宽不收窄不加宽。这是 E2 分解"
                  "前的当下语义，不是永久判据；"
                  "升级路径=候选 B（E2 可跑后按 T29 占比门提案，阈值待真实数据）。"
                  % band_desc),
@@ -644,12 +672,19 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
 
     off_ns, off_spread_ns, off_n = clock_offset_ns(good)
 
-    period_ns, frames = parse_sf_latency(sf_text or "")
+    period_ns, frames_raw = parse_sf_latency(sf_text or "")
     # 帧周期优先取 SurfaceFlinger 实测；缺则退回刺激源报的刷新率换算。
     # 这条规则现在同时是一个显式、可审计的字段（L-1）——不再只活在这行注释里。
     frame_ms_c = (period_ns / NS_PER_MS) if period_ns else frame_ms
     frame_ms_source = FRAME_MS_SRC_MEASURED if period_ns else FRAME_MS_SRC_STIMULUS
     max_gap_ns = int((frame_ms_c or 16.667) * max_gap_frames * NS_PER_MS)
+
+    # T40：周期性 dump（`--framestats-period-s`）会让 --latency 的原始行大量重复，
+    # 去重不改判定结果（见 dedup_sf_latency_frames docstring），但原始行数不该
+    # 被读成"捕捉到的帧数"——sf_frames 字段把两个数都亮出来，供渲染层如实报。
+    frames = dedup_sf_latency_frames(frames_raw)
+    sf_frames = {"raw": len(frames_raw), "deduped": len(frames),
+                "duplicate_dropped": len(frames_raw) - len(frames)}
 
     aligned, missed = align_present(good, frames, max_gap_ns)
     ch_c = summarize([a["delta_ms"] for a in aligned], dropped=len(missed))
@@ -689,6 +724,7 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
         "frame_ms_measured": frame_ms_c,
         "frame_ms_from_stimulus": frame_ms,
         "frame_ms_source": frame_ms_source,
+        "sf_frames": sf_frames,
         "framestats_rows": len(fs_rows_parsed),
         "channel_a": ch_a, "channel_a_verdict": (verdict_a, reason_a),
         "channel_b": ch_b,
@@ -739,6 +775,14 @@ def render_markdown(res):
                 }[res["frame_ms_source"]]
     L.append("**一帧 = %s ms**（来源：%s；非硬编码 33ms —— spec §3.1）。"
              % (_fmt(res["frame_ms_measured"]), src_label))
+    sfc = res.get("sf_frames")
+    if sfc and sfc.get("duplicate_dropped"):
+        L.append("")
+        L.append("> `--latency` 原始行 %s 条，按 `actual_ns` 去重后 %s 条（丢弃 %s 条重复，"
+                 "周期性 dump 相邻重叠所致，同 framestats 既有去重同一根因）——**原始行数"
+                 "不等于捕捉到的帧数**，判定用的是去重后的数字，且去重前后判定结果逐位相同"
+                 "（`align_present` 对每次翻转只取单一最近匹配，重复行不改变匹配到的时刻）。"
+                 % (sfc["raw"], sfc["deduped"], sfc["duplicate_dropped"]))
     stim_ms, measured_ms = res.get("frame_ms_from_stimulus"), res.get("frame_ms_measured")
     if (res["frame_ms_source"] == FRAME_MS_SRC_MEASURED and stim_ms is not None
             and measured_ms is not None
