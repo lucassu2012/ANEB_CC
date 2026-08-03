@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import com.aneb.probe.data.EnvEvent
 import com.aneb.probe.data.EnvEventType
 import com.aneb.probe.data.RadioSampleEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
@@ -100,83 +101,110 @@ class RadioCollector(
         var tick = 0L
         try {
             while (true) {
-                val nowNs = SystemClock.elapsedRealtimeNanos()
-                val hasPerms = granted(Manifest.permission.READ_PHONE_STATE) &&
-                    granted(Manifest.permission.ACCESS_FINE_LOCATION)
-
-                val sample: RadioSample
-                if (tm == null || !hasPerms) {
-                    // 证据缺失显式落 permission_denied，不伪造健康值（R-10 精神）
-                    sample = degradedSample(
-                        nowNs,
-                        if (tm == null) "telephony_unavailable" else "permission_denied",
-                    )
-                } else {
-                    // R-15 override 监听：首次/权限迟到/切卡后（重）注册
-                    if (displayCb == null) displayCb = registerDisplayListener(tm, display)
-
-                    // ---- R-13 双卡：defaultDataSubId 变化 → 事件 + 重绑 ----
-                    var subSwitched = false
-                    val cur = SubscriptionManager.getDefaultDataSubscriptionId()
-                    if (cur != subId) {
-                        subSwitched = true
-                        _events.tryEmit(
-                            EnvEvent(nowNs, EnvEventType.SUB_SWITCH, "defaultDataSubId $subId -> $cur"),
+                // D-427④/T32②：循环体整体防护，而不是逐个调用点分别包装。T23 判读
+                // 列出的裸奔点（:89/:104-105/:120/:129/:172/:272-295/:343-349）全部
+                // 落在下面这个 block 内——单点位置补防护治标不治本，任何一次未预见的
+                // 异常仍会从别处穿出。策略本身（catch 什么、CancellationException
+                // 必须重抛、其余异常怎么降级）抽成 [guardTick]，因为它不碰任何
+                // Context/TelephonyManager，可以离线单测钉住；下面这个 block 仍然
+                // 深度耦合 Android API，只能真机验证，这条边界如实标注在
+                // [guardTick] 的 KDoc 里，不假装它也测过。
+                val sample = guardTick(
+                    onError = { t ->
+                        android.util.Log.e(
+                            LOG_TAG,
+                            "RADIO_SAMPLER_TICK_FAILED ${t.javaClass.simpleName} ${t.message}",
                         )
-                        unregisterDisplayListener(tm, displayCb)
-                        subId = cur
-                        // else 分支蕴含 tm != null，进而 baseTm != null
-                        tm = tmForSub(baseTm!!, subId)
-                        display.overrideType = null
-                        displayCb = registerDisplayListener(tm, display)
-                    }
-
-                    // ---- R-02 主动刷新，超时退缓存标 stale ----
-                    val (cellInfos, requestStale) = requestCellInfo(tm, CELL_INFO_TIMEOUT_MS)
-                    sample = buildSample(tm, cellInfos, requestStale, subId, subSwitched, display.overrideType, nowNs)
-
-                    // ---- 事件：小区变更（PCI/TAC）与制式三元组变更 ----
-                    if (sample.pci != null && lastPci != null &&
-                        (sample.pci != lastPci || sample.tac != lastTac)
-                    ) {
-                        _events.tryEmit(
-                            EnvEvent(
-                                sample.tsNanos,
-                                EnvEventType.CELL_CHANGE,
-                                "pci $lastPci->${sample.pci} tac $lastTac->${sample.tac} " +
-                                    "stale=${sample.stale} cellTs=${sample.cellTsNanos}", // stale 样本仅可做疑似相关归因（R-02 归因窗口）
-                            ),
-                        )
-                    }
-                    if (sample.pci != null) {
-                        lastPci = sample.pci
-                        lastTac = sample.tac
-                    }
-                    val triple = Triple(sample.networkType, sample.overrideType, sample.nrState)
-                    val prev = lastTriple
-                    if (prev != null && triple != prev) {
-                        _events.tryEmit(
-                            EnvEvent(
-                                sample.tsNanos,
-                                EnvEventType.RAT_CHANGE,
-                                "network_type ${prev.first}->${triple.first} " +
-                                    "override ${prev.second}->${triple.second} " +
-                                    "nr_state ${prev.third}->${triple.third}",
-                            ),
-                        )
-                    }
-                    lastTriple = triple
-                }
-
-                // GPS 路测打点（开关关/无 fix → null；独立于电话权限分支，degraded 样本亦可带坐标）
-                val fix = locationProvider?.invoke()
-                emit(
-                    if (fix == null) {
-                        sample
-                    } else {
-                        sample.copy(lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM)
                     },
-                )
+                    degradeTo = { t ->
+                        degradedSample(
+                            SystemClock.elapsedRealtimeNanos(),
+                            "sampler_exception:${t.javaClass.simpleName}",
+                        )
+                    },
+                ) {
+                    val nowNs = SystemClock.elapsedRealtimeNanos()
+                    val hasPerms = granted(Manifest.permission.READ_PHONE_STATE) &&
+                        granted(Manifest.permission.ACCESS_FINE_LOCATION)
+
+                    val built: RadioSample
+                    if (tm == null || !hasPerms) {
+                        // 证据缺失显式落 permission_denied，不伪造健康值（R-10 精神）
+                        built = degradedSample(
+                            nowNs,
+                            if (tm == null) "telephony_unavailable" else "permission_denied",
+                        )
+                    } else {
+                        // 注：此分支内 `tm!!` 的 `!!` 不是新引入的风险——外层
+                        // `if (tm == null || !hasPerms)` 已经确认过 `tm != null`，
+                        // 用 `!!` 只是因为 `tm` 被内层 guardTick{} 闭包捕获后，
+                        // Kotlin 的智能转换对"闭包内会被重新赋值的捕获 var"一律拒绝
+                        // （即使运行时单线程顺序执行、逻辑上安全），这是编译器限制，
+                        // 不是本次改动放宽了空值检查。
+                        // R-15 override 监听：首次/权限迟到/切卡后（重）注册
+                        if (displayCb == null) displayCb = registerDisplayListener(tm!!, display)
+
+                        // ---- R-13 双卡：defaultDataSubId 变化 → 事件 + 重绑 ----
+                        var subSwitched = false
+                        val cur = SubscriptionManager.getDefaultDataSubscriptionId()
+                        if (cur != subId) {
+                            subSwitched = true
+                            _events.tryEmit(
+                                EnvEvent(nowNs, EnvEventType.SUB_SWITCH, "defaultDataSubId $subId -> $cur"),
+                            )
+                            unregisterDisplayListener(tm!!, displayCb)
+                            subId = cur
+                            // else 分支蕴含 tm != null，进而 baseTm != null
+                            tm = tmForSub(baseTm!!, subId)
+                            display.overrideType = null
+                            displayCb = registerDisplayListener(tm!!, display)
+                        }
+
+                        // ---- R-02 主动刷新，超时退缓存标 stale ----
+                        // 取本次 tick 最终生效的 TM：若上面刚发生过切卡重绑，这里读到的
+                        // 是重绑后的新值，与重构前的顺序求值语义一致。
+                        val activeTm = tm!!
+                        val (cellInfos, requestStale) = requestCellInfo(activeTm, CELL_INFO_TIMEOUT_MS)
+                        built = buildSample(activeTm, cellInfos, requestStale, subId, subSwitched, display.overrideType, nowNs)
+
+                        // ---- 事件：小区变更（PCI/TAC）与制式三元组变更 ----
+                        if (built.pci != null && lastPci != null &&
+                            (built.pci != lastPci || built.tac != lastTac)
+                        ) {
+                            _events.tryEmit(
+                                EnvEvent(
+                                    built.tsNanos,
+                                    EnvEventType.CELL_CHANGE,
+                                    "pci $lastPci->${built.pci} tac $lastTac->${built.tac} " +
+                                        "stale=${built.stale} cellTs=${built.cellTsNanos}", // stale 样本仅可做疑似相关归因（R-02 归因窗口）
+                                ),
+                            )
+                        }
+                        if (built.pci != null) {
+                            lastPci = built.pci
+                            lastTac = built.tac
+                        }
+                        val triple = Triple(built.networkType, built.overrideType, built.nrState)
+                        val prev = lastTriple
+                        if (prev != null && triple != prev) {
+                            _events.tryEmit(
+                                EnvEvent(
+                                    built.tsNanos,
+                                    EnvEventType.RAT_CHANGE,
+                                    "network_type ${prev.first}->${triple.first} " +
+                                        "override ${prev.second}->${triple.second} " +
+                                        "nr_state ${prev.third}->${triple.third}",
+                                ),
+                            )
+                        }
+                        lastTriple = triple
+                    }
+
+                    // GPS 路测打点（开关关/无 fix → null；独立于电话权限分支，degraded 样本亦可带坐标）
+                    val fix = locationProvider?.invoke()
+                    if (fix == null) built else built.copy(lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM)
+                }
+                emit(sample)
 
                 tick++
                 val nextNs = startNs + tick * SAMPLE_PERIOD_NS
@@ -507,9 +535,38 @@ class RadioCollector(
     private fun fmt(v: Int?): String = v?.let { clean(it)?.toString() } ?: "n/a"
 
     companion object {
+        private const val LOG_TAG = "AnebProbe" // 与全仓其余组件同一 TAG（T14 约束）
         private const val SAMPLE_PERIOD_NS = 1_000_000_000L // 1Hz
         private const val CELL_INFO_TIMEOUT_MS = 800L       // 超时退缓存标 stale（R-02）
         private const val STALE_NS = 2_000_000_000L         // modem 时戳距采样 >2s 判陈旧（R-02）
+
+        /**
+         * 循环体单次 tick 的异常防护策略（D-427④/T32②），抽成独立函数的唯一理由是
+         * 可测性：`block` 内的真实工作深度耦合 `Context`/`TelephonyManager`，只能
+         * 真机验证；但"抛出来的东西该怎么处理"这条策略本身不碰任何 Android API，
+         * 可以完全离线单测——`internal` 可见性就是为了让测试直接调用它，不必
+         * 构造一个能跑的 `RadioCollector` 实例。
+         *
+         * **`CancellationException` 必须原样重抛，不吞**（fail-closed，同
+         * `TestEngine.kt:605` 先例）：吞掉它会让 run 正常结束/取消时对这个协程的
+         * 合法取消失效，制造一个协程该退出却退不出的更隐蔽的 bug。
+         *
+         * 其余异常降级为 `degradeTo(t)` 的返回值（调用方传入的降级样本工厂）并
+         * 通过 `onError` 上报一次，循环继续——把"这一秒的任何异常"变成"这一秒的
+         * 样本缺失"，而不是像原故障那样"从此往后所有样本缺失"。
+         */
+        internal suspend fun <T> guardTick(
+            onError: (Throwable) -> Unit,
+            degradeTo: (Throwable) -> T,
+            block: suspend () -> T,
+        ): T = try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            onError(t)
+            degradeTo(t)
+        }
 
         /** TelephonyDisplayInfo override 常量名（API 30 类；仅在 31+ 路径调用） */
         @Suppress("DEPRECATION") // NR_NSA_MMWAVE 在 API 33 弃用并归并 NR_ADVANCED，仍需识别老版本值
