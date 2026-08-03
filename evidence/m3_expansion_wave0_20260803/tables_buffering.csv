@@ -1,0 +1,2 @@
+﻿point_id,carrier,time_band,n,modal_attribution,score_median,sawtooth_median,near_zero_median,suspect_share,distortion_hotspot,low_confidence,mixed_campaigns,not_detected,sample_count_median,implausible_values,synthetic
+SZ-PILOT-01,ctcc,idle,90,none,0.2568176834185427,0.39649415692821366,0.0,0.5555555555555556,True,False,,0,599.0,,False

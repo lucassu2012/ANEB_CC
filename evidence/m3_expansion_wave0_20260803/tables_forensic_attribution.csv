@@ -1,0 +1,7 @@
+﻿point_id,carrier,time_band,profile_id,kpi,access,regional_incr,core_incr,end_to_end_core,coverage,low_confidence,not_computable_reason,incomparability,tier_time_spread_ms,severe_incomparability,synthetic
+SZ-PILOT-01,ctcc,idle,s1_chat,n1_rtt_p50_ms,64.397,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,idle,s2_coding_agent,n1_rtt_p50_ms,73.86,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,idle,s3_multimodal,n1_rtt_p50_ms,73.696,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,idle,s1_chat,t1_ttft_ms,50.186667,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,idle,s2_coding_agent,t1_ttft_ms,64.1315,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False
+SZ-PILOT-01,ctcc,idle,s3_multimodal,t1_ttft_ms,64.72968800000001,,,,metro,False,"TIER_MISSING:regional,core","TIER_MISSING:regional,core",,,False

@@ -1,0 +1,75 @@
+2026-08-04T00:11:32  DW-20260803-04 wave-0 armed: plan=quick16(1discard+15count)+forensic6(1discard+5count) gap=30s sinceEpochMs=1785744692487
+2026-08-04T00:11:33  wifi_on before=1
+2026-08-04T00:11:41  egress after wifi off: Active default network: 253
+2026-08-04T00:11:46  RUN 1 STARTED tag=quick_discard_1 mode=quick role=discard
+2026-08-04T00:13:56  RUN 1 END run_id=019fc865-40ce-7aca-aaf3-ade76340365f status=completed
+2026-08-04T00:14:06  RUN 1 VERDICT: PASS run_id=019fc865-40ce-7aca-aaf3-ade76340365f status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T00:14:42  RUN 2 STARTED tag=quick_count_2 mode=quick role=count
+2026-08-04T00:17:02  RUN 2 END run_id=019fc867-ee2f-7cf5-83d1-f1708b503643 status=completed
+2026-08-04T00:17:10  RUN 2 VERDICT: PASS run_id=019fc867-ee2f-7cf5-83d1-f1708b503643 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T00:17:45  RUN 3 STARTED tag=quick_count_3 mode=quick role=count
+2026-08-04T00:20:15  RUN 3 END run_id=019fc86a-ba60-7271-a08d-8508fcfcb3a3 status=completed
+2026-08-04T00:20:25  RUN 3 VERDICT: PASS run_id=019fc86a-ba60-7271-a08d-8508fcfcb3a3 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T00:21:00  RUN 4 STARTED tag=quick_count_4 mode=quick role=count
+2026-08-04T00:23:20  RUN 4 END run_id=019fc86d-b295-7409-8ae8-ccd60d556d55 status=completed
+2026-08-04T00:23:29  RUN 4 VERDICT: PASS run_id=019fc86d-b295-7409-8ae8-ccd60d556d55 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T00:24:03  RUN 5 STARTED tag=quick_count_5 mode=quick role=count
+2026-08-04T00:26:34  RUN 5 END run_id=019fc870-80d2-71cd-a899-7d72c789dbd5 status=completed
+2026-08-04T01:07:31  RUN 5 VERDICT: PASS run_id=019fc870-80d2-71cd-a899-7d72c789dbd5 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:08:06  RUN 6 STARTED tag=quick_count_6 mode=quick role=count
+2026-08-04T01:10:36  RUN 6 END run_id=019fc898-d354-78bb-a6a9-b92251fd4eac status=completed
+2026-08-04T01:10:45  RUN 6 VERDICT: PASS run_id=019fc898-d354-78bb-a6a9-b92251fd4eac status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:11:20  RUN 7 STARTED tag=quick_count_7 mode=quick role=count
+2026-08-04T01:13:50  RUN 7 END run_id=019fc89b-c7ad-7f9a-a617-01ff3930af04 status=completed
+2026-08-04T01:13:58  RUN 7 VERDICT: PASS run_id=019fc89b-c7ad-7f9a-a617-01ff3930af04 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:14:33  RUN 8 STARTED tag=quick_count_8 mode=quick role=count
+2026-08-04T01:16:43  RUN 8 END run_id=019fc89e-bb3e-7714-9453-7fd4e4e18382 status=completed
+2026-08-04T01:16:51  RUN 8 VERDICT: PASS run_id=019fc89e-bb3e-7714-9453-7fd4e4e18382 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:17:26  RUN 9 STARTED tag=quick_count_9 mode=quick role=count
+2026-08-04T01:19:37  RUN 9 END run_id=019fc8a1-6086-7b98-aaec-355a3baf48ec status=completed
+2026-08-04T01:19:45  RUN 9 VERDICT: PASS run_id=019fc8a1-6086-7b98-aaec-355a3baf48ec status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:20:19  RUN 10 STARTED tag=quick_count_10 mode=quick role=count
+2026-08-04T01:22:50  RUN 10 END run_id=019fc8a4-0477-72d1-8dd5-4bf425de919e status=completed
+2026-08-04T01:22:58  RUN 10 VERDICT: PASS run_id=019fc8a4-0477-72d1-8dd5-4bf425de919e status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:23:33  RUN 11 STARTED tag=quick_count_11 mode=quick role=count
+2026-08-04T01:26:03  RUN 11 END run_id=019fc8a6-f7f8-7214-a7c0-bf416e1e88f9 status=completed
+2026-08-04T01:26:11  RUN 11 VERDICT: PASS run_id=019fc8a6-f7f8-7214-a7c0-bf416e1e88f9 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:26:46  RUN 12 STARTED tag=quick_count_12 mode=quick role=count
+2026-08-04T01:29:06  RUN 12 END run_id=019fc8a9-e9f7-74e5-b38f-80acb6575b1d status=completed
+2026-08-04T01:29:14  RUN 12 VERDICT: PASS run_id=019fc8a9-e9f7-74e5-b38f-80acb6575b1d status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:29:49  RUN 13 STARTED tag=quick_count_13 mode=quick role=count
+2026-08-04T01:32:19  RUN 13 END run_id=019fc8ac-b470-7f18-885c-a411726f5ea1 status=completed
+2026-08-04T01:32:27  RUN 13 VERDICT: PASS run_id=019fc8ac-b470-7f18-885c-a411726f5ea1 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:33:02  RUN 14 STARTED tag=quick_count_14 mode=quick role=count
+2026-08-04T01:35:22  RUN 14 END run_id=019fc8af-a5af-7fd1-8fda-6e273bdb3b74 status=completed
+2026-08-04T01:35:29  RUN 14 VERDICT: PASS run_id=019fc8af-a5af-7fd1-8fda-6e273bdb3b74 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:36:04  RUN 15 STARTED tag=quick_count_15 mode=quick role=count
+2026-08-04T01:38:34  RUN 15 END run_id=019fc8b2-6f45-7ea3-958d-994819a76198 status=completed
+2026-08-04T01:38:43  RUN 15 VERDICT: PASS run_id=019fc8b2-6f45-7ea3-958d-994819a76198 status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:39:18  RUN 16 STARTED tag=quick_count_16 mode=quick role=count
+2026-08-04T01:41:48  RUN 16 END run_id=019fc8b5-621b-74e4-83ea-9c19d4d8235c status=completed
+2026-08-04T01:41:56  RUN 16 VERDICT: PASS run_id=019fc8b5-621b-74e4-83ea-9c19d4d8235c status=completed scenarios=3/3 radio=3/3 egress=3/3
+2026-08-04T01:42:31  RUN 17 STARTED tag=forensic_discard_17 mode=forensic role=discard
+2026-08-04T01:49:41  RUN 17 END run_id=019fc8b8-54fd-7096-a045-4a3a954272ba status=completed
+2026-08-04T01:49:51  RUN 17 VERDICT: PASS run_id=019fc8b8-54fd-7096-a045-4a3a954272ba status=completed scenarios=9/9 radio=9/9 egress=9/9
+2026-08-04T01:50:26  RUN 18 STARTED tag=forensic_count_18 mode=forensic role=count
+2026-08-04T01:56:57  RUN 18 END run_id=019fc8bf-9620-7dec-849c-11642cd2c2a0 status=completed
+2026-08-04T01:57:05  RUN 18 VERDICT: PASS run_id=019fc8bf-9620-7dec-849c-11642cd2c2a0 status=completed scenarios=9/9 radio=9/9 egress=9/9
+2026-08-04T01:57:40  RUN 19 STARTED tag=forensic_count_19 mode=forensic role=count
+2026-08-04T02:04:40  RUN 19 END run_id=019fc8c6-33bd-76e1-9492-e1535f67dc7d status=completed
+2026-08-04T02:04:49  RUN 19 VERDICT: PASS run_id=019fc8c6-33bd-76e1-9492-e1535f67dc7d status=completed scenarios=9/9 radio=9/9 egress=9/9
+2026-08-04T02:05:23  RUN 20 STARTED tag=forensic_count_20 mode=forensic role=count
+2026-08-04T02:12:14  RUN 20 END run_id=019fc8cd-4712-71f5-837c-b217073cca03 status=completed
+2026-08-04T02:12:23  RUN 20 VERDICT: PASS run_id=019fc8cd-4712-71f5-837c-b217073cca03 status=completed scenarios=9/9 radio=9/9 egress=9/9
+2026-08-04T02:12:58  RUN 21 STARTED tag=forensic_count_21 mode=forensic role=count
+2026-08-04T02:19:48  RUN 21 END run_id=019fc8d4-3552-7786-adba-21869702437c status=completed
+2026-08-04T02:19:57  RUN 21 VERDICT: PASS run_id=019fc8d4-3552-7786-adba-21869702437c status=completed scenarios=9/9 radio=9/9 egress=9/9
+2026-08-04T02:20:32  RUN 22 STARTED tag=forensic_count_22 mode=forensic role=count
+2026-08-04T02:27:42  RUN 22 END run_id=019fc8db-22ba-7ab5-84c1-40c6e1d04c5a status=completed
+2026-08-04T02:27:52  RUN 22 VERDICT: PASS run_id=019fc8db-22ba-7ab5-84c1-40c6e1d04c5a status=completed scenarios=9/9 radio=9/9 egress=9/9
+2026-08-04T02:28:29  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-04T02:28:30  wrap-up: wifi_on=1 stayon=0
+2026-08-04T02:28:30  wrap-up: leftover=(none)
+2026-08-04T02:28:30  LEDGER written: C:\Users\lucas\AppData\Local\Temp\claude\E--C-Project-ANEB\c7bc03db-540e-4578-af6b-69d4fc5aa1cf\scratchpad\wave0_ledger.json (runs=22)
+2026-08-04T02:28:30  sentinel DEVICE_BUSY removed
+2026-08-04T02:28:30  WAVE0 FINISHED stopped_early=False runs_attempted=22 of 22

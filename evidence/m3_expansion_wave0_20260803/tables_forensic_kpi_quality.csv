@@ -1,0 +1,13 @@
+﻿kpi,annotated_scenarios,low_confidence,low_share_percent,min_sample_count,synthetic
+T1,45,45,100.0,1,False
+U1,45,45,100.0,1,False
+N1,45,0,0.0,17,False
+N2,45,0,0.0,17,False
+T2,45,0,0.0,397,False
+T2_incl_coalesced,45,0,0.0,397,False
+T3,45,0,0.0,397,False
+T3_incl_resume,45,0,0.0,397,False
+T4,45,0,0.0,397,False
+T5,45,0,0.0,0,False
+U1_excl_slow_start,45,0,0.0,0,False
+U2,45,0,0.0,0,False

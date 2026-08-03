@@ -1,0 +1,2 @@
+﻿point_id,carrier,time_band,band,rsrp_median_dbm,sinr_median_db,rats,serving_cells,n,n_with_radio,sampled_n_median,stale_samples,low_confidence,thin_samples,implausible_values,egress_ips,synthetic
+SZ-PILOT-01,ctcc,idle,medium,-98.0,16.5,NR,90-9766400-633984,20,20,49.0,0,False,False,,106.88.83.76×90,False

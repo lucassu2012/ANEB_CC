@@ -1,0 +1,10 @@
+﻿campaign_id,point_id,carrier,time_band,tier,profile_id,kpi,n,median,mean,cv_percent,unstable,low_confidence,cv_not_computable_reason,implausible_values,scenario_intrinsic_jitter,scenario_jitter_reason,synthetic
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s1_chat,t1_ttft_ms,15,50.186667,48.94114733333333,13.300443131294784,True,False,,,False,network_side_unstable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s2_coding_agent,t1_ttft_ms,15,64.1315,64.9028958,13.358201751471588,True,False,,,False,network_side_unstable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s3_multimodal,t1_ttft_ms,15,64.72968800000001,65.953907,13.15347952945932,True,False,,,False,network_side_unstable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s1_chat,n1_rtt_p50_ms,15,64.397,68.16926666666667,13.617033300180905,True,False,,,False,not_applicable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s2_coding_agent,n1_rtt_p50_ms,15,73.86,73.21133333333334,10.444177668721286,True,False,,,False,not_applicable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s3_multimodal,n1_rtt_p50_ms,15,73.696,72.93286666666667,11.138096412649524,True,False,,,False,not_applicable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s1_chat,u1_goodput_mbps,15,0.1324684377614865,0.1345793357560625,10.722396303432914,True,False,,,False,not_applicable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s2_coding_agent,u1_goodput_mbps,15,4.47221488834391,4.494175085334125,3.2249998255367696,False,False,,,False,not_applicable,False
+m3-expansion-wave0,SZ-PILOT-01,ctcc,idle,metro,s3_multimodal,u1_goodput_mbps,15,5.094070784840058,5.0599759028297955,2.3928224236250646,False,False,,,False,not_applicable,False

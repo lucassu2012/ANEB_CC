@@ -1,0 +1,233 @@
+{
+  "conflicting_run_ids": [],
+  "duplicates_dropped": 0,
+  "generated_at": "2026-08-04 02:35:06 +0800",
+  "input_count": 1,
+  "inputs": [
+    {
+      "file": "wave0_forensic_subset.jsonl",
+      "sha256": "365dd0648b0a1c831aacaa93b786aeaf2657eb2b9d067a6e653b9a4cd4de0cc5"
+    }
+  ],
+  "lines_read": 5,
+  "malformed_lines": 0,
+  "no_run_id": 0,
+  "params": {
+    "after": null,
+    "attr_kpi": "n1_rtt_p50_ms",
+    "before": null,
+    "campaign": null,
+    "min_samples": 5
+  },
+  "records_kept": 5,
+  "thresholds": {
+    "aqs_grade_bands": [
+      [
+        85.0,
+        "excellent"
+      ],
+      [
+        70.0,
+        "good"
+      ],
+      [
+        54.0,
+        "fair"
+      ],
+      [
+        0.0,
+        "poor"
+      ]
+    ],
+    "attribution_group_by": [
+      "point_id",
+      "carrier",
+      "time_band",
+      "profile_id"
+    ],
+    "attribution_kpis": [
+      "n1_rtt_p50_ms",
+      "t1_ttft_ms"
+    ],
+    "attribution_segments": [
+      "access_component",
+      "regional_backbone_incr",
+      "core_backbone_incr"
+    ],
+    "buffering_hotspot_share": 0.5,
+    "clock_hotspot_share": 0.5,
+    "cv_gate_percent": 10.0,
+    "epoch_ms_bounds": [
+      1577836800000,
+      4102444800000
+    ],
+    "grade_order": [
+      "excellent",
+      "good",
+      "fair",
+      "poor"
+    ],
+    "heat_kpis": [
+      "t1_ttft_ms",
+      "n1_rtt_p50_ms",
+      "u1_goodput_mbps",
+      "t2_itl_p95_ms"
+    ],
+    "kpi_profile_exclusions": {
+      "u1_goodput_mbps": [
+        "s1_chat"
+      ]
+    },
+    "local_day_utc_offset_h": 8,
+    "mad_to_sigma": 1.4826,
+    "median_se_factor": 1.253,
+    "min_campaigns_for_trend": 3,
+    "network_side_kpis": [
+      "n1_rtt_p50_ms",
+      "n2_jitter_ms"
+    ],
+    "order_effect_kpis": [
+      "t1_ttft_ms",
+      "n1_rtt_p50_ms",
+      "u1_goodput_mbps"
+    ],
+    "order_effect_threshold_percent": 10.0,
+    "plan_max_ok_rows": 25,
+    "plan_power": 0.8,
+    "plan_target_effect_pct": 5.0,
+    "rsrp_good_dbm": -95.0,
+    "rsrp_weak_dbm": -105.0,
+    "scenario_side_kpis": [
+      "t1_ttft_ms",
+      "t2_itl_p95_ms",
+      "u2_tool_loop_p95_ms"
+    ],
+    "segment_min_cells_to_screen": 4,
+    "segment_outlier_k_by_cells": [
+      [
+        5,
+        8.0
+      ],
+      [
+        9,
+        6.0
+      ],
+      [
+        1000000000,
+        5.0
+      ]
+    ],
+    "segment_outlier_target_false_alarm": 0.05,
+    "severe_incomparability_flags": [
+      "TIER_TIME_SPREAD",
+      "MIXED_TRANSPORT",
+      "TIER_ENDPOINT_CONFLICT",
+      "IMPLAUSIBLE_VALUE",
+      "VETO_CAPPED",
+      "TIER_INCOMPLETE"
+    ],
+    "signal_bands": [
+      "weak",
+      "medium",
+      "good"
+    ],
+    "signal_labels": {
+      "good": "良",
+      "medium": "中",
+      "weak": "弱"
+    },
+    "sinr_good_db": 10.0,
+    "sinr_weak_db": 0.0,
+    "stability_group_by": [
+      "campaign_id",
+      "point_id",
+      "carrier",
+      "time_band",
+      "tier",
+      "profile_id"
+    ],
+    "stability_kpis": [
+      "t1_ttft_ms",
+      "n1_rtt_p50_ms",
+      "u1_goodput_mbps"
+    ],
+    "stability_max_stable_rows": 25,
+    "tier_time_spread_gate_ms": 3600000,
+    "tiers": [
+      "metro",
+      "regional",
+      "core"
+    ],
+    "transport_media": [
+      "wifi",
+      "cellular"
+    ],
+    "trend_metric_key": "aqs",
+    "validity_min_rate": 0.8,
+    "value_ranges": {
+      "aqs_score": [
+        0.0,
+        100.0
+      ],
+      "buffering_score": [
+        0.0,
+        1.0
+      ],
+      "n1_rtt_p50_ms": [
+        0.0,
+        null
+      ],
+      "n2_jitter_ms": [
+        0.0,
+        null
+      ],
+      "near_zero_arrival_ratio": [
+        0.0,
+        null
+      ],
+      "sawtooth_ratio": [
+        0.0,
+        null
+      ],
+      "sub_score": [
+        0.0,
+        100.0
+      ],
+      "t1_ttft_ms": [
+        0.0,
+        null
+      ],
+      "t2_itl_p95_ms": [
+        0.0,
+        null
+      ],
+      "t3_stall_rate": [
+        0.0,
+        1.0
+      ],
+      "t4_severe_stall_rate": [
+        0.0,
+        1.0
+      ],
+      "u1_goodput_mbps": [
+        0.0,
+        null
+      ],
+      "u2_tool_loop_p95_ms": [
+        0.0,
+        null
+      ]
+    },
+    "value_ranges_non_kpi": {
+      "rsrp_dbm": [
+        -160.0,
+        -30.0
+      ],
+      "sinr_db": [
+        -30.0,
+        45.0
+      ]
+    }
+  },
+  "tool_version": "aneb-campaign-analysis/1.0"
+}

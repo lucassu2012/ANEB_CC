@@ -1,0 +1,2 @@
+﻿point_id,carrier,time_band,scenarios,clock_annotated,clock_suspect,clock_suspect_share,abs_drift_ppm_median,stream_counted,stream_bad,parse_per_event_us_median,clock_hotspot,low_confidence,mixed_campaigns,synthetic
+SZ-PILOT-01,ctcc,idle,90,90,33,0.36666666666666664,70.87818754646284,90,0,141.36333333333334,False,False,,False
