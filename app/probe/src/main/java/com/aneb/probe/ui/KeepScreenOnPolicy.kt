@@ -27,9 +27,13 @@ package com.aneb.probe.ui
  * 只做纯逻辑、不碰 `Window`/`Activity`：本仓 `app/probe` 只有 JVM JUnit
  * （`testImplementation(libs.junit)`），无 Robolectric/instrumented test，
  * 真正调用 `window.addFlags`/`clearFlags` 的一线代码无法用单测覆盖，只能靠
- * 真机验证——本条已挂账至下个 NR 窗（D-427 ①，radio 覆盖率预期从 2/9 回到
- * 9/9）。本类把"该不该持有"这个可判定的决策从 Activity 生命周期里抽出来，
+ * 真机验证。本类把"该不该持有"这个可判定的决策从 Activity 生命周期里抽出来，
  * 让这部分逻辑不依赖真机也能钉住（[KeepScreenOnPolicyTest]）。
+ *
+ * **真机验证已落账（T30，D-437，2026-08-03）**：15/15 个清洁 NR_SA run、
+ * 135 个场景，radio 覆盖率 **135/135（100%）**、15/15 run 零 stale——
+ * 2.6 小时连续窗口零复现此前的息屏归零现象（对照 D-424 的原始缺口 2/9），
+ * 本注释开头的口径正确性理由（保屏使 NR/LTE 批次同态可比）现在有实测背书。
  */
 internal class KeepScreenOnPolicy {
 
