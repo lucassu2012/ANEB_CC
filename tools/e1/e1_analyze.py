@@ -541,6 +541,28 @@ def g2_true_meaning():
             "（spec §3.2/§3.4，D-417/D-418）")
 
 
+def g2_candidate_c():
+    """候选 C 治理状态（PO 批复 D-432②，spec §3.4）——**不是**对 G-2 本义的判定，
+    是治理层在 G-2 本义仍 `NOT_EXECUTED` 期间批准的一项操作性豁免。
+
+    与 `g2_true_meaning()` 是两个独立字段：后者答"G-2 判过没有"（技术判断，
+    恒 `NOT_EXECUTED`）；本函数答"数据现在能不能带标注用"（治理判断，恒下述
+    固定值）。**故意不用 PASS/FAIL/NOT_EXECUTED 三态词**——那三个词是测量结果
+    的语汇，本函数返回的是一条政策事实，用同一套词会让读者把治理决定误读成
+    又一次测量（`cadence_check()` 用 `MATCH`/`MISMATCH` 而非 PASS/FAIL 是
+    同一形状的先例）。候选 B（E2 校正后误差）生效后，本函数应被替换或改写，
+    不属本轮范围。
+    """
+    return {
+        "active": True,
+        "band_frames": 2,
+        "note": ("Profile 3 时间敏感数据带 ~2 帧不确定度带标注解锁使用，不再"
+                 "因 G-2 本义未判而恒 LOW/INCONCLUSIVE（spec §3.4 候选 C 例外）。"
+                 "这是 E2 分解前的当下语义，不是永久判据；升级路径=候选 B"
+                 "（E2 可跑后按 T29 占比门提案，阈值待真实数据）。"),
+    }
+
+
 def _analyze_channel_a(good, aligned, evts, off_ns, frame_ms_c, max_gap_ns):
     """通道 A：t_event(BOOT) 换算到 MONOTONIC 后减去该翻转的 t_present。
 
@@ -652,6 +674,7 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
         "channel_c_framestats_verdict": (verdict_c_fs, reason_c_fs),
         "channel_c_cross_check": cross_check,
         "g2_true_meaning": g2_true_meaning(),
+        "g2_candidate_c": g2_candidate_c(),
         "adapter_obs_lines": obs,
         "cadence_check": _cadence_check(obs, cfg.get("interval_ms")),
     }
@@ -757,6 +780,9 @@ def render_markdown(res):
     L.append("")
     L.append("> 上面「总量 vs 1 帧」那一列是**独立字段**，不是 G-2 本义——两者语义不同、"
              "互不代表（D-417/D-418）：即便总量列 PASS，也不能读成 G-2 本义 PASS。")
+    L.append("")
+    g2cc = res["g2_candidate_c"]
+    L.append("**候选 C 生效（PO 批复 D-432②）**：%s" % g2cc["note"])
     L.append("")
     cc = res["cadence_check"]
     L.append("## 3. 通道 A 弱检查（今天就能跑的那条）")
