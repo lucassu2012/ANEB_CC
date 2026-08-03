@@ -199,6 +199,20 @@ forensic 的采样密度截然不同，`stability.py --plan` 在两者混池的�
 python split_by_run_mode.py counted.jsonl --quick-out quick.jsonl --forensic-out forensic.jsonl
 ```
 
+### `verify_run.py` — per-run 落地即验：单行判词（T44①）
+外场/夜间采集用：一个 run 刚落库，PO 或 v2 立刻要知道"这条能不能算数"，不能等回程
+跑完整报告链才发现要重采。三查**全部复用既有工具的判据函数，不重写**（D-315"同名
+实现"教训）：契约门=`validate_results.load_schema`/`.validate_records`（逐字复用，
+本工具不碰 schema）；radio 覆盖=`radio_rollup.radio_of()`+同一条 `stale is True` 判据，
+逐场景计数，写成 `covered/total`（run 里实际有几个场景就是分母，不写死 9）；出口读出
+=`radio_rollup.egress_ip()`，非空计数+批内去重后看唯一值个数，`>1` 即
+`publish_check.py` 的 `MIXED_EGRESS` 同一判据（`len(egress_ips) > 1`），不重新定义
+"不一致"。本工具唯一新增的是把三查合成**一行**：全过 `PASS: ...`，不过
+`FAIL: <哪一查、差多少>`——不含糊地说"有问题"。
+```
+python verify_run.py <run.jsonl 或 glob>
+```
+
 ### `round_effect.py` — 预热效应诊断（首轮是否系统性更差，D-356）
 取证模式每场景跑多遍，`scenarios[].repeat_index` 就是**轮次**（快测恒 0）。本工具按轮次切，
 问：**第一轮是不是系统性更差**？首轮中位 vs 其后各轮中位的中位数，按各 KPI 自己的好坏方向
