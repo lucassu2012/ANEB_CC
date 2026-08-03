@@ -99,6 +99,11 @@ class RadioCollector(
         // 1Hz 绝对时刻表（防累加漂移，同服务端 pacing 原则 §6）
         val startNs = SystemClock.elapsedRealtimeNanos()
         var tick = 0L
+        // D-428④ 拒绝的是"陈旧连击"日志（节流导致的 stale，价值依赖真机验证还没做，
+        // 拒绝理由原样成立，本次不碰）；这里加的是另一件事——guardTick 的 onError
+        // 已经在每次真异常时调用一次，顺手累加一个连续计数几乎零成本，帮下次真机
+        // 复核时区分"零星一次"与"连续多次"两种异常形状。
+        var consecutiveExceptionTicks = 0
         try {
             while (true) {
                 // D-427④/T32②：循环体整体防护，而不是逐个调用点分别包装。T23 判读
@@ -109,11 +114,15 @@ class RadioCollector(
                 // Context/TelephonyManager，可以离线单测钉住；下面这个 block 仍然
                 // 深度耦合 Android API，只能真机验证，这条边界如实标注在
                 // [guardTick] 的 KDoc 里，不假装它也测过。
+                var thisTickFailed = false
                 val sample = guardTick(
                     onError = { t ->
+                        thisTickFailed = true
+                        consecutiveExceptionTicks++
                         android.util.Log.e(
                             LOG_TAG,
-                            "RADIO_SAMPLER_TICK_FAILED ${t.javaClass.simpleName} ${t.message}",
+                            "RADIO_SAMPLER_TICK_FAILED ${t.javaClass.simpleName} ${t.message} " +
+                                "consecutive=$consecutiveExceptionTicks",
                         )
                     },
                     degradeTo = { t ->
@@ -204,6 +213,7 @@ class RadioCollector(
                     val fix = locationProvider?.invoke()
                     if (fix == null) built else built.copy(lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM)
                 }
+                if (!thisTickFailed) consecutiveExceptionTicks = 0
                 emit(sample)
 
                 tick++
