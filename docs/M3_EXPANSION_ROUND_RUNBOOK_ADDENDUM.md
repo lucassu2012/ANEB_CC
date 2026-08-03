@@ -160,9 +160,20 @@ adb shell am start -n com.aneb.probe/.ui.MainActivity \
 | 项 | 落在哪 | 谁在核 |
 |---|---|---|
 | `radio` 八字段（`rat` / `rsrp_dbm` / `sinr_db` / `pci` / `tac` / `arfcn` / `sampled_n` / `stale`） | **语料内**：`scenarios[].network_snapshot.radio`（规格已全量落地，D-367 施工 / D-368 真机验收） | `radio_rollup` + 发布门「无线上下文」「忙闲同小区」两条 |
-| **CGNAT 出口 IP** | **`scenarios[].network_snapshot.server_observed_addr`（语料内，逐场景）** | `radio_rollup`/发布门尚未读它——本条订正前无人读，见下 |
+| **CGNAT 出口 IP** | **`scenarios[].network_snapshot.server_observed_addr`（语料内，逐场景）** | `radio_rollup`（自 D-376/T9，2026-08-01）+ 发布门「出口 IP」（D-429 追补，2026-08-03）+ `campaign_report` CSV 三面齐 |
 
 > ⚠ **本行此前的措辞方向说反了，2026-08-02 订正（订正本身，不是"新发现问题"）**：
+>
+> **二次订正（D-429，2026-08-03）**：上一版订正把"谁在核"这一格整体写成"尚未读它——
+> 本条订正前无人读"——**这句话只对一半**。`radio_rollup.egress_ip()`
+> 自 **D-376/T9（2026-08-01）**起就是读者，`analyze()` 聚合 `egress_ips`、
+> `render_markdown()` 渲 `MIXED_EGRESS:N`、`campaign_report.py` 也早已读进 CSV，
+> 三面齐、604/604 测试；**只有发布门（`publish_check.py`）此前真的零读者**，
+> 这半才是真缺口，已由 T28 补上（新增"出口 IP"检查项，WARN/PASS 两态，
+> `scripts/tests/test_publish_check.py` 新增 2 条反例）。**教训对称登记**：
+> 「A 没有 X」这类断言，写下与转录各是一次独立的对账义务——上一手（本文件自己）
+> 说过，不代表下一手（大脑转录时、以及 v3 自己写这句时）不需要重新对代码验证；
+> 这次错的正是撰写者自己前一天刚做的接线工作，被自己隔一天写反了方向。
 > 旧文写"`server_observed_addr` 是客户端观测到的服务端地址，不是客户端的出口 IP，
 > 结果契约没有承载出口字段"——**这句话与 schema 和服务端代码都对不上**。
 > `spec/schemas/result-run.schema.json:176` 的字段描述逐字是"**服务端观察到的客户端源

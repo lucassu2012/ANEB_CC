@@ -395,6 +395,23 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
         rows.append(_row(NA, "忙闲同小区",
                          "无点位在两个时段都留下小区标识——忙闲可比性**未核算**"))
 
+    # `network_snapshot.server_observed_addr`（出口 IP，D-376/T9 已接读者：radio_rollup
+    # 读出、campaign_report 渲染，唯独发布门此前从未检查过它——本条补上那一环）。
+    # WARN 而非 FAIL：schema 里这个键必填但**值允许 null**（缺键已被更早一层的契约门
+    # 拦下，到这里只可能是"键在、值全 null"），不是本文件 FAIL 定义的"机器能确定
+    # 客观错误"，是需要人解释的覆盖缺口——同一严重度校准用在"无线上下文"上。
+    # 无 N/A 分支：`rcells` 在这里恒非空（函数顶部已挡掉空语料，`campaign_labels()`
+    # 对任何记录都会分到一个格，哪怕是 unlabeled/unknown 桶），一个永远走不到的分支
+    # 比没有更误导——"无线上下文"检查同一形状也只有 WARN/PASS 两态。
+    egress_gaps = [c for c in rcells if c["n"] and not c["egress_ips"]]
+    if egress_gaps:
+        rows.append(_row(WARN, "出口 IP",
+                         f"{len(egress_gaps)}/{len(rcells)} 个格没有读出任何出口 IP"
+                         "（`server_observed_addr` 全部为 null 或缺失）——制式与出口路径"
+                         "共线判别（D-374/D-424）依赖这个字段，缺了就没法把两者分开"))
+    else:
+        rows.append(_row(PASS, "出口 IP", f"{len(rcells)} 个格均至少读出一个出口 IP"))
+
     # A veto caps the score at 70/54 — the grade-band edges — so a low grade can
     # mean the sessions failed rather than the network being slow (D-154)
     veto_cells = [c for c in cells if c.get("veto_n")]

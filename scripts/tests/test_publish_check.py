@@ -193,6 +193,43 @@ def test_the_publish_gate_knows_about_the_radio_covariate():
             assert names.count(item) == 1, (label, item, names.count(item))
 
 
+def test_the_publish_gate_knows_about_egress_ip_coverage():
+    """`network_snapshot.server_observed_addr`（出口 IP）读者链 radio_rollup→
+    campaign_report 早已接好（D-376/T9），唯独发布门此前从未检查过它——本条钉住
+    新加的"出口 IP"检查项。WARN 不是 FAIL：这个键必填但值允许 null（D-425③ 核实
+    schema 后的判断），不是本文件 FAIL 定义的"机器能确定客观错误"。
+    """
+    bare = _clean()  # make_record() 的 network_snapshot={}，没有 server_observed_addr
+    rows = pc.check(bare)
+    assert _sev(rows, "出口 IP") == pc.WARN
+    assert "server_observed_addr" in _detail(rows, "出口 IP")
+
+    withradio = sc.generate(points=2, repeats=3, radio=True, campaigns=("base",))
+    rows2 = pc.check(withradio)
+    assert _sev(rows2, "出口 IP") == pc.PASS
+
+    for label, rs in (("no egress", rows), ("with egress", rows2)):
+        names = [r["item"] for r in rs]
+        assert names.count("出口 IP") == 1, (label, names.count("出口 IP"))
+
+
+def test_egress_ip_gap_in_one_cell_does_not_hide_behind_another_cells_coverage():
+    """违规夹具：一批里两个格，一个格全部记录都没有出口 IP、另一个格正常——
+    合批时"出口 IP"检查必须仍报 WARN 且点名比例，不能被另一个格的正常数据盖过去
+    （这正是"同批双出口/部分覆盖"这个形状最容易被静默吞掉的地方）。
+    """
+    good_cell = sc.generate(points=1, repeats=3, radio=True, campaigns=("base",))
+    bad_cell = _clean()
+    for rec in bad_cell:
+        rec["run"]["campaign"] = {"campaign_id": "base", "tier": "metro",
+                                  "point_id": "NO-EGRESS-PT", "carrier": "cmcc",
+                                  "time_band": "busy"}
+    rows = pc.check(good_cell + bad_cell)
+    assert _sev(rows, "出口 IP") == pc.WARN
+    detail = _detail(rows, "出口 IP")
+    assert "1/" in detail, detail  # 恰好一个格缺失，不是全部也不是零个
+
+
 def test_mixed_versions_are_warn_not_fail():
     """The tool cannot know whether a kpi_set bump changed the metric
     definitions, so this needs a human, not a machine verdict (D-137)."""
