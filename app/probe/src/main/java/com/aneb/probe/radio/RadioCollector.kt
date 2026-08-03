@@ -564,6 +564,16 @@ class RadioCollector(
          * 其余异常降级为 `degradeTo(t)` 的返回值（调用方传入的降级样本工厂）并
          * 通过 `onError` 上报一次，循环继续——把"这一秒的任何异常"变成"这一秒的
          * 样本缺失"，而不是像原故障那样"从此往后所有样本缺失"。
+         *
+         * **catch 宽度是 `Throwable`，比 `TestEngine.kt:605` 的 `catch (e: Exception)`
+         * 更宽**（会连 `Error` 族一起接住，例如 OOM 也会被降级为一次样本缺失、循环
+         * 继续，而不是让循环连带崩掉）——这是有意的分叉，不是疏漏，理由三条：
+         * ①本文件既有 9 处 `catch (t: Throwable)`（`:254`/`:262`/`:285`/`:292`/
+         * `:401`/`:409`/`:417`/`:454`/`:463`），风格一致，不为这一处单独收窄；
+         * ②radio 是观测通道，不是被测量的本体——宁可静默降级也不该让一次观测异常
+         * 杀掉整条测量 run；③降级不是静默的：`reason` 串带异常类名，`onError`
+         * 侧的 `RADIO_SAMPLER_TICK_FAILED` 日志连同 `consecutiveExceptionTicks`
+         * 逐次可见，真出问题查得到。
          */
         internal suspend fun <T> guardTick(
             onError: (Throwable) -> Unit,
