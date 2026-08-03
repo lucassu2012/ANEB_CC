@@ -165,13 +165,19 @@ adb shell "ps -A | grep -iE 'aneb|vpn|tcpdump' | grep -v grep" # 应无输出
 
 | # | 位置 | 现状（占位） | wave-1 选定后怎么改 |
 |---|---|---|---|
-| 1 | `docs/campaign_grid_shenzhen_wave1.json` | `point_id` 数组 3 个 `PENDING-PO-01`/`02`/`03` | 若选 2 个近点，删掉第 3 个槽位；若选 3 个，全部替换为真名；**不要留占位、不要补假名** |
-| 2 | 补注命令（现场逐点位打标实际敲的命令） | 模板：`python annotate_campaign.py raw/<真名>/*.jsonl --out-dir labeled --set campaign_id=m3-expansion-wave1 --set point_id=<真名> --set carrier=<ctcc\|cmcc> --set tier=metro --infer-time-band` | `<真名>` 与 `carrier` 按当次实际所测填入 |
-| 3 | `docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md` §6 | "所有点位一律记为 `PENDING-PO-01`…`08`" | wave-1 落地时，在该节**追加**一行"wave-1 已用点位：&lt;列出真名&gt;（本节其余占位部分照旧，待剩余点位到位后再改）"，不删除原有占位声明（那是 32 格完整网格的存档） |
-| 4 | `docs/M2_CAMPAIGN_RUNBOOK.md` §0.6:238-240 的补注示例 | 旧式占位 `SZ-CBD-01` | 同第 2 项，把示例里的占位换成 wave-1 的真名（若与 T33 主换名批次先后到达，以后到的为准，两处不能一个换一个不换） |
+| 1 | `docs/campaign_grid_shenzhen_wave1.json` | ~~`point_id` 数组 3 个 `PENDING-PO-01`/`02`/`03`~~ **已部分转正（2026-08-04，大脑裁定）**：槽位 1 = `SZ-PILOT-01`（家点位），槽位 2/3 仍是 `PENDING-PO-02`/`03` | 若选 2 个近点（含已转正的 SZ-PILOT-01），删掉第 3 个槽位；若选 3 个，把剩余占位替换为真名；**不要留占位、不要补假名** |
+| 2 | 补注命令（现场逐点位打标实际敲的命令） | 模板：`python annotate_campaign.py raw/<真名>/*.jsonl --out-dir labeled --set campaign_id=m3-expansion-wave1 --set point_id=<真名> --set carrier=<ctcc\|cmcc> --set tier=metro --infer-time-band`；SZ-PILOT-01 的真实示例见下方"操作卡示例" | `<真名>` 与 `carrier` 按当次实际所测填入 |
+| 3 | `docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md` §6 | **已同步**：§6 已追加"`PENDING-PO-01` 已转正为 `SZ-PILOT-01`"的增补段（本表原计划的"wave-1 落地时追加"提前到大脑裁定时点执行，不等 wave-1 正式开跑） | 剩余 2/3 槽位真名到位后，在同一增补段继续追加，不新开一段 |
+| 4 | `docs/M2_CAMPAIGN_RUNBOOK.md` §0.6:238-240 的补注示例 | 旧式占位 `SZ-CBD-01` | 同第 2 项，把示例里的占位换成 wave-1 的真名（若与 T33 主换名批次先后到达，以后到的为准，两处不能一个换一个不换）——SZ-PILOT-01 尚未落到这个示例本身，留给下次编辑此文件的人顺手带上，本条不代改别人文件 |
 
 **没有第五处**（继承 T33 §1 自查结论：ADDENDUM §5 收工清单只引用网格文件路径、不引用
 其中的值，改第 1 项即自动生效）。
+
+**操作卡示例（家点位现在是真点位，可直接照抄）**：本文件①"到点"步骤里用的都是
+`<点位>`/`<运营商>`/`<忙闲>` 占位符——SZ-PILOT-01 × ctcc × busy 现在是一个可以直接
+代入的真实例子，比如①第 4 步的 logcat 文件名可以直接敲成
+`campaign_logcat_SZ-PILOT-01_ctcc_busy.txt`，不用先想占位符再替换。忙时格已排明晨
+补齐（大脑预告），届时即为该点位第二个真实（点位,运营商,忙闲）格。
 
 ### wave-1 自己的工时（按 T33 §3 公式重算，不能直接拿 3.414 天打折）
 
