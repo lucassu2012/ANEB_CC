@@ -1,0 +1,2 @@
+﻿point_id,carrier,time_band,band,rsrp_median_dbm,sinr_median_db,rats,serving_cells,n,n_with_radio,sampled_n_median,stale_samples,low_confidence,thin_samples,implausible_values,egress_ips,synthetic
+PENDING-PO-01,ctcc,busy,good,-85.0,20.0,NR,672-10119936-627264/672-10119936-633984,16,16,31,7,False,False,,106.83.173.55×135; 106.85.27.201×9,False

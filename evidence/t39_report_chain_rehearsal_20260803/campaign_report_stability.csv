@@ -1,0 +1,10 @@
+﻿campaign_id,point_id,carrier,time_band,tier,profile_id,kpi,n,median,mean,cv_percent,unstable,low_confidence,cv_not_computable_reason,implausible_values,scenario_intrinsic_jitter,scenario_jitter_reason,synthetic
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s1_chat,t1_ttft_ms,48,51.0335725,50.76853768750001,8.023566266860781,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s2_coding_agent,t1_ttft_ms,48,51.206479,52.1033466875,7.453976514908299,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s3_multimodal,t1_ttft_ms,48,50.3906145,51.32732689583333,6.519790909482436,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s1_chat,n1_rtt_p50_ms,48,57.894999999999996,59.777229166666665,9.308128477573383,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s2_coding_agent,n1_rtt_p50_ms,48,60.429,60.494062500000005,8.585277474064227,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s3_multimodal,n1_rtt_p50_ms,48,59.921,59.505500000000005,7.18192927975842,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s1_chat,u1_goodput_mbps,48,0.1503593142543953,0.14897450280897956,5.649946899984986,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s2_coding_agent,u1_goodput_mbps,48,11.388532042985348,11.377261986388334,9.691029253725752,False,False,,,False,not_applicable,False
+t39-rehearsal-nr-20260803,PENDING-PO-01,ctcc,busy,metro,s3_multimodal,u1_goodput_mbps,48,17.94302166845415,17.939238226974215,8.805883782958022,False,False,,,False,not_applicable,False

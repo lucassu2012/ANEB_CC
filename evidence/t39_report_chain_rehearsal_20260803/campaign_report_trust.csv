@@ -1,0 +1,2 @@
+﻿point_id,carrier,time_band,scenarios,clock_annotated,clock_suspect,clock_suspect_share,abs_drift_ppm_median,stream_counted,stream_bad,parse_per_event_us_median,clock_hotspot,low_confidence,mixed_campaigns,synthetic
+PENDING-PO-01,ctcc,busy,144,144,6,0.041666666666666664,25.433207285255996,144,0,127.75666666666666,False,False,,False

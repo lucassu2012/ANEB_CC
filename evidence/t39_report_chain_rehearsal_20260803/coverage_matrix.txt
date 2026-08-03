@@ -1,0 +1,46 @@
+﻿## 覆盖完备性矩阵（联合网格：点位 × 运营商 × 时段）
+
+> 目标 32 个联合单元；已覆盖（样本 ≥5）1 个 = **3.1%**。未测/欠采即「下一步该测哪里」。
+
+| 点位 | 运营商 | 时段 | 样本 | 状态 |
+|---|---|---|---|---|
+| PENDING-PO-01 | ctcc | busy | 16 | 已覆盖 |
+| PENDING-PO-01 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-01 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-01 | cmcc | idle | 0 | 未测 |
+| PENDING-PO-02 | ctcc | busy | 0 | 未测 |
+| PENDING-PO-02 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-02 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-02 | cmcc | idle | 0 | 未测 |
+| PENDING-PO-03 | ctcc | busy | 0 | 未测 |
+| PENDING-PO-03 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-03 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-03 | cmcc | idle | 0 | 未测 |
+| PENDING-PO-04 | ctcc | busy | 0 | 未测 |
+| PENDING-PO-04 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-04 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-04 | cmcc | idle | 0 | 未测 |
+| PENDING-PO-05 | ctcc | busy | 0 | 未测 |
+| PENDING-PO-05 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-05 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-05 | cmcc | idle | 0 | 未测 |
+| PENDING-PO-06 | ctcc | busy | 0 | 未测 |
+| PENDING-PO-06 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-06 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-06 | cmcc | idle | 0 | 未测 |
+| PENDING-PO-07 | ctcc | busy | 0 | 未测 |
+| PENDING-PO-07 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-07 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-07 | cmcc | idle | 0 | 未测 |
+| PENDING-PO-08 | ctcc | busy | 0 | 未测 |
+| PENDING-PO-08 | ctcc | idle | 0 | 未测 |
+| PENDING-PO-08 | cmcc | busy | 0 | 未测 |
+| PENDING-PO-08 | cmcc | idle | 0 | 未测 |
+python : 
+At line:1 char:326
++ ... ject\ANEB"; python scripts/coverage_matrix.py evidence/t39_report_cha ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+<!-- records=16 files=1 -->
