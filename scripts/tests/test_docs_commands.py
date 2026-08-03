@@ -736,9 +736,17 @@ def test_the_shipped_grid_config_is_one_the_tool_accepts():
     joint = 1
     for dim in cm.CELL_DIMS:
         joint *= len(grid[dim])
-    assert joint == 1, (
-        f"the shipped grid declares {joint} joint cells; PO's 2026-07-31 reply "
-        "fixed this round at 1 point (current location) x ctcc x busy (D-345)")
+    # D-345's "1 point x ctcc x busy" was the 07-31 PILOT round's fix, not a
+    # permanent ceiling — D-432① (PO, 2026-08-03) locked the EXPANSION round's
+    # three knobs at 6-8 points x dual carrier x busy/idle, and T33 shipped the
+    # grid at the upper bound (8 points) so real names slot in without a second
+    # resize. This assertion tracks whichever decision is CURRENT (D-301: a
+    # changed decision must be re-transcribed everywhere it was quoted), not
+    # D-345 specifically.
+    assert joint == 32, (
+        f"the shipped grid declares {joint} joint cells; D-432① (PO, 2026-08-03) "
+        "locked the expansion round at 8 points x 2 carriers x 2 time bands = 32 "
+        "(T33 grid prep)")
 
 
 _TIER_CLAIM_MARKS = ("三级差分", "三层级", "三级归因")
