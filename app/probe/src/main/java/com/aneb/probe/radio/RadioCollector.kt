@@ -69,6 +69,9 @@ class RadioCollector(
     /** requestCellInfoUpdate / TelephonyCallback 回调极薄，直接在 binder 线程跑 */
     private val directExecutor = Executor { it.run() }
 
+    /** D-445/T35 一次性诊断：见 [logCellInfoDiag]，仅状态变化时打印用的去重态 */
+    private var lastCellInfoDiagState: String? = null
+
     private val _events = MutableSharedFlow<EnvEvent>(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -230,12 +233,17 @@ class RadioCollector(
     // requestCellInfoUpdate（API 29+，minSdk 29 直接用）
     // ------------------------------------------------------------------
 
+    /** D-445/T35 一次性诊断：`requestCellInfo` 走降级分支时的四种互斥成因，仅用于日志。 */
+    private enum class CellInfoDiag { TIMEOUT, ON_ERROR, EMPTY_LIST }
+
     /** @return (cellInfos, stale)。超时/失败退回 allCellInfo 缓存并 stale=true（R-02）。 */
     @SuppressLint("MissingPermission") // 调用方已确认 READ_PHONE_STATE + ACCESS_FINE_LOCATION
     private suspend fun requestCellInfo(
         tm: TelephonyManager,
         timeoutMs: Long,
     ): Pair<List<CellInfo>, Boolean> {
+        var diag: CellInfoDiag? = null
+        var errorCode: Int? = null
         val fresh: List<CellInfo>? = withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine { cont ->
                 try {
@@ -243,26 +251,60 @@ class RadioCollector(
                         directExecutor,
                         object : TelephonyManager.CellInfoCallback() {
                             override fun onCellInfo(cellInfo: MutableList<CellInfo>) {
+                                if (cellInfo.isEmpty()) diag = CellInfoDiag.EMPTY_LIST
                                 if (cont.isActive) cont.resume(cellInfo.toList())
                             }
 
-                            override fun onError(errorCode: Int, detail: Throwable?) {
+                            override fun onError(errCode: Int, detail: Throwable?) {
+                                diag = CellInfoDiag.ON_ERROR
+                                errorCode = errCode
                                 if (cont.isActive) cont.resume(emptyList())
                             }
                         },
                     )
                 } catch (t: Throwable) {
+                    diag = CellInfoDiag.ON_ERROR
                     if (cont.isActive) cont.resume(emptyList())
                 }
             }
         }
-        if (!fresh.isNullOrEmpty()) return fresh to false
+        if (!fresh.isNullOrEmpty()) {
+            lastCellInfoDiagState = null // D-445：健康 tick 清掉去重态，下次失败重新起算一段新的连击
+            return fresh to false
+        }
+        if (fresh == null) diag = CellInfoDiag.TIMEOUT
+
         val cached = try {
             tm.allCellInfo ?: emptyList()
         } catch (t: Throwable) {
             emptyList()
         }
+        if (CELL_INFO_DIAG_LOGGING) logCellInfoDiag(diag, errorCode, cached.isEmpty())
         return cached to true
+    }
+
+    /**
+     * D-445/T35 一次性诊断：区分 `requestCellInfo` 降级到 `allCellInfo` 缓存时的具体成因——
+     * 现有 `stale=true` 是四种不同故障（回调超时无响应/`onError` 带错误码/`onCellInfo`
+     * 空列表/`allCellInfo` 兜底也失败）共用的同一个布尔值，逐 tick 看不出是哪一种。
+     * 仅在诊断态发生变化时打印一行，避免逐 tick 刷屏（同 `guardTick.onError` 的克制）。
+     *
+     * **临时代码，验证「~30-45 秒一次性框架清理」候选机制（D-445）用，真机验证一轮后
+     * 应关掉 [CELL_INFO_DIAG_LOGGING] 或整段移除，不进长期发布分支**——同 D-428④ 拒绝
+     * "陈旧连击"日志的纪律，区别是这次已有明确的真机验证计划，成本一次性。
+     *
+     * 已知的窄竞态：`onError`/`onCellInfo` 理论上可能在 `withTimeoutOrNull` 已超时返回后
+     * 才从 binder 线程迟到，此时 [diag]/[errorCode] 仍可能被迟到回调覆盖——只影响这行
+     * 诊断日志文字本身，不影响 `requestCellInfo` 的返回值（样本数据不受影响）。
+     */
+    private fun logCellInfoDiag(diag: CellInfoDiag?, errorCode: Int?, allCellInfoAlsoEmpty: Boolean) {
+        val state = "${diag ?: "NULL_DIAG"}" +
+            (errorCode?.let { " errorCode=$it" } ?: "") +
+            if (allCellInfoAlsoEmpty) " allCellInfoAlsoEmpty" else " allCellInfoFallbackNonEmpty"
+        if (state != lastCellInfoDiagState) {
+            android.util.Log.w(LOG_TAG, "CELL_INFO_DIAG state=$state")
+            lastCellInfoDiagState = state
+        }
     }
 
     // ------------------------------------------------------------------
@@ -549,6 +591,10 @@ class RadioCollector(
         private const val SAMPLE_PERIOD_NS = 1_000_000_000L // 1Hz
         private const val CELL_INFO_TIMEOUT_MS = 800L       // 超时退缓存标 stale（R-02）
         private const val STALE_NS = 2_000_000_000L         // modem 时戳距采样 >2s 判陈旧（R-02）
+
+        // D-445/T35 一次性诊断开关：验证「~30-45 秒一次性框架清理」候选机制用，
+        // 真机验证一轮后应改回 false 或整段移除，不进长期发布分支（见 logCellInfoDiag KDoc）。
+        private const val CELL_INFO_DIAG_LOGGING = true
 
         /**
          * 循环体单次 tick 的异常防护策略（D-427④/T32②），抽成独立函数的唯一理由是
