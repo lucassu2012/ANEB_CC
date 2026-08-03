@@ -412,6 +412,26 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
     else:
         rows.append(_row(PASS, "出口 IP", f"{len(rcells)} 个格均至少读出一个出口 IP"))
 
+    # radio_rollup 早就算出「一格混几条出口路径」这件事（`MIXED_EGRESS:N`），但那个
+    # 标记只印在 radio_rollup 自己的渲染表里，发布门这一面从未读过它——同族 D-303/
+    # D-304/D-305：一个信号只活在一个面，另一个面看不见（T39/D-454 实测复现：本轮
+    # 语料唯一那格恰好混了两个出口，`publish_check` 之前会给出干净 PASS，读者对混
+    # 出口这件事一无所知）。WARN 而非 FAIL：混出口在扩展轮语义下是「该格需按 §10
+    # 分段呈现、不可池化平均」的信号，不是机器能确定的客观错误——同一严重度校准用
+    # 在上面的"出口 IP"（D-431）上。无 N/A 分支：`rcells` 恒非空的前提与上面那条
+    # 检查完全相同，不重复论证。
+    mixed_egress = [c for c in rcells if len(c["egress_ips"]) > 1]
+    if mixed_egress:
+        detail = "; ".join(
+            "%s/%s/%s(%d 个)" % (c["cell"]["point_id"], c["cell"]["carrier"],
+                                 c["cell"]["time_band"], len(c["egress_ips"]))
+            for c in mixed_egress)
+        rows.append(_row(WARN, "出口一致性",
+                         f"{len(mixed_egress)}/{len(rcells)} 个格混用了不止一个出口 IP"
+                         f"（{detail}）——按 §10 纪律须分段呈现，不可池化平均"))
+    else:
+        rows.append(_row(PASS, "出口一致性", f"{len(rcells)} 个格出口路径均单一"))
+
     # A veto caps the score at 70/54 — the grade-band edges — so a low grade can
     # mean the sessions failed rather than the network being slow (D-154)
     veto_cells = [c for c in cells if c.get("veto_n")]

@@ -230,6 +230,49 @@ def test_egress_ip_gap_in_one_cell_does_not_hide_behind_another_cells_coverage()
     assert "1/" in detail, detail  # 恰好一个格缺失，不是全部也不是零个
 
 
+def test_the_publish_gate_knows_about_mixed_egress_within_one_cell():
+    """radio_rollup 早算出「一格混几条出口路径」（`MIXED_EGRESS:N`），但那个标记只
+    印在它自己的渲染表里，发布门此前从未读过——本条钉住新加的"出口一致性"检查项。
+    WARN 不是 FAIL：混出口在扩展轮语义下是「该格需按 §10 分段呈现」的信号，不是
+    机器能确定的客观错误（T39/D-454 实测复现的真实缺口，同族 D-303/D-304/D-305）。
+    """
+    single = sc.generate(points=1, carriers=("cmcc",), time_bands=("busy",),
+                         repeats=6, radio=True, campaigns=("base",))
+    rows = pc.check(single)
+    assert _sev(rows, "出口一致性") == pc.PASS
+
+    mixed = sc.generate(points=1, carriers=("cmcc",), time_bands=("busy",),
+                        repeats=6, radio=True, campaigns=("base",))
+    for rec in mixed[: len(mixed) // 2]:
+        for scn in rec["scenarios"]:
+            scn["network_snapshot"]["server_observed_addr"] = "203.0.113.99:8443"
+    rows2 = pc.check(mixed)
+    assert _sev(rows2, "出口一致性") == pc.WARN
+    assert "2 个" in _detail(rows2, "出口一致性"), _detail(rows2, "出口一致性")
+
+    for label, rs in (("single egress", rows), ("mixed egress", rows2)):
+        names = [r["item"] for r in rs]
+        assert names.count("出口一致性") == 1, (label, names.count("出口一致性"))
+
+
+def test_mixed_egress_in_one_cell_does_not_hide_behind_another_cells_single_egress():
+    """违规夹具：一批里两个格，一个格混了两个出口、另一个格干净单一出口——合批时
+    "出口一致性"检查必须仍报 WARN 且点名比例，不能被另一个格的正常数据盖过去
+    （与 D-431 的"出口 IP"部分覆盖测试同一形状：一个信号被另一个格盖住）。
+    """
+    clean_cell = sc.generate(points=1, carriers=("cmcc",), time_bands=("busy",),
+                             repeats=3, radio=True, campaigns=("base",))
+    mixed_cell = sc.generate(points=1, carriers=("cucc",), time_bands=("busy",),
+                             repeats=6, radio=True, campaigns=("base",))
+    for rec in mixed_cell[: len(mixed_cell) // 2]:
+        for scn in rec["scenarios"]:
+            scn["network_snapshot"]["server_observed_addr"] = "203.0.113.99:8443"
+    rows = pc.check(clean_cell + mixed_cell)
+    assert _sev(rows, "出口一致性") == pc.WARN
+    detail = _detail(rows, "出口一致性")
+    assert "1/" in detail, detail  # 恰好一个格混出口，不是全部也不是零个
+
+
 def test_mixed_versions_are_warn_not_fail():
     """The tool cannot know whether a kpi_set bump changed the metric
     definitions, so this needs a human, not a machine verdict (D-137)."""
