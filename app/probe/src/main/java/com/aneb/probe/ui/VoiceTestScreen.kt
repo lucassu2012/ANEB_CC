@@ -323,6 +323,7 @@ private fun VoiceConclusionCard(sample: VoiceRunner.Sample) {
                     m4TtfbMs = KpiValue(sample.ttfbP50Ms, "ms", sample.turnsOk, lowConfidence = false),
                     m5TurnSwitchMs = KpiValue(sample.turnSwitchP50Ms, "ms", (sample.turnsOk - 1).coerceAtLeast(0), lowConfidence = false),
                     m6BargeStopMs = KpiValue(sample.bargeStopMaxMs, "ms", 2, lowConfidence = false),
+                    m7MaxFrameGapMs = KpiValue(sample.m7MaxFrameGapMs, "ms", sample.framesRecv, lowConfidence = sample.lowConfidence),
                 )
             } else {
                 AqsScorer.scoreVoice(
@@ -331,6 +332,7 @@ private fun VoiceConclusionCard(sample: VoiceRunner.Sample) {
                     m1BudgetMs = KpiValue(sample.mouthEarBudgetMs, "ms", 1, lowConfidence = false),
                     m2DownFrameJitterMs = KpiValue(sample.downFrameJitterMs, "ms", sample.framesRecv, lowConfidence = false),
                     m3UpFrameJitterMs = KpiValue(sample.upFrameJitterMs, "ms", sample.framesSent, lowConfidence = false),
+                    m7MaxFrameGapMs = KpiValue(sample.m7MaxFrameGapMs, "ms", sample.framesRecv, lowConfidence = false),
                 )
             }
         }.getOrNull()

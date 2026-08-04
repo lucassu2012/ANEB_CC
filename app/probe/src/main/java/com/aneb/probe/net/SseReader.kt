@@ -110,17 +110,24 @@ class SseBoundaryScanner {
     private var readCount = 0
     private var totalBytes = 0L
 
+    /** 跨 chunk 状态：上次 [onRead] 结尾是未配对的 `\r`（CRLF 恰好被切成两次 read）。 */
+    private var pendingCr = false
+
     /** 当前已切出的 event 数（供实时观测读取，D-27；读循环内 O(1)，不改任何切边界语义）。 */
     val eventCount: Int get() = events.size
 
     /**
      * 交付一次 read 的字节（[chunk] 会被整体读空）。[arrivalNanos] 为该次 read
      * 返回时刻的打戳——本方法内不打戳，戳由调用方在读返回处就地打（R-04）。
+     *
+     * T45/D-467 §6.3③加固：写入 `acc` 前先把 `\r\n` 归一成 `\n`（[normalizeCrlf]），
+     * 使下方 `\n\n` 边界扫描对 CRLF 流同样生效——纯 LF 流不含 `\r` 字节，归一化是
+     * no-op，既有行为逐字不变。`totalBytes` 仍按原始（未归一化）字节数计，语义不变。
      */
     fun onRead(chunk: Buffer, byteCount: Long, arrivalNanos: Long) {
         readCount++
         totalBytes += byteCount
-        acc.writeAll(chunk)
+        acc.writeAll(normalizeCrlf(chunk))
 
         var eventsInThisRead = 0
         while (true) {
@@ -142,12 +149,49 @@ class SseBoundaryScanner {
     }
 
     /** 流结束（EOF/错误检出）时收口；[eofNanos] 为 EOF 打戳时刻（P0-C12 边界）。 */
-    fun finish(eofNanos: Long): RawSseStream =
-        RawSseStream(events, readCount, totalBytes, truncatedTail = acc.size > 0L, eofNanos = eofNanos)
+    fun finish(eofNanos: Long): RawSseStream {
+        // 流恰好以孤立 \r 结尾（其配对 \n 永不会来）：不丢字节，原样补回 acc。
+        if (pendingCr) {
+            acc.writeByte(CR.toInt())
+            pendingCr = false
+        }
+        return RawSseStream(events, readCount, totalBytes, truncatedTail = acc.size > 0L, eofNanos = eofNanos)
+    }
+
+    /**
+     * `\r\n` → `\n` 归一化，供 [onRead] 写入 `acc` 前调用。跨 chunk 状态化：若某次
+     * chunk 恰在 `\r` 处结束（TCP 可能把 CRLF 两个字节拆进两次 read），把该 `\r`
+     * 暂存到 [pendingCr]、留到下次 [onRead] 首字节判断是否与之配对，不在本次
+     * 输出，也不提前判定为孤立 `\r`。孤立 `\r`（后面不跟 `\n`）原样保留（不是本
+     * 协议要处理的换行，按字面字节透传）。纯 LF 输入不含 `\r` 字节，逐字节过一遍
+     * 后原样输出，no-op。
+     */
+    private fun normalizeCrlf(chunk: Buffer): Buffer {
+        val out = Buffer()
+        while (!chunk.exhausted()) {
+            val b = chunk.readByte()
+            if (pendingCr) {
+                pendingCr = false
+                if (b == LF) {
+                    out.writeByte(LF.toInt())
+                    continue
+                }
+                out.writeByte(CR.toInt())
+            }
+            if (b == CR) {
+                pendingCr = true
+            } else {
+                out.writeByte(b.toInt())
+            }
+        }
+        return out
+    }
 
     private companion object {
-        /** 服务端固定 "\n\n" 分隔（与 SseReader 同一 wire 约定；"\r\n\r\n" 兼容留 TODO） */
+        /** 服务端固定 "\n\n" 分隔；CRLF 流经 [normalizeCrlf] 归一后同一分隔生效。 */
         private val EVENT_DELIMITER = "\n\n".encodeUtf8()
+        private const val CR: Byte = '\r'.code.toByte()
+        private const val LF: Byte = '\n'.code.toByte()
     }
 }
 
@@ -169,6 +213,37 @@ class SseBoundaryScanner {
  *  - token:  `event: token\ndata: {"seq":N,"sched_us":...,"pre_flush_us":...,"payload":"<base64>"}\n\n`
  *  - 结尾:   `event: summary\ndata: {...}\n\n`
  */
+/** 单个 event 文本块解析出的三个字段（[parseSseEventFields] 返回值）。 */
+internal data class SseEventFields(
+    val eventName: String?,
+    /** 连续多条 data: 行已按 SSE 规范拼接（`\n` 连接），非最后一行覆盖前面的 */
+    val dataLine: String?,
+    val commentLine: String?,
+)
+
+/**
+ * 单个 event 文本块（已按 `\n\n` 切出，未跨 event）逐行解析为三个字段（P2-C05 抽出为
+ * 纯函数，供 [SseReader.parseRaw] 使用；不依赖 Android API，可脱离 [SseReader] 单测）。
+ *
+ * T45/D-467 §6.3③：SSE 规范要求连续多条 `data:` 行按 `\n` 拼接后再解析（不是最后一行
+ * 覆盖前面的）——本仓服务端目前恒单行，此路径尚无真实触发，但客户端不能假设外部
+ * 服务端的框架永不改变；静默丢数据比 parseError 更危险。
+ */
+internal fun parseSseEventFields(text: String): SseEventFields {
+    var eventName: String? = null
+    val dataLines = ArrayList<String>(2)
+    var commentLine: String? = null
+    for (line in text.split('\n')) {
+        when {
+            line.startsWith(":") -> commentLine = line.removePrefix(":").trim()
+            line.startsWith("event:") -> eventName = line.removePrefix("event:").trim()
+            line.startsWith("data:") -> dataLines.add(line.removePrefix("data:").trim())
+        }
+    }
+    val dataLine = if (dataLines.isEmpty()) null else dataLines.joinToString("\n")
+    return SseEventFields(eventName, dataLine, commentLine)
+}
+
 class SseReader(
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
@@ -236,17 +311,7 @@ class SseReader(
 
         for (raw in rawEvents) {
             val text = raw.bytes.toString(Charsets.UTF_8)
-            var eventName: String? = null
-            var dataLine: String? = null
-            var commentLine: String? = null
-            // 阶段 0 简化：服务端保证单 data 行；多 data 行拼接留 TODO 阶段1
-            for (line in text.split('\n')) {
-                when {
-                    line.startsWith(":") -> commentLine = line.removePrefix(":").trim()
-                    line.startsWith("event:") -> eventName = line.removePrefix("event:").trim()
-                    line.startsWith("data:") -> dataLine = line.removePrefix("data:").trim()
-                }
-            }
+            val (eventName, dataLine, commentLine) = parseSseEventFields(text)
             when {
                 commentLine != null && commentLine.startsWith("prelude") ->
                     prelude = SsePrelude(raw.arrivalNanos, commentLine)

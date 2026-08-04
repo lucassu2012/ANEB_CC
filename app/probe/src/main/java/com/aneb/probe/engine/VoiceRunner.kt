@@ -4,6 +4,7 @@ import com.aneb.probe.net.AnebClient
 import com.aneb.probe.net.ReachabilityProbe
 import com.aneb.probe.net.RealtimeSimSession
 import com.aneb.probe.net.RealtimeWire
+import com.aneb.probe.scoring.BufferingDetector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -73,6 +74,11 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
         val continuityDetectMs: Double? = null,
         /** 受控断连重建（ms）＝新会话 session_ready 客户端到达 − 失败浮出；检出缺席则 null（R-10） */
         val continuityResumeMs: Double? = null,
+        // ── M7 尾部字段（D-390 §5 B′/D-404；additive 默认 null，run()/runSim() 既有调用不受影响）──
+        /** M7 最长帧间静默（ms；下行到达间隔 max，抗 P95 弃尾，D-390 订正后的首选判据） */
+        val m7MaxFrameGapMs: Double? = null,
+        /** 近零到达间隔占比（[0,1]；补充信号，答"有没有发生"，M7 答"有多严重"） */
+        val voiceNearZeroArrivalRatio: Double? = null,
     )
 
     companion object {
@@ -186,6 +192,24 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
             if (rttP50Ms == null || upJitterMs == null || downJitterMs == null) return null
             return rttP50Ms + max(upJitterMs, downJitterMs) + CODEC_JB_BUDGET_MS
         }
+
+        /**
+         * M7 最长帧间静默（ms）＝下行到达间隔（原始，非对名义节奏的偏差）max。
+         * D-390 订正：P95 类判据会把「罕见但致命」的长冻结当尾部弃掉；max 不丢尾、无饱和平台。
+         * 间隔样本为空 → null（R-10：无样本不等于零静默）。
+         */
+        fun maxFrameGapMs(intervalsUs: List<Long>): Double? =
+            intervalsUs.maxOrNull()?.let { it / 1000.0 }
+
+        /**
+         * 近零到达间隔占比（[0,1]）＝背靠背投递帧数 / 总间隔数，复用 [BufferingDetector] 判据
+         * （同一常量 [BufferingDetector.NEAR_ZERO_ARRIVAL_US]，不另定义）。M7 答"有多严重"，
+         * 本值答"有没有发生"，两者互补（D-390 §5 结论）。间隔样本为空 → null（R-10）。
+         */
+        fun nearZeroArrivalRatio(intervalsUs: List<Long>): Double? {
+            if (intervalsUs.isEmpty()) return null
+            return intervalsUs.count { it in 0 until BufferingDetector.NEAR_ZERO_ARRIVAL_US }.toDouble() / intervalsUs.size
+        }
     }
 
     fun run(serverBase: String): Flow<Sample> = channelFlow {
@@ -250,10 +274,18 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
         val arrivals = streamResult?.stream?.events.orEmpty().map { it.arrivalNanos }
         val downIntervalsUs = arrivals.zipWithNext { a, b -> (b - a) / 1000 }
         val downJitter = frameJitterP95Ms(downIntervalsUs, FRAME_INTERVAL_MS * 1000)
+        val maxGap = maxFrameGapMs(downIntervalsUs)
+        val nearZeroRatio = nearZeroArrivalRatio(downIntervalsUs)
 
         // ---- Done：口到耳预算合成 ----
         val budget = mouthEarBudgetMs(rttMed, upJitter, downJitter)
-        send(Sample(Phase.Done, rttMed, nJit, upJitter, downJitter, budget, sent.get(), recv.get(), 1f))
+        send(
+            Sample(
+                Phase.Done, rttMed, nJit, upJitter, downJitter, budget, sent.get(), recv.get(), 1f,
+                m7MaxFrameGapMs = maxGap,
+                voiceNearZeroArrivalRatio = nearZeroRatio,
+            )
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -379,6 +411,11 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
             val jitterDevsUs = ledger.flatMap { l ->
                 l.frames.zipWithNext { a, b -> abs((b.arrivalUs - a.arrivalUs) - (b.schedUs - a.schedUs)) }
             }
+            // M7/近零占比要的是原始到达间隔，不是对名义节奏的偏差（jitterDevsUs 是后者）；
+            // 按轮内 zipWithNext 池化，轮间切换时长已由 M5 单独承接，不与静默混同。
+            val downRawIntervalsUs = ledger.flatMap { l ->
+                l.frames.zipWithNext { a, b -> b.arrivalUs - a.arrivalUs }
+            }
             val mouthEars = ledger.mapNotNull { l ->
                 val first = l.frames.firstOrNull() ?: return@mapNotNull null
                 val dwellUs = (l.summary.firstDownlinkPreWriteUs ?: return@mapNotNull null) - (l.summary.commitRecvUs ?: return@mapNotNull null)
@@ -407,6 +444,8 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
                     turnsOk = ledger.count { it.summary.protocolOk == true },
                     caliber = SIM_CALIBER,
                     lowConfidence = backpressure,
+                    m7MaxFrameGapMs = maxFrameGapMs(downRawIntervalsUs),
+                    voiceNearZeroArrivalRatio = nearZeroArrivalRatio(downRawIntervalsUs),
                 )
             )
         } finally {

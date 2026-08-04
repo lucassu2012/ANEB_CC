@@ -493,6 +493,8 @@ class MainActivity : ComponentActivity() {
                                                 turnSwitchP50Ms = s.turnSwitchP50Ms,
                                                 bargeStopMaxMs = s.bargeStopMaxMs,
                                                 turnsOk = s.turnsOk,
+                                                m7MaxFrameGapMs = s.m7MaxFrameGapMs,
+                                                voiceNearZeroArrivalRatio = s.voiceNearZeroArrivalRatio,
                                             )
                                         )
                                     }
