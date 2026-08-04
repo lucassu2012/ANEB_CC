@@ -87,4 +87,62 @@ class GaugeMathTest {
         assertEquals(0.05f, GaugeMath.itlToSmoothness(1000.0), 1e-6f) // 封底可见 hairline
         assertEquals(0.05f, GaugeMath.itlToSmoothness(2000.0), 1e-6f)
     }
+
+    // ---- homeGaugeReadout（T45，D-462：首页原地仪表核心量切换）----
+
+    @Test
+    fun `homeGaugeReadout auto passes through the caller's projection untouched`() {
+        val r = GaugeMath.homeGaugeReadout(
+            metric = HomeGaugeMetric.Auto,
+            autoFrac = 0.42f, autoVal = "12.3", autoLabel = "上行 Mbps",
+            aqsRunning = 77.0, ttftMs = 55.0, itlMedianMs = 9.0,
+        )
+        assertEquals(0.42f, r.fraction, 0f)
+        assertEquals("12.3", r.centerVal)
+        assertEquals("上行 Mbps", r.centerLabel)
+    }
+
+    @Test
+    fun `homeGaugeReadout aqs uses its own 0 to 100 scale not autoFrac`() {
+        val r = GaugeMath.homeGaugeReadout(
+            metric = HomeGaugeMetric.Aqs,
+            autoFrac = 0.9f, autoVal = "ignored", autoLabel = "ignored",
+            aqsRunning = 65.0, ttftMs = null, itlMedianMs = null,
+        )
+        assertEquals(0.65f, r.fraction, 1e-6f) // 65/100，不是 autoFrac 的 0.9
+        assertEquals("65", r.centerVal)
+        assertEquals("AQS", r.centerLabel)
+    }
+
+    @Test
+    fun `homeGaugeReadout aqs null folds fraction to zero and text to ellipsis, not autoFrac or 0 text`() {
+        val r = GaugeMath.homeGaugeReadout(
+            metric = HomeGaugeMetric.Aqs,
+            autoFrac = 0.9f, autoVal = "ignored", autoLabel = "ignored",
+            aqsRunning = null, ttftMs = null, itlMedianMs = null,
+        )
+        assertEquals(0f, r.fraction, 0f) // R-10：null 不驱动几何"满"
+        assertEquals("…", r.centerVal)   // R-10：null 不伪装成 0
+    }
+
+    @Test
+    fun `homeGaugeReadout ttft and itl borrow autoFrac for the arc but show their own text`() {
+        val ttft = GaugeMath.homeGaugeReadout(
+            metric = HomeGaugeMetric.Ttft,
+            autoFrac = 0.31f, autoVal = "ignored", autoLabel = "ignored",
+            aqsRunning = null, ttftMs = 48.6, itlMedianMs = null,
+        )
+        assertEquals(0.31f, ttft.fraction, 0f) // 沿用 autoFrac，不发明新刻度
+        assertEquals("49", ttft.centerVal)     // 四舍五入，无小数
+        assertEquals("首字延迟 ms", ttft.centerLabel)
+
+        val itl = GaugeMath.homeGaugeReadout(
+            metric = HomeGaugeMetric.Itl,
+            autoFrac = 0.31f, autoVal = "ignored", autoLabel = "ignored",
+            aqsRunning = null, ttftMs = null, itlMedianMs = null, // 无值
+        )
+        assertEquals(0.31f, itl.fraction, 0f)
+        assertEquals("…", itl.centerVal) // R-10：无值显省略号，不显 0
+        assertEquals("ITL 中位 ms", itl.centerLabel)
+    }
 }

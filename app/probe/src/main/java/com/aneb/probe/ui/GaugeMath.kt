@@ -2,6 +2,7 @@ package com.aneb.probe.ui
 
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /**
  * 仪表/火花线的纯计算（抽取自 SpeedTestScreen / HomeScreen 内联实现，**行为逐位一致**）：
@@ -39,4 +40,39 @@ object GaugeMath {
     /** ITL(ms)→流式平滑度 0.05..1（1=丝滑，[ceilingMs] 及以上封底 0.05——保留可见 hairline）。 */
     fun itlToSmoothness(itlMs: Double, ceilingMs: Double = 1000.0): Float =
         (1.0 - itlMs / ceilingMs).coerceIn(0.05, 1.0).toFloat()
+
+    /** 首页原地仪表读数投影（T45，接活 [com.aneb.probe.ui.HomeGaugeMetric]）。 */
+    data class GaugeReadout(val fraction: Float, val centerVal: String, val centerLabel: String)
+
+    /**
+     * 按选中核心量投影仪表读数。AQS 有自然 0–100 量程，直接驱动弧位（复用 [gaugeFraction]，
+     * 与既有 R-10 null→0 语义一致）；TTFT/ITL 是无界延迟值，没有现成量程可套——弧位沿用
+     * [autoFrac]（继续表达"传输活跃度"），只换中心文字，不为它们发明可能误导的新刻度。
+     */
+    fun homeGaugeReadout(
+        metric: HomeGaugeMetric,
+        autoFrac: Float,
+        autoVal: String,
+        autoLabel: String,
+        aqsRunning: Double?,
+        ttftMs: Double?,
+        itlMedianMs: Double?,
+    ): GaugeReadout = when (metric) {
+        HomeGaugeMetric.Auto -> GaugeReadout(autoFrac, autoVal, autoLabel)
+        HomeGaugeMetric.Aqs -> GaugeReadout(
+            fraction = gaugeFraction(aqsRunning, 100f),
+            centerVal = aqsRunning?.roundToInt()?.toString() ?: "…",
+            centerLabel = "AQS",
+        )
+        HomeGaugeMetric.Ttft -> GaugeReadout(autoFrac, ttftMs?.let { "%.0f".format(it) } ?: "…", "首字延迟 ms")
+        HomeGaugeMetric.Itl -> GaugeReadout(autoFrac, itlMedianMs?.let { "%.0f".format(it) } ?: "…", "ITL 中位 ms")
+    }
+}
+
+/**
+ * 首页原地仪表的核心量切换（T45，接活 `TestingScreen.kt` 的 `GaugeMetric` 死代码，D-462）。
+ * 独立枚举而非复用 `TestingScreen.GaugeMetric`：这里多一个 [Auto]（默认，逐字复刻改造前行为）。
+ */
+enum class HomeGaugeMetric(val label: String) {
+    Auto("自动"), Aqs("AQS"), Ttft("首字延迟"), Itl("ITL"),
 }

@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.engine.LiveTelemetry
 import com.aneb.probe.engine.ProfilePhase
+import com.aneb.probe.ui.components.SegmentedControl
 import com.aneb.probe.ui.components.pressable
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
@@ -153,29 +154,47 @@ fun HomeScreen(
                         }
                     }
                     val elapsedSec = (elapsedMs / 1000L).toInt()
+                    // 仪表核心量切换（补齐 2026-07-14 拍板的期1 需求——TestingScreen.kt 曾完整实现
+                    // 同一功能，但后续"测量原地进行"改造（a8ee1ac）绕开了那个屏，功能未跟着搬过来，
+                    // 一直是死代码。默认=自动（Auto），逐字保留原有"上传相实时上行/流式相 token 速率"
+                    // 行为，用户不动它零变化；选 AQS/TTFT/ITL 才切换中心读数。
+                    var gaugeMetric by rememberSaveable { mutableStateOf(HomeGaugeMetric.Auto) }
                     // 指针指向**真实子相位实时指标**（D-27 token 速率 / D-28 实时上行）：上传相=实时上行
                     // Mbps(0–50)，流式相=实时 token 速率(0–100)——按真实子相位切换，值在变、针就动。
                     val rate = telemetry.tokenRatePerSec
                     val up = telemetry.liveUpMbps // D-28 实时上行（0.6s 滑窗），非场景末冻结的 upMbps
                     val uploading = telemetry.subPhase == ProfilePhase.TYPE_UPLOAD_BURST
                     val streaming = telemetry.subPhase == ProfilePhase.TYPE_TOKEN_STREAM
-                    val gaugeFrac: Float
-                    val centerVal: String
-                    val centerLabel: String
+                    val autoFrac: Float
+                    val autoVal: String
+                    val autoLabel: String
                     when {
                         uploading -> { // 上传相：实时上行是唯一动态主角（violet）；无值显"…"，不回落 stale token
-                            gaugeFrac = ((up ?: 0.0) / 50.0).toFloat().coerceIn(0f, 1f)
-                            centerVal = up?.let { "%.1f".format(it) } ?: "…"
-                            centerLabel = "上行 Mbps"
+                            autoFrac = ((up ?: 0.0) / 50.0).toFloat().coerceIn(0f, 1f)
+                            autoVal = up?.let { "%.1f".format(it) } ?: "…"
+                            autoLabel = "上行 Mbps"
                         }
                         rate != null && rate > 0.0 -> { // 流式/其它相：token 速率（cyan），禁止上行劫持
-                            gaugeFrac = (rate / 100.0).toFloat().coerceIn(0f, 1f)
-                            centerVal = "%.1f".format(rate); centerLabel = "Token /秒"
+                            autoFrac = (rate / 100.0).toFloat().coerceIn(0f, 1f)
+                            autoVal = "%.1f".format(rate); autoLabel = "Token /秒"
                         }
                         else -> {
-                            gaugeFrac = 0f; centerVal = "…"; centerLabel = if (uploading) "上行 Mbps" else "Token /秒"
+                            autoFrac = 0f; autoVal = "…"; autoLabel = if (uploading) "上行 Mbps" else "Token /秒"
                         }
                     }
+                    // 投影为纯函数（GaugeMath.homeGaugeReadout，可离线单测；R-10 null 语义在那里守）。
+                    val readout = GaugeMath.homeGaugeReadout(
+                        metric = gaugeMetric,
+                        autoFrac = autoFrac,
+                        autoVal = autoVal,
+                        autoLabel = autoLabel,
+                        aqsRunning = telemetry.aqsRunning,
+                        ttftMs = telemetry.ttftMs,
+                        itlMedianMs = telemetry.itlMedianMs,
+                    )
+                    val gaugeFrac = readout.fraction
+                    val centerVal = readout.centerVal
+                    val centerLabel = readout.centerLabel
 
                     Spacer(Modifier.height(12.dp))
                     LiveMetricsRow(telemetry, uploading, streaming)
@@ -183,7 +202,15 @@ fun HomeScreen(
                     RunningSparkline(telemetry, uploading)
                     Spacer(Modifier.weight(1f))
                     RunningGauge(frac = gaugeFrac, centerVal = centerVal, centerLabel = centerLabel, upload = uploading, telemetry = telemetry)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
+                    SegmentedControl(
+                        options = HomeGaugeMetric.entries,
+                        selected = gaugeMetric,
+                        onSelect = { gaugeMetric = it },
+                        label = { it.label },
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    )
+                    Spacer(Modifier.height(10.dp))
                     HeroCaption("正在检查 AI 持续输出与稳定性 · 已测 ${elapsedSec}s · ${progress.phaseName}")
                     Spacer(Modifier.weight(1.1f))
                 }

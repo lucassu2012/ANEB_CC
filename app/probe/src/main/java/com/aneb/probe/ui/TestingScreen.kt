@@ -61,6 +61,15 @@ import kotlin.math.roundToInt
  * 你↔节点 [StLink] + 180° 半盘 [HalfGauge]（中心 48px 分数/实时核心量）+ phase live 行 +
  * 核心量段控 + 实时吞吐折线 [StGraph] + token 流条 + 分层 livemini。
  *
+ * **当前不可达（T45/D-462 如实标注，非本次改动造成）**：`MainActivity.kt` 里 `Screen.Testing`
+ * 只有一处渲染分支（无写入点），手动测量已改为 `HomeScreen.kt` 原地进行（commit `a8ee1ac`），
+ * 本屏没有任何代码路径导航过去。它的核心量切换器（[GaugeMetric]）已被搬到
+ * `HomeScreen.kt`/`GaugeMath.homeGaugeReadout`（T45），但这个屏本体（连接横幅/阶段步进器/
+ * 设备-节点连线/实时吞吐折线/token流条/分层实时指标区）比那一小块大得多，仍完整保留在这里
+ * 未删——是否复活为正式"测试中"屏、还是确认彻底废弃删除，是设计决定，留给
+ * `docs/T45_APP_DEV_AUDIT_20260804.md` §4.3 之后再裁；本条只避免下一个人重新踩"以为是活代码"
+ * 的坑。
+ *
  * 进度由 [TestProgressParser] 从 TestEngine 既有日志 KEY 行（SCENARIO_START/SCENARIO_KPI/
  * ORDER/AQS/RUN_END）派生——**不改 TestEngine 输出格式**（UI 层只读既有合同字段）。
  * 各实时量取不到显 "…"（[telemetry] 只读观测通道，缺失字段一律 null → 不以 0 顶替，R-10）。
