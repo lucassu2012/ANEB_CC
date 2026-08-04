@@ -36,6 +36,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -256,6 +259,10 @@ fun SpeedTestScreen(
                 .height(56.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(btnColor)
+                // T52/D-485：网络基本性能模式真正的开始测量按钮（与共享底栏"测试" tab
+                // 圆钮是两回事）。
+                .testTag("basic_network_go_button")
+                .semantics { contentDescription = if (running) "取消网络基本性能测速" else "GO 开始网络基本性能测速" }
                 .clickable { if (running) onCancel() else onStart() },
             contentAlignment = Alignment.Center,
         ) {

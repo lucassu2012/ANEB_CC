@@ -27,6 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -590,6 +593,11 @@ private fun GoButton(
                 .shadow(AnebElevation.level2, CircleShape)
                 .clip(CircleShape)
                 .background(colors.brand)
+                // T52/D-485：这个圆钮只切到"测试" tab，不启动任何测量——各模式真正的
+                // 开始测量按钮在各自屏内（voice_go_button 等）。D-485 三次点击零反馈，
+                // 高度怀疑点的正是这个按钮（外观相似的圆形+三角形图标误导）。
+                .testTag("tab_bar_go_button")
+                .semantics { contentDescription = "切换到测试标签页（不启动测量）" }
                 .pressable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {

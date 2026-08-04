@@ -26,7 +26,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -127,6 +130,7 @@ class MainActivity : ComponentActivity() {
         data object Report : Screen
     }
 
+    @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 铁律 1：Profile 数据文件加载（assets 权威；失败回退硬编码兜底，KEY=SPEC_PROFILE_FALLBACK）
@@ -179,7 +183,11 @@ class MainActivity : ComponentActivity() {
                 // 内衬；各屏顶/底毛玻璃 chrome 由 GlassChrome 承载（内容留待下一阶段）。
                 Surface(
                     color = AnebTheme.colors.background,
-                    modifier = Modifier.fillMaxSize().safeDrawingPadding(),
+                    // T52/D-485：树根开启 testTagsAsResourceId，Compose 的 Modifier.testTag
+                    // 才会映射成 uiautomator/accessibility 树里的 resource-id（默认只对 Compose
+                    // 自身测试框架 onNodeWithTag 可见，adb 侧读不到）——一次性根设置，全树受益。
+                    modifier = Modifier.fillMaxSize().safeDrawingPadding()
+                        .semantics { testTagsAsResourceId = true },
                 ) {
                     var screen by remember { mutableStateOf<Screen>(Screen.Home) }
                     // 底部 3-tab 外壳选中态（默认 Speed）；下钻只在 Home 哨兵下按 tab 决定根，

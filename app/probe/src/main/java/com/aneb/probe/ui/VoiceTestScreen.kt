@@ -22,6 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -134,6 +137,12 @@ fun VoiceTestScreen(
                 .height(56.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(btnColor)
+                // T52/D-485：这是真正启动语音测量的按钮（与底栏共享的圆形"测试" tab
+                // 切换按钮是两回事——后者只切 tab，D-485 大概率点错了对象，三次零反馈
+                // 收场）。testTag 需根节点 testTagsAsResourceId=true 才映射进 uiautomator
+                // resource-id（MainActivity.kt setContent 根已开）。
+                .testTag("voice_go_button")
+                .semantics { contentDescription = if (running) "取消语音测量" else "GO 开始语音测量" }
                 .clickable { if (running) onCancel() else onStart() },
             contentAlignment = Alignment.Center,
         ) {

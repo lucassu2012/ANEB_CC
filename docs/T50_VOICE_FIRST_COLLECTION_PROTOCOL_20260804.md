@@ -151,6 +151,57 @@ protocol_ok"，**没有斜线格式**）——不要死等"X/Y"这种格式，�
 | 5-10 轮里 `caliber` 反复在 `server-sim`/`paced-proxy` 间切换 | `/realtime-sim` 端点时通时不通 | 如实记录**每一轮各自的** `caliber`，不要汇总平均（登记级本身就该如实记录这种波动，不是缺陷） |
 
 ---
+
+## ⑤ UI 自动化触达（T52/D-485 补充，2026-08-05，v2 附录，不改上文判断）
+
+**背景**：大脑代执行本协议时，②步骤 3 的「GO · 开始语音测量」按钮三次点击零反馈，
+判 NOT_EXECUTED 收窗（D-485）。查因**大概率点错了对象**——共享底栏"测试" tab 圆钮
+（外观也是圆形+三角形图标）与 `VoiceTestScreen.kt` 内真正的「GO · 开始语音测量」
+矩形按钮长得都像"开始"，但**前者只切 tab、不启动任何测量**，且 Compose 默认不给
+纯图标按钮任何 uiautomator 可读的 text/content-desc（"Compose 惯例"，D-485 原话），
+两个问题叠加导致自动化路径实质不可靠。
+
+**已修复**（T52/D-484 后续，代码侧）：`MainActivity.kt` 根节点开启
+`testTagsAsResourceId`，为下列关键按钮补 `contentDescription`+`testTag`：
+
+| 按钮 | testTag（映射为 resource-id） | contentDescription |
+|---|---|---|
+| 语音真正的开始按钮 | `voice_go_button` | "GO 开始语音测量" / "取消语音测量" |
+| 共享底栏"测试" tab 圆钮（**不是**测量开始按钮） | `tab_bar_go_button` | "切换到测试标签页（不启动测量）" |
+| Token 模式开始按钮 | `token_go_button` | "GO 开始 Token 体验测量" |
+| 网络基本性能模式开始按钮 | `basic_network_go_button` | "GO 开始网络基本性能测速" |
+
+**adb 侧定位+点击三行法**（替代裸坐标 `input tap x y`，坐标随布局/机型/滚动位置漂移，
+resource-id 不会）：
+
+```bash
+adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml .
+# 在 dump 里搜 resource-id="voice_go_button"（或对应 tag），读它的 bounds="[x1,y1][x2,y2]"
+adb shell input tap $(( (x1+x2)/2 )) $(( (y1+y2)/2 ))   # 取中心点，而非猜坐标
+```
+
+**未解决的边界**：`VoiceTestScreen` 用 `Modifier.verticalScroll` 而非 `LazyColumn`，
+语音真正的 GO 按钮**理论上**始终在语义树里（不会像 LazyColumn 那样因未渲染而缺席），
+但若它在当前视口外，dump 出的 `bounds` 会落在屏幕物理尺寸之外——此时须先按 bounds
+估算滚动距离、`input swipe` 滚到位，再 tap；直接对越界坐标 tap 会落空。**本次未在
+真机验证这条边界路径**（见 D 号常规验证只测了当前视口内点击），下次若仍零反馈，
+优先检查 dump 出的 bounds 是否越界，而不是重新怀疑权限/协议前提（①②节的核查
+结论不受本节影响）。
+
+**选项 (c) 核实结果**：`MainActivity.kt` 现有 intent extra `mode` 已被
+`quick`/`forensic`/`continuity`/`ab` 占用（`:152-162`，测量深度/特殊 runner 选择），
+**不是**顶层 UI 模式选择器（token/basic_network/voice_realtime 由独立的
+`selectedModeId` composable 状态承载，`:578-628`），**当前不支持** `--es mode voice`
+这个具体写法。`intentAutorun` 的 `LaunchedEffect(Unit)`（`:538-543`）目前只分发
+`ab`/`continuity` 两个特殊 runner，未接 `startVoiceTest()`。若要做 intent 直驱语音，
+需要新增一个不与 `mode` 冲突的 extra（如 `--es ui_mode voice_realtime`）并扩展该
+`LaunchedEffect`——**本次未实现**，工作量与本节其余改动相当（数十行），如需要另开
+一项，不在本次"小改动"范围内擅自扩大。
+
+*本节证据*：`MainActivity.kt`/`VoiceTestScreen.kt`/`SpeedTestScreen.kt`/`HomeScreen.kt`/
+`SpeedTestComponents.kt` 源码通读+真机 uiautomator 验证（见 D 号）；D-485（触发缘由）。
+
+---
 *T50 · v3 · 2026-08-04 · 依据=workflow `wf_db2f70b1-fdb`（四路独立研究：权限/入口、
 VoiceRunner 机制与链路信号、落库与 M7 消费路径、M7 预案与规模依据）+
 `AndroidManifest.xml`/`VoiceRunner.kt`/`MainActivity.kt`/`VoiceTestScreen.kt`/

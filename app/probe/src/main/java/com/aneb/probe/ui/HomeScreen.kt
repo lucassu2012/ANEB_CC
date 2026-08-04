@@ -51,6 +51,9 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -317,7 +320,14 @@ private fun IdleRing(onStart: () -> Unit) {
         val t = rememberInfiniteTransition(label = "breathe")
         t.animateFloat(0.72f, 1f, infiniteRepeatable(tween(1900), RepeatMode.Reverse), label = "glow").value
     }
-    Box(modifier = Modifier.size(198.dp).clip(CircleShape).pressable(onClick = onStart), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = Modifier.size(198.dp).clip(CircleShape)
+            // T52/D-485：Token 模式真正的开始测量按钮（与共享底栏"测试" tab 圆钮是两回事）。
+            .testTag("token_go_button")
+            .semantics { contentDescription = "GO 开始 Token 体验测量" }
+            .pressable(onClick = onStart),
+        contentAlignment = Alignment.Center,
+    ) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = 2.5.dp.toPx()
             val r = (size.minDimension - stroke * 3) / 2f
