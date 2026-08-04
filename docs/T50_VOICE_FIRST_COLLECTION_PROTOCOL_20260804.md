@@ -188,6 +188,14 @@ adb shell input tap $(( (x1+x2)/2 )) $(( (y1+y2)/2 ))   # 取中心点，而非�
 优先检查 dump 出的 bounds 是否越界，而不是重新怀疑权限/协议前提（①②节的核查
 结论不受本节影响）。
 
+**⚠ 实测教训（D-487，正式首采窗 5/5 才发现）：每一轮都要重新 dump，坐标不可跨轮
+复用**——`voice_go_button` 的 `resource-id` 本身不变，但页面结果区随上一轮渲染出
+的仪表/子分内容改变了滚动位置，同一个 resource-id 在不同轮次对应的屏幕坐标
+（`bounds`）会不一样。D-487 实测因为复用了第一轮 dump 出的坐标，浪费了 4 轮空点
+（无 logcat 反馈、无仪表变化）才意识到问题。**正确做法**：把第②节"操作序列"里的
+每一轮，都在点击前重新执行一次 dump+定位（上文"adb 侧定位+点击三行法"的完整三行，
+不能只在首轮做一次、后续轮次复用同一坐标）。
+
 **选项 (c) 核实结果**：`MainActivity.kt` 现有 intent extra `mode` 已被
 `quick`/`forensic`/`continuity`/`ab` 占用（`:152-162`，测量深度/特殊 runner 选择），
 **不是**顶层 UI 模式选择器（token/basic_network/voice_realtime 由独立的
