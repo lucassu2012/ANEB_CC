@@ -5,7 +5,9 @@ import com.aneb.probe.scoring.AqsScorer
 import com.aneb.probe.scoring.KpiValue
 
 /**
- * AQS v0.2 run 级出分接线（阶段2 C03 遗留接线，phase2 账本 pending 项）。
+ * AQS v0.2 run 级出分接线（阶段2 C03 接线，已在 `TestEngine.kt` 全线接通——
+ * `CONTINUITY_MAX_AGE_MS`/`select(...)`/`toContinuityKpi(...)` 均有生产调用点，
+ * T45/D-463 §6.2 核实措辞过期后订正，非新增接线）。
  *
  * 数据可用性合同：
  * - 候选＝Room 最近 [CONTINUITY_MAX_AGE_MS]（24h）内的 continuity_result；

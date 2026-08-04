@@ -492,58 +492,6 @@ class RadioCollector(
         else -> "other($type)"
     }
 
-    // ------------------------------------------------------------------
-    // 阶段 0 遗留：一次性快照（MainActivity 调试按钮仍在用）
-    // ------------------------------------------------------------------
-
-    fun snapshot(): String {
-        val phoneStateOk = granted(Manifest.permission.READ_PHONE_STATE)
-        val fineLocOk = granted(Manifest.permission.ACCESS_FINE_LOCATION)
-        if (!phoneStateOk || !fineLocOk) {
-            val missing = buildList {
-                if (!phoneStateOk) add("READ_PHONE_STATE")
-                if (!fineLocOk) add("ACCESS_FINE_LOCATION")
-            }
-            return "radio: permission denied (${missing.joinToString(",")}) -> valid_low_confidence"
-        }
-        val tm = context.getSystemService(TelephonyManager::class.java)
-            ?: return "radio: TelephonyManager unavailable -> valid_low_confidence"
-        return try {
-            readSnapshot(tmForSub(tm, SubscriptionManager.getDefaultDataSubscriptionId()))
-        } catch (e: SecurityException) {
-            "radio: SecurityException ${e.message} -> valid_low_confidence"
-        }
-    }
-
-    @SuppressLint("MissingPermission") // 上方已显式检查两项权限
-    private fun readSnapshot(tm: TelephonyManager): String {
-        val networkType = networkTypeName(tm.dataNetworkType)
-        val operator = tm.networkOperatorName?.takeIf { it.isNotBlank() } ?: "unknown"
-        val nrState = readNrState(tm)
-        val cellInfos: List<CellInfo> = tm.allCellInfo ?: emptyList()
-        val cellPart = describeFirstCell(cellInfos)
-        return "radio: type=$networkType nrState=$nrState operator=$operator $cellPart"
-    }
-
-    private fun describeFirstCell(cellInfos: List<CellInfo>): String {
-        // 定位服务总开关关闭时 allCellInfo 返回空（R-02 提示），显式区分于权限拒绝
-        if (cellInfos.isEmpty()) return "cell=none (empty CellInfo; location service off or no coverage)"
-        val cell = pickCell(cellInfos) ?: return "cell=no LTE/NR entry (${cellInfos.size} other cells)"
-        return when (cell) {
-            is CellInfoNr -> {
-                val sig = cell.cellSignalStrength as? CellSignalStrengthNr
-                val id = cell.cellIdentity as? CellIdentityNr
-                "cell=NR pci=${fmt(id?.pci)} ssRsrp=${fmt(sig?.ssRsrp)}dBm ssSinr=${fmt(sig?.ssSinr)}dB registered=${cell.isRegistered}"
-            }
-            is CellInfoLte ->
-                "cell=LTE pci=${fmt(cell.cellIdentity.pci)} rsrp=${fmt(cell.cellSignalStrength.rsrp)}dBm " +
-                    "rssnr=${fmt(cell.cellSignalStrength.rssnr)}dB registered=${cell.isRegistered}"
-            else -> "cell=unexpected ${cell.javaClass.simpleName}"
-        }
-    }
-
-    private fun fmt(v: Int?): String = v?.let { clean(it)?.toString() } ?: "n/a"
-
     companion object {
         private const val LOG_TAG = "AnebProbe" // 与全仓其余组件同一 TAG（T14 约束）
         private const val SAMPLE_PERIOD_NS = 1_000_000_000L // 1Hz

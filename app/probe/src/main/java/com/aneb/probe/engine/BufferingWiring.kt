@@ -8,7 +8,9 @@ import com.aneb.probe.scoring.RadioSummary
 import com.aneb.probe.scoring.ResidualSample
 
 /**
- * BufferingDetector 接线层（P1-C08 遗留接线，phase1 账本 pending 项）：
+ * BufferingDetector 接线层（P1-C08 接线，已在 `TestEngine.kt` 全线接通——`radioExport`/
+ * `residualSamples`/`retransRate`/`radioSummary`/`jankEventsUs` 均有生产调用点，
+ * T45/D-463 §6.2 核实措辞过期后订正，非新增接线）：
  * 场景内各 token_stream 结束后，把原始 token 事件变换为**残差域样本**
  * （残差 = 到达间隔 − 服务端实际发出间隔，逐 seq 对齐，KPI 5.3.3/5.3.4），
  * 并从 run 期监控缓冲提取 R1 无线摘要与 app_jank 事件供归因联动。

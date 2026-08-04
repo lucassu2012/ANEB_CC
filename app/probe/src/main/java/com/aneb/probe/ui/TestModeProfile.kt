@@ -505,7 +505,9 @@ object TestModeProfiles {
                     listOf(BehaviorTag.LOW_LATENCY, BehaviorTag.STABILITY),
                 ),
                 SubScenario(
-                    "VC-2", "打断插话", "barge-in 突发帧（未接入）", "TTS 停止+轮次切换（未接入）",
+                    "VC-2", "打断插话",
+                    "barge-in 突发帧（机制已接入：嵌入主计划第 3/6 轮，非独立可选场景）",
+                    "TTS 停止（M6 已测）+轮次切换（沿用固定计划）",
                     listOf(BehaviorTag.LOW_LATENCY),
                 ),
                 SubScenario(

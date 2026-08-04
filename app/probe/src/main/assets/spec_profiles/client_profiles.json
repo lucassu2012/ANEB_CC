@@ -396,8 +396,8 @@
           {
             "code": "VC-2",
             "title": "打断插话",
-            "uplink": "barge-in 突发帧（未接入）",
-            "downlink": "TTS 停止+轮次切换（未接入）",
+            "uplink": "barge-in 突发帧（机制已接入：嵌入主计划第 3/6 轮，非独立可选场景）",
+            "downlink": "TTS 停止（M6 已测）+轮次切换（沿用固定计划）",
             "behaviorHint": ["LOW_LATENCY"]
           },
           {

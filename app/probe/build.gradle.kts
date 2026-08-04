@@ -56,6 +56,11 @@ android {
     }
 }
 
+ksp {
+    // T45/D-463 §6.2：exportSchema 打开后 Room 快照写入这里，随仓库一起提交版本管理
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

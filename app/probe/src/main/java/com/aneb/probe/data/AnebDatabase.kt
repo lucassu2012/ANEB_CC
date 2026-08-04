@@ -53,7 +53,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      先落库不等计分实施,理由=chunk_us 被点名 20 处却从未落盘、M3 至今无法复核;
     //      可空,历史行 NULL＝「跑在 M7 之前」而非「为零」,additive ADD COLUMN）
     version = 18,
-    exportSchema = false, // TODO(阶段1 后续): 开 schema 导出并纳入版本管理
+    exportSchema = true, // T45/D-463 §6.2：打开，快照进 app/probe/schemas/（ksp room.schemaLocation）
 )
 abstract class AnebDatabase : RoomDatabase() {
     abstract fun testRunDao(): TestRunDao
