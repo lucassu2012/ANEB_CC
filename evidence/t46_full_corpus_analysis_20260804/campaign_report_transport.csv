@@ -1,0 +1,4 @@
+﻿point_id,carrier,time_band,transport,n,aqs_median,low_confidence,cellular_minus_wifi,noise,within_noise,mixed_campaigns,implausible_values,synthetic
+SZ-PILOT-01,ctcc,busy,cellular,39,89.99857669096887,False,2.666234251996272,0.6173617102677263,False,m2-afternoonradio-20260801/m2-busyradio-20260801/m2-pilot-20260731/m3-expansion-busyband-20260803/warmup-transport-probe,,False
+SZ-PILOT-01,ctcc,busy,wifi,4,87.3323424389726,True,,,,m2-afternoonradio-20260801/m2-busyradio-20260801/m2-pilot-20260731/m3-expansion-busyband-20260803/warmup-transport-probe,,False
+SZ-PILOT-01,ctcc,idle,cellular,30,87.17328438551588,False,,,,m2-idlenight-20260801/m2-idleprobe-20260731/m2-pilot-20260731/m3-expansion-wave0/radiowire-verify-20260801,,False

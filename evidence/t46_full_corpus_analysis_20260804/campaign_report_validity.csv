@@ -1,0 +1,7 @@
+﻿point_id,carrier,time_band,profile_id,attempted,valid,valid_low_confidence,invalid,unknown,valid_rate,below_min_rate,reasons,mixed_campaigns,synthetic
+SZ-PILOT-01,ctcc,busy,s1_chat,107,0,107,0,0,1.0,False,,m2-afternoonradio-20260801/m2-busyradio-20260801/m2-pilot-20260731/m3-expansion-busyband-20260803/warmup-transport-probe,False
+SZ-PILOT-01,ctcc,busy,s2_coding_agent,107,0,107,0,0,1.0,False,,m2-afternoonradio-20260801/m2-busyradio-20260801/m2-pilot-20260731/m3-expansion-busyband-20260803/warmup-transport-probe,False
+SZ-PILOT-01,ctcc,busy,s3_multimodal,107,0,107,0,0,1.0,False,,m2-afternoonradio-20260801/m2-busyradio-20260801/m2-pilot-20260731/m3-expansion-busyband-20260803/warmup-transport-probe,False
+SZ-PILOT-01,ctcc,idle,s1_chat,56,0,56,0,0,1.0,False,,m2-idlenight-20260801/m2-idleprobe-20260731/m2-pilot-20260731/m3-expansion-wave0/radiowire-verify-20260801,False
+SZ-PILOT-01,ctcc,idle,s2_coding_agent,56,0,56,0,0,1.0,False,,m2-idlenight-20260801/m2-idleprobe-20260731/m2-pilot-20260731/m3-expansion-wave0/radiowire-verify-20260801,False
+SZ-PILOT-01,ctcc,idle,s3_multimodal,56,0,56,0,0,1.0,False,,m2-idlenight-20260801/m2-idleprobe-20260731/m2-pilot-20260731/m3-expansion-wave0/radiowire-verify-20260801,False

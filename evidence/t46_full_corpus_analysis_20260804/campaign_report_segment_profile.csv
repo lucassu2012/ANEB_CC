@@ -1,0 +1,7 @@
+﻿kpi,segment,n_cells,low_conf_cells,not_computable,typical,mad,rel_mad_percent,basis,uniform,high_cells,low_cells,synthetic
+n1_rtt_p50_ms,access_component,6,0,0,67.87325,3.4122500000000002,5.02738560478539,mad,True,,,False
+n1_rtt_p50_ms,regional_backbone_incr,0,0,6,,,,insufficient,,,,False
+n1_rtt_p50_ms,core_backbone_incr,0,0,6,,,,insufficient,,,,False
+t1_ttft_ms,access_component,6,0,0,54.666239250000004,1.8713637500000075,3.4232531369898607,mad,True,,,False
+t1_ttft_ms,regional_backbone_incr,0,0,6,,,,insufficient,,,,False
+t1_ttft_ms,core_backbone_incr,0,0,6,,,,insufficient,,,,False

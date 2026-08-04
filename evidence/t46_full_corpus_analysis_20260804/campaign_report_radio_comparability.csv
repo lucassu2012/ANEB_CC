@@ -1,0 +1,2 @@
+﻿point_id,carrier,bands,shared_cells,verdict,synthetic
+SZ-PILOT-01,ctcc,busy:420-39430-1650/672-10119936-627264/672-10119936-633984; idle:420-39430-1650/90-9766400-633984,420-39430-1650,CELL_PARTIAL,False
