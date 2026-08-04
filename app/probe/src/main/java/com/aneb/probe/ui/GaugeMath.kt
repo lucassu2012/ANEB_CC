@@ -70,8 +70,9 @@ object GaugeMath {
 }
 
 /**
- * 首页原地仪表的核心量切换（T45，接活 `TestingScreen.kt` 的 `GaugeMetric` 死代码，D-462）。
- * 独立枚举而非复用 `TestingScreen.GaugeMetric`：这里多一个 [Auto]（默认，逐字复刻改造前行为）。
+ * 首页原地仪表的核心量切换（T45，接活已删除的旧"测试中"屏遗留的 `GaugeMetric` 死代码，D-462；
+ * 该屏本体已随 T48/批A 整屏删除，此枚举是它唯一存活下来的设计遗产）。
+ * 未直接复用旧屏的 `GaugeMetric`：这里多一个 [Auto]（默认，逐字复刻改造前行为）。
  */
 enum class HomeGaugeMetric(val label: String) {
     Auto("自动"), Aqs("AQS"), Ttft("首字延迟"), Itl("ITL"),

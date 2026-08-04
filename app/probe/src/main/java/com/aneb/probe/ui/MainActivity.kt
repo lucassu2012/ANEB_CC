@@ -121,7 +121,6 @@ class MainActivity : ComponentActivity() {
      */
     private sealed interface Screen {
         data object Home : Screen
-        data object Testing : Screen
         data class Result(val runId: String, val fromHistory: Boolean) : Screen
         data object ApiProbe : Screen
         data object ReachBoard : Screen
@@ -679,8 +678,6 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 // ---- 下钻屏（隐底栏；各自返回键回当前 tab 根）----
-                                // 手动测量已改为首页原地进行，本分支对手动 run 不再可达；保留供潜在 autorun 路径。
-                                is Screen.Testing -> TestingScreen(logs = logs, telemetry = telemetry)
                                 is Screen.Report -> ReportRoute(onBack = { screen = Screen.Home })
                                 is Screen.Result -> ResultRoute(
                                     runId = s.runId,

@@ -26,6 +26,8 @@ import com.aneb.probe.ui.theme.AnebTheme
  * @param selected 当前选中项
  * @param onSelect 选中回调
  * @param label 段 → 显示文案
+ * @param enabled 段是否可选（T48/批A 新增，默认全可选，向后兼容零行为变化）——供调用方按实时数据
+ *   可用性禁用暂无意义的段（如某核心量当前测不到值），不点亮但仍可见，禁用段淡色不响应点击。
  */
 @Composable
 fun <T> SegmentedControl(
@@ -34,6 +36,7 @@ fun <T> SegmentedControl(
     onSelect: (T) -> Unit,
     label: (T) -> String,
     modifier: Modifier = Modifier,
+    enabled: (T) -> Boolean = { true },
 ) {
     val colors = AnebTheme.colors
     val innerShape = RoundedCornerShape(7.dp)
@@ -45,16 +48,21 @@ fun <T> SegmentedControl(
     ) {
         options.forEach { option ->
             val on = option == selected
+            val isEnabled = enabled(option)
             Text(
                 text = label(option),
                 fontSize = 11.sp,
                 fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (on) colors.ink else colors.muted,
+                color = when {
+                    !isEnabled -> colors.faint
+                    on -> colors.ink
+                    else -> colors.muted
+                },
                 modifier = Modifier
                     .then(if (on) Modifier.shadow(AnebElevation.level1, innerShape, clip = false) else Modifier)
                     .clip(innerShape)
                     .background(if (on) colors.surface else Color.Transparent)
-                    .clickable { onSelect(option) }
+                    .clickable(enabled = isEnabled) { onSelect(option) }
                     .padding(horizontal = 9.dp, vertical = 4.dp),
             )
         }

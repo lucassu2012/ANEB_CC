@@ -26,6 +26,10 @@ class ResultFormatTest {
         t2: Double? = 80.0,
         u1: Double? = 25.0,
         d1: Double? = null,
+        u3: Double? = null,
+        u3DominanceOk: Boolean? = null,
+        d3: Double? = null,
+        d3DominanceOk: Boolean? = null,
     ) = ScenarioResultEntity(
         runId = "run-1",
         profileId = profileId,
@@ -49,6 +53,8 @@ class ResultFormatTest {
         u1GoodputExclSlowStartMbps = u1?.let { it + 2.0 },
         u2ToolLoopP95Ms = 120.0, u2Grade = KpiGrading.grade("U2", 120.0),
         d1GoodputMbps = d1, d1Grade = KpiGrading.grade("D1", d1),
+        u3GoodputMbps = u3, u3RttDominanceOk = u3DominanceOk,
+        d3GoodputMbps = d3, d3RttDominanceOk = d3DominanceOk,
         seqGapCount = 0,
         seqDupCount = 0,
         lowConfidenceKpis = lowConfidenceKpis,
@@ -146,6 +152,43 @@ class ResultFormatTest {
     }
 
     @Test
+    fun kpiRowsIncludeU3D3AsUngradedDiagnostics() {
+        // T48/批B（D-469 8-5：展示型诊断，不进 AQS）——U3/D3 必须永不带分级，
+        // 防止一个诊断值被读成正式 KPI 评级（同 T5 的"不进 AQS"先例）。
+        val rows = ResultFormat.kpiRows(scenario(u3 = 40.0, d3 = 300.0))
+        val u3 = rows.first { it.id == "U3" }
+        val d3 = rows.first { it.id == "D3" }
+        assertEquals(40.0, u3.value!!, 1e-9)
+        assertNull(u3.grade)
+        assertEquals(300.0, d3.value!!, 1e-9)
+        assertNull(d3.grade)
+    }
+
+    @Test
+    fun kpiRowsU3D3NullRendersDashNotZero() {
+        // 绝大多数场景没跑 s4_throughput，null 是常态（R-10：未测出≠0）
+        val rows = ResultFormat.kpiRows(scenario())
+        val u3 = rows.first { it.id == "U3" }
+        val d3 = rows.first { it.id == "D3" }
+        assertNull(u3.value)
+        assertEquals("—", ResultFormat.formatValue(u3))
+        assertNull(d3.value)
+        assertEquals("—", ResultFormat.formatValue(d3))
+    }
+
+    @Test
+    fun kpiRowsU3D3LowConfidenceComesFromRttDominanceNotSampleCount() {
+        // Entities.kt 字段注释：sample_count 恒为 1 是结构性事实非低样本量信号，
+        // U3/D3 的低置信判据是 rtt_dominance_ok，不是通用 lowConfidenceKpis 词表
+        // （即便 lowConfidenceKpis 完全不提 U3/D3，dominance=false 时仍须标注）。
+        val rows = ResultFormat.kpiRows(
+            scenario(u3 = 40.0, u3DominanceOk = false, d3 = 300.0, d3DominanceOk = true, lowConfidenceKpis = ""),
+        )
+        assertTrue(rows.first { it.id == "U3" }.lowConfidence)
+        assertFalse(rows.first { it.id == "D3" }.lowConfidence)
+    }
+
+    @Test
     fun lowConfidenceMarksParsedPerKpi() {
         val rows = ResultFormat.kpiRows(scenario(lowConfidenceKpis = "T2,U1_excl_slow_start"))
         assertTrue(rows.first { it.id == "T2" }.lowConfidence)
@@ -206,8 +249,8 @@ class ResultFormatTest {
         val csv = ResultFormat.buildCsv(run(), scenarios)
         val lines = csv.trim().split('\n')
         assertEquals(ResultFormat.CSV_HEADER, lines[0])
-        // 每场景 13 个 KPI 行（含双口径并列项；T47 批①/D-468 起含 D1）
-        assertEquals(1 + 2 * 13, lines.size)
+        // 每场景 15 个 KPI 行（含双口径并列项；T47 批①/D-468 起含 D1；T48/批B 起含 U3/D3 诊断行）
+        assertEquals(1 + 2 * 15, lines.size)
         // 每行列数与表头一致
         val cols = ResultFormat.CSV_HEADER.split(',').size
         lines.forEach { assertEquals(cols, it.split(',').size) }

@@ -154,6 +154,18 @@ object ResultFormat {
             row("U2", "工具循环 P95", s.u2ToolLoopP95Ms, "ms", graded = true),
             // T47 批①（D-468/D-469）：D1 半成品补齐——此前 wire 上线但结果页无渲染（D-276 反模式）
             row("D1", "下行吞吐", s.d1GoodputMbps, "Mbps", graded = true),
+            // T48/批B（D-469 8-5：展示型诊断，不进 AQS）——单流应用层 goodput 探针，非多流聚合
+            // 容量测量（PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.0），标签直接点名口径避免误读为
+            // 正式 KPI；lowConfidence 取 rttDominanceOk（该口径专属信号，非通用 sample_count 判据，
+            // Entities.kt 字段注释已注明 sample_count 恒为 1 属结构性事实非低样本量信号）。
+            KpiRow(
+                "U3", "上行单流 goodput（诊断，不进 AQS）", s.u3GoodputMbps, "Mbps",
+                grade = null, lowConfidence = s.u3RttDominanceOk == false,
+            ),
+            KpiRow(
+                "D3", "下行单流 goodput（诊断，不进 AQS）", s.d3GoodputMbps, "Mbps",
+                grade = null, lowConfidence = s.d3RttDominanceOk == false,
+            ),
         )
     }
 
@@ -222,7 +234,8 @@ object ResultFormat {
         }
 
     /**
-     * CSV（场景×KPI 展平）：每场景 13 个 KPI 行（含双口径并列项；T47 批①/D-468 起含 D1）。
+     * CSV（场景×KPI 展平）：每场景 15 个 KPI 行（含双口径并列项；T47 批①/D-468 起含 D1；
+     * T48/批B 起含 U3/D3 诊断行——绝大多数场景该两行值为空，仅 s4_throughput 自身场景有值）。
      * null 值 → 空串（绝不 0）；比率保持原始比率值（不 ×100，机器口径）。
      */
     fun buildCsv(run: TestRun, scenarios: List<ScenarioResultEntity>): String {

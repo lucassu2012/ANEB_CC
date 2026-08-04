@@ -94,7 +94,7 @@ fun HomeScreen(
     onStart: () -> Unit,
     onCancel: () -> Unit,
     onOpenSettings: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onOpenLastResult: (String) -> Unit,
+    onOpenLastResult: (String) -> Unit,
 ) {
     val colors = AnebTheme.colors
     val progress = TestProgressParser.parse(logs)
@@ -132,6 +132,12 @@ fun HomeScreen(
                     IdleRing(onStart = onStart)
                     Spacer(Modifier.height(16.dp))
                     HeroCaption("评估网络是否适合 AI 对话、编码和文件上传")
+                    // T48/批A：补齐"上次结果"入口——HomeRoute 一直在查 lastRun、onOpenLastResult
+                    // 回调也一直可用（跳 Screen.Result），唯独没有 UI 触发点，半接线死代码。
+                    if (lastRun != null) {
+                        Spacer(Modifier.height(10.dp))
+                        LastResultChip(onClick = { onOpenLastResult(lastRun.runId) })
+                    }
                     Spacer(Modifier.weight(1.3f))
                     NetworkSheet(lastRun = lastRun, onChangeNode = onOpenSettings)
                     Spacer(Modifier.height(10.dp))
@@ -209,6 +215,16 @@ fun HomeScreen(
                         onSelect = { gaugeMetric = it },
                         label = { it.label },
                         modifier = Modifier.align(Alignment.CenterHorizontally),
+                        // T48/批A：段是否有意义地可选——按对应 telemetry 字段当下是否有值判定
+                        // （R-10 同一语义：无值不是"选了也没用"的隐藏状态，是可见的禁用态）。
+                        enabled = { m ->
+                            when (m) {
+                                HomeGaugeMetric.Auto -> true
+                                HomeGaugeMetric.Aqs -> telemetry.aqsRunning != null
+                                HomeGaugeMetric.Ttft -> telemetry.ttftMs != null
+                                HomeGaugeMetric.Itl -> telemetry.itlMedianMs != null
+                            }
+                        },
                     )
                     Spacer(Modifier.height(10.dp))
                     HeroCaption("正在检查 AI 持续输出与稳定性 · 已测 ${elapsedSec}s · ${progress.phaseName}")
@@ -229,6 +245,26 @@ private fun HeroCaption(text: String) {
         textAlign = TextAlign.Center,
         modifier = Modifier.widthIn(max = 300.dp),
     )
+}
+
+/** "查看上次结果"胶囊（T48/批A，接活 [HomeScreen] 一直半通的 onOpenLastResult）。 */
+@Composable
+private fun LastResultChip(onClick: () -> Unit) {
+    val colors = AnebTheme.colors
+    val shape = RoundedCornerShape(999.dp)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(colors.surfaceElevated)
+            .border(1.dp, colors.hairline, shape)
+            .pressable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("查看上次结果", fontSize = 12.sp, color = colors.muted)
+        Spacer(Modifier.width(4.dp))
+        Text("›", fontSize = 12.sp, color = colors.muted)
+    }
 }
 
 /** 左上角取消按钮（home.css .close-button），→ cancel run。 */
