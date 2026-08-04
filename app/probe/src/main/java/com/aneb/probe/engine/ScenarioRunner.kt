@@ -82,6 +82,17 @@ class ScenarioRunner(private val client: AnebClient) {
 
     class ToolLoopOutcome(val round: Int, val nominalProcMs: Int, val result: AnebClient.ToolLoopResult)
 
+    /**
+     * 单流自适应窗口 goodput 探针产出（U3/D3，T47 批③，D-468/D-469；
+     * spec/PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.3.2）。
+     * @param samples (累计字节数, 打戳纳秒) 原始序列，供 [TransferWindowAnalysis] 慢启动检测消费
+     */
+    class AdaptiveWindowOutcome(
+        val windowTargetMs: Int,
+        val result: AnebClient.WindowTransferResult,
+        val samples: List<Pair<Long, Long>>,
+    )
+
     /** 一个场景实例（profile × repeat）的全部原始产出，运行中就地填充。 */
     class ScenarioOutcome(val profile: ScenarioProfile, val scenarioKey: String) {
         val clockSyncs = ArrayList<ClockSyncOutcome>()
@@ -89,6 +100,9 @@ class ScenarioRunner(private val client: AnebClient) {
         val downloads = ArrayList<DownloadOutcome>()
         val streams = ArrayList<StreamOutcome>()
         val toolLoops = ArrayList<ToolLoopOutcome>()
+        /** adaptive_download_window/adaptive_upload_window 各自最多一个（s4_throughput 设计） */
+        val downloadWindows = ArrayList<AdaptiveWindowOutcome>()
+        val uploadWindows = ArrayList<AdaptiveWindowOutcome>()
 
         /** 服务端观察到的客户端源 IP:port（echo/upload 回显，最后一次为准） */
         var observedAddr: String? = null
@@ -143,6 +157,12 @@ class ScenarioRunner(private val client: AnebClient) {
 
                     ProfilePhase.TYPE_DOWNLOAD_BURST ->
                         runDownload(base, phase, outcome, emit)
+
+                    ProfilePhase.TYPE_ADAPTIVE_DOWNLOAD_WINDOW ->
+                        runAdaptiveDownloadWindow(base, phase, outcome, emit)
+
+                    ProfilePhase.TYPE_ADAPTIVE_UPLOAD_WINDOW ->
+                        runAdaptiveUploadWindow(base, runId, phase, outcome, emit)
 
                     ProfilePhase.TYPE_THINK_PAUSE -> {
                         emit("THINK_PAUSE scenario=${outcome.scenarioKey} duration_ms=${phase.durationMs}")
@@ -280,6 +300,66 @@ class ScenarioRunner(private val client: AnebClient) {
             "DOWNLOAD scenario=${outcome.scenarioKey} idx=$idx bytes=${phase.bytes} read=${r.bytesRead} " +
                 "chunk_kb=${phase.chunkKb} http=${r.httpCode ?: "null"} dur_ms=$durMs " +
                 "goodput_mbps=$goodput error=${r.error ?: "none"}"
+        )
+    }
+
+    // ------------------------------------------ adaptive_download_window（D3，T47 批③）
+
+    /**
+     * 单流自适应窗口下行 goodput 探针（D3，spec §8.3.2）：`bytes`/`chunk_kb` 在这两个新
+     * type 下语义为「请求上限(ceiling)」，不是精确传输量（与 upload_burst/download_burst
+     * 下 bytes 表示"精确传输量"不同，同一字段名在不同 type 下的既有联合体设计延伸）。
+     */
+    private suspend fun runAdaptiveDownloadWindow(
+        base: String,
+        phase: ProfilePhase,
+        outcome: ScenarioOutcome,
+        emit: suspend (String) -> Unit,
+    ) {
+        val ceiling = phase.bytes.coerceAtLeast(1)
+        val windowMs = phase.windowMs.coerceAtLeast(1)
+        val params = buildList {
+            add("bytes=$ceiling")
+            if (phase.chunkKb > 0) add("chunk_kb=${phase.chunkKb}")
+        }
+        val url = "$base/api/v1/download?" + params.joinToString("&")
+        val samples = ArrayList<Pair<Long, Long>>()
+        val r = client.downloadWindow(url, windowMs.toLong()) { bytes, ts -> samples.add(bytes to ts) }
+        outcome.downloadWindows.add(AdaptiveWindowOutcome(windowMs, r, samples))
+        val durMs = r.endNanos?.let { "%.2f".format((it - r.startNanos) / 1e6) } ?: "null"
+        emit(
+            "ADAPTIVE_DOWNLOAD_WINDOW scenario=${outcome.scenarioKey} window_target_ms=$windowMs " +
+                "bytes_transferred=${r.bytesTransferred} http=${r.httpCode ?: "null"} dur_ms=$durMs " +
+                "underrun=${r.windowUnderrun} error=${r.error ?: "none"}"
+        )
+    }
+
+    // -------------------------------------------- adaptive_upload_window（U3，T47 批③）
+
+    /** 单流自适应窗口上行 goodput 探针（U3，spec §8.3.2）：语义同上，ceiling 非精确传输量。 */
+    private suspend fun runAdaptiveUploadWindow(
+        base: String,
+        runId: String,
+        phase: ProfilePhase,
+        outcome: ScenarioOutcome,
+        emit: suspend (String) -> Unit,
+    ) {
+        val ceiling = phase.bytes.coerceAtLeast(1)
+        val windowMs = phase.windowMs.coerceAtLeast(1)
+        val chunk = (phase.chunkKb * 1024).coerceAtLeast(1024)
+        val samples = ArrayList<Pair<Long, Long>>()
+        val r = client.uploadWindow(
+            "$base/api/v1/upload?run=$runId",
+            windowMs.toLong(),
+            ceiling,
+            chunk,
+        ) { bytes, ts -> samples.add(bytes to ts) }
+        outcome.uploadWindows.add(AdaptiveWindowOutcome(windowMs, r, samples))
+        val durMs = r.endNanos?.let { "%.2f".format((it - r.startNanos) / 1e6) } ?: "null"
+        emit(
+            "ADAPTIVE_UPLOAD_WINDOW scenario=${outcome.scenarioKey} window_target_ms=$windowMs " +
+                "bytes_transferred=${r.bytesTransferred} http=${r.httpCode ?: "null"} dur_ms=$durMs " +
+                "underrun=${r.windowUnderrun} error=${r.error ?: "none"}"
         )
     }
 

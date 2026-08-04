@@ -522,6 +522,82 @@ class TestEngine(private val context: Context) {
                 }
             }
 
+            // ---------------- s4_throughput（T47 批③，D-468/D-469；spec §8.6） ----------------
+            // 单流自适应窗口 goodput 探针：诊断期场景，复用与 s1/s2/s3 完全相同的执行/落库
+            // 流水线，但**不进 REQUIRED_IDS/拉丁方顺序**（不进上面的 runLoop@）、**不写入
+            // kpiByScenario**（AqsInputMapper.map() 的输入，诊断期零侵入 §8.4.4，从数据流
+            // 层面确保）、**不追加进 orderRecord**（scenario_order 字符串完全不变 §8.5）。
+            // 缺 profile 时静默跳过（缺 profile 的既有容忍风格，不 require() 抛异常）。
+            val s4Profile = loaded.profiles["s4_throughput"]
+            if (s4Profile != null) {
+                val scenarioKey = "${s4Profile.profileId}#0"
+                log("SCENARIO_START scenario=$scenarioKey round=diagnostic order_index=$orderIndex")
+                val outcome = ScenarioRunner.ScenarioOutcome(s4Profile, scenarioKey)
+                val netSnap = bound?.snapshot ?: autoNetSnapshot(context)
+                var engineError: String? = null
+                val job = ScenarioGate.launchGuarded(this, invalidReason, currentScenario) {
+                    try {
+                        runner.run(measureBase, runId, outcome, config.inject, log)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        engineError = e.toString()
+                    }
+                }
+                job.join()
+                currentScenario.set(null)
+                val invalidated = invalidReason.get()
+                val external = mutableListOf<InvalidReason>()
+                if (invalidated != null) {
+                    external += when {
+                        invalidated.startsWith("power_state_changed") -> InvalidReason.GUARD_FAILED
+                        invalidated == "connectivity_manager_unavailable" ||
+                            invalidated == "path_monitor_registration_failed" -> InvalidReason.MONITOR_FAILURE
+                        else -> InvalidReason.PATH_CHANGED
+                    }
+                    log("SCENARIO_INVALID scenario=$scenarioKey reason=$invalidated")
+                }
+                if (engineError != null) {
+                    external += InvalidReason.ENGINE_ERROR
+                    log("SCENARIO_INVALID scenario=$scenarioKey reason=engine_error:${engineError!!.replace(' ', '_')}")
+                }
+                val input = ScenarioKpi.buildKpiInput(outcome, external)
+                val kpi = KpiCalculator.calculate(input)
+                val track = outcome.offsetTrack()
+                val buffering = analyzeBuffering(outcome, envBuf, radioBuf)
+                val radioExport = if (netSnap?.transport == "cellular") {
+                    BufferingWiring.radioExport(radioBuf, outcome.startedAtNanos, outcome.endedAtNanos)
+                } else {
+                    null
+                }
+                val entity = buildScenarioEntity(
+                    runId, s4Profile, 0, orderIndex, outcome, kpi, track, netSnap, buffering, radioExport,
+                )
+                val hist = ItlHistogram.of(
+                    ScenarioKpi.correctedItlSamplesMs(input.tokenSamples, input.pauseSeqs)
+                )
+                scenarioReports.add(entity to hist) // 不写 kpiByScenario、不追加 orderRecord（见上）
+                persistScenario(db, runId, outcome, entity, envBuf, radioBuf)
+                // 最小消费方（spec 附录A批③要求，非"建议"）：至少一处日志读取自检字段分布，
+                // 避免它们重蹈"上线但没人读"的覆辙（D-276）。
+                log(
+                    "SCENARIO_KPI scenario=$scenarioKey validity=${kpi.validity} " +
+                        "reasons=${kpi.invalidReasons.joinToString(",").ifEmpty { "none" }} " +
+                        "u3_mbps=${fmt(kpi.u3GoodputMbps)} u3_excl_mbps=${fmt(kpi.u3GoodputExclSlowStartMbps)} " +
+                        "u3_window_actual_ms=${kpi.u3WindowActualMs?.let { "%.1f".format(it) } ?: "null"} " +
+                        "u3_dominance_ok=${kpi.u3RttDominanceOk} " +
+                        "u3_dominance_ratio=${kpi.u3RttDominanceRatio?.let { "%.2f".format(it) } ?: "null"} " +
+                        "u3_drift_ratio=${kpi.u3RttDriftRatio?.let { "%.3f".format(it) } ?: "null"} " +
+                        "d3_mbps=${fmt(kpi.d3GoodputMbps)} d3_excl_mbps=${fmt(kpi.d3GoodputExclSlowStartMbps)} " +
+                        "d3_window_actual_ms=${kpi.d3WindowActualMs?.let { "%.1f".format(it) } ?: "null"} " +
+                        "d3_dominance_ok=${kpi.d3RttDominanceOk} " +
+                        "d3_dominance_ratio=${kpi.d3RttDominanceRatio?.let { "%.2f".format(it) } ?: "null"} " +
+                        "d3_drift_ratio=${kpi.d3RttDriftRatio?.let { "%.3f".format(it) } ?: "null"}"
+                )
+            } else {
+                log("PROFILE_WARN missing=s4_throughput note=throughput_probe_skipped")
+            }
+
             // ---------------- run 级 AQS ----------------
             // AQS 输入映射合同（KDoc 详见 AqsInputMapper）：N1/N2←S1 首次 clock_sync；
             // T 组←S2（S1/S3 的 T 组仅展示不进 AQS）；U1←S3 1MB 上传（进 AQS 用含慢启动
@@ -849,6 +925,13 @@ class TestEngine(private val context: Context) {
         "U1_excl_slow_start" to kpi.u1GoodputExclSlowStartMbps,
         "U2" to kpi.u2ToolLoopP95Ms,
         "D1" to kpi.d1GoodputMbps, // T47 批①（D-468/D-469）：D1 半成品补齐
+        // T47 批③（D-468/D-469）：U3/D3 单流自适应窗口 goodput 探针。sample_count 恒为 1
+        // （s4_throughput 每次执行恰好一个窗口测量，结构性事实非低样本量信号，spec §8.4.3），
+        // low_confidence 完全由 RttDominanceGuard 自检结果决定——不是这里的 n<3 判据在起作用。
+        "U3" to kpi.u3GoodputMbps,
+        "U3_excl_slow_start" to kpi.u3GoodputExclSlowStartMbps,
+        "D3" to kpi.d3GoodputMbps,
+        "D3_excl_slow_start" to kpi.d3GoodputExclSlowStartMbps,
     )
 
     private fun buildScenarioEntity(
@@ -894,6 +977,30 @@ class TestEngine(private val context: Context) {
             // T47 批①（D-468/D-469）：D1 半成品补齐
             d1GoodputMbps = kpi.d1GoodputMbps.value,
             d1Grade = KpiGrading.grade("D1", kpi.d1GoodputMbps.value),
+            // T47 批③（D-468/D-469）：U3/D3 单流自适应窗口 goodput 探针。grade 诊断期恒为
+            // null（未接入打分，spec §8.4.4），不调 KpiGrading——不像 U1/D1 那样有门限表。
+            u3GoodputMbps = kpi.u3GoodputMbps.value,
+            u3Grade = null,
+            u3GoodputExclSlowStartMbps = kpi.u3GoodputExclSlowStartMbps.value,
+            u3WindowTargetMs = kpi.u3WindowTargetMs,
+            u3WindowActualMs = kpi.u3WindowActualMs,
+            u3BytesTransferred = kpi.u3BytesTransferred,
+            u3RttRefMsPre = kpi.u3RttRefMsPre,
+            u3RttRefMsPost = kpi.u3RttRefMsPost,
+            u3RttDriftRatio = kpi.u3RttDriftRatio,
+            u3RttDominanceRatio = kpi.u3RttDominanceRatio,
+            u3RttDominanceOk = if (kpi.u3WindowTargetMs != null) kpi.u3RttDominanceOk else null,
+            d3GoodputMbps = kpi.d3GoodputMbps.value,
+            d3Grade = null,
+            d3GoodputExclSlowStartMbps = kpi.d3GoodputExclSlowStartMbps.value,
+            d3WindowTargetMs = kpi.d3WindowTargetMs,
+            d3WindowActualMs = kpi.d3WindowActualMs,
+            d3BytesTransferred = kpi.d3BytesTransferred,
+            d3RttRefMsPre = kpi.d3RttRefMsPre,
+            d3RttRefMsPost = kpi.d3RttRefMsPost,
+            d3RttDriftRatio = kpi.d3RttDriftRatio,
+            d3RttDominanceRatio = kpi.d3RttDominanceRatio,
+            d3RttDominanceOk = if (kpi.d3WindowTargetMs != null) kpi.d3RttDominanceOk else null,
             seqGapCount = kpi.seqGapCount,
             seqDupCount = kpi.seqDupCount,
             // C07：per-KPI lowConfidence 持久化（结果页/导出标注用，KPI 文档 5.4）;

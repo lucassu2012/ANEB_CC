@@ -529,6 +529,134 @@ class AnebClient(bound: BoundNetwork? = null) {
         }
     }
 
+    /**
+     * 单流自适应窗口 goodput 探针产出（U3/D3，T47 批③，D-468/D-469；
+     * spec/PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.3.2）。
+     * @param windowUnderrun true=传输在窗口到点前已自然结束（服务端 ceiling 先到/写满 maxBytes），
+     *   不是"到点截断"——KpiCalculator 需要区分这两种停止原因（spec §8.3.3 已知边界情形）。
+     */
+    data class WindowTransferResult(
+        val startNanos: Long,
+        /** 窗口到点/流自然结束/异常中断的时刻；异常无法打戳记 null（R-10） */
+        val endNanos: Long?,
+        val bytesTransferred: Long,
+        val httpCode: Int?,
+        val error: String?,
+        val windowUnderrun: Boolean,
+    )
+
+    /**
+     * 下行自适应窗口排空（D3）：GET（含 `?bytes=N` ceiling），到 [windowMs] 即
+     * `call.cancel()` 并停止——不像 [downloadDrain] 那样一直读到服务端自然结束。
+     * 逐块回调 (累计已读字节, 打戳纳秒) 供 [com.aneb.probe.engine.TransferWindowAnalysis]
+     * 做慢启动检测（口径同 downloadDrain：读到的字节即真实到达的网络字节）。
+     */
+    suspend fun downloadWindow(
+        url: String,
+        windowMs: Long,
+        onChunk: ((Long, Long) -> Unit)? = null,
+    ): WindowTransferResult {
+        val call = client.newCall(Request.Builder().url(url).get().build())
+        val startNanos = SystemClock.elapsedRealtimeNanos()
+        val deadlineNanos = startNanos + windowMs * 1_000_000L
+        return try {
+            executeCancellable(call) { resp ->
+                if (!resp.isSuccessful) {
+                    WindowTransferResult(startNanos, null, 0L, resp.code, "http ${resp.code}", windowUnderrun = false)
+                } else {
+                    val source = checkNotNull(resp.body) { "empty body for 2xx" }.source()
+                    val readBuf = okio.Buffer()
+                    var total = 0L
+                    var err: String? = null
+                    var underrun = false
+                    var endNanos = startNanos
+                    try {
+                        while (true) {
+                            val now = SystemClock.elapsedRealtimeNanos()
+                            if (now >= deadlineNanos) {
+                                call.cancel() // 窗口到点：主动收线，不等服务端 ceiling
+                                endNanos = now
+                                break
+                            }
+                            val n = source.read(readBuf, 262_144L) // 256KB/次
+                            if (n == -1L) {
+                                underrun = true // 流早于窗口自然结束（服务端 ceiling 先到）
+                                endNanos = SystemClock.elapsedRealtimeNanos()
+                                break
+                            }
+                            readBuf.clear() // 只测吞吐，读到即丢
+                            total += n
+                            endNanos = SystemClock.elapsedRealtimeNanos()
+                            onChunk?.invoke(total, endNanos)
+                        }
+                    } catch (e: IOException) {
+                        err = e.toString() // 真实传输中断（非窗口到点触发的 cancel）：就地记错
+                        endNanos = SystemClock.elapsedRealtimeNanos()
+                    }
+                    WindowTransferResult(startNanos, endNanos, total, resp.code, err, underrun)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e // 不吞取消（fail-closed §4.6/§4.7）
+        } catch (e: Exception) {
+            WindowTransferResult(startNanos, null, 0L, null, e.toString(), windowUnderrun = false)
+        }
+    }
+
+    /**
+     * 上行自适应窗口发送（U3）：chunked 请求体（`contentLength()=-1`，不预知总量——
+     * 与 [uploadBurst] 的精确字节数语义不同），到 [windowMs] 或 [maxBytes] ceiling
+     * 先到者即停止写入并正常结束请求体（不需要 call.cancel()：提前 return 出
+     * writeTo() 天然结束 chunked 流，服务端按已收到的字节数正常响应）。
+     */
+    suspend fun uploadWindow(
+        url: String,
+        windowMs: Long,
+        maxBytes: Long,
+        chunkBytes: Int = 65536,
+        onChunk: ((Long, Long) -> Unit)? = null,
+    ): WindowTransferResult {
+        val startNanos = SystemClock.elapsedRealtimeNanos()
+        val deadlineNanos = startNanos + windowMs * 1_000_000L
+        var written = 0L
+        var underrun = false
+        var endNanos = startNanos
+        val chunk = ByteArray(chunkBytes.coerceAtLeast(1)) { 'A'.code.toByte() }
+        val body = object : RequestBody() {
+            override fun contentType() = "application/octet-stream".toMediaType()
+            override fun contentLength(): Long = -1L // 窗口化：不预知总传输量，走 chunked
+            override fun writeTo(sink: BufferedSink) {
+                while (written < maxBytes) {
+                    val now = SystemClock.elapsedRealtimeNanos()
+                    if (now >= deadlineNanos) {
+                        endNanos = now
+                        return // 窗口到点：正常结束 chunked 流，不写剩余字节
+                    }
+                    val len = minOf(chunk.size.toLong(), maxBytes - written).toInt()
+                    sink.write(chunk, 0, len)
+                    sink.flush()
+                    written += len
+                    endNanos = SystemClock.elapsedRealtimeNanos()
+                    onChunk?.invoke(written, endNanos)
+                }
+                underrun = true // 写满 maxBytes ceiling，窗口尚未到点
+                endNanos = SystemClock.elapsedRealtimeNanos()
+            }
+        }
+        val call = client.newCall(Request.Builder().url(url).post(body).build())
+        return try {
+            executeCancellable(call) { resp ->
+                val error = if (resp.isSuccessful) null else "http ${resp.code}"
+                resp.body?.close()
+                WindowTransferResult(startNanos, endNanos, written, resp.code, error, underrun)
+            }
+        } catch (e: CancellationException) {
+            throw e // 不吞取消（fail-closed §4.6/§4.7）
+        } catch (e: Exception) {
+            WindowTransferResult(startNanos, endNanos, written, null, e.toString(), underrun)
+        }
+    }
+
     // ------------------------------------------------------ synthetic probe
 
     /**

@@ -56,7 +56,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      补齐——KpiCalculator 早算出 d1GoodputMbps 却从未落库上线；门限复用既有
     //      AqsScorer.D1_ANCHORS/basic_network D1 QualityTarget 取值 25/8/2,非新造;
     //      可空,历史行 NULL＝「跑在 D1 上线之前」而非「为零」,additive ADD COLUMN）
-    version = 19,
+    // v20：scenario_result 增 22 列（T47 批③,D-468/D-469：单流自适应窗口 goodput 探针
+    //      U3/D3——goodput/excl_slow_start/grade(恒null)/window_target_ms/window_actual_ms/
+    //      bytes_transferred/rtt_ref_ms_pre/_post/rtt_drift_ratio/rtt_dominance_ratio/
+    //      rtt_dominance_ok 各 11 列×2 方向;诊断期不进任何 AQS facet;可空,历史行/非
+    //      s4_throughput 场景 NULL＝「未跑该探针」而非「为零」,additive ADD COLUMN）
+    version = 20,
     exportSchema = true, // T45/D-463 §6.2：打开，快照进 app/probe/schemas/（ksp room.schemaLocation）
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -504,6 +509,52 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v19 → v20 的全部语句（T47 批③，单流自适应窗口 goodput 探针 U3/D3，
+         * D-468/D-469 大脑批 GO）：`scenario_result` 加 22 列，each direction
+         * (u3_/d3_) 11 列：goodput/excl_slow_start/grade(诊断期恒 null)/
+         * window_target_ms/window_actual_ms/bytes_transferred/rtt_ref_ms_pre/_post/
+         * rtt_drift_ratio/rtt_dominance_ratio/rtt_dominance_ok。
+         * ALTER TABLE ADD COLUMN 追加为末列，与 Entities.kt ScenarioResultEntity 末尾新字段的
+         * KSP 期望 schema 一致（affinity 见各列，均可空，无默认值——R-10）。既有行补 NULL
+         * （=「该场景未跑 s4_throughput」，**不是**「为零」），不触碰其他表/列＝v19 旧数据全存活。
+         */
+        internal val MIGRATION_19_20_SQL: List<String> = listOf(
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3GoodputMbps` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3Grade` TEXT",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3GoodputExclSlowStartMbps` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3WindowTargetMs` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3WindowActualMs` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3BytesTransferred` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3RttRefMsPre` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3RttRefMsPost` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3RttDriftRatio` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3RttDominanceRatio` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3RttDominanceOk` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3GoodputMbps` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3Grade` TEXT",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3GoodputExclSlowStartMbps` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3WindowTargetMs` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3WindowActualMs` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3BytesTransferred` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3RttRefMsPre` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3RttRefMsPost` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3RttDriftRatio` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3RttDominanceRatio` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3RttDominanceOk` INTEGER",
+        )
+
+        /**
+         * v19 → v20（U3/D3 探针，additive）：只加列不动数据。人工验证同 [MIGRATION_18_19]
+         * KDoc（覆盖安装后既有 scenario_result 行可见且 22 列 =NULL、`.schema scenario_result`
+         * 输出含新列、跑一次 s4_throughput 场景后新行 u3_ 与 d3_ 前缀字段有值、logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_19_20_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -517,6 +568,7 @@ abstract class AnebDatabase : RoomDatabase() {
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                         MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
+                        MIGRATION_19_20,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()

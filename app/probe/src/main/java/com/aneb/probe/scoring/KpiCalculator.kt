@@ -91,6 +91,38 @@ data class DownloadResult(
 )
 
 /**
+ * 单流自适应窗口 goodput 探针原始产出（U3/D3 输入，T47 批③，D-468/D-469；
+ * spec/PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.3.2-§8.3.4）。慢启动检测
+ * （TransferWindowAnalysis.estimateSlowStartByRate）与 RTT 主导度自检
+ * （RttDominanceGuard.evaluate）均在 `engine` 包的 `ScenarioKpi.buildKpiInput()`
+ * 里算好后传入——scoring 包保持无 engine 依赖的既有架构（同 [UploadResult]
+ * 的 slowStartNanos/slowStartBytes 先例，不重复实现判据）。
+ *
+ * @param windowTargetMs profile 配置的目标窗口时长
+ * @param windowActualNanos 实测窗口时长；异常无法打戳记 null（R-10）
+ * @param bytesTransferred 窗口内实际传输字节数
+ * @param http2xx 是否收到 2xx（false 即失败样本，不进 U3/D3 统计）
+ * @param slowStartUs 慢启动爬坡段耗时（估不出则为 null，"剔除慢启动"口径随之为 null）
+ * @param slowStartBytes 慢启动爬坡段内传输的字节数（与 [slowStartUs] 配套）
+ * @param rttRefMsPre 传输前（phase 1 clock_sync）测得的 RTT 基准
+ * @param rttRefMsPost 传输后（phase 4 clock_sync）测得的 RTT
+ * @param rttDominanceRatio RttDominanceGuard.evaluate 算出的 ratio（RTT 探测失败则 null）
+ * @param rttDominanceOk RttDominanceGuard.evaluate 算出的 ok（三条件交集）
+ */
+data class AdaptiveWindowResult(
+    val windowTargetMs: Int,
+    val windowActualNanos: Long?,
+    val bytesTransferred: Long,
+    val http2xx: Boolean,
+    val slowStartUs: Long? = null,
+    val slowStartBytes: Long? = null,
+    val rttRefMsPre: Double?,
+    val rttRefMsPost: Double?,
+    val rttDominanceRatio: Double?,
+    val rttDominanceOk: Boolean,
+)
+
+/**
  * 一轮会话完成结果（S1，PROFILE_FRAMEWORK §2.2 BM-06：会话完成率=成功轮次/总轮次）。
  * 「成功」是**传输完整性**口径（**非 AI 答案正确率**）：流未截断 ∧ gap≤1% ∧ 无 INVALID ∧ 上传 2xx，
  * 由采集侧综合判定后传入布尔。R-10：无轮次样本时 S1 输出 value=null，绝不记 0。
@@ -148,6 +180,10 @@ data class KpiInput(
     val roundOutcomes: List<RoundOutcome> = emptyList(),
     val streamTruncated: Boolean = false,
     val externalInvalidReasons: List<InvalidReason> = emptyList(),
+    /** U3 输入（单流自适应窗口上行 goodput 探针，T47 批③）；null=该场景未跑 s4_throughput */
+    val adaptiveUpload: AdaptiveWindowResult? = null,
+    /** D3 输入（单流自适应窗口下行 goodput 探针，T47 批③）；null=该场景未跑 s4_throughput */
+    val adaptiveDownload: AdaptiveWindowResult? = null,
 )
 
 /**
@@ -203,6 +239,34 @@ data class KpiResult(
      * 无轮次样本时 value=null（默认；仅 Token 模式提供 [KpiInput.roundOutcomes] 时非空）。
      */
     val s1SessionSuccessRate: KpiValue = KpiValue.empty("ratio"),
+    // ---- U3/D3：单流自适应窗口 goodput 探针（T47 批③，D-468/D-469；spec §8.4.2/§8.4.3）----
+    // sample_count 恒为 1（结构性事实，非样本量不足信号）；low_confidence 完全由
+    // RttDominanceGuard 的自检结果决定，不套用 MIN_UPLOAD_SAMPLES/MIN_DOWNLOAD 的 n<3 判据
+    // （这两把尺子在 s4_throughput"每次执行恰好一个窗口"的设计下没有意义）。
+    /** U3 窗口内平均 goodput（含慢启动，主口径），Mbps；诊断期不进 AQS */
+    val u3GoodputMbps: KpiValue = KpiValue.empty("Mbps"),
+    /** U3 剔除慢启动后的稳态口径，Mbps；慢启动信息缺失时 value=null */
+    val u3GoodputExclSlowStartMbps: KpiValue = KpiValue.empty("Mbps"),
+    val u3WindowTargetMs: Int? = null,
+    val u3WindowActualMs: Double? = null,
+    val u3BytesTransferred: Long? = null,
+    val u3RttRefMsPre: Double? = null,
+    val u3RttRefMsPost: Double? = null,
+    val u3RttDriftRatio: Double? = null,
+    val u3RttDominanceRatio: Double? = null,
+    val u3RttDominanceOk: Boolean = false,
+    /** D3 窗口内平均 goodput（含慢启动，主口径），Mbps；诊断期不进 AQS */
+    val d3GoodputMbps: KpiValue = KpiValue.empty("Mbps"),
+    /** D3 剔除慢启动后的稳态口径，Mbps；慢启动信息缺失时 value=null */
+    val d3GoodputExclSlowStartMbps: KpiValue = KpiValue.empty("Mbps"),
+    val d3WindowTargetMs: Int? = null,
+    val d3WindowActualMs: Double? = null,
+    val d3BytesTransferred: Long? = null,
+    val d3RttRefMsPre: Double? = null,
+    val d3RttRefMsPost: Double? = null,
+    val d3RttDriftRatio: Double? = null,
+    val d3RttDominanceRatio: Double? = null,
+    val d3RttDominanceOk: Boolean = false,
 )
 
 /**
@@ -410,6 +474,30 @@ object KpiCalculator {
         val d1LowConf = d1List.size < MIN_DOWNLOAD && d1List.isNotEmpty()
         val d1 = KpiValue(percentileOrNull(d1List, 0.50), "Mbps", d1List.size, d1LowConf)
 
+        // ---- U3/D3：单流自适应窗口 goodput 探针（T47 批③，spec §8.4.2/§8.4.3）----
+        fun windowGoodput(w: AdaptiveWindowResult?): Pair<KpiValue, KpiValue> {
+            if (w == null || !w.http2xx || w.windowActualNanos == null || w.windowActualNanos <= 0) {
+                return KpiValue.empty("Mbps") to KpiValue.empty("Mbps")
+            }
+            val goodput = goodputMbps(w.bytesTransferred, w.windowActualNanos)
+            val exclGoodput = run {
+                val ssUs = w.slowStartUs ?: return@run null
+                val ssBytes = w.slowStartBytes ?: return@run null
+                val remainNs = w.windowActualNanos - ssUs * 1000L
+                val remainBytes = w.bytesTransferred - ssBytes
+                if (remainNs <= 0 || remainBytes <= 0) null else goodputMbps(remainBytes, remainNs)
+            }
+            val lowConf = !w.rttDominanceOk
+            return KpiValue(goodput, "Mbps", 1, lowConf) to KpiValue(exclGoodput, "Mbps", 1, lowConf)
+        }
+        val (u3, u3Excl) = windowGoodput(input.adaptiveUpload)
+        val (d3, d3Excl) = windowGoodput(input.adaptiveDownload)
+        fun driftRatio(w: AdaptiveWindowResult?): Double? {
+            val pre = w?.rttRefMsPre ?: return null
+            val post = w.rttRefMsPost ?: return null
+            return if (pre > 0) post / pre else null
+        }
+
         // ---- S1：会话完成率（成功轮次/总轮次，传输完整性口径；PROFILE_FRAMEWORK §2.2 BM-06）----
         val s1 = if (input.roundOutcomes.isEmpty()) {
             KpiValue.empty("ratio") // 无轮次样本 → null（R-10：绝不 0 顶替）
@@ -425,13 +513,18 @@ object KpiCalculator {
         if (expectedCount > 0 && gapCount.toDouble() / expectedCount > GAP_INVALID_RATIO) {
             invalidReasons.add(InvalidReason.GAP_EXCEEDED)
         }
+        // T47 批③（D-468/D-469）修正：s4_throughput 场景只有 clock_sync + adaptive window
+        // 两类 phase，token/upload/download/toolLoop/round 全部为空——不把 adaptiveUpload/
+        // adaptiveDownload 计入会让该场景恒被误判 NO_DATA→INVALID，U3/D3 值恒被 gate 成 null
+        // （批③单测 `KpiCalculatorU3D3Test` 首跑即抓到这个真实回归）。
         val noData = input.tokenSamples.isEmpty() && input.echoSamples.isEmpty() &&
             input.uploadResults.isEmpty() && input.toolLoopSamples.isEmpty() &&
             input.ttftSamples.isEmpty() && input.downloadResults.isEmpty() &&
-            input.roundOutcomes.isEmpty()
+            input.roundOutcomes.isEmpty() &&
+            input.adaptiveUpload == null && input.adaptiveDownload == null
         if (noData) invalidReasons.add(InvalidReason.NO_DATA)
 
-        val allKpis = listOf(t1, t2, t2Incl, t3, t3Incl, t4, n1, n2, u1, u1Excl, u2, d1)
+        val allKpis = listOf(t1, t2, t2Incl, t3, t3Incl, t4, n1, n2, u1, u1Excl, u2, d1, u3, u3Excl, d3, d3Excl)
         val validity = when {
             invalidReasons.isNotEmpty() -> Validity.INVALID
             gapCount > 0 || allKpis.any { it.lowConfidence } -> Validity.VALID_LOW_CONFIDENCE
@@ -464,6 +557,26 @@ object KpiCalculator {
             u2ToolLoopP95Ms = gate(u2),
             d1GoodputMbps = gate(d1),
             s1SessionSuccessRate = gate(s1),
+            u3GoodputMbps = gate(u3),
+            u3GoodputExclSlowStartMbps = gate(u3Excl),
+            u3WindowTargetMs = input.adaptiveUpload?.windowTargetMs,
+            u3WindowActualMs = input.adaptiveUpload?.windowActualNanos?.let { it / 1e6 },
+            u3BytesTransferred = input.adaptiveUpload?.bytesTransferred,
+            u3RttRefMsPre = input.adaptiveUpload?.rttRefMsPre,
+            u3RttRefMsPost = input.adaptiveUpload?.rttRefMsPost,
+            u3RttDriftRatio = driftRatio(input.adaptiveUpload),
+            u3RttDominanceRatio = input.adaptiveUpload?.rttDominanceRatio,
+            u3RttDominanceOk = input.adaptiveUpload?.rttDominanceOk ?: false,
+            d3GoodputMbps = gate(d3),
+            d3GoodputExclSlowStartMbps = gate(d3Excl),
+            d3WindowTargetMs = input.adaptiveDownload?.windowTargetMs,
+            d3WindowActualMs = input.adaptiveDownload?.windowActualNanos?.let { it / 1e6 },
+            d3BytesTransferred = input.adaptiveDownload?.bytesTransferred,
+            d3RttRefMsPre = input.adaptiveDownload?.rttRefMsPre,
+            d3RttRefMsPost = input.adaptiveDownload?.rttRefMsPost,
+            d3RttDriftRatio = driftRatio(input.adaptiveDownload),
+            d3RttDominanceRatio = input.adaptiveDownload?.rttDominanceRatio,
+            d3RttDominanceOk = input.adaptiveDownload?.rttDominanceOk ?: false,
         )
     }
 

@@ -209,6 +209,33 @@ data class ScenarioResultEntity(
     val d1GoodputMbps: Double? = null,
     /** 门限复用 KpiGrading.grade("D1",…)（25/8/2，同 AqsScorer.D1_ANCHORS） */
     val d1Grade: String? = null,
+    // ---- U3/D3：单流自适应窗口 goodput 探针（v20 additive 列，T47 批③，D-468/D-469；
+    //      spec/PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.4.2）----
+    // 诊断期不进任何 AQS facet；grade 恒为 null（未接入打分，spec §8.4.4）。
+    // sample_count 恒为 1（kpi_quality 词表，非本列）；low_confidence 由 rtt_dominance_ok 决定。
+    // null = 该场景未跑 s4_throughput（绝大多数场景）或该 run 跑在批③上线之前。
+    val u3GoodputMbps: Double? = null,
+    val u3Grade: String? = null,
+    val u3GoodputExclSlowStartMbps: Double? = null,
+    val u3WindowTargetMs: Int? = null,
+    val u3WindowActualMs: Double? = null,
+    val u3BytesTransferred: Long? = null,
+    val u3RttRefMsPre: Double? = null,
+    val u3RttRefMsPost: Double? = null,
+    val u3RttDriftRatio: Double? = null,
+    val u3RttDominanceRatio: Double? = null,
+    val u3RttDominanceOk: Boolean? = null,
+    val d3GoodputMbps: Double? = null,
+    val d3Grade: String? = null,
+    val d3GoodputExclSlowStartMbps: Double? = null,
+    val d3WindowTargetMs: Int? = null,
+    val d3WindowActualMs: Double? = null,
+    val d3BytesTransferred: Long? = null,
+    val d3RttRefMsPre: Double? = null,
+    val d3RttRefMsPost: Double? = null,
+    val d3RttDriftRatio: Double? = null,
+    val d3RttDominanceRatio: Double? = null,
+    val d3RttDominanceOk: Boolean? = null,
 )
 
 /**

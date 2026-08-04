@@ -1,6 +1,7 @@
 package com.aneb.probe.engine
 
 import com.aneb.probe.net.TokenEvent
+import com.aneb.probe.scoring.AdaptiveWindowResult
 import com.aneb.probe.scoring.EchoSample
 import com.aneb.probe.scoring.InvalidReason
 import com.aneb.probe.scoring.KpiInput
@@ -156,6 +157,45 @@ object ScenarioKpi {
             )
         }
 
+        // ---- U3/D3：单流自适应窗口 goodput 探针（T47 批③，spec §8.3-§8.4）----
+        // RTT 基准取本场景自己的 phase 1/phase 4 clock_sync（不复用其他场景/pooled 的 N1，
+        // 理由同既有 N1 惯例：网络状态可能已漂移，D-365 实测同链路 RTT 可漂移 26-34%）。
+        fun clockSyncRttP50Ms(cs: ScenarioRunner.ClockSyncOutcome?): Double? {
+            val rtts = cs?.samples.orEmpty()
+                .filter { !it.warmup }
+                .mapNotNull { it.result.rttUs }
+                .map { it / 1000.0 }
+            return com.aneb.probe.scoring.KpiCalculator.percentileOrNull(rtts, 0.50)
+        }
+        val rttRefMsPre = clockSyncRttP50Ms(outcome.clockSyncs.getOrNull(0))
+        val rttRefMsPost = clockSyncRttP50Ms(outcome.clockSyncs.getOrNull(1))
+
+        fun adaptiveWindow(w: ScenarioRunner.AdaptiveWindowOutcome?): AdaptiveWindowResult? {
+            if (w == null) return null
+            val r = w.result
+            val windowActualNanos = r.endNanos?.let { it - r.startNanos }
+            val slowStart = TransferWindowAnalysis.estimateSlowStartByRate(w.samples)
+            val dominance = RttDominanceGuard.evaluate(
+                windowActualMs = windowActualNanos?.let { it / 1e6 } ?: 0.0,
+                rttRefMs = rttRefMsPre,
+                bytesTransferred = r.bytesTransferred,
+            )
+            return AdaptiveWindowResult(
+                windowTargetMs = w.windowTargetMs,
+                windowActualNanos = windowActualNanos,
+                bytesTransferred = r.bytesTransferred,
+                http2xx = r.error == null && (r.httpCode ?: 0) in 200..299,
+                slowStartUs = slowStart?.first,
+                slowStartBytes = slowStart?.second,
+                rttRefMsPre = rttRefMsPre,
+                rttRefMsPost = rttRefMsPost,
+                rttDominanceRatio = dominance.ratio,
+                rttDominanceOk = dominance.ok,
+            )
+        }
+        val adaptiveUpload = adaptiveWindow(outcome.uploadWindows.firstOrNull())
+        val adaptiveDownload = adaptiveWindow(outcome.downloadWindows.firstOrNull())
+
         val ttfts = outcome.streams.map { TtftSample(it.ttftMs) }
 
         val truncated = outcome.abortReason != null || outcome.streams.any {
@@ -172,6 +212,8 @@ object ScenarioKpi {
             ttftSamples = ttfts,
             streamTruncated = truncated,
             externalInvalidReasons = externalInvalidReasons,
+            adaptiveUpload = adaptiveUpload,
+            adaptiveDownload = adaptiveDownload,
         )
     }
 }
