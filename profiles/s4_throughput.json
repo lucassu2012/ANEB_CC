@@ -1,0 +1,13 @@
+{
+  "profile_id": "s4_throughput",
+  "version": "0.1.0",
+  "kpi_set": "agent-qoe-kpi-v0.3",
+  "description": "单流自适应窗口 goodput 探针：固定测量窗口，字节数随链路速率自然伸缩，避免 D-363 式固定负载 RTT 伪影；仅测单流应用层 goodput，非链路容量",
+  "est_duration_s": 12,
+  "phases": [
+    { "type": "clock_sync", "samples": 20 },
+    { "type": "adaptive_download_window", "window_ms": 4000, "bytes": 536870912, "chunk_kb": 256 },
+    { "type": "adaptive_upload_window", "window_ms": 4000, "bytes": 50331648, "chunk_kb": 64 },
+    { "type": "clock_sync", "samples": 20 }
+  ]
+}

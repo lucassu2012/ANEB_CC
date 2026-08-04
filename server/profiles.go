@@ -65,6 +65,12 @@ type Phase struct {
 	// artifact_stream（§3.1，复用 Bytes/ChunkKB/Seed）：下行渐进生成节奏与类别。
 	CadenceBps    int64  `json:"cadence_bps,omitempty"`
 	ArtifactClass string `json:"artifact_class,omitempty"`
+
+	// adaptive_download_window / adaptive_upload_window（T47 批②，D-468/D-469；
+	// spec/PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.3.5）：目标窗口时长，复用 Bytes/ChunkKB
+	// 为「请求上限(ceiling)」/「读写块大小」（与 upload_burst/download_burst 下
+	// Bytes 表示「精确传输量」语义不同，同一字段名在不同 type 下的既有联合体设计延伸）。
+	WindowMs int `json:"window_ms,omitempty"`
 }
 
 // Profile 是版本化场景定义（发布即冻结，修改必须升版本号）。

@@ -79,6 +79,48 @@ def test_bool_is_not_numeric():
     assert any("samples" in e for e in vp.check_structure(p, "s1"))
 
 
+# ------------------------------------------ adaptive_*_window（T47 批②，D-468/D-469）
+
+def _s4_throughput_profile():
+    return {
+        "profile_id": "s4_throughput", "version": "0.1.0", "kpi_set": "agent-qoe-kpi-v0.3",
+        "phases": [
+            {"type": "clock_sync", "samples": 20},
+            {"type": "adaptive_download_window", "window_ms": 4000, "bytes": 536870912,
+             "chunk_kb": 256},
+            {"type": "adaptive_upload_window", "window_ms": 4000, "bytes": 50331648,
+             "chunk_kb": 64},
+            {"type": "clock_sync", "samples": 20},
+        ],
+    }
+
+
+def test_adaptive_window_phases_structure_ok():
+    """正例：两个新 phase 类型各自的必填字段齐全时应通过结构校验。"""
+    assert vp.check_structure(_s4_throughput_profile(), "s4") == []
+
+
+def test_adaptive_download_window_missing_window_ms_fails():
+    """负例：adaptive_download_window 缺 window_ms 应被拒。"""
+    p = _s4_throughput_profile()
+    del p["phases"][1]["window_ms"]
+    assert any("missing 'window_ms'" in e for e in vp.check_structure(p, "s4"))
+
+
+def test_adaptive_upload_window_missing_window_ms_fails():
+    """负例：adaptive_upload_window 缺 window_ms 应被拒（下行/上行各自独立钉住）。"""
+    p = _s4_throughput_profile()
+    del p["phases"][2]["window_ms"]
+    assert any("missing 'window_ms'" in e for e in vp.check_structure(p, "s4"))
+
+
+def test_adaptive_window_ms_wrong_type_fails():
+    """负例：window_ms 必须是 int，字符串应被拒（同 test_phase_field_wrong_type_fails 纪律）。"""
+    p = _s4_throughput_profile()
+    p["phases"][1]["window_ms"] = "4000"
+    assert any("window_ms" in e for e in vp.check_structure(p, "s4"))
+
+
 # ---------------------------------------------------------------- parity
 
 def _write(d, name, obj, *, crlf=False):

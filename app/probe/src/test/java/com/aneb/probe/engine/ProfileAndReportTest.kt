@@ -31,6 +31,46 @@ class ProfileAndReportTest {
     }
 
     @Test
+    fun `s4_throughput 的两个新 phase 类型解析出 window_ms（T47 批②，D-468D-469）`() {
+        // 与 spec/profiles/server/s4_throughput.json / profiles/s4_throughput.json 两份
+        // 落地文件语义一致（本测不读磁盘文件，遵循本文件既有内联 JSON 惯例）。
+        val body = """{"profile_id":"s4_throughput","version":"0.1.0","kpi_set":"agent-qoe-kpi-v0.3",
+            "phases":[{"type":"clock_sync","samples":20},
+                      {"type":"adaptive_download_window","window_ms":4000,"bytes":536870912,"chunk_kb":256},
+                      {"type":"adaptive_upload_window","window_ms":4000,"bytes":50331648,"chunk_kb":64},
+                      {"type":"clock_sync","samples":20}]}"""
+        val profile = ProfileParser.parseSingle(body)
+        val down = profile.phases[1]
+        assertEquals(ProfilePhase.TYPE_ADAPTIVE_DOWNLOAD_WINDOW, down.type)
+        assertEquals(4000, down.windowMs)
+        assertEquals(536870912L, down.bytes)
+        val up = profile.phases[2]
+        assertEquals(ProfilePhase.TYPE_ADAPTIVE_UPLOAD_WINDOW, up.type)
+        assertEquals(4000, up.windowMs)
+        assertEquals(50331648L, up.bytes)
+    }
+
+    @Test
+    fun `s4_throughput 不在 REQUIRED_IDS 内 与既有三场景共存不影响必需集校验`() {
+        // s4 是诊断期可选场景，不参与 order_effect 拉丁方——index() 只校验 REQUIRED_IDS
+        // 三者都在，不要求 map 恰好等于 REQUIRED_IDS，s4 存在与否都不该报错。
+        val body = """{"server_version":"aneb-server/0.1.0","profiles":[
+            ${profileJson("s1_chat", "0.2.0")},
+            ${profileJson("s2_coding_agent", "0.2.0")},
+            ${profileJson("s3_multimodal", "0.2.0")},
+            {"profile_id":"s4_throughput","version":"0.1.0","kpi_set":"agent-qoe-kpi-v0.3",
+             "phases":[{"type":"clock_sync","samples":20}]}]}"""
+        val map = ProfileParser.parseServerResponse(body)
+        assertEquals(4, map.size)
+        assertTrue("s4_throughput" in map)
+        // versionString 只聚合三个必需场景，不含 s4（spec §8.5：横比分组字段不扩展）
+        assertEquals(
+            "s1_chat@0.2.0;s2_coding_agent@0.2.0;s3_multimodal@0.2.0",
+            ProfileParser.versionString(map),
+        )
+    }
+
+    @Test
     fun `缺任一必需场景即抛异常 不静默缺省`() {
         val body = """{"profiles":[${profileJson("s1_chat", "0.2.0")}]}"""
         assertThrows(IllegalArgumentException::class.java) {

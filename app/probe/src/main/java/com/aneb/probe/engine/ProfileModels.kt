@@ -46,6 +46,12 @@ data class ProfilePhase(
     @SerialName("up_bytes") val upBytes: Long = 0,
     @SerialName("down_bytes") val downBytes: Long = 0,
     @SerialName("server_proc_ms") val serverProcMs: Int = 0,
+    // adaptive_download_window / adaptive_upload_window（T47 批②，D-468/D-469；
+    // spec/PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.3.5）：目标窗口时长。
+    // bytes/chunk_kb 两个既有字段在这两个新 type 下复用为「请求上限(ceiling)」/
+    // 「读写块大小」，与 upload_burst/download_burst 下「精确传输量」的语义不同——
+    // 同一字段名在不同 type 下的既有联合体设计模式的延伸（本文件顶部注释已声明）。
+    @SerialName("window_ms") val windowMs: Int = 0,
 ) {
     companion object {
         const val TYPE_CLOCK_SYNC = "clock_sync"
@@ -56,6 +62,10 @@ data class ProfilePhase(
 
         /** 下行大对象拉取（D1，PROFILE_FRAMEWORK §2.4；服务端 profiles.go 已支持同名相位）。 */
         const val TYPE_DOWNLOAD_BURST = "download_burst"
+
+        // T47 批②（D-468/D-469）：单流自适应窗口 goodput 探针（U3/D3）新增两个 phase 类型。
+        const val TYPE_ADAPTIVE_DOWNLOAD_WINDOW = "adaptive_download_window"
+        const val TYPE_ADAPTIVE_UPLOAD_WINDOW = "adaptive_upload_window"
     }
 }
 

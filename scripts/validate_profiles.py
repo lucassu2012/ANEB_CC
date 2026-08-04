@@ -38,6 +38,12 @@ PHASE_SPEC = {
     "token_stream":  {"tokens": "num", "rate_tps": "num", "token_bytes": "map"},
     "tool_loop":     {"rounds": "num", "up_bytes": "num", "down_bytes": "num",
                       "server_proc_ms": "num"},
+    # T47 批②（D-468/D-469，spec/PROFILE2_THROUGHPUT_PROBE_SPEC.md §8.4.1）：单流
+    # 自适应窗口 goodput 探针（U3/D3）。bytes 在这两个 type 下语义是「请求上限
+    # (ceiling)」而非精确传输量——与 upload_burst/download_burst 的 bytes 含义不同，
+    # 这里只做结构/类型校验，不校验语义。
+    "adaptive_download_window": {"window_ms": "int", "bytes": "num", "chunk_kb": "num"},
+    "adaptive_upload_window":   {"window_ms": "int", "bytes": "num", "chunk_kb": "num"},
 }
 DEFAULT_SPEC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "spec", "profiles", "server")
