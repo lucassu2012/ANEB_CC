@@ -99,10 +99,13 @@ class RadioCollector(
         // 1Hz 绝对时刻表（防累加漂移，同服务端 pacing 原则 §6）
         val startNs = SystemClock.elapsedRealtimeNanos()
         var tick = 0L
-        // D-428④ 拒绝的是"陈旧连击"日志（节流导致的 stale，价值依赖真机验证还没做，
-        // 拒绝理由原样成立，本次不碰）；这里加的是另一件事——guardTick 的 onError
-        // 已经在每次真异常时调用一次，顺手累加一个连续计数几乎零成本，帮下次真机
-        // 复核时区分"零星一次"与"连续多次"两种异常形状。
+        // D-428④ 拒绝的"陈旧连击"日志针对的是 CellInfo 静默 stale/null 这条路径——
+        // 真机验证已完成（T35/D-447）：TelephonyManager 存活、仅 requestCellInfoUpdate/
+        // allCellInfo 管线卡死、不抛异常；该路径专用的四态诊断日志已单独建过
+        // （D-449/D-450），诊断轮结束后依 D-455 条款摘除。consecutiveExceptionTicks
+        // 计数的是 guardTick.onError 真正抛异常的 tick——与上述静默卡死是两种不同的
+        // 失败形状，对那次调查从未用得上；但对任何真实抛异常的故障仍是零成本诊断信息
+        // （guardTick KDoc 理由③），故保留。
         var consecutiveExceptionTicks = 0
         try {
             while (true) {
