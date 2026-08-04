@@ -25,6 +25,7 @@ class ResultFormatTest {
         t1: Double? = 150.0,
         t2: Double? = 80.0,
         u1: Double? = 25.0,
+        d1: Double? = null,
     ) = ScenarioResultEntity(
         runId = "run-1",
         profileId = profileId,
@@ -47,6 +48,7 @@ class ResultFormatTest {
         u1GoodputMbps = u1, u1Grade = KpiGrading.grade("U1", u1),
         u1GoodputExclSlowStartMbps = u1?.let { it + 2.0 },
         u2ToolLoopP95Ms = 120.0, u2Grade = KpiGrading.grade("U2", 120.0),
+        d1GoodputMbps = d1, d1Grade = KpiGrading.grade("D1", d1),
         seqGapCount = 0,
         seqDupCount = 0,
         lowConfidenceKpis = lowConfidenceKpis,
@@ -126,6 +128,24 @@ class ResultFormatTest {
     }
 
     @Test
+    fun kpiRowsIncludeD1WithSharedThresholds() {
+        // T47 批①（D-468/D-469）：D1 半成品补齐——此前 wire 上线但结果页无渲染（D-276 反模式）
+        val rows = ResultFormat.kpiRows(scenario(d1 = 30.0))
+        val d1 = rows.first { it.id == "D1" }
+        assertEquals(30.0, d1.value!!, 1e-9)
+        assertEquals(KpiGrading.EXCELLENT, d1.grade) // 门限复用 KpiGrading（25/8/2），非新造
+    }
+
+    @Test
+    fun kpiRowsD1NullRendersDashNotZero() {
+        val rows = ResultFormat.kpiRows(scenario(d1 = null))
+        val d1 = rows.first { it.id == "D1" }
+        assertNull(d1.value)
+        assertNull(d1.grade)
+        assertEquals("—", ResultFormat.formatValue(d1)) // R-10：未测出≠0
+    }
+
+    @Test
     fun lowConfidenceMarksParsedPerKpi() {
         val rows = ResultFormat.kpiRows(scenario(lowConfidenceKpis = "T2,U1_excl_slow_start"))
         assertTrue(rows.first { it.id == "T2" }.lowConfidence)
@@ -148,7 +168,7 @@ class ResultFormatTest {
     fun runKpiRowsFollowAqsInputMapping() {
         val s1 = scenario(profileId = "s1_chat")
         val s2 = scenario(profileId = "s2_coding_agent", t1 = 300.0)
-        val s3 = scenario(profileId = "s3_multimodal", u1 = 8.0)
+        val s3 = scenario(profileId = "s3_multimodal", u1 = 8.0, d1 = 12.0)
         val rows = ResultFormat.runKpiRows(listOf(s1, s2, s3))
         val t1 = rows.first { it.row.id == "T1" }
         assertEquals("S2", t1.source)
@@ -158,6 +178,10 @@ class ResultFormatTest {
         assertEquals(8.0, u1.row.value!!, 1e-9)
         val n1 = rows.first { it.row.id == "N1" }
         assertEquals("S1", n1.source)
+        // T47 批①（D-468/D-469）：D1 来源场景同 AqsInputMapper 合同 D1←S3
+        val d1 = rows.first { it.row.id == "D1" }
+        assertEquals("S3", d1.source)
+        assertEquals(12.0, d1.row.value!!, 1e-9)
     }
 
     @Test
@@ -182,8 +206,8 @@ class ResultFormatTest {
         val csv = ResultFormat.buildCsv(run(), scenarios)
         val lines = csv.trim().split('\n')
         assertEquals(ResultFormat.CSV_HEADER, lines[0])
-        // 每场景 12 个 KPI 行（含双口径并列项）
-        assertEquals(1 + 2 * 12, lines.size)
+        // 每场景 13 个 KPI 行（含双口径并列项；T47 批①/D-468 起含 D1）
+        assertEquals(1 + 2 * 13, lines.size)
         // 每行列数与表头一致
         val cols = ResultFormat.CSV_HEADER.split(',').size
         lines.forEach { assertEquals(cols, it.split(',').size) }

@@ -150,6 +150,8 @@
             "u1_goodput_excl_slow_start_mbps": { "type": ["number", "null"] },
             "u2_tool_loop_p95_ms": { "type": ["number", "null"] },
             "u2_grade": { "type": ["string", "null"] },
+            "d1_goodput_mbps": { "type": ["number", "null"], "description": "T47 批①(D-468/D-469)：下行 goodput(`/download` 无限速 2xx 口径，逐次取中位数)，additive、非 required" },
+            "d1_grade": { "type": ["string", "null"] },
             "seq_gap_count": { "type": "integer" },
             "seq_dup_count": { "type": "integer" }
           }

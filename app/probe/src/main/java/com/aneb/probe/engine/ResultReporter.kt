@@ -151,6 +151,8 @@ object ResultReporter {
             put("u1_goodput_mbps", s.u1GoodputMbps); put("u1_grade", s.u1Grade)
             put("u1_goodput_excl_slow_start_mbps", s.u1GoodputExclSlowStartMbps)
             put("u2_tool_loop_p95_ms", s.u2ToolLoopP95Ms); put("u2_grade", s.u2Grade)
+            // T47 批①（D-468/D-469）：D1 半成品补齐——KpiCalculator 早算出却从未上线的字段
+            put("d1_goodput_mbps", s.d1GoodputMbps); put("d1_grade", s.d1Grade)
             put("seq_gap_count", s.seqGapCount)
             put("seq_dup_count", s.seqDupCount)
         })

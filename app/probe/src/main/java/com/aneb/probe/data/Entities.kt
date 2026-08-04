@@ -202,6 +202,13 @@ data class ScenarioResultEntity(
     // 格式与 lowConfidenceKpis 同一短名词汇:"T1:3,T2:110,…"(名:进入统计的有效样本数);
     // null = 导出未运行(v17 之前的历史行,ResultReporter 据此不写 kpi_quality 块)。
     val kpiSampleCounts: String? = null,
+    // ---- D1 半成品补齐（v19 additive 列，T47 批①，D-468/D-469）----
+    // KpiCalculator 早已算出 d1GoodputMbps（PROFILE_FRAMEWORK §2.2 BM-09(b)），但此前从未
+    // 落库/上线——"契约里要打分，wire 上从未出现"。本列起把它接入既有落库→上报管线。
+    // null = 该 run 跑在 D1 上线之前，或本次场景无下行样本（R-10：不可测≠0）。
+    val d1GoodputMbps: Double? = null,
+    /** 门限复用 KpiGrading.grade("D1",…)（25/8/2，同 AqsScorer.D1_ANCHORS） */
+    val d1Grade: String? = null,
 )
 
 /**

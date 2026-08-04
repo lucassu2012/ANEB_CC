@@ -467,6 +467,35 @@ class TestEngine(private val context: Context) {
                             "u1_excl_mbps=${fmt(kpi.u1GoodputExclSlowStartMbps)} u2_ms=${fmt(kpi.u2ToolLoopP95Ms)} " +
                             "gaps=${kpi.seqGapCount} dup=${kpi.seqDupCount}"
                     )
+                    // ---- T47 批①（D-468/D-469）：S3 固定负载(U1/D1)诊断日志 ----
+                    // 只读观测，不做任何 gate/拒绝——把 D-363 的一次性叙事分析变成持续观测。
+                    // 判据沿用 D-363 实测口径：耗时 ÷ 该场景自身 n1_rtt_p50_ms（不跨场景复用 RTT）。
+                    run {
+                        val rttRef = kpi.n1RttP50Ms.value
+                        fun ratioOf(durMs: Double) = rttRef?.takeIf { it > 0 }?.let { durMs / it }
+                        input.uploadResults.forEachIndexed { idx, r ->
+                            if (r.http2xx && r.durationNanos != null && r.durationNanos > 0) {
+                                val durMs = r.durationNanos / 1_000_000.0
+                                log(
+                                    "THROUGHPUT_DIAG scenario=$scenarioKey direction=up idx=$idx " +
+                                        "bytes=${r.bytes} duration_ms=${"%.1f".format(durMs)} " +
+                                        "rtt_ref_ms=${fmt(kpi.n1RttP50Ms)} " +
+                                        "ratio=${ratioOf(durMs)?.let { "%.2f".format(it) } ?: "null"}"
+                                )
+                            }
+                        }
+                        input.downloadResults.forEachIndexed { idx, r ->
+                            if (r.http2xx && r.durationNanos != null && r.durationNanos > 0) {
+                                val durMs = r.durationNanos / 1_000_000.0
+                                log(
+                                    "THROUGHPUT_DIAG scenario=$scenarioKey direction=down idx=$idx " +
+                                        "bytes=${r.bytes} duration_ms=${"%.1f".format(durMs)} " +
+                                        "rtt_ref_ms=${fmt(kpi.n1RttP50Ms)} " +
+                                        "ratio=${ratioOf(durMs)?.let { "%.2f".format(it) } ?: "null"}"
+                                )
+                            }
+                        }
+                    }
                     log(
                         "BUFFERING scenario=$scenarioKey " +
                             "score=${buffering?.let { "%.3f".format(it.bufferingScore) } ?: "null"} " +
@@ -819,6 +848,7 @@ class TestEngine(private val context: Context) {
         "U1" to kpi.u1GoodputMbps,
         "U1_excl_slow_start" to kpi.u1GoodputExclSlowStartMbps,
         "U2" to kpi.u2ToolLoopP95Ms,
+        "D1" to kpi.d1GoodputMbps, // T47 批①（D-468/D-469）：D1 半成品补齐
     )
 
     private fun buildScenarioEntity(
@@ -861,6 +891,9 @@ class TestEngine(private val context: Context) {
             u1GoodputExclSlowStartMbps = kpi.u1GoodputExclSlowStartMbps.value,
             u2ToolLoopP95Ms = kpi.u2ToolLoopP95Ms.value,
             u2Grade = KpiGrading.grade("U2", kpi.u2ToolLoopP95Ms.value),
+            // T47 批①（D-468/D-469）：D1 半成品补齐
+            d1GoodputMbps = kpi.d1GoodputMbps.value,
+            d1Grade = KpiGrading.grade("D1", kpi.d1GoodputMbps.value),
             seqGapCount = kpi.seqGapCount,
             seqDupCount = kpi.seqDupCount,
             // C07：per-KPI lowConfidence 持久化（结果页/导出标注用，KPI 文档 5.4）;

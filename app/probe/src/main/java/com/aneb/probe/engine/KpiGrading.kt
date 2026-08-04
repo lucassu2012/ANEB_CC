@@ -48,6 +48,15 @@ object KpiGrading {
                 value >= 1.0 -> FAIR
                 else -> POOR
             }
+            // T47 批①（D-468/D-469）：D1 半成品补齐。25/8/2 门限复用既有值，非新造——
+            // 与 AqsScorer.D1_ANCHORS（2.0/8.0/25.0）及 basic_network D1 的
+            // QualityTarget(excellent=25.0, good=8.0, fair=2.0) 两处独立既有取值一致。
+            "D1" -> when { // 高者优（Mbps）
+                value > 25.0 -> EXCELLENT
+                value >= 8.0 -> GOOD
+                value >= 2.0 -> FAIR
+                else -> POOR
+            }
             else -> null // T5 等不设门限
         }
     }

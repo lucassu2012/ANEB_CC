@@ -152,6 +152,8 @@ object ResultFormat {
                 lowConfidence = "U1_excl_slow_start" in lowConf,
             ),
             row("U2", "工具循环 P95", s.u2ToolLoopP95Ms, "ms", graded = true),
+            // T47 批①（D-468/D-469）：D1 半成品补齐——此前 wire 上线但结果页无渲染（D-276 反模式）
+            row("D1", "下行吞吐", s.d1GoodputMbps, "Mbps", graded = true),
         )
     }
 
@@ -200,6 +202,8 @@ object ResultFormat {
             agg(s3, "S3", "U1", "上行吞吐（含慢启动）", "Mbps", true) { it.u1GoodputMbps },
             agg(s3, "S3", "U1_excl_slow_start", "上行吞吐（剔慢启动）", "Mbps", false) { it.u1GoodputExclSlowStartMbps },
             agg(s2, "S2", "U2", "工具循环 P95", "ms", true) { it.u2ToolLoopP95Ms },
+            // T47 批①（D-468/D-469）：D1 半成品补齐，来源场景同 AqsInputMapper 合同 D1←S3
+            agg(s3, "S3", "D1", "下行吞吐", "Mbps", true) { it.d1GoodputMbps },
         )
     }
 
@@ -218,7 +222,7 @@ object ResultFormat {
         }
 
     /**
-     * CSV（场景×KPI 展平）：每场景 12 个 KPI 行（含双口径并列项）。
+     * CSV（场景×KPI 展平）：每场景 13 个 KPI 行（含双口径并列项；T47 批①/D-468 起含 D1）。
      * null 值 → 空串（绝不 0）；比率保持原始比率值（不 ×100，机器口径）。
      */
     fun buildCsv(run: TestRun, scenarios: List<ScenarioResultEntity>): String {

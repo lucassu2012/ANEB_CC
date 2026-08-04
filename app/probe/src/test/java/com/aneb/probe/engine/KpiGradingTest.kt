@@ -85,6 +85,18 @@ class KpiGradingTest {
         assertEquals("poor", g("U1", 0.99))
     }
 
+    // ---- 高者优 D1（Mbps，T47 批①/D-468：门限复用 AqsScorer.D1_ANCHORS/basic_network
+    //      D1 QualityTarget 既有取值 25/8/2，非新造）：v>25 优 / v>=8 良 / v>=2 可 / 否则差 ----
+
+    @Test fun `D1 higher-better boundaries 25 8 2`() {
+        assertEquals("优严格 >25", "excellent", g("D1", 25.01))
+        assertEquals("门限值本身归良（>优 严格）", "good", g("D1", 25.0))
+        assertEquals("良含下边界（>=良）", "good", g("D1", 8.0))
+        assertEquals("fair", g("D1", 7.99))
+        assertEquals("可含下边界（>=可）", "fair", g("D1", 2.0))
+        assertEquals("poor", g("D1", 1.99))
+    }
+
     // ---- R-10 / 无门限 KPI ----
 
     @Test fun `null value never graded (R-10)`() {

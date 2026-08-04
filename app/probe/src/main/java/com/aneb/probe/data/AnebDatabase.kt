@@ -52,7 +52,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      M7「最长帧间静默」用 max 而非分位数——P95 会把罕见但致命的长冻结丢掉;
     //      先落库不等计分实施,理由=chunk_us 被点名 20 处却从未落盘、M3 至今无法复核;
     //      可空,历史行 NULL＝「跑在 M7 之前」而非「为零」,additive ADD COLUMN）
-    version = 18,
+    // v19：scenario_result 增 d1GoodputMbps / d1Grade 两列（T47 批①,D-468/D-469：D1 半成品
+    //      补齐——KpiCalculator 早算出 d1GoodputMbps 却从未落库上线；门限复用既有
+    //      AqsScorer.D1_ANCHORS/basic_network D1 QualityTarget 取值 25/8/2,非新造;
+    //      可空,历史行 NULL＝「跑在 D1 上线之前」而非「为零」,additive ADD COLUMN）
+    version = 19,
     exportSchema = true, // T45/D-463 §6.2：打开，快照进 app/probe/schemas/（ksp room.schemaLocation）
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -470,6 +474,36 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v18 → v19 的全部语句（T47 批①，D-1 半成品补齐，D-468/D-469 大脑批 GO）：
+         * `scenario_result` 加两列——
+         * - `d1GoodputMbps`：`KpiCalculator.calculate()` 早已算出（PROFILE_FRAMEWORK §2.2
+         *   BM-09(b)），但 `ResultReporter`/`kpiValuePairs()` 从未接线，是"契约里要打分、
+         *   wire 上从未出现"的半成品（spec §8.1）。本列起把它接入既有落库→上报管线。
+         * - `d1Grade`：门限复用既有 `AqsScorer.D1_ANCHORS`/basic_network D1
+         *   `QualityTarget`（25/8/2 Mbps），不新造常量（D-312/D-332 同族纪律）。
+         *
+         * ALTER TABLE ADD COLUMN 追加为末列，与 Entities.kt ScenarioResultEntity 末尾新字段的
+         * KSP 期望 schema 一致（affinity REAL/TEXT，均可空，无默认值——R-10）。既有行补 NULL
+         * （=「该 run 跑在 D1 上线之前」，**不是**「无下行样本」），不触碰其他表/列＝v18 旧数据全存活。
+         */
+        internal val MIGRATION_18_19_SQL: List<String> = listOf(
+            "ALTER TABLE `scenario_result` ADD COLUMN `d1GoodputMbps` REAL",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d1Grade` TEXT",
+        )
+
+        /**
+         * v18 → v19（D1 半成品补齐，additive）：只加列不动数据。人工验证同 [MIGRATION_16_17]
+         * KDoc（覆盖安装后既有 scenario_result 行可见且两列 =NULL、`.schema scenario_result`
+         * 输出含新列、跑一次 s3_multimodal 场景后新行 d1GoodputMbps/d1Grade 有值、logcat 无
+         * Migration 异常）。
+         */
+        internal val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_18_19_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -482,7 +516,7 @@ abstract class AnebDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                        MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18,
+                        MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     .fallbackToDestructiveMigration()
