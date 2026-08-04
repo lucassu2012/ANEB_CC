@@ -1,0 +1,16 @@
+2026-08-04T12:05:04  DW-20260804-01 w0b armed: plan=quick16(1discard+15count)+forensic6(1discard+5count) gap=30s sinceEpochMs=1785787504155 ratBefore=NR_SA,Unknown
+2026-08-04T12:05:05  wifi_on before=1
+2026-08-04T12:05:13  egress after wifi off: Active default network: 259
+2026-08-04T12:05:13  rat after wifi off: NR_SA,Unknown
+2026-08-04T12:05:18  RUN 1 STARTED tag=quick_discard_1 mode=quick role=discard
+2026-08-04T12:07:29  RUN 1 END run_id=019fcaf2-81f1-787a-8db6-5fcdd61f080f status=completed
+2026-08-04T12:07:44  RUN 1 VERDICT: PASS: 1 run / 3 场景，radio 3/3，出口 106.92.29.209（019fcaf2-81f1-787a-8db6-5fcdd61f080f）
+2026-08-04T12:08:25  RUN 2 STARTED tag=quick_count_2 mode=quick role=count
+2026-08-04T12:10:35  RUN 2 END run_id=019fcaf5-58d3-716d-ac3e-532e7293acfa status=completed
+2026-08-04T12:10:49  RUN 2 VERDICT: PASS: 1 run / 3 场景，radio 3/3，出口 106.92.29.209（019fcaf5-58d3-716d-ac3e-532e7293acfa）
+2026-08-04T12:11:19  ABORT: sentinel removed externally -- someone else claimed the device, stopping
+2026-08-04T12:11:26  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-04T12:11:27  wrap-up: wifi_on=1 stayon=0
+2026-08-04T12:11:27  wrap-up: leftover=(none)
+2026-08-04T12:11:27  LEDGER written: C:\Users\lucas\AppData\Local\Temp\claude\E--C-Project-ANEB\c7bc03db-540e-4578-af6b-69d4fc5aa1cf\scratchpad\w0b_ledger.json (runs=2)
+2026-08-04T12:11:27  W0B FINISHED stopped_early=True runs_attempted=2 of 22
