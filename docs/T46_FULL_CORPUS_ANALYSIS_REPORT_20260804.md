@@ -36,7 +36,8 @@
   D-443 反复引用为"NR/LTE 同量级"却从未核实过——已在该文件追加 §11 订正（不改
   原文），详见 §6。
 
-**其余可由数据直接支持的事实**：AQS 总分 73/73 全部 excellent 档（84.8–91.7 分），
+**其余可由数据直接支持的事实**：AQS 总分 73/73 全部 excellent 档（84.8–91.7 分）
+〔**⚠ 本句判词已被订正，见文末"订正一"：实为 72 excellent + 1 good**〕，
 但 73/73 也全部 `SCORER_LOW_CONF`（低置信）——本报告独立查明这不是"forensic 模式
 设计使然"（quick 模式同样 100% 命中），真正机制是 T1/U1 两个 KPI 在当前场景设计下
 每场景样本数结构性低于打分器门槛（详见 §6）。无一格 fair/poor；无合成语料混入；
@@ -486,7 +487,8 @@ NR 侧自身数字，未变），但改变"同量级"这句读者印象，已提
 ## 7. 结论与建议
 
 **数据支持的事实**：
-1. 全语料 73 条 run 无一 fair/poor，AQS 总分全部 excellent（84.8–91.7 分），但
+1. 全语料 73 条 run 无一 fair/poor，AQS 总分全部 excellent（84.8–91.7 分）
+   〔**⚠ 本句判词已被订正，见文末"订正一"：实为 72 excellent + 1 good**〕，但
    N1（网络 RTT 子分）在所有格里持续是拖累维度。
 2. 73/73 run 的 `SCORER_LOW_CONF` 是 T1/U1 两个 KPI 场景级样本数结构性不足门槛
    造成，与 forensic/quick 模式选择无关。
@@ -562,3 +564,42 @@ journal，D 号登记时随附路径）。
 - [x] `evidence/t46_full_corpus_analysis_20260804/campaign_report.md`/`.html`/`tables_*.csv`
 - [x] `evidence/t46_full_corpus_analysis_20260804/radio_rollup.txt`/`publish_check.txt`/`coverage_matrix.txt`
 - [x] `evidence/nr_timeline_20260802/T30_BATCH_JUDGMENT_20260803.md` §11（订正，随本报告一并交付）
+
+---
+
+## 订正一（2026-08-15 追加，承 D-493）：本报告"73/73 全部 excellent"的分档判词有误，实为 72 excellent + 1 good
+
+**与 L-3 并列存档原则一致：只追加，不改上文任何一个数字。**
+
+本报告 §1 摘要与 §7 结论第 1 条两处写"AQS 总分 73/73 全部 excellent 档
+（84.8–91.7 分）"。T56 分数面体检（D-493）经**三条互不通气的独立路径**
+（其 Q1/Q2/Q3 各自从零复算）一致查明：按 `scripts/campaign_common.py:288` 的
+`AQS_GRADE_BANDS`（`≥85.0` 才是 excellent），73 条 run 实为
+**72 excellent + 1 good**。
+
+越界的那一条：`run_id=019fc86d-b295-7409-8ae8-ccd60d556d55`
+（SZ-PILOT-01 / ctcc / idle / `m3-expansion-wave0` / quick 模式），
+score=**84.823611**，距 85.0 门槛差 0.176 分。
+
+**成因（本条最该记住的部分）**：区间那两个数字（84.8–91.7）本身**没有错**，
+错的是紧挨着它的那句**判词**——把取整显示的"84.8"与阈值"85"视觉上读成了
+同一侧。这与本项目已登记的红线族形状完全同型（"拿印出来的数字去对旁边那句
+判词，对得上吗"——D-323 记的是 84.96 印成 85 却标 good），只是这次复发在
+**我们自己的头条**上。
+
+**同时补一条本报告从未提及的事实**：以上仅为主赛道 `run.aqs`。Token 赛道
+`run.aqs_token` 按同一阈值为 **56 excellent + 17 good**（82.31–91.10 分，
+23.3% 低于 excellent 门槛）——本报告当时未对 token 赛道下过分档判断，
+故不存在错判，但也从未提及，读者容易默认两条赛道同样"全 excellent"。
+
+**不改判本报告其余任何结论**：这 73 个总分的数值、`SCORER_LOW_CONF` 73/73、
+无一格 fair/poor、发布门可发布（FAIL 0/WARN 10/N-A 2）等全部不受影响；
+§5 的 RAT 效应与时段效应两大逆转结论也与本条无关。**改变的只是"全部
+excellent"这句判词的准确性**，以及它给读者的"这批数据整体健康度"印象——
+另需注意 D-493 同时查明这 73 个总分**全部** `low_confidence=True`，
+档位标签本身即带打分器自己的保留。
+
+*订正依据*：`docs/T56_AQS_SCORE_FACE_AUDIT_20260805.md` §1①/§3（D-493，
+大脑验收 PASS）；`scripts/campaign_common.py:288`（分档常量）。
+*日期口径*：本节按 D-494 时钟校正后的真实日期（2026-08-15）标注；
+本报告正文与文件名沿用采集当时的历日期（08-04），不改写历史。
