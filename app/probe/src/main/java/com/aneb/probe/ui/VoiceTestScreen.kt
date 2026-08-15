@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.aneb.probe.data.VoiceResultEntity
 import com.aneb.probe.engine.VoiceRunner
 import com.aneb.probe.scoring.AqsScorer
+import com.aneb.probe.scoring.BufferingDetector
 import com.aneb.probe.scoring.KpiValue
 import com.aneb.probe.ui.theme.AnebTheme
 import com.aneb.probe.ui.theme.Grade
@@ -399,5 +400,22 @@ private fun VoiceConclusionCard(sample: VoiceRunner.Sample) {
             color = c.faint,
             fontSize = 10.sp,
         )
+        // D-488③ 条件触发项兑现（回核级语料 n=30 已达成）：该字段自 D-476 落库以来
+        // 首个 UI 消费方。诊断观察量，不进 AQS——M7 答"最坏一下有多严重"，本值答
+        // "缓冲突发有没有发生"（D-390 §5 互补结论）。
+        Text(
+            "近零到达占比 ${nearZeroRatioDisplay(sample.voiceNearZeroArrivalRatio)}" +
+                "（诊断：帧间隔 <${BufferingDetector.NEAR_ZERO_ARRIVAL_US}µs 占比，缓冲突发迹象，不进 AQS）",
+            color = c.faint,
+            fontSize = 10.sp,
+        )
     }
 }
+
+/**
+ * 近零到达占比的展示文案：null → "—"（R-10：缺席不以 0 顶替，0.0% 是实测零、"—"是没测到，
+ * 两者必须可区分）；非 null → 百分比一位小数。抽成顶层纯函数因为本仓 app/probe 只有
+ * JVM JUnit（无 Compose 测试架构），Composable 内联写法无法被任何测试钉住。
+ */
+internal fun nearZeroRatioDisplay(ratio: Double?): String =
+    ratio?.let { "%.1f%%".format(it * 100) } ?: "—"
