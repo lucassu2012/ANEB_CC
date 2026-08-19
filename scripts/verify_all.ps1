@@ -377,6 +377,29 @@ if ($jdk -and $sdk -and $wrapperJar) {
     $log += Add-Result 'app-parity-tests' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- release signing dual-track (T58b / D-500(4)) ---
+# The signingConfig fallback lives in build.gradle.kts, where no JVM unit test can reach it.
+# Both directions matter, asymmetrically: "no keys -> unsigned, build still succeeds" failing
+# is loud (collaborators' builds break), but "keys present yet silently produced an UNSIGNED
+# apk" is the dangerous one -- it is only discovered at install time. The script verifies both
+# and reports SKIP (not PASS) when no keystore is configured, so "not verified" never looks
+# like "verified". It restores local.properties in a finally block.
+$signScript = Join-Path $repo 'scripts/verify_signing_fallback.ps1'
+if ($jdk -and $sdk -and $wrapperJar -and (Test-Path $signScript)) {
+    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $signScript 2>&1 | Out-String
+    $state = if ($LASTEXITCODE -eq 0) { 'PASS' } else { 'FAIL' }
+    $log += "--- app-release-signing ---"
+    $log += $out
+    $log += Add-Result 'app-release-signing' $state 'scripts/verify_signing_fallback.ps1 (signed + unsigned-fallback)'
+} else {
+    $missing = @()
+    if (-not $jdk) { $missing += 'JDK' }
+    if (-not $sdk) { $missing += 'AndroidSDK' }
+    if (-not $wrapperJar) { $missing += 'gradle-wrapper.jar' }
+    if (-not (Test-Path $signScript)) { $missing += 'verify_signing_fallback.ps1' }
+    $log += Add-Result 'app-release-signing' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- write log (utf8, never UTF-16) ---
 $log -join "`r`n" | Out-File -Encoding utf8 $logPath
 
