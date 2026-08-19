@@ -100,14 +100,20 @@ D-481 里我把它记作「比物理关 WiFi 更精确、更可逆的蜂窝路�
 
 ## 5. 关于 logcat 归档的如实说明
 
-**本目录不含 logcat 文件**：收工时先  才想起导出，而 Android 的 logcat 环形缓冲
+**本目录不含 logcat 文件**：收工时先 `force-stop` 才想起导出，而 Android 的 logcat 环形缓冲
 在应用停止后已被覆盖，导出结果为 0 字节。**空文件比没有文件更误导**（读者会以为有日志），
 故删除而不是留一个空壳。
 
-run 全程的关键日志已由本会话的 Monitor 逐条捕获并转述进 §1/§2 与 D-509 条目（/
-///// 均逐字引用）；
-数值结论则全部来自**设备 Room DB 的直接查询**（比 logcat 更权威）。
-**教训**：下次窗口应在  **之前**导出 logcat。
+run 全程的关键日志已由本会话的 Monitor 逐条捕获并转述进 §1/§2 与 D-509 条目
+（`RUN_START` / `NET_BIND` / `NET_BIND_FAIL` / `SCENARIO_START` / `RUN_ABORT` /
+`DB_WRITE` / `RUN_END` 均逐字引用）；数值结论则全部来自**设备 Room DB 的直接查询**
+（比 logcat 更权威）。
+
+**两条教训**：
+1. 下次窗口应在 `force-stop` **之前**导出 logcat。
+2. 本节自身也踩了一次坑——用 bash heredoc 内嵌 python 写含反引号的文本时，
+   **反引号被 shell 当成命令替换**（`force-stop: command not found`），内容被静默吃掉。
+   含反引号/中文标点的文本一律写独立脚本，不塞进 shell heredoc。
 
 ---
 *T25 真机验证 · DW-20260819-01 · 2026-08-19（真实历，D-494 校正后）· 兑现 D-428 挂账*
