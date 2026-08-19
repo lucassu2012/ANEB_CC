@@ -141,6 +141,113 @@ D-494 期间，设备以为 08-05，而 E-01 会把同一批结果归档进 `202
 - **未改阈值/常量**。
 - 本文不涉及 T63 的三常量议题，两者独立。
 
+
+## 8. 提案 A 的详细 spec（先 spec 后代码；**本节只是规格，未实施，待裁**）
+
+按 T47 治理规则「先 spec 后代码」，写 spec 是被许可的第一步，**动代码仍需大脑裁定**。
+本节把 §6 的提案 A 写到可以直接照着实施的粒度，使裁定通过后无需再设计。
+
+### 8.1 要量的到底是什么
+
+**设备墙钟与服务端墙钟之差**（skew），而**不是**已有的 `offset_*`（那是两个单调计数之差，
+§3 已证明它按 R-24 设计就不含墙钟信息）。
+
+服务端真实墙钟可由 echo 响应现有的两个字段还原：
+
+```
+serverWallMs ≈ anchor_wall_unix_ns / 1e6 + t1_us / 1e3
+```
+
+（`anchor_wall_unix_ns` = 服务端进程启动时的墙钟；`t1_us` = 该请求到达时距进程启动的单调微秒差。
+§4 已用线上实测验证这个还原式给出的时刻与实际吻合。）
+
+设备侧需要在**同一时刻**取一次墙钟。现状：`System.currentTimeMillis()` 在
+`TestEngine.kt:107` 取过一次（`run.started_at_epoch_ms`），但那是 run 开始时刻，
+与 echo 时刻相差整个 run 的前置时长——**不要用它做减法**，应在 echo 打 `t0` 的同一行取。
+
+```
+wall_skew_ms = deviceWallMsAtT0 − serverWallMs
+```
+
+### 8.2 客户端改动（三处，均 additive）
+
+1. **`AnebClient.EchoWire`** 增字段（`AnebClient.kt:67-72`）：
+   ```kotlin
+   @SerialName("anchor_wall_unix_ns") val anchorWallUnixNs: Long? = null,
+   ```
+   **可空且带默认值**——旧服务端不回该字段时反序列化不炸（E-01 现版本已回带，见 §4 实测，
+   但客户端不能假设对端一定是新版）。
+
+2. **`AnebClient` 的 echo 路径**：在取 `t0Us` 的同一处加一次 `System.currentTimeMillis()`，
+   响应回来后算 `wallSkewMs`；`anchorWallUnixNs == null` 时该样本的 skew 为 `null`
+   （R-10：测不出是 null，不是 0）。`EchoResult` 增一个 `wallSkewMs: Long?`。
+
+3. **`ScenarioKpi`**：把该场景 clock_sync 各样本的 `wallSkewMs` 取中位数
+   （非 warmup 样本，同既有 `clockSyncRttP50Ms` 惯例），落进 `clock` 块。
+
+### 8.3 契约与 schema
+
+`spec/schemas/result-run.schema.json` 的 `definitions.scenario.clock`（现有 4 个必填字段：
+`offset_start_us`/`offset_end_us`/`drift_ppm`/`offset_suspect`）**新增 1 个非必填字段**：
+
+```json
+"wall_skew_ms": { "type": ["integer", "null"] }
+```
+
+**不进 `required`**——历史语料没有它，进 required 会让既有 63 份 JSONL 全部违约
+（`spec/README.md §3` 只增不改不删纪律）。
+
+### 8.4 判据与阈值（**阈值本身待拍板，本节只给取值区间与理由**）
+
+```
+wall_clock_suspect ⟺ |wall_skew_ms| > WALL_SKEW_MAX_MS
+```
+
+**取值该落在哪个区间——两侧各有硬约束**：
+
+| 下界约束 | 上界约束 |
+|---|---|
+| 必须**大于**正常的网络/NTP 抖动，否则误报。参照：本项目实测 RTT 上界 106ms（T63 §1），NTP 同步日常偏差通常 <1s | 必须**小于**任何「已经足以毁掉判读」的偏差。参照：D-494 的 10 天 = 8.64×10⁸ ms；按日分桶只要错 1 天（8.64×10⁷ ms）结论就全错 |
+
+**区间极宽（约 3 个数量级）**，故这个常量不敏感——同 T63 §3 的形状，不必精调。
+**建议 `60_000`（60 秒）**：比任何合理的 NTP/RTT 偏差高两个数量级以上，比任何会影响
+按日分桶的偏差低三个数量级以上。**但这是建议不是决定**，且按 §8.7-2 同族纪律应标
+`PROVISIONAL` 直到有真实分布支撑。
+
+**取值不敏感这一点本身要写进代码注释**，否则后人会以为 60000 是标定出来的。
+
+### 8.5 消费方（新字段必须有真实读者，D-276）
+
+1. **App 侧**：`TestEngine` 的 run 前置日志加一行
+   `CLOCK_SKEW skew_ms=… suspect=…`——操作者当场可见（这条等价于提案 B，是 A 的子集，
+   顺带落地）。
+2. **分析层**：`scripts/trust_rollup.py` 已经是「仪器可信度」的归口（D-111 消费
+   `offset_suspect`/`drift_ppm`），`wall_skew_ms` 属同一类信号，**加在那里而不是另起一处**。
+   输出：按 (点位, 运营商, 时段) 报 skew 标注数 / 可疑数 / `|skew|` 中位。
+3. **发布门**：`publish_check.py` 增一条——语料中若有 `wall_clock_suspect` 记录，
+   **按日分桶的一切结论不可发布**（这正是 D-494 当时缺的那道门）。
+
+### 8.6 测试计划
+
+- 纯 JVM 单测（`AnebClient`/`ScenarioKpi` 侧）：还原式正确、`anchorWallUnixNs == null` 时
+  skew 为 null 不为 0、中位数取法与既有 RTT 惯例一致。
+- **反例证伪**（D-322，不推理）：构造一个 skew = 10 天的样本，断言判 suspect；
+  构造 skew = 50ms 的样本，断言不判 suspect。
+- **绊线**（同 T66/D-508 的形状）：`WALL_SKEW_MAX_MS` 与「会毁掉按日分桶的最小偏差」
+  之间的量级关系被钉住，改动即失败。
+- Python 侧：`trust_rollup` 与 `publish_check` 各配反例，且**新字段缺失时走缺席分支
+  不改分母**（D-111 既有纪律）。
+
+### 8.7 兼容性与回滚
+
+- **全部 additive**：新字段可空非必填、旧服务端不回带即为 null、历史语料不受影响。
+- **回滚**：删字段即可，无数据迁移（不落 Room——这是 wire/分析层信号，不需要设备端历史查询）。
+- **与 Codex 侧无关**：`anchor_wall_unix_ns` 是 E-01 **既有**回带字段（§4 线上实测确认），
+  **本提案不要求 E-01 做任何改动**——与 D-483 那份部署请求单是两件独立的事，不相互阻塞。
+
+---
+*§8 追记 2026-08-19 · 规格供裁，未实施 · 与 §6 提案 A 对应*
+
 ---
 *T64 · 2026-08-19（真实历，D-494 校正后）· 触发自 D-494 待办 · 全部结论有 file:line 与
 线上实测支撑 · 分析过程见会话 scratchpad，未入库*
