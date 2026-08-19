@@ -94,25 +94,36 @@ dependencies {
     testImplementation(libs.junit)
 }
 
-// ---- 单测输入声明：仓库根的 spec/profile 文件（T63 绊线发现，D-498 族）----
+// ---- 单测输入声明：仓库根 spec/语料文件（T66/D-508，含对本条自身首版的订正）----
 //
-// 部分单测按既有惯例（AdapterSpecTest / VoiceExecutionPlanParityTest / RttDominanceGuardTest）
-// 从 user.dir 向上找仓库根、直接读真实 spec/profile 文件——这是对的（读真文件而不是
-// 在测试里复制一份会各自漂移的副本，D-315）。但 Gradle 并不知道这层依赖：这些文件不在
-// 任何 task 的 inputs 里，于是**改了它们，测试任务仍判 UP-TO-DATE 而不重跑**。
+// 背景：部分单测按既有惯例（`repoFile()`：从 user.dir 向上找仓库根）直接读真实
+// spec/profile/语料文件——这是对的（读真文件而不是在测试里复制一份会各自漂移的副本，
+// D-315）。但 Gradle 并不知道这层依赖：这些文件不在任何 task 的 inputs 里，于是
+// **改了它们，测试任务仍判 UP-TO-DATE 而不重跑**。
 //
-// 实证（本条的由来）：把 profiles/s4_throughput.json 的 window_ms 从 4000 改成 2000，
-// `gradlew :probe:testDebugUnitTest` 报 BUILD SUCCESSFUL——测试根本没跑；加 --rerun-tasks
-// 才如期 FAILED。即：守卫逻辑是对的，但**在最需要它的那一刻（有人改了那个文件）它是睡着的**。
+// 实证：把 profiles/s4_throughput.json 的 window_ms 从 4000 改成 2000，
+// `gradlew :probe:testDebugUnitTest` 报 BUILD SUCCESSFUL——测试根本没跑（XML 时间戳未变）；
+// 加 --rerun-tasks 才如期 FAILED。即守卫逻辑对，但**在最需要它的那一刻是睡着的**。
 //
-// 下面把这些文件声明为测试任务输入，改动即触发重跑。
+// 订正记录（D-341：做完修复要把刚写的修复本身当被审对象再问一遍同类）：本声明的**首版
+// 只手写了 2 条路径**，而从代码枚举（`grep -rl "user.dir" src/test`）实为 **6 个测试、
+// 7 处路径**——AdapterSpecTest / CalibrationFixtureTest / SpecScoringParityTest /
+// ClientProfileDataParityTest 四个当时仍睡着。故改为**按目录声明**，新增同类文件天然被覆盖，
+// 不再依赖会漏会过期的手写清单（D-275）。
+//
+// 声明目录而非逐文件是语义正确而非过宽：这些测试的职责本就是"spec 与代码对拍"，
+// spec 变了本就该重跑。四个目录规模都很小（spec 42 文件/664K、profiles 4 文件、
+// assets 5 文件、calibration 9 文件），不会造成显著的重跑噪声。
 tasks.withType<Test>().configureEach {
     val repoRoot = rootProject.projectDir.parentFile // app/ 的上一级 = 仓库根
     listOf(
-        "profiles/s4_throughput.json",
-        "spec/profiles/client/voice_realtime_plan.json",
+        "spec",                            // AdapterSpecTest / SpecScoringParityTest
+                                           // / ClientProfileDataParityTest / VoiceExecutionPlanParityTest
+        "profiles",                        // RttDominanceGuardTest（window_ms 绊线）
+        "app/probe/src/main/assets",       // AdapterSpecTest / ClientProfileDataParityTest 的运行时镜像侧
+        "evidence/phase1/calibration",     // CalibrationFixtureTest
     ).forEach { rel ->
-        val f = File(repoRoot, rel)
-        if (f.isFile) inputs.file(f).withPropertyName(rel.replace('/', '_'))
+        val d = File(repoRoot, rel)
+        if (d.isDirectory) inputs.dir(d).withPropertyName(rel.replace('/', '_'))
     }
 }
