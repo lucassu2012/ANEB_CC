@@ -39,7 +39,12 @@
 
 ## 三、交付物清单〔待填：v1 主工作面〕
 - APP：debug（测量主力）+ release（已验证发行链，keystore 正式版待 PO）
-- 文档地图：〔待填——哪份文档管什么，从 docs/ 实际枚举〕
+- 文档地图（docs/ 实枚举 67 份，08-19；**常青文档全列，一次性任务产出按索引规则找**——手写全清单必漏必过期）：
+  - **治理与总纲**：`DECISION_LOG.md`（决策台账，一切裁定的单一事实源，至 D-512+）｜`BRAIN_TASKBOARD.md`（任务板+DW 设备窗登记）｜`SYSTEM_DEV_PLAN_v1.0.md`（DEV PLAN，唯一指导文档）｜根 `CLAUDE.md`（树边界+提交纪律）
+  - **规格契约（常青）**：`PROFILE_FRAMEWORK.md`｜`PROFILE2_THROUGHPUT_PROBE_SPEC.md`+`_INTERFACE.md`（吞吐 S4）｜`PROFILE4_VOICE_LOOPBACK_SPEC.md`（语音）｜`M7_ANCHOR_RECALIBRATION_PLAN.md`（M7 锚点治理）｜`RADIO_CONTEXT_WIRING_SPEC.md`｜`CAMPAIGN_LABELS_CONVENTION.md`+`_WIRING_SPEC.md`（战役标签）｜`N_SAMPLE_SIZE_BY_KPI_RAT_20260804.md`（n 表，D-474）
+  - **战役与报告（常青）**：`M2_CAMPAIGN_RUNBOOK.md`（注意 D-311 订正史）｜`T60_ACCEPTANCE_RUNBOOK_HALFDAY_20260819.md`（验收战役）｜`ANALYSIS_LAYER_HANDOVER.md`（分析层交接，十二红线）｜`scripts/README.md`（工具地图，仓内另册）
+  - **能力与边界（交付相关）**：本文件｜`T61_APP_CAPABILITY_FACTCHECK_20260819.md`（App 能力实况核对，v2 供料）｜`T46_FULL_CORPUS_ANALYSIS_REPORT_20260804.md`（全语料体检，含订正一）｜`测量红队清单.md`
+  - **一次性任务产出（T 号/日期戳文件）索引规则**：由台账 D 号行的「证据」列指回文件名——**先查 DECISION_LOG 再找文件**，不要按文件名猜内容（同名多版本如 T48/前台评审均以台账指针为准）。
 - 数据资产：73 run 全语料 + 语音 35 行库 + evidence/ 目录图〔待填〕
 - 工具链：scripts/ 战役层〔待填〕
 
