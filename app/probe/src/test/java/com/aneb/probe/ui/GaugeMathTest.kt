@@ -145,4 +145,52 @@ class GaugeMathTest {
         assertEquals("…", itl.centerVal) // R-10：无值显省略号，不显 0
         assertEquals("ITL 中位 ms", itl.centerLabel)
     }
+
+    // ---- R-10 呈现层补口（增量守卫，2026-08-19 T48 测试策略第 1 层）----
+    // 说明（如实标注冗余边界）：本文件此前**已有** 4 条 homeGaugeReadout 守卫，
+    // 其中 `aqs null folds fraction to zero and text to ellipsis` 已钉住 AQS 单点的
+    // R-10 语义（突变审计验证：把 `?: "…"` 改成 `?: "0"`，该条与下面第一条同时咬住）。
+    // 下面两条只补它们**没覆盖的两处**，不重复既有断言：
+    //   ① 已有守卫只测 AQS 一个 metric；TTFT/ITL 在缺失时显什么，此前无人守。
+    //   ② 四个核心量的中心副标题是否两两可辨——切换器的可读性前提，此前无人守。
+
+    @Test
+    fun `every metric renders missing as ellipsis never as zero`() {
+        // 遍历全部 metric：缺失一律不得渲染成 0/0.0（R-10：缺失即缺失，不以 0 顶替）。
+        // 覆盖既有守卫的空白面 —— 它只测了 Aqs 一个分支。
+        for (m in HomeGaugeMetric.values()) {
+            val r = GaugeMath.homeGaugeReadout(
+                metric = m,
+                autoFrac = 0.42f, autoVal = "…", autoLabel = "Token /秒",
+                aqsRunning = null, ttftMs = null, itlMedianMs = null,
+            )
+            assertTrue(
+                "metric=$m 缺失时中心文字为 ${r.centerVal}，不得以 0 顶替（R-10）",
+                r.centerVal != "0" && r.centerVal != "0.0" && r.centerVal != "0.00",
+            )
+        }
+        // 三个有量纲的核心量必须显式显省略号（Auto 透传上游文案，不在此列）
+        val ellipsisOnly = listOf(HomeGaugeMetric.Aqs, HomeGaugeMetric.Ttft, HomeGaugeMetric.Itl)
+        for (m in ellipsisOnly) {
+            val r = GaugeMath.homeGaugeReadout(
+                metric = m,
+                autoFrac = 0.42f, autoVal = "ignored", autoLabel = "ignored",
+                aqsRunning = null, ttftMs = null, itlMedianMs = null,
+            )
+            assertEquals("metric=$m", "…", r.centerVal)
+        }
+    }
+
+    @Test
+    fun `center labels stay pairwise distinct so the switcher stays legible`() {
+        // 切换核心量后，用户靠中心副标题判断"现在看的是哪个量"；标题重复＝切换不可读。
+        val labels = HomeGaugeMetric.values().map { m ->
+            GaugeMath.homeGaugeReadout(
+                metric = m,
+                autoFrac = 0.42f, autoVal = "v", autoLabel = "Token /秒",
+                aqsRunning = 62.0, ttftMs = 350.0, itlMedianMs = 87.0,
+            ).centerLabel
+        }
+        assertEquals("中心副标题不得重复：$labels", labels.size, labels.toSet().size)
+    }
 }
