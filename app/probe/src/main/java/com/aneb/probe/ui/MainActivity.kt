@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -35,21 +33,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.aneb.probe.BuildConfig
-import com.aneb.probe.apiprobe.AiReachabilityProbe
-import com.aneb.probe.apiprobe.ApiKeyStore
 import com.aneb.probe.apiprobe.ApiProbe
-import com.aneb.probe.apiprobe.ApiProbeReport
 import com.aneb.probe.apiprobe.LlmProvider
-import com.aneb.probe.apiprobe.ObservationJsonlWriter
-import com.aneb.probe.apiprobe.ProviderPresets
-import com.aneb.probe.apiprobe.toLlmProvider
-import java.io.File
-import com.aneb.probe.data.AdapterObsEntity
 import com.aneb.probe.data.AnebDatabase
-import com.aneb.probe.data.Exporter
-import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.SyntheticResultEntity
-import com.aneb.probe.data.TestRun
 import com.aneb.probe.data.VoiceResultEntity
 import com.aneb.probe.engine.AbRunner
 import com.aneb.probe.engine.ContinuityRunner
@@ -57,18 +44,20 @@ import com.aneb.probe.engine.SpeedRunner
 import com.aneb.probe.engine.SyntheticRecoveryRunner
 import com.aneb.probe.engine.TestEngine
 import com.aneb.probe.engine.VoiceRunner
-import com.aneb.probe.radio.GeoTrack
 import com.aneb.probe.radio.RadioCollector
 import com.aneb.probe.ui.components.AnebTabBar
 import com.aneb.probe.ui.components.MainTab
+import com.aneb.probe.ui.routes.ApiProbeRoute
+import com.aneb.probe.ui.routes.HistoryRoute
+import com.aneb.probe.ui.routes.HomeRoute
+import com.aneb.probe.ui.routes.ReachBoardRoute
+import com.aneb.probe.ui.routes.ReportRoute
+import com.aneb.probe.ui.routes.ResultRoute
 import com.aneb.probe.ui.theme.AnebTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * 单 Activity 状态切换导航（UI 重设计）：
@@ -635,6 +624,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         } else {
                                             HomeRoute(
+                                                db = db,
                                                 running = running,
                                                 telemetry = telemetry,
                                                 logs = logs,
@@ -648,6 +638,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                     MainTab.History -> HistoryRoute(
+                                        db = db,
                                         onOpen = { runId ->
                                             screen = Screen.Result(runId, fromHistory = true)
                                         },
@@ -686,19 +677,35 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 // ---- 下钻屏（隐底栏；各自返回键回当前 tab 根）----
-                                is Screen.Report -> ReportRoute(onBack = { screen = Screen.Home })
+                                is Screen.Report -> ReportRoute(
+                                    db = db,
+                                    appContext = applicationContext,
+                                    scope = lifecycleScope,
+                                    activity = this@MainActivity,
+                                    onBack = { screen = Screen.Home },
+                                )
                                 is Screen.Result -> ResultRoute(
+                                    db = db,
+                                    appContext = applicationContext,
+                                    scope = lifecycleScope,
+                                    activity = this@MainActivity,
                                     runId = s.runId,
                                     // 回根：tab 已记住来路（测试 手动测/上次结果 或 历史 tab 下钻），
                                     // 回到 Home 哨兵即落回当前 tab 根。
                                     onBack = { screen = Screen.Home },
                                 )
                                 is Screen.ApiProbe -> ApiProbeRoute(
+                                    db = db,
+                                    appContext = applicationContext,
+                                    scope = lifecycleScope,
                                     // 从设置根下钻而来：回 Home 哨兵即落回设置 tab 根。
                                     onBack = { screen = Screen.Home },
                                     onOpenReachBoard = { screen = Screen.ReachBoard },
                                 )
-                                is Screen.ReachBoard -> ReachBoardRoute(onBack = { screen = Screen.Home })
+                                is Screen.ReachBoard -> ReachBoardRoute(
+                                    scope = lifecycleScope,
+                                    onBack = { screen = Screen.Home },
+                                )
                             }
                         }
                     }
@@ -715,438 +722,6 @@ class MainActivity : ComponentActivity() {
         }
         keepScreenOnPolicy.onDestroy()
         super.onDestroy()
-    }
-
-    // ------------------------------------------------------------------
-    // Home / History / Result 路由（Room 加载）
-    // ------------------------------------------------------------------
-
-    @Composable
-    private fun HomeRoute(
-        running: Boolean,
-        telemetry: com.aneb.probe.engine.LiveTelemetry,
-        logs: List<String>,
-        onStart: () -> Unit,
-        onCancel: () -> Unit,
-        onOpenSettings: () -> Unit,
-        onOpenResult: (String) -> Unit,
-    ) {
-        // 最近一次 run（run 结束 running→false 时刷新，带出上次结果 chip）
-        val lastRun by produceState<TestRun?>(initialValue = null, running) {
-            value = withContext(Dispatchers.IO) {
-                db.testRunDao().all().maxByOrNull { it.startedAtEpochMs }
-            }
-        }
-        HomeScreen(
-            lastRun = lastRun,
-            running = running,
-            telemetry = telemetry,
-            logs = logs,
-            onStart = onStart,
-            onCancel = onCancel,
-            onOpenSettings = onOpenSettings,
-            onOpenLastResult = onOpenResult,
-        )
-    }
-
-    @Composable
-    private fun HistoryRoute(
-        onOpen: (String) -> Unit,
-        onGenerateReport: () -> Unit,
-        onBack: () -> Unit,
-    ) {
-        val runs by produceState(initialValue = emptyList<TestRun>()) {
-            value = withContext(Dispatchers.IO) { db.testRunDao().all() }
-        }
-        // 历史统一展示：语音记录混入历史列表（每次进入历史页 produceState 重启即刷新）
-        val voiceResults by produceState(initialValue = emptyList<VoiceResultEntity>()) {
-            value = withContext(Dispatchers.IO) { db.voiceResultDao().recent(100) }
-        }
-        // 观察记录（Profile 3 无障碍观察快照）混入历史列表——只落规格匹配会话，恒 LOW/INCONCLUSIVE
-        val adapterObs by produceState(initialValue = emptyList<AdapterObsEntity>()) {
-            value = withContext(Dispatchers.IO) { db.adapterObsDao().recent(100) }
-        }
-        HistoryScreen(
-            runs = runs,
-            onOpen = onOpen,
-            onGenerateReport = onGenerateReport,
-            onBack = onBack,
-            voiceResults = voiceResults,
-            adapterObs = adapterObs,
-        )
-    }
-
-    // ------------------------------------------------------------------
-    // 敏感度报告路由（analysis layer ③：多次 run → ReportMapper → ReportAnalyzer → ReportScreen）
-    // ------------------------------------------------------------------
-
-    @Composable
-    private fun ReportRoute(onBack: () -> Unit) {
-        val analysis by produceState<com.aneb.probe.scoring.ReportAnalyzer.ReportAnalysis?>(
-            initialValue = null,
-        ) {
-            value = withContext(Dispatchers.IO) {
-                val runs = db.testRunDao().all()
-                val withScenarios = runs.map { run ->
-                    run to db.scenarioResultDao().forRun(run.runId)
-                }
-                val summaries = ReportMapper.toRunSummaries(withScenarios)
-                // 会话中断率：取有 C1 实测的 run 的中位数（真实测量，供上行重发投影；无则 null）
-                val dropRates = runs.mapNotNull { it.aqsV02C1DropRate }.sorted()
-                val sessionDrop = if (dropRates.isEmpty()) null else dropRates[dropRates.size / 2]
-                com.aneb.probe.scoring.ReportAnalyzer.analyze(summaries, sessionDrop)
-            }
-        }
-        var exportStatus by remember { mutableStateOf<String?>(null) }
-        val a = analysis
-        ReportScreen(
-            analysis = a,
-            exportStatus = exportStatus,
-            onExportMarkdown = {
-                if (a != null) {
-                    doExportReport("md", "text/markdown", ReportFormat.buildMarkdown(a)) { exportStatus = it }
-                }
-            },
-            onExportJson = {
-                if (a != null) {
-                    doExportReport("json", "application/json", ReportFormat.buildJson(a)) { exportStatus = it }
-                }
-            },
-            onShare = {
-                if (a != null) {
-                    val body = ReportFormat.buildMarkdown(a)
-                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(android.content.Intent.EXTRA_SUBJECT, "ANEB 分层测试敏感度报告")
-                        putExtra(android.content.Intent.EXTRA_TEXT, body)
-                    }
-                    android.util.Log.i("AnebProbe", "REPORT_SHARE chars=${body.length}")
-                    startActivity(android.content.Intent.createChooser(send, "分享报告"))
-                }
-            },
-            onBack = onBack,
-        )
-    }
-
-    private fun doExportReport(
-        format: String,
-        mime: String,
-        content: String,
-        onStatus: (String) -> Unit,
-    ) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val fileName = "aneb_report_$ts.$format"
-            val outcome = Exporter.exportToDownloads(applicationContext, fileName, mime, content)
-            val line =
-                "REPORT_EXPORT format=$format file=$fileName bytes=${outcome.bytes} " +
-                    "status=${if (outcome.ok) "ok" else "fail"} " +
-                    "uri=${outcome.uri ?: "null"} error=${outcome.error?.replace(' ', '_') ?: "none"}"
-            android.util.Log.i("AnebProbe", line)
-            withContext(Dispatchers.Main) { onStatus(line) }
-        }
-    }
-
-    private data class ResultData(
-        val run: TestRun?,
-        val scenarios: List<ScenarioResultEntity>,
-        val reportJson: String?,
-        val trackPoints: List<GeoTrack.Point>,
-        val radioSummary: ResultRadioSummary,
-        val latency: ResultLatencySeries,
-        val loaded: Boolean,
-    )
-
-    @Composable
-    private fun ResultRoute(runId: String, onBack: () -> Unit) {
-        val data by produceState(
-            initialValue = ResultData(
-                null, emptyList(), null, emptyList(),
-                ResultRadioSummary.EMPTY, ResultLatencySeries.EMPTY, loaded = false,
-            ),
-            runId,
-        ) {
-            value = withContext(Dispatchers.IO) {
-                // 无线样本一次读取，复用于轨迹点（GPS 路测）与无线层聚合（制式/信号）
-                val radioSamples = db.radioSampleDao().forRun(runId)
-                ResultData(
-                    run = db.testRunDao().byId(runId),
-                    scenarios = db.scenarioResultDao().forRun(runId),
-                    reportJson = db.reportBodyDao().forRun(runId)?.body,
-                    trackPoints = radioSamples
-                        .filter { it.lat != null && it.lon != null }
-                        .map { GeoTrack.Point(it.tsNanos, it.lat, it.lon, it.accuracyM) },
-                    radioSummary = ResultRadioSummary.of(radioSamples),
-                    latency = ResultLatencySeries.of(db.tokenEventDao().forRun(runId)),
-                    loaded = true,
-                )
-            }
-        }
-        var exportStatus by remember(runId) { mutableStateOf<String?>(null) }
-
-        if (!data.loaded) {
-            Text("加载中…", modifier = Modifier.padding(16.dp))
-            return
-        }
-        val trackSummaries: Map<Long, GeoTrack.Summary> =
-            if (data.trackPoints.isEmpty()) {
-                emptyMap()
-            } else {
-                data.scenarios.associate { s ->
-                    s.id to GeoTrack.summarize(data.trackPoints, s.startedAtNanos, s.endedAtNanos)
-                }
-            }
-        ResultScreen(
-            run = data.run,
-            scenarios = data.scenarios,
-            reportJson = data.reportJson,
-            radio = data.radioSummary,
-            latency = data.latency,
-            exportStatus = exportStatus,
-            onExportJson = {
-                val body = data.reportJson ?: return@ResultScreen
-                doExport(runId, "json", "application/json", body) { exportStatus = it }
-            },
-            onExportCsv = {
-                val run = data.run ?: return@ResultScreen
-                doExport(runId, "csv", "text/csv", ResultFormat.buildCsv(run, data.scenarios)) {
-                    exportStatus = it
-                }
-            },
-            onBack = onBack,
-            trackSummaries = trackSummaries,
-            hasTrack = data.trackPoints.isNotEmpty(),
-            onExportTrack = {
-                doExport(runId, "track.csv", "text/csv", GeoTrack.buildTrackCsv(data.trackPoints)) {
-                    exportStatus = it
-                }
-            },
-            onShare = { model ->
-                // 分享成图：离屏 Canvas 渲染 + MediaStore 写盘属重 IO，必须离开主线程（与 doExport 同款）；
-                // 仅 startActivity 回主线程。KEY=SHARE。
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val uri = ShareCard.renderAndSave(applicationContext, model)
-                    withContext(Dispatchers.Main) { ShareCard.launchShare(this@MainActivity, uri) }
-                }
-            },
-        )
-    }
-
-    private fun doExport(
-        runId: String,
-        format: String,
-        mime: String,
-        content: String,
-        onStatus: (String) -> Unit,
-    ) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val fileName = "aneb_${runId.take(8)}_$ts.$format"
-            val outcome = Exporter.exportToDownloads(applicationContext, fileName, mime, content)
-            val line =
-                "EXPORT run_id=$runId format=$format file=$fileName bytes=${outcome.bytes} " +
-                    "status=${if (outcome.ok) "ok" else "fail"} " +
-                    "uri=${outcome.uri ?: "null"} error=${outcome.error?.replace(' ', '_') ?: "none"}"
-            android.util.Log.i("AnebProbe", line)
-            withContext(Dispatchers.Main) { onStatus(line) }
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // API Probe 路由（阶段 2：真实 API 探针，独立入口）
-    // ------------------------------------------------------------------
-
-    @Composable
-    private fun ApiProbeRoute(onBack: () -> Unit, onOpenReachBoard: () -> Unit) {
-        val keyStore = remember { ApiKeyStore(applicationContext) }
-        var provider by rememberSaveable { mutableStateOf(keyStore.provider) }
-        var baseUrl by rememberSaveable { mutableStateOf(keyStore.effectiveBaseUrl()) }
-        var model by rememberSaveable { mutableStateOf(keyStore.effectiveModel()) }
-        var selectedPresetId by rememberSaveable { mutableStateOf<String?>(null) }
-        var keyInput by remember { mutableStateOf("") }
-        var hasStoredKey by remember { mutableStateOf(keyStore.hasKey()) }
-        var running by remember { mutableStateOf(false) }
-        var exportStatus by remember { mutableStateOf<String?>(null) }
-        val logs = remember { mutableStateListOf<String>() }
-        var results by remember { mutableStateOf(emptyList<com.aneb.probe.data.ApiProbeResultEntity>()) }
-        var resultsVersion by remember { mutableStateOf(0) }
-
-        LaunchedEffect(resultsVersion) {
-            results = withContext(Dispatchers.IO) { db.apiProbeResultDao().recent(20) }
-        }
-
-        fun addLog(line: String) {
-            android.util.Log.i("AnebProbe", line)
-            logs.add(line)
-        }
-
-        ApiProbeScreen(
-            provider = provider,
-            onProviderChange = { p ->
-                provider = p
-                if (baseUrl == LlmProvider.ANTHROPIC.defaultBaseUrl ||
-                    baseUrl == LlmProvider.OPENAI_COMPAT.defaultBaseUrl
-                ) {
-                    baseUrl = p.defaultBaseUrl
-                }
-                if (model == LlmProvider.ANTHROPIC.defaultModel ||
-                    model == LlmProvider.OPENAI_COMPAT.defaultModel
-                ) {
-                    model = p.defaultModel
-                }
-            },
-            baseUrl = baseUrl,
-            onBaseUrlChange = { baseUrl = it },
-            model = model,
-            onModelChange = { model = it },
-            keyInput = keyInput,
-            onKeyInputChange = { keyInput = it },
-            hasStoredKey = hasStoredKey,
-            keyStoreEncrypted = keyStore.encrypted,
-            onSaveConfig = {
-                keyStore.provider = provider
-                keyStore.baseUrlOverride = baseUrl.takeIf { it != provider.defaultBaseUrl }
-                keyStore.modelOverride = model.takeIf { it != provider.defaultModel }
-                if (keyInput.isNotBlank()) {
-                    keyStore.setApiKey(keyInput)
-                    keyInput = ""
-                }
-                hasStoredKey = keyStore.hasKey()
-                addLog("APIPROBE_CONFIG saved provider=${provider.id} key_present=$hasStoredKey")
-            },
-            onClearKey = {
-                keyStore.setApiKey(null)
-                hasStoredKey = false
-                addLog("APIPROBE_CONFIG key_cleared")
-            },
-            running = running,
-            onRun = {
-                val key = keyStore.apiKey()
-                if (key == null) {
-                    addLog("APIPROBE_SKIP reason=E-03_no_key")
-                } else if (!running) {
-                    running = true
-                    lifecycleScope.launch {
-                        try {
-                            // Profile-2 校准 observation 落地（PO 授权 2026-07-18；口径=API 直调≠消费App画像）：
-                            // 每次干净成功的探针 → 一条隐私最小化 observation 追加到 App 私有 filesDir/observations/。
-                            // datasetSecret 由 ApiKeyStore 自管（不经手明文）；subject=<provider>-<model>。
-                            val obsWriter = ObservationJsonlWriter(File(applicationContext.filesDir, "observations"))
-                            val obsSink = ApiProbe.ObservationSink(
-                                datasetSecret = keyStore.datasetSecret(),
-                                subject = "${provider.id}-$model",
-                                emit = { obs -> withContext(Dispatchers.IO) { obsWriter.append(obs, provider.id) } },
-                            )
-                            // workload 默认 TEXT（探针请求体恒 text）；observation 的 workload_kind
-                            // 由此 run 参单一决定，与请求体同源（finding #2, D-64）。
-                            ApiProbe(applicationContext).run(
-                                ApiProbe.Config(provider, baseUrl, model, key),
-                                observationSink = obsSink,
-                            ) { line -> withContext(Dispatchers.Main) { addLog(line) } }
-                            resultsVersion++
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            addLog("APIPROBE_FAILED error=${e.javaClass.simpleName}")
-                        } finally {
-                            running = false
-                        }
-                    }
-                }
-            },
-            logs = logs,
-            results = results,
-            exportStatus = exportStatus,
-            onExport = {
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val all = db.apiProbeResultDao().all()
-                    val body = ApiProbeReport.buildJson(all, keyStore.apiKey())
-                    val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                    val fileName = "aneb_apiprobe_$ts.json"
-                    val outcome = Exporter.exportToDownloads(
-                        applicationContext, fileName, "application/json", body,
-                    )
-                    val line =
-                        "APIPROBE_EXPORT file=$fileName bytes=${outcome.bytes} " +
-                            "status=${if (outcome.ok) "ok" else "fail"} " +
-                            "claim_scope=${ApiProbeReport.CLAIM_SCOPE}"
-                    android.util.Log.i("AnebProbe", line)
-                    withContext(Dispatchers.Main) { exportStatus = line }
-                }
-            },
-            // 预置接入（mode②）：选中预置自动填 provider/base/model；key 处理逐字不变。
-            presets = ProviderPresets.all,
-            selectedPresetId = selectedPresetId,
-            onSelectPreset = { p ->
-                selectedPresetId = p.id
-                provider = p.toLlmProvider()
-                baseUrl = p.baseUrl
-                model = p.defaultModel
-            },
-            onOpenReachBoard = onOpenReachBoard,
-            onBack = onBack,
-        )
-    }
-
-    // ------------------------------------------------------------------
-    // 可达性看板路由（mode①：AiReachabilityProbe 无 key 连接层探测，best-effort、不进 AQS）
-    // ------------------------------------------------------------------
-
-    @Composable
-    private fun ReachBoardRoute(onBack: () -> Unit) {
-        var rows by remember { mutableStateOf(emptyList<AiReachabilityProbe.Result>()) }
-        var running by remember { mutableStateOf(false) }
-        var lastRunLabel by remember { mutableStateOf<String?>(null) }
-        ReachabilityBoardScreen(
-            rows = rows,
-            running = running,
-            onRun = {
-                if (!running) {
-                    running = true
-                    // 起跑先把全部预置播种为 UNPROBED，随 onResult 逐条就地更新（看板逐条亮起，不再像卡死）
-                    rows = ProviderPresets.all.map { p ->
-                        AiReachabilityProbe.Result(
-                            presetId = p.id,
-                            displayName = p.displayName,
-                            host = runCatching { java.net.URI(p.baseUrl).host }.getOrNull() ?: p.baseUrl,
-                            status = AiReachabilityProbe.Status.UNPROBED,
-                            tlsHandshakeMs = null,
-                            connectMs = null,
-                            httpCode = null,
-                            verified = p.verified,
-                            note = null,
-                        )
-                    }
-                    lifecycleScope.launch {
-                        try {
-                            val probed = withContext(Dispatchers.IO) {
-                                AiReachabilityProbe().probeAll(ProviderPresets.all) { r ->
-                                    withContext(Dispatchers.Main) {
-                                        rows = rows.map { if (it.presetId == r.presetId) r else it }
-                                    }
-                                }
-                            }
-                            val ok = probed.count { it.status == AiReachabilityProbe.Status.OK }
-                            lastRunLabel = "刚刚 · ${probed.size} 家 · $ok 通"
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            android.util.Log.i(
-                                "AnebProbe",
-                                "AIREACH_FAILED error=${e.javaClass.simpleName}",
-                            )
-                        } finally {
-                            running = false
-                        }
-                    }
-                }
-            },
-            onBack = onBack,
-            lastRunLabel = lastRunLabel,
-            claimScopeNote =
-                "连接层口径（${AiReachabilityProbe.CLAIM_SCOPE}）：仅判定能否完成 TLS 握手" +
-                    "（拿到任意 HTTP 响应即通），不测 TTFT、不进 AQS，不看 2xx/4xx 语义。",
-        )
     }
 
     /**
