@@ -76,6 +76,20 @@
 | 4 | R8 议题独立排期（本次不开） | 无 | 另排 |
 | 5 | 装机验证（08-16 设备窗，大脑排） | — | 大脑排窗 |
 
+## 附：两案的**确切改法**（已勘察，大脑一裁即可秒落地）
+
+**lint 方案 (a)** —— 1 行改动：`radio/RadioCollector.kt:400` 现为 `@SuppressLint("MissingPermission")`，改为
+```kotlin
+@SuppressLint("MissingPermission", "BlockedPrivateApi") // R-15：反射失败已两级兜底（toString→nsa_unknown），非行为缺陷
+```
+该文件已 `import android.annotation.SuppressLint`，且同文件另有 3 处同款用法（`:237`/`:275`/`:400`），风格一致、零新增依赖。
+
+**证书案 A** —— 移动 + 收窄：
+- `src/debug/res/raw/aneb_ip_ca.pem` → `src/main/res/raw/`（`aneb_local_ca.pem` **留在 debug**，它只服务模拟器 10.0.2.2/127.0.0.1）
+- `src/debug/res/xml/network_security_config.xml` → `src/main/res/xml/`，**只保留** `120.79.148.0` 那个 `domain-config`（`cleartextTrafficPermitted="false"` + `aneb_ip_ca` + `system` 双锚）；**明文段（10.0.2.2/127.0.0.1）留在 debug 版 NSC**（两份 NSC 各自 sourceSet，debug 覆盖 main）
+- `src/main/AndroidManifest.xml` 的 `<application>` 加 `android:networkSecurityConfig="@xml/network_security_config"`
+预计改动：2 个文件移动 + 1 份 debug NSC 瘦身 + 1 行 manifest 属性。**不碰任何 Kotlin 代码。**
+
 ## 附：复现命令
 
 ```
