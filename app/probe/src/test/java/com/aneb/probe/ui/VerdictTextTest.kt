@@ -112,4 +112,36 @@ class VerdictTextTest {
         assertTrue(v, v.contains("能用但会卡"))
         assertTrue(v, v.contains("网络抖动明显"))
     }
+
+    // ---- 弱项选择规则（2026-08-19 T48 测试策略第 2 层补口）----
+    // 空白面：既有 `good_pointsOutWeakestKpi` 只验"能点出弱项"，**没验点得对不对**——
+    // 即 weakestKpi 的两条规则（严重度优先；平手按 KPI_MENTION_ORDER 的体验相关度排位）
+    // 此前无守卫。这与「"最严重的前三个"列的真是最严重的吗」是同一族问题。
+
+    @Test
+    fun weakest_prefersHigherSeverityOverMentionOrder() {
+        // T3 在 KPI_MENTION_ORDER 里排第一，但它只是"可"；N1 排最后却是"差"。
+        // 规则是严重度优先 → 必须点名 N1（网络延迟），而不是靠前的 T3。
+        val v = gen(60.0, grades = mapOf("T3" to Grade.Fair, "N1" to Grade.Poor))
+        assertTrue(v, v.contains("网络延迟偏高"))
+        assertFalse("严重度更高的 N1 在场时不应改点 T3：$v", v.contains("偶有卡顿"))
+    }
+
+    @Test
+    fun weakest_breaksTiesByExperienceRelevance() {
+        // 同为"可"：T3（卡顿，MENTION_ORDER 首位）vs N2（抖动，末位）
+        // → 平手按体验相关度排位，应点名 T3 而非 N2。
+        val v = gen(66.0, grades = mapOf("N2" to Grade.Fair, "T3" to Grade.Fair))
+        assertTrue(v, v.contains("偶有卡顿"))
+        assertFalse("平手时应优先体验相关度更高的 T3：$v", v.contains("网络抖动明显"))
+    }
+
+    @Test
+    fun weakest_ignoresNullGradesInsteadOfRankingThemWorst() {
+        // R-10：未采到的 KPI（null）不是"最差"，不得被选成弱项——
+        // 否则"没测到"会被说成"这项拖后腿"。此处 T1 缺失、U1 才是真弱项。
+        val v = gen(72.0, grades = mapOf("T1" to null, "U1" to Grade.Fair))
+        assertTrue(v, v.contains("上传速度偏慢"))
+        assertFalse("缺失的 T1 不应被当成弱项点名：$v", v.contains("首字响应偏慢"))
+    }
 }
