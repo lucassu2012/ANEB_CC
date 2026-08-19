@@ -1,4 +1,6 @@
 // ANEB Probe — :probe 模块（阶段 0：跑通一次 S1 并把全部时间戳打到屏幕日志）
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -19,9 +21,43 @@ android {
         versionName = "0.1.0-phase0"
     }
 
+    // 签名配置（D-500④ 双轨）：**密钥与口令绝不入库**——从 `local.properties`（已 gitignore）
+    // 或同名环境变量读取；四项齐备且 keystore 文件存在才注册 signingConfig，否则 release
+    // 回落为 unsigned（不阻断没有密钥的协作方构建）。
+    //   local.properties 键：anebStoreFile / anebStorePassword / anebKeyAlias / anebKeyPassword
+    //   环境变量同名：ANEB_STORE_FILE / ANEB_STORE_PASSWORD / ANEB_KEY_ALIAS / ANEB_KEY_PASSWORD
+    // 当前装机验证用**临时 throwaway keystore**（CN 标注 NOT a release identity），
+    // **不作发布身份**；正式发布 keystore 归 PO 持有（D-500④ PO 待办）。
+    val localProps = Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    fun secret(propKey: String, envKey: String): String? =
+        (localProps.getProperty(propKey) ?: System.getenv(envKey))?.takeIf { it.isNotBlank() }
+
+    val ksPath = secret("anebStoreFile", "ANEB_STORE_FILE")
+    val ksPass = secret("anebStorePassword", "ANEB_STORE_PASSWORD")
+    val ksAlias = secret("anebKeyAlias", "ANEB_KEY_ALIAS")
+    val ksKeyPass = secret("anebKeyPassword", "ANEB_KEY_PASSWORD")
+    val ksFile = ksPath?.let { file(it) }
+    val signingReady = ksFile != null && ksFile.exists() &&
+        ksPass != null && ksAlias != null && ksKeyPass != null
+
+    signingConfigs {
+        if (signingReady) {
+            create("aneb") {
+                storeFile = ksFile
+                storePassword = ksPass
+                keyAlias = ksAlias
+                keyPassword = ksKeyPass
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // 阶段 0 不混淆；阶段 1 前配置 signingConfig（自管 keystore，密钥不入库）
+            // 阶段 0 不混淆（D-500②：R8 现关零影响，开启前置=keep 规则 + 12 个 MigrationVxTest 全量）
+            if (signingReady) signingConfig = signingConfigs.getByName("aneb")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

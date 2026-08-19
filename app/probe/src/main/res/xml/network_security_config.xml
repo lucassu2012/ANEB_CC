@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- release + debug 共用的**收窄版**网络安全配置（D-500③ 采 A 案）。
+
+     为什么 release 也要带私有信任锚：E-01 的 bare-IP 通道（120.79.148.0:8443，自签
+     IP-SAN 证书）是 **SNI-RST 自动旁路的落点**——电信蜂窝对 sslip.io 主机名注入 TLS
+     RST（R-33 实测、D-22 定案、D-25 自动旁路），不带该锚的 release 包在蜂窝下连不上
+     E-01，等于丧失主路径测量能力（B 案被否的理由）。
+
+     安全面如何收窄：
+       · 作用域被 <domain-config> **钉死在单个 IP**，对其它任何域名无效；
+       · 明文（cleartextTrafficPermitted）**一律 false**，本文件不放行任何明文；
+         模拟器联调用的 10.0.2.2/127.0.0.1 明文段留在 debug 变体的同名文件里（覆盖本文件）；
+       · 同时保留 system 锚——将来该 IP 换成正规证书时无需改配置。
+
+     **日落条款（D-500③）**：E-06 公共 CA 落地后撤除本私有锚，本文件随之只留 system。 -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">120.79.148.0</domain>
+        <trust-anchors>
+            <certificates src="@raw/aneb_ip_ca" />
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -397,7 +397,10 @@ class RadioCollector(
     // R-15：nrState 反射兜底（隐藏 API，失败静默降级 nsa_unknown）
     // ------------------------------------------------------------------
 
-    @SuppressLint("MissingPermission")
+    // BlockedPrivateApi 精准豁免（D-500①）：targetSdk35 起 lintVital 拦 `ServiceState#getNrState`
+    // 反射。行为侧非缺陷——R-15 已有两级兜底（反射失败 → toString 解析 nrState= → "nsa_unknown"），
+    // 见下方两个 catch。**只豁免本处这一条规则**，不整体关 lintVital（它还守其余面）。
+    @SuppressLint("MissingPermission", "BlockedPrivateApi")
     private fun readNrState(tm: TelephonyManager): String {
         val ss = try {
             tm.serviceState
