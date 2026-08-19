@@ -109,7 +109,7 @@ token 大小分布取自实测文献锚点（单 token 事件 payload 约 50–3
 3. **服务端节奏剥离**：每个 SSE event 携带 `{seq, srv_ts}`；网络抖动 = (客户端到达间隔) − (服务端发出间隔) 的逐序号对齐差。服务端同时自检发送误差（实际 flush 时刻 vs profile 期望时刻），误差 P99 >5ms 的运行标记为服务端失真样本。
 4. **反缓冲自检**：客户端检测 token 到达的批化特征（如 >30% 的 ITL≈0 且随后跟长间隔），触发"链路存在缓冲，样本无效"告警。服务端直连裸端口（默认 8443），不挂 CDN/反代。
 5. **无线层打点**：`TelephonyCallback`（SignalStrength/CellInfo/DisplayInfo）1Hz 采样 + 事件驱动记录（小区变更、制式变更），与 KPI 事件按单调时间轴对齐。
-6. **有效性守卫（三态 Gate + fail-closed）**：测前检查（前台 Service、屏幕常亮、非省电模式、目标网络就绪）升级为**贯穿测试全程的持续监控**，输出三态 `valid / valid_low_confidence / invalid`。invalid 触发条件（首事件获胜状态机）：绑定网络丢失或默认网络切换、`NET_CAPABILITY_VALIDATED` 丢失、网络监控回调注册失败、批化自检（残差域）触发、服务端失真自检触发、测中 Doze/省电状态变化——立即中止当前场景、取消 in-flight 请求、**抑制该场景 KPI 与 AQS 输出**；抑制只作用于聚合层，原始事件仍全量入库并记失效原因码（取证需要分析失效原因）。证据缺失（如无线层采样被拒）判 `valid_low_confidence` 而非隐式健康。阶段二 C 组切换实验以路径迁移为测量对象，显式豁免路径类 fail-closed。
+6. **有效性守卫（三态 Gate + fail-closed）**：测前检查（~~前台 Service~~**⚠未实施，见 FOREGROUND_SERVICE_DESIGN_REVIEW_20260819.md**、屏幕常亮、非省电模式、目标网络就绪）升级为**贯穿测试全程的持续监控**，输出三态 `valid / valid_low_confidence / invalid`。invalid 触发条件（首事件获胜状态机）：绑定网络丢失或默认网络切换、`NET_CAPABILITY_VALIDATED` 丢失、网络监控回调注册失败、批化自检（残差域）触发、服务端失真自检触发、测中 Doze/省电状态变化——立即中止当前场景、取消 in-flight 请求、**抑制该场景 KPI 与 AQS 输出**；抑制只作用于聚合层，原始事件仍全量入库并记失效原因码（取证需要分析失效原因）。证据缺失（如无线层采样被拒）判 `valid_low_confidence` 而非隐式健康。阶段二 C 组切换实验以路径迁移为测量对象，显式豁免路径类 fail-closed。
 7. **网络绑定与路径对账**：无论 WiFi 还是蜂窝，一律 `requestNetwork(指定 transport)` 获取 `Network`，OkHttpClient 同时绑定 `network.socketFactory` 与 `Dns`（`network::getAllByName`——否则域名解析仍走默认网络的 DNS，解析与承载路径分裂）；等到 capabilities 同时含目标 transport + `VALIDATED` + `NOT_SUSPENDED` 才放行，15s 超时即 fail-closed 报"环境不就绪"（禁止超时放行）。守卫硬拒测项：存在 VPN（`TRANSPORT_VPN`）、WiFi/全局 HTTP 代理非空；Private DNS 记入元数据。**绑定证据双端对账**：服务端每场景回显观察到的客户端源 IP:port，客户端与声称 transport 核对（蜂窝应为运营商地址段），不符判 invalid——客户端拿到 network handle 不等于流量真走了该网。同 run 内出口 IP 漂移打 `nat_path_shift` 标并禁止跨场景对照结论。
 8. **事件配对与解析健壮性**：KPI 计算强制以 event 内嵌 `seq` 做 join，禁止数组位置配对（丢/错切一个 event 即整段静默错位）；检测 seq 缺号/重号/回退，gap>0 打降级标、gap 超 token 总数 1% 判 invalid；payload 用长度前缀或 base64 编码，杜绝随机字节与 SSE 分隔符（`\n\n`）冲突的解析歧义。
 9. **失败样本语义**：失败/超时样本的时延值一律记 `null`，绝不记 0 或超时上限值；流式异常中断时"最后间隔"不入 ITL/stall 统计、改计会话中断事件；`successful` = 2xx + 无传输错误 + 计时值非空。
@@ -140,6 +140,7 @@ com.aneb.probe
 - OkHttp 配置：`retryOnConnectionFailure(false)`（重试会掩盖网络问题）、每场景新建连接（消除连接复用导致的 TTFT 不可比）、`connectTimeout 10s / readTimeout 30s`。
 - 上行突发用 `RequestBody.writeTo` 手动分块写并逐块打戳，得到上行吞吐时间序列而不只是总耗时。
 - 前台 Service（`dataSync` 类型）承载测试执行，防止息屏/切后台被杀。
+  〔⚠ 实况不符，待裁：见 `docs/FOREGROUND_SERVICE_DESIGN_REVIEW_20260819.md`——代码从未有过该 Service，测量期实际靠 `FLAG_KEEP_SCREEN_ON`（D-427，实测背书 D-437 135/135）〕
 - 读线程零分配打戳 + 事后批量落库、哨兵线程、热状态监听（见 §4 第 10 条）；取证模式 LiveScreen 降为 1–2Hz 摘要刷新，实时 token 瀑布只保留在快测模式（防渲染争抢 CPU 污染打点，阶段 1 验收有开/关对照项）。
 - 阶段 1 前配置 release `signingConfig`（自管 keystore，密钥不入库）；上报体记录 versionName/versionCode 与签名证书指纹，保证每份取证数据可溯源到具体 APK。
 
@@ -216,7 +217,7 @@ com.aneb.probe
 |---|---|
 | 中间盒/运营商代理缓冲 SSE，token 批化到达 | 4.4 的批化自检判无效；非标端口 8443 直连；必要时加 UDP 对照探针 |
 | 云厂商 VM 时钟/调度抖动污染服务端时间戳 | 服务端发送误差自监控（P99>5ms 标失真）；选独享型实例 |
-| 厂商 ROM 省电策略杀测试进程 | 前台 Service + 屏幕常亮 + 测前守卫检查；文档记录各厂商设置项 |
+| 厂商 ROM 省电策略杀测试进程 | 前台 Service + 屏幕常亮 + 测前守卫检查；文档记录各厂商设置项 **⚠ 前台 Service 未实施，见 FOREGROUND_SERVICE_DESIGN_REVIEW_20260819.md** |
 | 蜂窝测试时流量走 WiFi | NetGuard 显式 `requestNetwork(CELLULAR)` 绑定 socket |
 | 单节点 RTT 基线无法代表全网 | 结果只声明"至该节点路径"；阶段三多节点扩展 |
 | 真实 API 探针烧钱且波动大 | 仅取证模式可选开启；固定短 prompt；结果单独归类不进 AQS |
