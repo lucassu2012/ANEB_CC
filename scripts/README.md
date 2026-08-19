@@ -294,6 +294,18 @@ advisory 交 schema 属主）。exit 0/1/2（2=无语料或 schema 不可读→N
 direction 枚举、分∈[0,100]；vetoes 必填字段+比较符/种类枚举+cap∈[0,100]。只读
 `spec/scoring/`；pyyaml 缺 → exit 2 NOT_EXECUTED。
 
+### `scoring_what_if.py` — 评分体系 what-if 模拟器（T59 决策就绪包配套，**不改生产评分代码**）
+把全语料里**已落库的子分**当输入，重算"权重表/总分公式/置信门槛换一种写法，73 run 的
+分数与档位会怎么变"，供拍板时看代价——`AqsScorer.kt` 一个字节都不动。
+**自证资格先行**：每次运行先用**现行**权重表重算并与已落库 `run.aqs.score`/
+`run.aqs_token.score` 逐 run 比对，最大绝对差 ≥1e-9 就拒绝输出任何 what-if 数字
+（复现不了现状就没资格模拟改动）；权重表若在 `AqsScorer.kt` 侧被改动，这一步会当场失败。
+三组案：①T3 权重再分配（A0 基线/A1 减半/A2 降至保险位，释放量按其余项现有比例分摊、Σ 仍为 1）
+②短板惩罚函数（B0 基线/B1 min 拉动/B2 阈值扣分/B3 软封顶）③置信门槛（3/2/1）。
+每案给分数区间+档位分布+**档位迁移矩阵**。档位阈值取 `campaign_common.AQS_GRADE_BANDS`
+单一来源。决策③会同时印出**实测** `low_confidence` 分母与本表能覆盖的分母
+（仅 306/489 场景带 `kpi_quality`），避免把"本表算得出来的"读成"只有这些"。只读语料、只写 stdout。
+
 ### `validate_profiles.py` — profile spec↔runtime 深门（D-103，`profiles-deep`）
 ①语义一致性——逐 profile 比对 `spec/profiles/server/<id>.json` 与 `profiles/<id>.json`
 **解析后对象相等**（对 CRLF/键序稳健；字节比对会误红），单侧存在即错；②结构——顶层必填 +
