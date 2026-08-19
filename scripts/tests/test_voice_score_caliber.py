@@ -85,7 +85,13 @@ def test_every_doc_citing_the_historic_voice_score_names_its_caliber():
     for path in _doc_files():
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
-        if _HISTORIC_SCORE not in text:
+        # Digit-boundary match, not bare substring: "79.824" (a simulated score
+        # band in T59's shortfall-penalty table) is NOT a citation of 79.8, yet
+        # `"79.8" in text` says it is — caught live by the 2026-08-19 verify_all
+        # dry-run. Same D-319 lesson as the docstring's per-line story, second
+        # shape: the comparison key must tolerate surface forms, or the guard
+        # cries wolf and stops being believed.
+        if not re.search(r"(?<![\d.])" + re.escape(_HISTORIC_SCORE) + r"(?!\d)", text):
             continue
         citing.append(path)
         if caliber not in text:
