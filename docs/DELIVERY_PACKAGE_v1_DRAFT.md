@@ -58,7 +58,12 @@
   - **战役与报告（常青）**：`M2_CAMPAIGN_RUNBOOK.md`（注意 D-311 订正史）｜`T60_ACCEPTANCE_RUNBOOK_HALFDAY_20260819.md`（验收战役）｜`ANALYSIS_LAYER_HANDOVER.md`（分析层交接，十二红线）｜`scripts/README.md`（工具地图，仓内另册）
   - **能力与边界（交付相关）**：本文件｜`T61_APP_CAPABILITY_FACTCHECK_20260819.md`（App 能力实况核对，v2 供料）｜`T46_FULL_CORPUS_ANALYSIS_REPORT_20260804.md`（全语料体检，含订正一）｜`测量红队清单.md`
   - **一次性任务产出（T 号/日期戳文件）索引规则**：由台账 D 号行的「证据」列指回文件名——**先查 DECISION_LOG 再找文件**，不要按文件名猜内容（同名多版本如 T48/前台评审均以台账指针为准）。
-- 数据资产：73 run 全语料 + 语音 35 行库 + evidence/ 目录图〔待填〕
+- 数据资产（evidence/ 29 目录，08-19 实枚举；四类骨干）：
+  - **权威语料**：`t46_full_corpus_analysis_20260804/full_corpus_labelled.jsonl`（73 run/489 场景全语料，一切分析层结论的数据源）｜`phase3/realdevice_data/voice30_voice_result_only.db`（语音 35 行单表；全库 112MB 本地留存不入库）
+  - **战役档案**：`m2_pilot_20260731/`（首份真实数据战役）｜`m3_expansion_*`（扩展轮系列，PAUSED 线资产）｜`m2_rerun_20260819/`（M2 复跑正式产物，D-512）
+  - **机制证据**：`nr_timeline_20260802/`（RAT 时间线+radio-zero 机制 D-457）｜`t47_s4throughput_devverify_20260804/`（吞吐真机 D-479，诊断期口径）｜`e1_realdevice_20260802/`+`e234_*`（E 系对拍）
+  - **门禁日志**：`phase0/`（verify_all 历史 log+sha256-manifest 281 文件清单）
+  - 读法规则：目录按「战役/任务_日期」命名，先由台账 D 号证据列定位，勿按名猜（同 docs/ 索引规则）。
 - 工具链：scripts/ 战役层〔待填〕
 
 ## 四、遗留债务清单〔待填：从台账汇集〕
