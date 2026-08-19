@@ -273,7 +273,11 @@ private fun SimpleResultView(
 
         // ---- 180° 半盘 + 中心 60px 大分 / 分档 / Agent 体验分 ----
         HalfGauge(
-            fraction = ((score?.toFloat() ?: 0f) / 100f),
+            // R-10：AQS 不可计算时**不画指针/进度弧**（idle 只留灰轨灰刻度）。
+            // 0f 在半盘上是"最左端＝最差"这个有意义的位置，用它顶替缺失会把
+            // "没测出来"渲染成"测出来很差"——中心文字已显 "—"，几何必须同口径。
+            fraction = GaugeMath.resultGaugeFraction(score),
+            idle = GaugeMath.resultGaugeIsIdle(score),
             band = band,
             modifier = Modifier.fillMaxWidth().aspectRatio(1.8f),
         ) {

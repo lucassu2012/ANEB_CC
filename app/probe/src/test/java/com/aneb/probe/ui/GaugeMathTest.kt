@@ -193,4 +193,32 @@ class GaugeMathTest {
         }
         assertEquals("中心副标题不得重复：$labels", labels.size, labels.toSet().size)
     }
+
+    // ---- 结果页半盘的"无读数"判定（R-10 几何侧，2026-08-19 T48 批2 发现）----
+    // 背景：ResultScreen 曾用 `fraction = score ?: 0f` 驱动半盘——中心文字做对了（显 "—"），
+    // 但几何把缺失画到 0 刻度＝半盘最左端＝"最差"这个**有意义的位置**，于是"没测出来"
+    // 被渲染成"测出来很差"。修复＝AQS 为 null 时走 HalfGauge 的 idle（只画灰轨灰刻度）。
+
+    @Test
+    fun `result gauge goes idle when aqs is not computable`() {
+        assertTrue("AQS 不可计算时半盘必须 idle（不画指针/进度弧）", GaugeMath.resultGaugeIsIdle(null))
+        assertTrue("有读数时不得 idle", !GaugeMath.resultGaugeIsIdle(0.0))
+        assertTrue("有读数时不得 idle", !GaugeMath.resultGaugeIsIdle(89.0))
+    }
+
+    @Test
+    fun `a real zero score is a reading not an absence`() {
+        // 关键区分：AQS=0（真的测出 0 分）与 AQS=null（没测出来）在几何上必须不同处理——
+        // 前者是合法读数（指针指最左），后者不画指针。二者若同形，报告读者无法分辨。
+        assertTrue("AQS=0 是读数，不是缺席", !GaugeMath.resultGaugeIsIdle(0.0))
+        assertEquals(0f, GaugeMath.resultGaugeFraction(0.0), 0f)
+        assertTrue("null 才是缺席", GaugeMath.resultGaugeIsIdle(null))
+    }
+
+    @Test
+    fun `result gauge fraction scales by hundred and clamps`() {
+        assertEquals(0.89f, GaugeMath.resultGaugeFraction(89.0), 1e-6f)
+        assertEquals(1f, GaugeMath.resultGaugeFraction(140.0), 0f)   // 越界收敛，不溢出画面
+        assertEquals(0f, GaugeMath.resultGaugeFraction(-5.0), 0f)
+    }
 }

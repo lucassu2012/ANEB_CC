@@ -42,6 +42,23 @@ object GaugeMath {
         (1.0 - itlMs / ceilingMs).coerceIn(0.05, 1.0).toFloat()
 
     /** 首页原地仪表读数投影（T45，接活 [com.aneb.probe.ui.HomeGaugeMetric]）。 */
+    /**
+     * 结果页半盘的"有无读数"判定（R-10 几何侧）。
+     *
+     * 半盘上 `fraction = 0f` 不是"空"——它是**最左端刻度＝最差**这个有意义的位置。
+     * 因此 AQS 不可计算（null）时必须走 [HalfGauge] 的 `idle`（只画灰轨灰刻度、
+     * 不画指针/进度弧/hub），而不能把 0 当"没有"画上去，否则"没测出来"会被渲染成
+     * "测出来很差"。中心文字侧早已显 "—"，本判定让几何与文字同口径。
+     *
+     * 抽成纯函数而非留在 Composable 内联表达式里，是为了让它可被单测钉住
+     * （渲染层无 createComposeRule，内联表达式无人能守）。
+     */
+    fun resultGaugeIsIdle(aqsScore: Double?): Boolean = aqsScore == null
+
+    /** 结果页半盘弧位：仅在有读数时有意义；无读数时调用方须传 idle=true 使其不被绘制。 */
+    fun resultGaugeFraction(aqsScore: Double?): Float =
+        ((aqsScore?.toFloat() ?: 0f) / 100f).coerceIn(0f, 1f)
+
     data class GaugeReadout(val fraction: Float, val centerVal: String, val centerLabel: String)
 
     /**
