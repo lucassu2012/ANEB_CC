@@ -28,6 +28,7 @@ class KpiCalculatorU3D3Test {
         rttRefMsPost: Double? = 100.0,
         rttDominanceOk: Boolean = true,
         rttDominanceRatio: Double? = 40.0,
+        windowUnderrun: Boolean = false,
     ) = AdaptiveWindowResult(
         windowTargetMs = windowTargetMs,
         windowActualNanos = windowActualNanos,
@@ -39,6 +40,7 @@ class KpiCalculatorU3D3Test {
         rttRefMsPost = rttRefMsPost,
         rttDominanceRatio = rttDominanceRatio,
         rttDominanceOk = rttDominanceOk,
+        windowUnderrun = windowUnderrun,
     )
 
     // ---------- U3 主口径 ----------
@@ -184,5 +186,43 @@ class KpiCalculatorU3D3Test {
     fun `u3 low_confidence contributes to scenario validity`() {
         val out = KpiCalculator.calculate(KpiInput(adaptiveUpload = window(rttDominanceOk = false)))
         assertEquals(Validity.VALID_LOW_CONFIDENCE, out.validity)
+    }
+
+    // ---------- window_underrun -> low_confidence（spec §8.4.3 的第二条判据，批③漏落，D-478 -> 本次补齐）----------
+    //
+    // spec §8.4.3 逐字：「low_confidence 完全由 §8.3.3 的自检结果决定
+    // （!rtt_dominance_ok 或 window_underrun 或字节/样本数不足其一即 true）」。
+    // 批③只落了 !rtt_dominance_ok 一条。D-479 真机首跑即命中漏掉的那条：
+    // 上行 48MB ceiling 先于 4000ms 窗口到达（underrun=true），当时被标成 low_confidence=false
+    // 发表出去——**一个方向错误的置信度标记，比没有标记更危险**。
+    // 下面按 D-322「守卫能不能失败要造反例证明」配对：正例、反例、下行侧、以及两条件同时成立。
+
+    @Test fun `window_underrun 为真时 U3 判低置信（即便 dominance 通过）`() {
+        val out = KpiCalculator.calculate(
+            KpiInput(adaptiveUpload = window(rttDominanceOk = true, windowUnderrun = true)),
+        )
+        assertTrue("dominance 通过但窗口提前结束，spec §8.4.3 要求判低置信", out.u3GoodputMbps.lowConfidence)
+        assertTrue("剔慢启动口径同样应判低置信", out.u3GoodputExclSlowStartMbps.lowConfidence)
+    }
+
+    @Test fun `window_underrun 为假且 dominance 通过时 U3 判高置信（反例：不是恒为真）`() {
+        val out = KpiCalculator.calculate(
+            KpiInput(adaptiveUpload = window(rttDominanceOk = true, windowUnderrun = false)),
+        )
+        assertFalse("两条件都健康时不应判低置信，否则该标志退化为恒真", out.u3GoodputMbps.lowConfidence)
+    }
+
+    @Test fun `window_underrun 为真时 D3 同样判低置信（下行侧不遗漏）`() {
+        val out = KpiCalculator.calculate(
+            KpiInput(adaptiveDownload = window(rttDominanceOk = true, windowUnderrun = true)),
+        )
+        assertTrue("下行侧同一判据", out.d3GoodputMbps.lowConfidence)
+    }
+
+    @Test fun `dominance 不通过与 window_underrun 同时成立时仍判低置信（或的语义）`() {
+        val out = KpiCalculator.calculate(
+            KpiInput(adaptiveUpload = window(rttDominanceOk = false, windowUnderrun = true)),
+        )
+        assertTrue(out.u3GoodputMbps.lowConfidence)
     }
 }

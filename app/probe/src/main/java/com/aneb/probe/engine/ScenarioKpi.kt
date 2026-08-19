@@ -191,6 +191,9 @@ object ScenarioKpi {
                 rttRefMsPost = rttRefMsPost,
                 rttDominanceRatio = dominance.ratio,
                 rttDominanceOk = dominance.ok,
+                // 批③漏搬的一环：该值此前只出现在 ScenarioRunner 的一行 logcat 里，
+                // 从未进入 KPI 层，故 spec §8.4.3 要求它参与的 low_confidence 判定一直缺一条。
+                windowUnderrun = r.windowUnderrun,
             )
         }
         val adaptiveUpload = adaptiveWindow(outcome.uploadWindows.firstOrNull())

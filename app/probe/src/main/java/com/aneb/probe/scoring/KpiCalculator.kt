@@ -120,6 +120,14 @@ data class AdaptiveWindowResult(
     val rttRefMsPost: Double?,
     val rttDominanceRatio: Double?,
     val rttDominanceOk: Boolean,
+    /**
+     * true = 传输在窗口到点前已自然结束（ceiling 先到/写满 maxBytes），实测窗口短于 target。
+     * 参与 `low_confidence` 判定：spec §8.4.3 明文「`low_confidence` 完全由 §8.3.3 的自检结果
+     * 决定（`!rtt_dominance_ok` 或 window_underrun 或字节/样本数不足其一即 `true`）」。
+     * 批③（D-478）实现时漏了这一条、只落了 `!rtt_dominance_ok`——D-479 真机首跑即命中
+     * （上行 48MB ceiling 先于 4000ms 到达），当时被标成高置信发表出去。本字段补齐该缺口。
+     */
+    val windowUnderrun: Boolean = false,
 )
 
 /**
@@ -487,7 +495,10 @@ object KpiCalculator {
                 val remainBytes = w.bytesTransferred - ssBytes
                 if (remainNs <= 0 || remainBytes <= 0) null else goodputMbps(remainBytes, remainNs)
             }
-            val lowConf = !w.rttDominanceOk
+            // spec §8.4.3：low_confidence 由 §8.3.3 自检的三条件取「或」决定，不是只看 dominance。
+            // 字节/样本数不足那一条已包含在 RttDominanceGuard 的三条件交集里（MIN_BYTES_FLOOR），
+            // 故此处显式补的是 window_underrun——批③漏落的正是它（见 AdaptiveWindowResult KDoc）。
+            val lowConf = !w.rttDominanceOk || w.windowUnderrun
             return KpiValue(goodput, "Mbps", 1, lowConf) to KpiValue(exclGoodput, "Mbps", 1, lowConf)
         }
         val (u3, u3Excl) = windowGoodput(input.adaptiveUpload)
