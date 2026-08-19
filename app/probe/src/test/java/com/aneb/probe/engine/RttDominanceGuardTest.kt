@@ -87,4 +87,71 @@ class RttDominanceGuardTest {
         assertFalse(v.ok)
         assertNull(v.ratio)
     }
+
+    // ---- 绊线：window_ms 与 RTT_DOMINANCE_MIN 的耦合（T63/D-498 发现，本条为其落地守卫）----
+    //
+    // 判据的实际保护强度不是 RTT_DOMINANCE_MIN 单独决定的，而是这两个数的商：
+    //     临界 RTT = window_ms / RTT_DOMINANCE_MIN
+    // RTT 超过临界值的路径会被判 dominance_ok=false。两个数分处两个文件
+    // （window_ms 在 profiles/s4_throughput.json，阈值在 RttDominanceGuard.kt），
+    // 此前没有任何代码/注释/测试把它们联系起来——改动其一即静默改变保护强度
+    // （把 window_ms 减半，RTT 保护也随之减半，而没有东西会说一句话）。这正是
+    // D-264「一个常量是不是单一来源，别看它定义在哪——改它一次看数字动不动」的形状。
+    //
+    // 本测试不决定任何新常量，只把当前两个已定值的**乘积语义**钉住：任一被改动时
+    // 本测试失败，迫使改动者回头读 T63 的敏感性分析
+    // （docs/T63_RTT_DOMINANCE_CONSTANTS_SENSITIVITY_20260815.md）再决定另一个要不要跟着动。
+    //
+    // window_ms 从真实 profile 文件读取而非在此复制一份——否则只是又造了一个会
+    // 各自漂移的副本（D-315 同名实现纪律）。
+
+    /** 从模块工作目录（app/probe）向上找仓库根相对路径（同 VoiceExecutionPlanParityTest 惯例）。 */
+    private fun repoFile(relFromRepoRoot: String): java.io.File {
+        var cur: java.io.File? = java.io.File(System.getProperty("user.dir") ?: ".").absoluteFile
+        while (cur != null) {
+            val cand = java.io.File(cur, relFromRepoRoot)
+            if (cand.isFile) return cand
+            cur = cur.parentFile
+        }
+        error("找不到 $relFromRepoRoot（从 user.dir 向上未命中）")
+    }
+
+    /** 读 s4_throughput profile 里两个 adaptive window 相位的 window_ms（应一致）。 */
+    private fun profileWindowMs(): Int {
+        val text = repoFile("profiles/s4_throughput.json").readText(Charsets.UTF_8)
+        val found = Regex("\"window_ms\"\\s*:\\s*(\\d+)").findAll(text)
+            .map { it.groupValues[1].toInt() }.toList()
+        assertTrue("profile 里应有至少两个 window_ms（上下行各一）", found.size >= 2)
+        assertEquals("上下行 window_ms 不一致会让临界 RTT 两个方向不同，本绊线的前提失效",
+            1, found.distinct().size)
+        return found.first()
+    }
+
+    @Test fun `绊线 window_ms 与阈值的商即临界RTT 任一改动都应让本测试失败（T63D-498）`() {
+        val windowMs = profileWindowMs()
+        val threshold = RttDominanceGuard.RTT_DOMINANCE_MIN
+
+        // 当前双方已定值：4000ms 窗口（批②落地）÷ 阈值 10（PROVISIONAL，D-469）= 400ms 临界。
+        assertEquals("window_ms 变了：请回读 T63 敏感性分析，确认阈值是否要跟着动", 4000, windowMs)
+        assertEquals("RTT_DOMINANCE_MIN 变了：请回读 T63 敏感性分析（[10,37] 对现有语料等价）",
+            10.0, threshold, 1e-9)
+
+        val criticalRttMs = windowMs / threshold
+        assertEquals("临界 RTT = window_ms / 阈值", 400.0, criticalRttMs, 1e-9)
+    }
+
+    @Test fun `绊线 恰在临界RTT上的路径判安全 略超即判不安全（临界值真的是那个数）`() {
+        val windowMs = profileWindowMs().toDouble()
+        val criticalRttMs = windowMs / RttDominanceGuard.RTT_DOMINANCE_MIN
+
+        // 恰好等于临界 RTT：ratio 恰为阈值，按 >= 语义判安全
+        val atCritical = RttDominanceGuard.evaluate(
+            windowActualMs = windowMs, rttRefMs = criticalRttMs, bytesTransferred = 200_000L)
+        assertTrue("RTT 恰在临界值上应判安全（ratio 恰等于阈值）", atCritical.ok)
+
+        // 略超临界 RTT：ratio 跌破阈值，判不安全
+        val justOver = RttDominanceGuard.evaluate(
+            windowActualMs = windowMs, rttRefMs = criticalRttMs * 1.01, bytesTransferred = 200_000L)
+        assertFalse("RTT 略超临界值即应判不安全", justOver.ok)
+    }
 }

@@ -93,3 +93,26 @@ dependencies {
 
     testImplementation(libs.junit)
 }
+
+// ---- 单测输入声明：仓库根的 spec/profile 文件（T63 绊线发现，D-498 族）----
+//
+// 部分单测按既有惯例（AdapterSpecTest / VoiceExecutionPlanParityTest / RttDominanceGuardTest）
+// 从 user.dir 向上找仓库根、直接读真实 spec/profile 文件——这是对的（读真文件而不是
+// 在测试里复制一份会各自漂移的副本，D-315）。但 Gradle 并不知道这层依赖：这些文件不在
+// 任何 task 的 inputs 里，于是**改了它们，测试任务仍判 UP-TO-DATE 而不重跑**。
+//
+// 实证（本条的由来）：把 profiles/s4_throughput.json 的 window_ms 从 4000 改成 2000，
+// `gradlew :probe:testDebugUnitTest` 报 BUILD SUCCESSFUL——测试根本没跑；加 --rerun-tasks
+// 才如期 FAILED。即：守卫逻辑是对的，但**在最需要它的那一刻（有人改了那个文件）它是睡着的**。
+//
+// 下面把这些文件声明为测试任务输入，改动即触发重跑。
+tasks.withType<Test>().configureEach {
+    val repoRoot = rootProject.projectDir.parentFile // app/ 的上一级 = 仓库根
+    listOf(
+        "profiles/s4_throughput.json",
+        "spec/profiles/client/voice_realtime_plan.json",
+    ).forEach { rel ->
+        val f = File(repoRoot, rel)
+        if (f.isFile) inputs.file(f).withPropertyName(rel.replace('/', '_'))
+    }
+}
