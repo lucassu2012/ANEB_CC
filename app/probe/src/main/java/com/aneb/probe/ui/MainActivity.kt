@@ -119,6 +119,36 @@ class MainActivity : ComponentActivity() {
         data object Report : Screen
     }
 
+    /**
+     * 重复 `am start` 的静默失败告警（D-513 过程事实①；**只检测、不改行为**）。
+     *
+     * **陷阱**：全部 13 个 autorun extras（`server`/`autorun`/`mode`/`transport`/`inject`/
+     * `weaknet`/`c_tokens`/`c3_idle`/`ab_pairs`/`ab_netlog`/`drive_test`/`apiprobe_*`）**只在
+     * [onCreate] 解析一次**。App 已在前台时再发一次 `am start --es ...`，系统走 `onNewIntent`，
+     * 新 extras **被静默忽略**——批脚本会以为换了参数，实际用的是上一轮的；**不崩溃、不报错、
+     * 数据照出**，正是最危险的形状（D-513 实测：18/18 只有改逐轮 `force-stop` 冷启才对）。
+     *
+     * **为什么这里不"顺手修好"**：重新解析并复位 `intentAutorun` 会让重复 `am start` 真的
+     * 再跑一轮 —— 那是**改变 autorun 的编排语义**（现口径＝冷启动才跑），属测量面变更，
+     * 须走决策而非自裁。故本方法只把"你发的 extras 没生效"这件事**从静默变成可见**：
+     * 打一条 KEY 日志 + 更新 `intent`（让后续读 `intent` 的代码至少看到新值，不影响已解析的字段）。
+     */
+    override fun onNewIntent(newIntent: android.content.Intent) {
+        super.onNewIntent(newIntent)
+        val hadExtras = newIntent.extras?.keySet()?.isNotEmpty() == true
+        if (hadExtras) {
+            val keys = newIntent.extras?.keySet()?.sorted()?.joinToString(",") ?: ""
+            android.util.Log.i(
+                "AnebProbe",
+                "AUTORUN_EXTRAS_IGNORED reason=activity_already_created keys=$keys " +
+                    "note=extras_parsed_only_in_onCreate;use_force-stop_for_cold_start(D-513)",
+            )
+        }
+        // 更新持有的 intent（Android 默认不替换）——不重新解析已固化的 intent* 字段，
+        // 故**不改变本轮测量参数**；仅让后续直接读 `intent` 的代码看到最新值。
+        setIntent(newIntent)
+    }
+
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
