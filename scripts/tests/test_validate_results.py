@@ -244,6 +244,15 @@ _SCHEMA_SITE = {
     "kpi_required":
         lambda s: _dig(s, "definitions", "scenario", "properties", "kpi",
                        "required").append("zzz_not_a_field"),
+    # T72 新增的两条规则各配一个篡改点：把某个字段的 type 声明改成一个记录里
+    # 绝不可能是的类型，则原本干净的记录必须变脏——证明 load_schema 抽的 type
+    # 真的在被 validator 使用，而不是它自己硬编码了一份。
+    "kpi_types":
+        lambda s: _dig(s, "definitions", "scenario", "properties", "kpi",
+                       "properties", "t1_ttft_ms").__setitem__("type", ["string"]),
+    "run_types":
+        lambda s: _dig(s, "properties", "run", "properties",
+                       "run_id").__setitem__("type", ["number"]),
     "hist_required":
         lambda s: _dig(s, "definitions", "scenario", "properties", "itl_histogram",
                        "required").append("zzz_not_a_field"),
@@ -282,3 +291,41 @@ def test_every_rule_this_validator_enforces_is_read_from_the_schema():
             assert errors, (
                 f"{rule}: the rule changed and a record that now violates it "
                 "still passed — the verdict is not using what was read")
+
+
+# ---- 类型校验（T72，承 T67/D-514 high#4）----
+# 缺口实证：把 t1_ttft_ms 从 6.266667 改成字符串 "6.266667"，契约门此前返回
+# **0 条 findings** 放行；而下游 cc.fnum('6.266667') 返回 None，于是一个真实测到
+# 的数值被当成「没测到」，从每张热力卡、每个中位数里整批消失，cc.value_problem
+# 也不报（它只查数值范围不查类型）。三道门全部沉默。
+
+def test_type_mismatch_number_serialised_as_string_is_an_error():
+    """数值被序列化成字符串必须报 error（最常见的生产端回归形状之一）。"""
+    rec = _valid_record()
+    rec["scenarios"][0]["kpi"]["t1_ttft_ms"] = "6.266667"
+    errs = _errors(rec)
+    assert any("type mismatch" in m and "t1_ttft_ms" in m for m in errs), errs
+
+
+def test_type_check_accepts_null_because_null_is_in_the_declaration():
+    """反例方向：null 是契约允许的（R-10「测不出就是 null」），不得误报。"""
+    rec = _valid_record()
+    rec["scenarios"][0]["kpi"]["t1_ttft_ms"] = None
+    rec["scenarios"][0]["kpi"]["t1_grade"] = None   # R-10 交叉不变量：值 null <=> 档 null
+    errs = _errors(rec)
+    assert not any("type mismatch" in m for m in errs), errs
+
+
+def test_boolean_does_not_pass_as_a_number():
+    """Python 里 isinstance(True, int) 为真——若不特判，布尔会冒充合法 number。"""
+    assert vd._type_ok(True, ["number", "null"]) is False
+    assert vd._type_ok(True, ["boolean"]) is True
+    assert vd._type_ok(1, ["integer"]) is True
+    assert vd._type_ok("6.2", ["number", "null"]) is False
+
+
+def test_type_check_ignores_absent_fields_required_is_a_separate_job():
+    """缺席不由类型校验管（必填由 _require 管，选填缺席合法）——避免双重报错。"""
+    out = []
+    vd._check_types({}, {"t1_ttft_ms": ["number", "null"]}, "x", out)
+    assert out == []

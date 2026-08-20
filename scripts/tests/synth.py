@@ -46,6 +46,9 @@ def make_record(*, campaign=None, aqs=None, scenarios=(), run_id=None,
     }
 
 
+# 这两个是纯 integer（不含 null）的必填 KPI，夹具须填整数而非 None（见 contractify）。
+_KPI_INT_REQUIRED = frozenset(("seq_gap_count", "seq_dup_count"))
+
 _KPI_REQUIRED = ("t1_ttft_ms", "t2_itl_p95_ms", "t3_stall_rate", "t4_severe_stall_rate",
                  "n1_rtt_p50_ms", "n2_jitter_ms", "u1_goodput_mbps", "u2_tool_loop_p95_ms",
                  "seq_gap_count", "seq_dup_count")
@@ -67,7 +70,11 @@ def contractify(rec):
     for scn in rec.get("scenarios") or []:
         kpi = scn.setdefault("kpi", {})
         for k in _KPI_REQUIRED:
-            kpi.setdefault(k, None)
+            # seq_gap_count/seq_dup_count 在 schema 里是**纯 integer（不含 null）**的
+            # 必填字段——真实语料实测也确实恒为整数（0）。此前这里统一填 None，
+            # 造出的是**不合契约的记录**；契约门当时没有类型校验所以没人发现（T72 补上后
+            # 12 条测试当场变红，抓到的是夹具的真实缺陷，不是误伤）。
+            kpi.setdefault(k, 0 if k in _KPI_INT_REQUIRED else None)
         if not scn.get("itl_histogram"):
             scn["itl_histogram"] = {"buckets_version": "v1", "edges_ms": [10, 20, 50],
                                     "counts": [0, 0, 0, 0], "total": 0}

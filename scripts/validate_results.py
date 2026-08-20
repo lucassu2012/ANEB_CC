@@ -60,6 +60,14 @@ def load_schema(path):
         "validity_enum": scn_props.get("validity", {}).get("enum", []),
         "kpi_required": scn_props.get("kpi", {}).get("required", []),
         "hist_required": scn_props.get("itl_histogram", {}).get("required", []),
+        # 字段 -> JSON 类型声明。抽出来而不是在本文件手写一份，理由同上面那句
+        # docstring：validator 要**跟踪**契约，不是再造第二份会各自漂移的副本
+        # （D-315 同名实现纪律）。schema 里 46 个 kpi 字段全带 type 声明。
+        "kpi_types": {k: v.get("type") for k, v in
+                      scn_props.get("kpi", {}).get("properties", {}).items()
+                      if v.get("type")},
+        "run_types": {k: v.get("type") for k, v in
+                      run_schema.get("properties", {}).items() if v.get("type")},
     }
 
 
@@ -85,6 +93,58 @@ def _is_null(v):
     return v is None
 
 
+# JSON Schema 类型名 -> Python 类型。bool 必须特判：Python 里 isinstance(True, int)
+# 为真，若不排除，一个布尔值会被当成合法 number/integer 放行。
+_JSON_TYPES = {
+    "number": (int, float),
+    "integer": (int,),
+    "string": (str,),
+    "boolean": (bool,),
+    "object": (dict,),
+    "array": (list,),
+}
+
+
+def _type_ok(value, decl):
+    """value 是否符合 schema 的 type 声明（decl 可为字符串或字符串列表）。"""
+    names = decl if isinstance(decl, list) else [decl]
+    if value is None:
+        return "null" in names
+    for nm in names:
+        py = _JSON_TYPES.get(nm)
+        if not py:
+            continue
+        if nm in ("number", "integer"):
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, py):
+                return True
+        elif isinstance(value, py):
+            return True
+    return False
+
+
+def _check_types(obj, types, path, out):
+    """逐字段核对类型；缺席不报（必填由 _require 管，选填缺席合法）。
+
+    为什么必须有这一层：此前 _require 只查「键在不在」。把一个数值序列化成字符串
+    （最常见的生产端回归形状之一）能**零 findings 通过契约门**，而下游 cc.fnum()
+    对字符串返回 None —— 一个真实测到的数值就此被当作「没测到」，从每张热力卡、
+    每个中位数里整批消失，且 value_problem 也不报（它只查数值范围不查类型）。
+    实证：把 t1_ttft_ms 改成 "6.266667"，三道门全部放行。
+    """
+    if not isinstance(obj, dict):
+        return
+    for k, decl in types.items():
+        if k not in obj:
+            continue
+        if not _type_ok(obj[k], decl):
+            want = "|".join(decl) if isinstance(decl, list) else str(decl)
+            _err(out, "%s.%s" % (path, k),
+                 "type mismatch: expected %s, got %s (%.40r)"
+                 % (want, type(obj[k]).__name__, obj[k]))
+
+
 def validate_record(rec, sch, idx):
     """Return a list of (severity, message) findings for one record.
 
@@ -105,6 +165,7 @@ def validate_record(rec, sch, idx):
     run = rec.get("run")
     if isinstance(run, dict):
         _require(run, sch["run_required"], f"{tag}.run", f)
+        _check_types(run, sch.get("run_types") or {}, f"{tag}.run", f)
         aqs = run.get("aqs")
         if isinstance(aqs, dict):
             _require(aqs, sch["aqs_required"], f"{tag}.run.aqs", f)
@@ -154,6 +215,7 @@ def validate_scenario(scn, sch, path):
     kpi = scn.get("kpi")
     if isinstance(kpi, dict):
         _require(kpi, sch["kpi_required"], f"{path}.kpi", f)
+        _check_types(kpi, sch.get("kpi_types") or {}, f"{path}.kpi", f)
         # R-10: value null <=> grade null (no graded nulls, no ungraded values).
         for k in GRADED_KPIS:
             if k not in kpi:

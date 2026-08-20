@@ -283,10 +283,30 @@ def test_mixed_versions_are_warn_not_fail():
 
 
 def test_no_evidence_is_warn_never_pass():
-    """'Cannot judge' must not read as 'no problem' (R-10)."""
-    rows = pc.check(_clean())                      # fixture has no clock block
-    assert _sev(rows, "测量可信度") == pc.WARN
-    assert _sev(rows, "序位效应") == pc.WARN       # no order_index evidence
+    """'Cannot judge' must not read as 'no problem' (R-10).
+
+    T72 订正：本测试原注释只说「fixture has no clock block」，但 `测量可信度` 的判据
+    是 **clock/seq/parse 三者皆无标注**（trust_rollup.py:134 逐字）。夹具此前恰好三者
+    全空——seq 那部分是因为 `contractify` 把 `seq_gap_count/seq_dup_count` 填成 `None`，
+    **而 schema 里这两个是纯 integer 必填、真实语料恒为整数**，即那是个不合契约的夹具
+    （T72 给契约门补类型校验后当场暴露）。夹具修正为填 0 后，seq 成了**真实存在的可信度
+    证据**（流完整、无 gap/dup），于是 `测量可信度` 正当地转为 PASS —— 是修好了，
+    不是判据坏了。
+
+    故本测试改为：在证据源确实缺席的 `序位效应` 上验这条不变量，
+    并**显式构造**一个 clock/seq/parse 三者皆无的语料，保留原始意图那一半。
+    """
+    rows = pc.check(_clean())
+    assert _sev(rows, "序位效应") == pc.WARN       # no scenario_order evidence
+
+    bare = _clean()
+    for r in bare:
+        for scn in r["scenarios"]:
+            scn["clock"] = {}
+            scn.pop("parse", None)
+            scn["kpi"]["seq_gap_count"] = None
+            scn["kpi"]["seq_dup_count"] = None
+    assert _sev(pc.check(bare), "测量可信度") == pc.WARN
 
 
 def test_low_confidence_cells_warn():
