@@ -61,3 +61,24 @@
 - `[8,15]` 边界区间样本分布：需要真实较慢网络条件（真实蜂窝弱网，或 `weaknet contend:N`
   背景流量竞争调试开关模拟拥塞）下的多轮采集，本次 USB 隧道路径过快无法提供。
 - n≥15 独立 run 的完整分布：本次仅 1 run，仅证明代码路径正确，不构成统计样本。
+
+## 订正注记（2026-08-19 追加）
+
+**上表的 `window_underrun` 行有一处会误导读者的地方，原表不改、在此说明**：
+
+该表其余各行（`goodput_mbps`/`window_actual_ms`/`rtt_dominance_ratio`/`rtt_ref_ms_pre` 等）
+**都是 wire body 里的真实字段**，唯独 `window_underrun` 不是——2026-08-19 的守卫审计查明，
+它当时**只出现在 `ScenarioRunner` 的一行 logcat 里**，从未进入 KPI 层、Room 实体、上报体或
+schema。本 README 把它与真实契约字段并列成表，会让读者以为产物里查得到它。
+
+**由此暴露的真缺陷（已修）**：spec §8.4.3 明文要求 `low_confidence` 由
+「`!rtt_dominance_ok` **或 window_underrun** 或字节/样本数不足」三条件取或决定，
+而批③（D-478）只落了第一条。**本次真机跑的上行恰好命中漏掉的那条**（48MB ceiling 先于
+4000ms 到达，`underrun=true`），于是 `kpi_quality.U3.low_confidence` 被标成 `false`——
+**一个方向错误的置信度标记，随产物发表了出去**。本目录 `s4_throughput_run1.jsonl` 里
+那三个 `low_confidence: false` 即是该缺陷的现场，**判读该文件时请按 U3 应为
+low_confidence=true 理解**（D3 侧 `underrun=false`，不受影响）。
+
+**已修范围**：`AdaptiveWindowResult` 补 `windowUnderrun` 字段并接进 `low_confidence`，
+配 4 条反例测试（含突变验证：回退修复后测试确实变红）。**未做**：把 `window_underrun`
+本身加进 wire body/schema——那是契约变更，spec 的字段表未列它，留待裁定。
