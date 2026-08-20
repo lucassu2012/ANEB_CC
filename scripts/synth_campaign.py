@@ -186,8 +186,11 @@ def _radio(rng, pi, band, rep, scn_index):
 
 
 def _scenario(rng, idx, rtt, *, order_index, suspect_clock, suspect_wall=False,
+              wall_rng=None,
               batching, transport,
               noise=0.045, radio=None):
+    # 缺省退回主流：只有彩排主生成器（generate）传独立流，其余调用点行为原样不变。
+    wall_rng = wall_rng if wall_rng is not None else rng
     kpi = _kpis(rng, rtt, noise)
     roll = rng.random()
     if roll < 0.06:
@@ -211,8 +214,12 @@ def _scenario(rng, idx, rtt, *, order_index, suspect_clock, suspect_wall=False,
                   # 墙钟差（D-506/T68）。与 offset_suspect **分开**取值：钟"走得稳"
                   # 与钟"指得对"是两回事，真实语料里确实会一个正常一个不正常；
                   # 若绑在同一个开关上，墙钟那一列在彩排里永远走不到独立分支。
-                  "wall_skew_ms": (int(rng.choice([-1, 1]) * rng.uniform(70_000, 900_000))
-                                   if suspect_wall else int(rng.gauss(0, 300)))},
+                  # **抽样走独立的 wall_rng，不碰主 rng**（D-546）：本字段初版直接从主流取样，
+                  # 而主流是 seeded 的——**新增任何一次抽样都会把其后全部产物往后移位**，
+                  # 于是整份彩排语料内容改变、干净格由实测地板 30 掉到 24、两条彩排守卫变红，
+                  # 而失败信息只说数字不对、不会说语料变了。独立流让新字段"零外部性"。
+                  "wall_skew_ms": (int(wall_rng.choice([-1, 1]) * wall_rng.uniform(70_000, 900_000))
+                                   if suspect_wall else int(wall_rng.gauss(0, 300)))},
         "network_snapshot": dict(
             {"transport": transport, "capabilities": "INTERNET,VALIDATED",
              "interface": "rmnet0" if transport == "cellular" else "wlan0",
@@ -275,6 +282,11 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
     everything else deliberately sub-noise — so a rehearsal can tell a working
     toolchain from a silent one."""
     rng = random.Random(seed)
+    # 墙钟字段专用流（D-546）：由同一个 seed 派生故仍完全确定，但**与主流互不干扰**——
+    # 主流一旦被新增抽样移位，其后每一个字段都会变，而彩排里那些"实测得到"的地板值
+    # （如 `test_synth_campaign` 注释记的「30 of the 96 cells here, measured」）会静默失效。
+    # 将来再加需要随机的新字段，请照此各开各的流，不要往主流里插抽样。
+    wall_rng = random.Random(seed + 506)
     pids = _point_ids(points)
     records = []
     counter = 0
@@ -320,8 +332,11 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
                                           order_index=(rep + i) % len(PROFILES),
                                           suspect_clock=suspect_point and rng.random() < 0.7,
                                           # 墙钟独立于时钟抽（D-506/T68）：低频但确实出现，
-                                          # 让彩排语料同时走到"可疑"与"正常"两个分支
-                                          suspect_wall=rng.random() < 0.08,
+                                          # 让彩排语料同时走到"可疑"与"正常"两个分支。
+                                          # **从 wall_rng 抽，不碰主流**（D-546，理由见
+                                          # _scenario 内 wall_skew_ms 处注释）。
+                                          suspect_wall=wall_rng.random() < 0.08,
+                                          wall_rng=wall_rng,
                                           batching=batching_point and band == "busy",
                                           transport=medium, noise=noise,
                                           radio=(_radio(rng, pi, band, rep, i)
