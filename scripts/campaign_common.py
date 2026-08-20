@@ -428,6 +428,27 @@ def run_obj(rec):
     return rec.get("run") or {}
 
 
+def run_status_head(rec):
+    """`run.status` 归一化后的主状态（去掉 `:reason` 后缀、统一小写）。
+
+    单一来源，因为 status 的取值此前**没有属主**：写入侧、契约侧、判读侧各自为政。
+    实测（T70 全语料 3511 条带 status 的 run）：取值集合为
+    ``{'completed', 'COMPLETED', 'aborted'}`` —— ``evidence/phase3/demo_results.jsonl``
+    的 12 条合成 demo 用大写。而此处此前按 ``status.split(":")[0]`` 分桶却**不折大小写**，
+    于是 ``COMPLETED`` 与 ``completed`` 落进**两个桶**，那句「存在非 completed run」的
+    警示横幅对这 12 条其实正常的 run **误报**。
+
+    误报比漏报更伤守卫信誉（本仓一贯纪律），且 status 正要被提升为真正的判据，
+    所以**在把它变成判据之前先把取值集合钉住**。
+
+    返回 None 表示 status 缺失/空/非字符串——缺席不是 'completed'，调用方须自行区分。
+    """
+    st = run_obj(rec).get("status")
+    if not isinstance(st, str) or not st.strip():
+        return None
+    return st.split(":", 1)[0].strip().lower()
+
+
 def run_id(rec):
     """run.run_id — the de-duplication key. None when absent/blank (never
     fabricated: an unidentifiable run must not be merged with another)."""

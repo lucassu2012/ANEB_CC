@@ -39,6 +39,36 @@ def test_inventory_status_buckets_by_prefix():
     assert inv["statuses"] == {"completed": 1, "aborted": 2}
 
 
+def test_inventory_status_is_case_folded():
+    """大小写漂移不得分裂成两个桶（T70，承 T67/D-514 发现 G-5）。
+
+    实测缘由：全语料 3511 条带 status 的 run 里，`evidence/phase3/demo_results.jsonl`
+    的 12 条合成 demo 写的是大写 `COMPLETED`。此前分桶按 `status.split(":")[0]` 却
+    **不折大小写**，于是它们自成一桶，`set(statuses) - {"completed"}` 非空，
+    那句「存在非 completed run」的警示横幅对 12 条**其实正常**的 run 误报。
+    误报比漏报更伤守卫信誉——而 status 正要被提升为真正的判据，
+    所以取值集合必须先钉住。
+    """
+    recs = aqs_records(90, 3)
+    recs[1]["run"]["status"] = "COMPLETED"
+    recs[2]["run"]["status"] = "Aborted:Timeout"
+    inv = rpt.inventory(recs)
+    assert inv["statuses"] == {"completed": 2, "aborted": 1}
+
+
+def test_inventory_status_absent_is_unknown_not_completed():
+    """缺席不是 completed（R-10 家族）：status 缺失/空/非字符串一律归 unknown。
+
+    反例方向很重要——若把缺席折成 completed，一个没写 status 的 run 会被
+    静默当作正常完成计入，那正是本仓反复点名的「缺席伪装成健康」。
+    """
+    recs = aqs_records(90, 3)
+    recs[1]["run"]["status"] = ""
+    del recs[2]["run"]["status"]
+    inv = rpt.inventory(recs)
+    assert inv["statuses"] == {"completed": 1, "unknown": 2}
+
+
 def test_report_surfaces_non_completed_runs():
     recs = aqs_records(90, 5)
     recs[0]["run"]["status"] = "aborted:timeout"
@@ -50,6 +80,37 @@ def test_report_surfaces_non_completed_runs():
     md2 = rpt.build_report_markdown(aqs_records(90, 5))
     assert "run 状态 status" in md2
     assert "只显性化" not in md2
+
+
+def test_aborted_run_with_null_aqs_is_absent_from_medians_as_the_body_promises():
+    """报告正文替读者作的承诺，必须有东西核对它（T70，承 T67/D-514 发现 G-5）。
+
+    正文原话：「其已完成场景仍计入场景级统计（run 级 AQS 为 null 不进中位）」。
+    此前无人核对——既有测试只验横幅出不出现。本测试直接落在**数字**上：
+    把一条 run 置为 aborted 且 AQS=null，断言渲染出的中位数与"根本没有这条 run"
+    的语料完全一致，即它确实没进中位。
+
+    诚实边界：`buckets` 的过滤条件目前是 `aqs is None`（加 value_problem），
+    **不读 status**——所以本测试证明的是「AQS 为 null 的 run 不进中位」这半句，
+    而不是「aborted 的 run 不进中位」。两者在当前语料上恰好等价（全语料实测：
+    非 completed 且 AQS 非空的记录为 0），但**机制上不等价**：一条 aborted 却
+    带非空 AQS 的 run 今天仍会进中位。那半句要不要也成为判据，另行提请裁定。
+    """
+    ref = rpt.build_report_markdown(aqs_records(90, 5)[1:])   # 4 条全 completed
+
+    recs = aqs_records(90, 5)
+    recs[0]["run"]["status"] = "aborted:timeout"
+    recs[0]["run"]["aqs"]["score"] = None
+    md = rpt.build_report_markdown(recs)
+
+    assert "只显性化，不静默剔除" in md      # 横幅照常显性化
+
+    def medians(text):
+        return re.findall(r"\|\s*(\d+\.\d)\s*\|", text)
+
+    assert medians(md) == medians(ref), (
+        "aborted+AQS=null 的 run 影响了中位数——正文承诺「run 级 AQS 为 null 不进中位」"
+        "与实际不符；这句承诺此前没有任何东西核对它")
 
 
 def test_before_after_delta():

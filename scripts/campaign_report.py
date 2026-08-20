@@ -116,10 +116,11 @@ def inventory(records):
         inv["carriers"][labels["carrier"]] += 1
         inv["time_bands"][labels["time_band"]] += 1
         inv["tiers"][labels["tier"] or "unknown"] += 1
-        # `aborted:<reason>` buckets by the prefix; reasons stay in the raw record
-        status = cc.run_obj(rec).get("status")
-        inv["statuses"][(status.split(":", 1)[0] if isinstance(status, str) and status
-                         else "unknown")] += 1
+        # `aborted:<reason>` buckets by the prefix; reasons stay in the raw record.
+        # Normalisation lives in cc.run_status_head (single source): before T70 this
+        # split on ":" but did NOT case-fold, so the demo corpus' `COMPLETED` formed
+        # its own bucket and tripped the "non-completed run" banner on 12 healthy runs.
+        inv["statuses"][cc.run_status_head(rec) or "unknown"] += 1
         inv["profile_version_sets"][rec.get("profile_versions") or "absent"] += 1
         inv["kpi_sets"][rec.get("kpi_set") or "absent"] += 1
         inv["aqs_versions"][rec.get("aqs_version") or "absent"] += 1
