@@ -371,7 +371,6 @@ if ($jdk -and $sdk -and $wrapperJar) {
     $out = & .\gradlew.bat ':probe:testDebugUnitTest' '--tests' '*ParityTest' `
         '--tests' '*AdapterSpecTest' '--rerun' '--no-daemon' 2>&1 | Out-String
     $state = if ($LASTEXITCODE -eq 0) { 'PASS' } else { 'FAIL' }
-    Pop-Location
     $log += "--- app-parity-tests ---"
     $log += $out
     $log += Add-Result 'app-parity-tests' $state 'gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun'
@@ -391,8 +390,17 @@ if ($jdk -and $sdk -and $wrapperJar) {
     #
     # The parity gate above is deliberately KEPT as its own check so a parity break is still
     # named distinctly in the summary instead of being buried in a whole-suite FAIL.
+    #
+    # 工作目录：本块从头到尾必须留在 `app/`。**Pop-Location 曾在这一步之前**，于是本门
+    # 在仓库根下调 `.\gradlew.bat` —— 那里根本没有这个文件（wrapper 在 `app/`）。
+    # PowerShell 的 CommandNotFoundException **不设 `$LASTEXITCODE`**，于是它沿用上面
+    # parity 那次成功的 0，判据算出 **PASS**：**这道门从落地起就一次没跑过，却每次都报绿**
+    # ——恰是它被创建来消灭的那个毛病（D-518：「有测试」只意味着「有人手工跑过」），
+    # 也是本仓「守卫管道退出码陷阱」红线的同一形状。日志里那行 `.\gradlew.bat 不存在`
+    # 与汇总里的 PASS 并排出现，是发现它的直接证据。
     $out = & .\gradlew.bat ':probe:testDebugUnitTest' '--rerun' '--no-daemon' 2>&1 | Out-String
     $state = if ($LASTEXITCODE -eq 0) { 'PASS' } else { 'FAIL' }
+    Pop-Location
     $log += "--- app-unit-tests-full ---"
     $log += $out
     $log += Add-Result 'app-unit-tests-full' $state 'gradlew :probe:testDebugUnitTest --rerun (whole suite)'
