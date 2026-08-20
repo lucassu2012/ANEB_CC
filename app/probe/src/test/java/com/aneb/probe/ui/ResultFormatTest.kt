@@ -400,4 +400,21 @@ class ResultFormatTest {
             assertTrue("绝不能把未知伪造成 completed", v != "completed")
         }
     }
+
+    @Test
+    fun csvTreatsNullAndBlankStatusIdentically() {
+        // D-539 统一口径：`null`（老 run 无 status）与 `""`/空白（畸形值）**同为"未知"**——
+        // 分析侧 `run_status_head` 把空/空白折成 None，设备侧判空也已从原始字段改到
+        // `statusHead(...)`。CSV 这一列若"顺手区分"二者，就会造出**第三种语义**，
+        // 让下游需要知道"空是哪种空"。此条钉住它们必须同形。
+        fun statusCell(st: String?): String {
+            val csv = ResultFormat.buildCsv(run().copy(status = st), listOf(scenario()))
+            val lines = csv.trim().split('\n')
+            val idx = lines[0].split(',').indexOf("run_status")
+            return lines[1].split(',')[idx]
+        }
+        assertEquals("null 与空串必须同形（都是未知）", statusCell(null), statusCell(""))
+        assertEquals("null 与空白串必须同形（都是未知）", statusCell(null), statusCell("   "))
+        assertEquals("未知一律留空，绝不写成 completed", "", statusCell(null))
+    }
 }

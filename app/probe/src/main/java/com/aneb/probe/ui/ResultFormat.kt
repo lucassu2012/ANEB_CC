@@ -293,7 +293,14 @@ object ResultFormat {
                     row.unit,
                     row.grade ?: "",
                     row.lowConfidence.toString(),
-                    run.status ?: "", // 空＝未知（老 run 无 status），不等于 completed
+                    // 空＝未知，**不等于 completed**。`null`（老 run 无 status）／`""`／**空白串**
+                    // 在 D-539 统一口径下同为"未知"——分析侧 `run_status_head` 把空/空白折成
+                    // None，设备侧判空也已从原始字段改到 `statusHead(...)`。
+                    // **`.orEmpty().trim()` 是必需的**：初版只写 `?: ""`，空白串会被原样导出成
+                    // "   "，于是 CSV 里出现**第三种"空"**，下游得知道"空是哪种空"——守卫
+                    // `csvTreatsNullAndBlankStatusIdentically` 当场咬住（这不是洁癖：D-539 刚把
+                    // 两端判空统一，导出面若不跟上，统一就只统一了一半）。
+                    run.status.orEmpty().trim(),
                 )
                 sb.append(cells.joinToString(",") { csvEscape(it) }).append('\n')
             }
