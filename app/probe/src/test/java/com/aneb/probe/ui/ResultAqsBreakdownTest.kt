@@ -191,4 +191,66 @@ class ResultAqsBreakdownTest {
     fun `ItlHistogram of 可构造（编译期依赖锚定）`() {
         assertNotNull(ItlHistogram.of(listOf(50.0, 80.0)))
     }
+
+    // ---- 拖累维度判词（D-505②）：判据须与报告层 subscore_rollup 逐条同口径 ----
+
+    @Test
+    fun `拖累维度＝子分最低的那个 KPI`() {
+        val b = ResultAqsBreakdown.fromReportJson(reportJson(AqsScorer.AQS_VERSION, v01Subs))
+        // v01Subs 最低是 N1=75.1
+        assertEquals("N1", ResultAqsBreakdown.draggingDim(b)?.id)
+    }
+
+    /**
+     * 对齐 `subscore_rollup.py` 那条注释点名的危险（D-179）：**最低者即拖累维度**，
+     * 所以一个越界值会直接劫持这句判词。报告层用 `value_problem` 先滤，此处必须同样先滤。
+     */
+    @Test
+    fun `越界子分不得劫持拖累维度`() {
+        val subs = v01Subs + ("T1" to -5.0)   // 不可能的值：不是坏测量，根本不是测量
+        val b = ResultAqsBreakdown.fromReportJson(reportJson(AqsScorer.AQS_VERSION, subs))
+        assertEquals("越界值被滤掉后，拖累维度仍应是真实最低的 N1", "N1", ResultAqsBreakdown.draggingDim(b)?.id)
+    }
+
+    @Test
+    fun `上越界同样剔除`() {
+        val subs = v01Subs + ("N1" to 150.0)  // N1 本是最低，越界后应退出竞争
+        val b = ResultAqsBreakdown.fromReportJson(reportJson(AqsScorer.AQS_VERSION, subs))
+        assertEquals("N1 越界后，最低应变成 U1=77.5", "U1", ResultAqsBreakdown.draggingDim(b)?.id)
+    }
+
+    /** 报告层 `dragging = ... if medians else None`——无可用维度给 null，不是 0、不是"无"。 */
+    @Test
+    fun `无子分时拖累维度为 null 且判词行如实说无`() {
+        val b = ResultAqsBreakdown.fromReportJson(reportJson(AqsScorer.AQS_VERSION, emptyMap()))
+        assertNull(ResultAqsBreakdown.draggingDim(b))
+        assertTrue(ResultAqsBreakdown.draggingVerdictLine(b).contains("无可用子分"))
+    }
+
+    @Test
+    fun `breakdown 本身为 null 时不炸且如实说无`() {
+        assertNull(ResultAqsBreakdown.draggingDim(null))
+        assertTrue(ResultAqsBreakdown.draggingVerdictLine(null).contains("无可用子分"))
+    }
+
+    /**
+     * 并列规则：报告层 `min()` over 已排序的 dict＝取排在前面的那个；此处取遍历顺序
+     * （组顺序＝KPI 文档 5.4）里的第一个最小值。两侧若各解各的并列，同一份数据会给出
+     * 不同判词——正是 §2.14 要防的形状，故把它钉死。
+     */
+    @Test
+    fun `并列时取规范顺序里靠前的那个`() {
+        val subs = v01Subs + ("T1" to 60.0) + ("N1" to 60.0)  // T1 在流式组，排在基线组 N1 之前
+        val b = ResultAqsBreakdown.fromReportJson(reportJson(AqsScorer.AQS_VERSION, subs))
+        assertEquals("T1", ResultAqsBreakdown.draggingDim(b)?.id)
+    }
+
+    @Test
+    fun `判词行用报告层同一个词「拖累」并带维度与分值`() {
+        val b = ResultAqsBreakdown.fromReportJson(reportJson(AqsScorer.AQS_VERSION, v01Subs))
+        val line = ResultAqsBreakdown.draggingVerdictLine(b)
+        assertTrue("须用报告层同一个词汇「拖累」，防同名不同义", line.contains("拖累"))
+        assertTrue("须点名维度 id", line.contains("N1"))
+        assertTrue("须给出分值", line.contains("75"))
+    }
 }

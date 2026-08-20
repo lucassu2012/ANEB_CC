@@ -506,6 +506,19 @@ private fun AqsHeadlineCard(
                     fontSize = 9.5.sp, color = colors.faint, modifier = Modifier.padding(top = 4.dp),
                 )
             }
+            // 拖累维度判词行（D-505②）：总分会掩盖短板——T56/D-493 实测 100% 的 good/
+            // excellent run 至少含一个 fair/poor 子 KPI，排除已知伪影后仍 98.6%。裁定是
+            // **不改总分公式**（公式惩罚＝历史不可比＋版本跳级＋惩罚形状无实测依据），
+            // 解法是把短板呈现在总分旁边。判据与词汇对齐报告层 subscore_rollup 的「拖累」列
+            // （同判据同词汇，防 §2.14 同名不同义），见 ResultAqsBreakdown.draggingDim。
+            if (breakdown != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    ResultAqsBreakdown.draggingVerdictLine(breakdown),
+                    fontSize = 10.5.sp,
+                    color = colors.muted,
+                )
+            }
             if (run.aqsVetoApplied == true) {
                 Spacer(Modifier.height(8.dp))
                 InlineBadge("T4 一票否决生效 · AQS 封顶 54", colors.poor, colors.poorSoft)

@@ -82,6 +82,40 @@ object ResultAqsBreakdown {
         val groups: List<Group>,
     )
 
+    /**
+     * 本次 run 的**拖累维度**＝子分最低的那个 KPI；无可用子分时 null（R-10，不是 0 也不是"无"）。
+     *
+     * **判据逐字对齐报告层 `scripts/subscore_rollup.py::subscore_cells`**（D-505② 明令
+     * 「同判据同词汇」，防 §2.14 同名不同义）——三条都对齐：
+     * 1. **越界子分先剔除再取 argmin**。报告层用 `campaign_common.value_problem("sub_score", v)`
+     *    把 0..100 之外的值挡在池外，理由是「一个不可能的值不是坏测量、它根本不是测量」，
+     *    而**最低者即拖累维度**，所以一个越界值会直接劫持这句判词（D-179）。此处同样先滤。
+     * 2. **argmin，不是"低于某门槛"**——拖累维度是相对本次 run 自身的最低维，不引入新门限。
+     * 3. **无可用维度 ⇒ null**（报告层 `dragging = ... if medians else None`）。
+     *
+     * **并列时取谁**：报告层是 `min()` over 一个按 `_dim_sort_key` 排过序的 dict，即取
+     * **排在前面**的那个；此处同样取遍历顺序（组顺序＝KPI 文档 5.4 规范顺序）里的第一个最小值。
+     * 并列规则本身写下来，是因为两侧若各按各的顺序解并列，同一份数据会给出不同判词——
+     * 那正是 §2.14 要防的形状。
+     */
+    fun draggingDim(breakdown: Breakdown?): KpiContribution? =
+        breakdown?.groups
+            ?.flatMap { it.kpis }
+            ?.filter { it.subScore in 0.0..100.0 }
+            ?.minByOrNull { it.subScore }
+
+    /**
+     * 结果页「拖累维度」判词行的文案。词汇对齐报告层 `subscore_rollup` 的「拖累」列
+     * （那边渲染成 `**维度**=值`，无则 `—`），此处用同一个词与同一个"无"的写法。
+     *
+     * 本行**只呈现、不改分**：D-505② 裁定总分公式不动（公式惩罚＝历史不可比＋版本跳级＋
+     * 惩罚函数形状无实测依据），「短板被总分掩盖」这个真问题的解法是**把短板呈现出来**。
+     */
+    fun draggingVerdictLine(breakdown: Breakdown?): String {
+        val d = draggingDim(breakdown) ?: return "拖累维度 —（无可用子分）"
+        return "拖累维度 ${d.label}（${d.id}）=${"%.0f".format(d.subScore)} 分"
+    }
+
     /** 组结构（KPI 文档 5.4）：KPI id 顺序 + 中文短名；权重来自 [AqsScorer]（不在此复制）。 */
     private data class Slot(val id: String, val label: String)
 
