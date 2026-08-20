@@ -69,6 +69,15 @@ class AnebClient(bound: BoundNetwork? = null) {
         @SerialName("t2_us") val t2Us: Long,
         /** 服务端观察到的客户端源 IP:port（路径对账，R-01/R-31） */
         val observed: String? = null,
+        /**
+         * 服务端**进程启动时**的真实墙钟（Unix 纳秒）。服务端每次 /echo 都回带
+         * （`server/handlers_echo.go:43-44`），客户端此前连声明都没有、静默丢弃——
+         * D-503/T64 查明这是全仓唯一能校验设备墙钟的独立参照（D-340 零读者族）。
+         *
+         * **可空且带默认值**：旧版服务端不回该字段时反序列化不能炸（E-01 现版本已回带，
+         * T64 §4 线上实测确认，但客户端不该假设对端一定是新版）。
+         */
+        @SerialName("anchor_wall_unix_ns") val anchorWallUnixNs: Long? = null,
     )
 
     /**
@@ -89,6 +98,14 @@ class AnebClient(bound: BoundNetwork? = null) {
         val timing: TimingRecord?,
         /** 服务端观察到的客户端源 IP:port（每场景网络快照的路径对账字段，R-01/R-31） */
         val observed: String? = null,
+        /**
+         * 设备墙钟 − 服务端墙钟（毫秒，可正可负）。**与 [offsetUs] 是两回事**：
+         * 后者是两个单调计数之差（按 R-24 设计就不含墙钟信息，D-503 §3 实证），
+         * 本字段才是「钟指得对不对」。服务端未回带 anchor 时为 null（R-10：测不出
+         * 是 null，不是 0）。取样时刻＝打 t0 的同一行（不可用 run 起始墙钟做减法，
+         * 那与 echo 时刻差着整个 run 前置时长，T64 §8.1）。
+         */
+        val wallSkewMs: Long? = null,
     )
 
     suspend fun echo(url: String): EchoResult {
@@ -96,6 +113,9 @@ class AnebClient(bound: BoundNetwork? = null) {
             .toRequestBody("application/json".toMediaType())
         val call = client.newCall(Request.Builder().url(url).post(body).build())
         val t0Us = nowUs()
+        // T64 §8.1：墙钟必须与 t0 同一时刻取——run 起始墙钟（started_at_epoch_ms）与
+        // echo 时刻差着整个 run 前置时长，拿它做减法会把前置时长算进 skew。
+        val deviceWallMs = System.currentTimeMillis()
         return try {
             executeCancellable(call) { resp ->
                 // t3 打戳点＝收到响应头回调（与原 execute() 返回点同语义）
@@ -113,6 +133,7 @@ class AnebClient(bound: BoundNetwork? = null) {
                     EchoResult(
                         t0Us, wire.t1Us, wire.t2Us, t3Us, offsetUs, rttUs,
                         resp.code, null, timing, observed = wire.observed,
+                        wallSkewMs = wallSkewMs(wire.anchorWallUnixNs, wire.t1Us, deviceWallMs),
                     )
                 }
             }
@@ -848,9 +869,44 @@ class AnebClient(bound: BoundNetwork? = null) {
 
     private fun nowUs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000L
 
-    private companion object {
+    companion object {
         /** 服务端固定 "\n\n" 分隔（与 SseReader 同一 wire 约定） */
         private val SSE_EVENT_DELIMITER = "\n\n".encodeUtf8()
         private val SEQ_REGEX = Regex("\"seq\"\\s*:\\s*(\\d+)")
+
+        /**
+         * 判 `wall_clock_suspect` 的阈值（毫秒，D-506 裁定 60s；**PROVISIONAL**）。
+         *
+         * **这个常量不敏感，别以为 60000 是标定出来的**（T64 §8.4 明写要把这句写进代码）：
+         * 两侧硬约束差约三个数量级——下界须**高于**正常网络/NTP 抖动（本项目实测 RTT
+         * 上界 106ms，T63 §1；NTP 日常偏差 <1s），上界须**低于**任何足以毁掉判读的偏差
+         * （按日分桶只要错 1 天＝8.64e7 ms 结论就全错）。区间极宽，故取 60s 只需落在
+         * 区间内，不必精调；有真实 skew 分布支撑前维持 PROVISIONAL。
+         */
+        const val WALL_SKEW_MAX_MS: Long = 60_000L
+
+        /**
+         * 由 echo 响应还原「设备墙钟 − 服务端墙钟」（毫秒，可正可负）。纯函数，离线可单测。
+         *
+         * `serverWallMs = anchorWallUnixNs/1e6 + t1Us/1e3`——anchor 是服务端进程启动时的
+         * 墙钟，t1 是该请求到达时距进程启动的单调微秒差（T64 §8.1，还原式经线上实测验证）。
+         *
+         * @param anchorWallUnixNs 服务端进程启动墙钟；null（旧服务端不回带）⇒ 返回 null
+         * @param t1Us 服务端接收时刻（单调锚点微秒）
+         * @param deviceWallMs 客户端打 t0 的**同一时刻**取的 `System.currentTimeMillis()`
+         * @return skew；测不出为 null（R-10：不是 0）
+         */
+        fun wallSkewMs(anchorWallUnixNs: Long?, t1Us: Long, deviceWallMs: Long): Long? {
+            if (anchorWallUnixNs == null) return null
+            val serverWallMs = anchorWallUnixNs / 1_000_000L + t1Us / 1_000L
+            return deviceWallMs - serverWallMs
+        }
+
+        /**
+         * 墙钟是否可疑。**标记非否决**（D-506）：KPI 计时全走单调钟（R-24），墙钟错
+         * 不污染 KPI 值、只污染"哪天测的"。skew 为 null（测不出）⇒ false，不因缺证据判疑。
+         */
+        fun wallClockSuspect(skewMs: Long?): Boolean =
+            skewMs != null && kotlin.math.abs(skewMs) > WALL_SKEW_MAX_MS
     }
 }

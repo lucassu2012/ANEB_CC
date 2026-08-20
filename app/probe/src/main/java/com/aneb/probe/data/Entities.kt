@@ -1,6 +1,7 @@
 package com.aneb.probe.data
 
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -236,7 +237,29 @@ data class ScenarioResultEntity(
     val d3RttDriftRatio: Double? = null,
     val d3RttDominanceRatio: Double? = null,
     val d3RttDominanceOk: Boolean? = null,
-)
+) {
+    /**
+     * 设备墙钟 − 服务端墙钟（毫秒，本场景各 clock_sync 非 warmup 样本的中位；T64 §8/D-506）。
+     *
+     * **`@Ignore` 且写在类体而非构造参数里，两处都是被迫的**：
+     * - `@Ignore`＝故意不建数据库列。T64 §8.7 明写「不落 Room——这是 wire/分析层信号，
+     *   不需要设备端历史查询；回滚删字段即可，无数据迁移」。但 wire body 由
+     *   `ResultReporter.scenarioJson(s: ScenarioResultEntity)` 构建，**值必须挂在本对象上
+     *   才导得出去**——`@Ignore` 两头兼顾：对象有它、库里没有它。故本字段不参与任何
+     *   Room 迁移，`app/probe/schemas` 下的 JSON 快照应逐字不变。
+     * - **写在类体**：`@Ignore` 放构造参数上 Room 会拒（"Entities and POJOs must have a
+     *   usable public constructor"——它要一个只含持久化字段的构造器），实测编译失败。
+     *
+     * **已知代价（写下来免得后人踩）**：类体属性不进 `equals`/`hashCode`/`copy()`——
+     * 若将来有人对本实体调 `copy()`，这个值会**静默丢失**。落地时实测全仓对
+     * `ScenarioResultEntity` 零 `copy()` 调用，故当前安全；**若哪天要加 copy，请一并搬运本字段**。
+     *
+     * 与构造参数里那组 `offset*` 是两回事：那些是两个单调计数之差（R-24 设计上免疫墙钟，
+     * D-503 §3 实证），本字段才是「钟指得对不对」。测不出为 null（R-10，不是 0）。
+     */
+    @Ignore
+    var wallSkewMs: Long? = null
+}
 
 /**
  * 上报体原样存档（C07 导出）：run 结束时构造的 /results JSON 原文。

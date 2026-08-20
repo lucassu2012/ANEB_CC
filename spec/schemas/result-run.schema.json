@@ -186,7 +186,8 @@
             "offset_start_us": { "type": ["integer", "null"] },
             "offset_end_us": { "type": ["integer", "null"] },
             "drift_ppm": { "type": ["number", "null"] },
-            "offset_suspect": { "type": "boolean", "description": "|drift|>100ppm 或首尾任一端缺失(保守置疑,R-22)" }
+            "offset_suspect": { "type": "boolean", "description": "|drift|>100ppm 或首尾任一端缺失(保守置疑,R-22)" },
+            "wall_skew_ms": { "type": ["integer", "null"], "description": "设备墙钟-服务端墙钟(ms,本场景非warmup样本中位)。与offset_*不同:那些是两个单调计数之差(R-24免疫墙钟),本字段才是钟指得对不对(T64 §8/D-506)。非必填:历史语料无此字段;旧服务端不回anchor时为null(R-10不记0)" }
           }
         },
         "network_snapshot": {

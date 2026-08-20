@@ -182,6 +182,10 @@ object ResultReporter {
             put("offset_end_us", s.offsetEndUs)
             put("drift_ppm", s.offsetDriftPpm)
             put("offset_suspect", s.offsetSuspect)
+            // T64 §8.3/D-506：非必填（历史语料没有它，进 required 会让既有 63 份 JSONL
+            // 全部违约，spec/README §3 只增不改不删）。测不出为 null（旧服务端不回带
+            // anchor），不以 0 顶替——0 恰是「钟完全对齐」的合法值，混淆两者最危险。
+            put("wall_skew_ms", s.wallSkewMs)
         })
         put("network_snapshot", buildJsonObject {
             put("transport", s.netTransport)

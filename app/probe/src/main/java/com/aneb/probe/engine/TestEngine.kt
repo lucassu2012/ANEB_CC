@@ -467,6 +467,13 @@ class TestEngine(private val context: Context) {
                             "u1_excl_mbps=${fmt(kpi.u1GoodputExclSlowStartMbps)} u2_ms=${fmt(kpi.u2ToolLoopP95Ms)} " +
                             "gaps=${kpi.seqGapCount} dup=${kpi.seqDupCount}"
                     )
+                    // 墙钟 skew 就地可见（T64 §8.5-1/D-276：新字段必须有真实读者）。
+                    // D-494 那次钟错 10 天，操作者当场毫无察觉、最后靠 git log 才发现；
+                    // 这一行就是让它当场就喊出来。skew 为 null=旧服务端不回 anchor（R-10 不写 0）。
+                    log(
+                        "CLOCK_SKEW scenario=$scenarioKey skew_ms=${entity.wallSkewMs ?: "null"} " +
+                            "suspect=${com.aneb.probe.net.AnebClient.wallClockSuspect(entity.wallSkewMs)}"
+                    )
                     // ---- T47 批①（D-468/D-469）：S3 固定负载(U1/D1)诊断日志 ----
                     // 只读观测，不做任何 gate/拒绝——把 D-363 的一次性叙事分析变成持续观测。
                     // 判据沿用 D-363 实测口径：耗时 ÷ 该场景自身 n1_rtt_p50_ms（不跨场景复用 RTT）。
@@ -1045,7 +1052,12 @@ class TestEngine(private val context: Context) {
             bufferingBatchCount = buffering?.batchCount,
             bufferingBestGridUs = buffering?.bestGridUs,
             bufferingJankOverlapRatio = buffering?.jankOverlapRatio,
-        )
+        ).also {
+            // 墙钟 skew（T64 §8/D-506）：与上面四个 offset* 是两回事——那些是两个单调
+            // 计数之差（R-24 免疫墙钟），这个才是「钟指得对不对」。写在类体的 @Ignore
+            // 属性（不落 Room，理由见 Entities.kt 该字段 KDoc），故只能构造后赋值。
+            it.wallSkewMs = ScenarioKpi.wallSkewP50Ms(outcome.clockSyncs)
+        }
     }
 
     /** AUTO 模式（不绑定）：以当前默认网做每场景网络快照。 */

@@ -23,6 +23,25 @@ object ScenarioKpi {
     /** 服务端 /upload 读块大小（server/handlers_upload.go uploadChunkSize），慢启动估计用 */
     const val SERVER_UPLOAD_CHUNK_BYTES = 65_536L
 
+    /**
+     * 本场景「设备墙钟 − 服务端墙钟」中位（毫秒）；T64 §8.2-3/D-506。
+     *
+     * **汇池口径**：把该场景**全部** clock_sync phase 的非 warmup 样本合起来取中位——
+     * 与旁边按 phase 分开的 RTT 基准（`clockSyncRttP50Ms`）刻意不同：RTT 要分首尾是为了
+     * 看场景内漂移，而墙钟 skew 答的是「这台设备的钟指得对不对」，一个场景一个数即可。
+     *
+     * 旧服务端不回带 `anchor_wall_unix_ns` ⇒ 各样本 skew 皆 null ⇒ 无有效样本 ⇒ **返回 null
+     * 而非 0**（R-10；0 恰是「钟完全对齐」的合法值，与「测不出」混为一谈最危险）。
+     */
+    fun wallSkewP50Ms(clockSyncs: List<ScenarioRunner.ClockSyncOutcome>): Long? {
+        val skews = clockSyncs
+            .flatMap { it.samples }
+            .filter { !it.warmup }
+            .mapNotNull { it.result.wallSkewMs }
+            .map { it.toDouble() }
+        return com.aneb.probe.scoring.KpiCalculator.percentileOrNull(skews, 0.50)?.toLong()
+    }
+
     class StreamTokens(val expectedTokens: Int, val events: List<TokenEvent>)
 
     class TokenJoin(val samples: List<TokenSample>, val pauseSeqs: Set<Long>)
