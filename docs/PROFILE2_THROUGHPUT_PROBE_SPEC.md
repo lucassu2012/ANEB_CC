@@ -169,14 +169,14 @@ phase 4: clock_sync（本版从"可选"改为**必选**——原因见 §8.2 第
 
 ```
 ratio = window_actual_ms / rtt_ref_ms_pre
-dominance_ok ⟺ ratio ≥ RTT_DOMINANCE_MIN(建议默认 10)
+dominance_ok ⟺ ratio ≥ RTT_DOMINANCE_MIN(D-499 拍板=15；原建议默认 10)
              ∧ window_actual_ms ≥ ABS_FLOOR_MS(建议默认 300)
              ∧ bytes_transferred ≥ MIN_BYTES_FLOOR(建议默认 100KB)
 
 rtt_drift_ratio = rtt_ref_ms_post / rtt_ref_ms_pre   （两者皆非 null 时才计算，否则 null）
 ```
 
-- **`RTT_DOMINANCE_MIN=10`**：D-363 实测最高历史值是 s3 的 9.8×，且从未被判定为"安全"，只是"离开了
+- **`RTT_DOMINANCE_MIN=15`（D-499 拍板，原文建议 10 保留于下）**：判据=T63/D-498 489 真实样本阈值扫描（[10,37] 零判定差异，临界 RTT 收紧 400→267ms，§8.3.3 担心的 350ms 路径在 15 下被拒）。原论证：D-363 实测最高历史值是 s3 的 9.8×，且从未被判定为"安全"，只是"离开了
   时延区间"；10 是在该历史最高值之上留安全边际的整数取值。**已知边界风险**：§8.2 第 1 条论证里写
   "只要 RTT 本身不是病态地大（卫星/跨国高延迟中继除外）"，但落地判据是固定阈值——一条 RTT 350ms 的
   路径（未到卫星级但明显偏高）在 4000ms 窗口下 `ratio≈11.4`，恰好压过阈值、被判 `dominance_ok=true`，
@@ -509,7 +509,7 @@ test_validate_profiles.py` 需要同批追加至少一条覆盖新 phase 类型�
 | # | 事项 | 选项 | 本文推荐（非最终裁定） |
 |---|---|---|---|
 | 8-1 | 本章节落位 | (a) 插入 `INSTRUMENTATION_SPEC.md`（与文档标题/§0.1 范围冲突）/ (b) 另立独立文档（本文当前形态，仿 Profile 4 先例） | **(b)（已按此落地）** |
-| 8-2 | `RTT_DOMINANCE_MIN`/`ABS_FLOOR_MS`/`MIN_BYTES_FLOOR` 三个新常量取值，含 §8.3.3 已指出的"阈值边界附近样本表现未知"风险 | 本文建议 10 / 300ms / 100KB，或调整 | 需真机数据（批③）支撑后正式拍板，且批③验收标准需专门统计"ratio 落在 [8,15] 边界区间的样本"分布，上线前不视为最终值 |
+| 8-2 | `RTT_DOMINANCE_MIN`/`ABS_FLOOR_MS`/`MIN_BYTES_FLOOR` 三个新常量取值，含 §8.3.3 已指出的"阈值边界附近样本表现未知"风险 | 本文建议 10 / 300ms / 100KB，或调整 | **已拍板（D-499：15/300ms/100KB 转正）**——原"等真机边界分布"要求被 T63 换问法解决（现有 489 样本证明 [10,37] 区间零差异，蜂窝窗降级为确认性复核，日落尾巴见 D-499） |
 | 8-3 | 窗口时长 `window_ms` 默认值 | 本文建议 4000ms（区间 3000-5000ms） | 需与 quick/forensic 时长预算协调后定；§8.5 已确定不随 forensic 重复，故只需协调单次探针本身的预算 |
 | 8-4 | 下行/上行 `bytes` ceiling 默认值 | 本文建议 512MB / 48MB（服务端硬顶 1GiB / 64MB，§8.3.5 已确认零额外服务端改动） | 需真机验证是否会在极快链路上触发 `window_underrun` |
 | 8-5 | 诊断期结束后是否接入打分（§8.4.4 两条路径） | 展示型诊断 vs 正式进 AQS | **必须在批①/批③立项时问清楚**，不要等批④做完才发现产品只要前者；若选路径 2（切映射），额外需要 §8.0 单流局限的方法学评审 |
@@ -528,7 +528,7 @@ test_validate_profiles.py` 需要同批追加至少一条覆盖新 phase 类型�
 `json.Unmarshal` 对未知键静默忽略而非报错的行为（`server/profiles.go:126-154` 未启用
 `DisallowUnknownFields`）。
 
-**本文新提议、标记为"待裁定"的量**：`RTT_DOMINANCE_MIN=10`、`ABS_FLOOR_MS=300`、
+**本文新提议、原标记"待裁定"、现已 D-499 拍板转正的量**：`RTT_DOMINANCE_MIN=15`（拍板值；本文原提议 10）、`ABS_FLOOR_MS=300`、
 `MIN_BYTES_FLOOR=100KB`、`window_ms=4000`、下行/上行 `bytes` ceiling `512MB`/`48MB`，以及 §8.7
 全部九项。
 

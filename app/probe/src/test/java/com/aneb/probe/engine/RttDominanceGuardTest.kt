@@ -48,14 +48,14 @@ class RttDominanceGuardTest {
 
     // ---- ratio 边界（>= 严格纳入，本仓惯例：门限值本身归入达标侧） ----
 
-    @Test fun `ratio 恰为 10 且其余达标时判安全（大于等于）`() {
-        val v = RttDominanceGuard.evaluate(windowActualMs = 1000.0, rttRefMs = 100.0, bytesTransferred = 200_000L)
-        assertEquals(10.0, v.ratio!!, 1e-9)
+    @Test fun `ratio 恰为 15 且其余达标时判安全（大于等于，D-499 后阈值）`() {
+        val v = RttDominanceGuard.evaluate(windowActualMs = 1500.0, rttRefMs = 100.0, bytesTransferred = 200_000L)
+        assertEquals(15.0, v.ratio!!, 1e-9)
         assertTrue(v.ok)
     }
 
-    @Test fun `ratio 9_99 判不安全`() {
-        val v = RttDominanceGuard.evaluate(windowActualMs = 999.0, rttRefMs = 100.0, bytesTransferred = 200_000L)
+    @Test fun `ratio 14_99 判不安全（D-499 后阈值）`() {
+        val v = RttDominanceGuard.evaluate(windowActualMs = 1499.0, rttRefMs = 100.0, bytesTransferred = 200_000L)
         assertFalse(v.ok)
     }
 
@@ -131,13 +131,13 @@ class RttDominanceGuardTest {
         val windowMs = profileWindowMs()
         val threshold = RttDominanceGuard.RTT_DOMINANCE_MIN
 
-        // 当前双方已定值：4000ms 窗口（批②落地）÷ 阈值 10（PROVISIONAL，D-469）= 400ms 临界。
+        // 当前双方已定值：4000ms 窗口（批②落地）÷ 阈值 15（D-499 拍板转正）≈ 266.67ms 临界。
         assertEquals("window_ms 变了：请回读 T63 敏感性分析，确认阈值是否要跟着动", 4000, windowMs)
-        assertEquals("RTT_DOMINANCE_MIN 变了：请回读 T63 敏感性分析（[10,37] 对现有语料等价）",
-            10.0, threshold, 1e-9)
+        assertEquals("RTT_DOMINANCE_MIN 变了：请回读 T63/D-499（[10,37] 对现有语料等价；改值须新 D 号）",
+            15.0, threshold, 1e-9)
 
         val criticalRttMs = windowMs / threshold
-        assertEquals("临界 RTT = window_ms / 阈值", 400.0, criticalRttMs, 1e-9)
+        assertEquals("临界 RTT = window_ms / 阈值", 4000.0 / 15.0, criticalRttMs, 1e-9)
     }
 
     @Test fun `绊线 恰在临界RTT上的路径判安全 略超即判不安全（临界值真的是那个数）`() {
