@@ -46,6 +46,12 @@ object ReportMapper {
         }
 
         return ReportAnalyzer.RunSummary(
+            // T76/D-534 §3 设备半：此前本映射器**通篇不读 `run.status`**，于是一个
+            // `aborted` 的 run 只要有任一 KPI 非空就以 VALID 进聚合、屏上毫无提示。
+            // 这里只**带上它**（判据与呈现见 ReportAnalyzer）；**不改 validity 语义**
+            // ——「非 completed 的 run 级 AQS 不进中位」那半是分析层的裁定（D-534 §3），
+            // 两半各做各的，不在设备侧偷偷多一道过滤。
+            runStatus = run.status,
             runId = run.runId,
             transport = run.transport,
             rttMs = rtt,

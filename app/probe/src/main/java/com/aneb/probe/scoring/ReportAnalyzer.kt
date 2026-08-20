@@ -97,7 +97,30 @@ object ReportAnalyzer {
         val netemProfile: String? = null,
         val validity: Validity = Validity.VALID,
         val epochMs: Long? = null,
+        /**
+         * run 级状态（`TestRun.status`，形如 `completed` / `aborted:bound_network_lost`）。
+         *
+         * **为什么要带上它**（T76/D-534 §3 设备半）：此前设备侧 `ReportMapper` **通篇不读
+         * `status`**，于是一个 `aborted` 的 run 只要有任一 KPI 非空就被判 VALID 进聚合，
+         * 而屏上没有任何东西说它是半截的（D-514 G-5 / T74 请求单 §3 实证）。
+         * 本字段可空且带默认值——历史构造点与测试零改动（R-10：不传＝未知，不是 completed）。
+         */
+        val runStatus: String? = null,
     )
+
+    /**
+     * run 状态的归一化头部：取 `:` 之前、去空白、折小写；null/空白 → null。
+     *
+     * **逐字镜像分析层 `campaign_common.run_status_head()`**（D-528 建立）——两侧判据必须
+     * 是同一条，否则同一个 run 在设备上和报告里可能得出不同结论，正是 §2.14「同名不同义」
+     * 要防的形状。`aborted:bound_network_lost` → `aborted`；大小写漂移（`COMPLETED`）
+     * 也在此折平（D-528 实测过 12 条 `COMPLETED` 因不折大小写而被误判为"非 completed"）。
+     */
+    fun statusHead(status: String?): String? =
+        status?.substringBefore(':')?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+
+    /** 该 run 是否正常跑完；状态未知（null）**不**当作跑完（R-10：缺证据不等于健康）。 */
+    fun isCompleted(status: String?): Boolean = statusHead(status) == "completed"
 
     // ---------------------------------------------------------------------
     // 输出
@@ -255,7 +278,7 @@ object ReportAnalyzer {
         }
 
         val projection = buildTokenProjection(valid, groups, method, findings, sessionDropRate)
-        val conclusions = buildConclusions(method, valid.size, distinctConditions, findings, projection)
+        val conclusions = buildConclusions(method, valid.size, distinctConditions, findings, projection, valid)
 
         return ReportAnalysis(
             analyzerVersion = ANALYZER_VERSION,
@@ -461,8 +484,22 @@ object ReportAnalyzer {
         distinctConditions: Int,
         findings: List<SensitivityFinding>,
         projection: TokenProjection,
+        valid: List<RunSummary>,
     ): List<String> {
         val out = mutableListOf<String>()
+        // T76/D-534 §3 设备半：**中止的 run 若被算进来了，必须当面说一句**。
+        // 复用既有 `conclusions` 通道而不新增字段（同 D-534「优先复用既有通道」的处置）。
+        // 判据走 `isCompleted`（与分析层 `run_status_head` 同一条，§2.14 防同名不同义）；
+        // **状态未知的老 run 不算在内**——它们没有 status 可读，报"中止"是冤枉它们（R-10：
+        // 缺证据不等于有问题；这与 `isCompleted` 内部"未知不算跑完"是两个不同的问题，
+        // 那里防的是"把未知当健康"，这里防的是"把未知当故障"）。
+        val aborted = valid.filter { it.runStatus != null && !isCompleted(it.runStatus) }
+        if (aborted.isNotEmpty()) {
+            val heads = aborted.mapNotNull { statusHead(it.runStatus) }.distinct().sorted()
+            out += "注意：本次分析包含 ${aborted.size} 个未正常结束的 run" +
+                "（状态：${heads.joinToString("/")}），其已完成部分仍计入统计——" +
+                "这些 run 的分数是半截测量的结果，解读时按此折扣。"
+        }
         when (method) {
             Method.INSUFFICIENT -> {
                 out += "样本不足：当前有效 run n=$validCount，不同网络条件=$distinctConditions" +

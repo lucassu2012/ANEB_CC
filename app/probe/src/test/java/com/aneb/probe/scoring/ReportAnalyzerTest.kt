@@ -209,4 +209,37 @@ class ReportAnalyzerTest {
         assertEquals(Method.INSUFFICIENT, a.method)
         assertTrue(a.sensitivity.isEmpty())
     }
+
+    // ---- T76/D-534 §3：中止的 run 被算进来了，就得当面说一句 ----
+
+    @Test
+    fun `包含中止 run 时结论里点名它——不让半截测量冒充干净数据`() {
+        val runs = cleanRuns().mapIndexed { i, r ->
+            if (i == 0) r.copy(runStatus = "aborted:bound_network_lost") else r.copy(runStatus = "completed")
+        }
+        val a = ReportAnalyzer.analyze(runs)
+        val line = a.conclusions.firstOrNull { it.contains("未正常结束") }
+        assertTrue("中止 run 进了统计却一个字不说，正是 D-514 G-5 那个缺口", line != null)
+        assertTrue("须给出个数", line!!.contains("1 个"))
+        assertTrue("须点名状态", line.contains("aborted"))
+    }
+
+    @Test
+    fun `全部正常结束时不加这句——守卫不得变成恒响的噪声`() {
+        val runs = cleanRuns().map { it.copy(runStatus = "completed") }
+        val a = ReportAnalyzer.analyze(runs)
+        assertTrue(a.conclusions.none { it.contains("未正常结束") })
+    }
+
+    /**
+     * **状态未知的老 run 不得被报成中止**：它们根本没有 status 可读（该字段是本次才带进
+     * [RunSummary] 的），报"未正常结束"是冤枉——缺证据不等于有问题。
+     * 注意这与 `isCompleted(null)==false` **不矛盾**：那条防的是"把未知当健康"，
+     * 这条防的是"把未知当故障"，两个方向各防一件事。
+     */
+    @Test
+    fun `状态未知的老 run 不被报成中止——缺证据不等于有问题`() {
+        val a = ReportAnalyzer.analyze(cleanRuns()) // runStatus 全部为 null（默认）
+        assertTrue(a.conclusions.none { it.contains("未正常结束") })
+    }
 }

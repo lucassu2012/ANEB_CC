@@ -20,6 +20,7 @@ class ReportMapperTest {
         lowConf: Boolean? = false,
         c1: Double? = null,
         epoch: Long = 1_000L,
+        status: String = "completed",
     ) = TestRun(
         runId = runId,
         startedAtEpochMs = epoch,
@@ -39,7 +40,7 @@ class ReportMapperTest {
         aqsLowConfidence = lowConf,
         aqsVetoApplied = false,
         aqsNotComputableReason = null,
-        status = "completed",
+        status = status,
         reportStatus = "200",
         aqsV02C1DropRate = c1,
     )
@@ -134,4 +135,53 @@ class ReportMapperTest {
         val s = ReportMapper.toRunSummary(run(lowConf = true), scenarios)
         assertEquals(Validity.VALID_LOW_CONFIDENCE, s.validity)
     }
+
+    // ---- T76/D-534 §3 设备半：status 从"只写不读"变成"读了并说出来" ----
+
+    @Test
+    fun `run status 被带进 RunSummary——闭合零读`() {
+        val scenarios = listOf(scenario("s2_coding_agent", t1 = 500.0))
+        val s = ReportMapper.toRunSummary(run(status = "aborted:bound_network_lost"), scenarios)
+        assertEquals("aborted:bound_network_lost", s.runStatus)
+    }
+
+    /**
+     * **中止的 run 仍按原判据进聚合，validity 一个字不改**：过滤那半是分析层的裁定
+     * （D-534 §3），设备侧只负责"带上并说出来"。这条把边界钉住，防后人以为设备侧
+     * 也该顺手多加一道过滤——两侧各判各的会让同一个 run 在两处结论不一致。
+     */
+    @Test
+    fun `中止 run 的 validity 不因 status 而改变（过滤归分析层）`() {
+        val scenarios = listOf(scenario("s2_coding_agent", t1 = 500.0))
+        val s = ReportMapper.toRunSummary(run(status = "aborted:bound_network_lost"), scenarios)
+        assertEquals(Validity.VALID, s.validity)
+    }
+
+    @Test
+    fun `status 归一化：取冒号前、折大小写（与分析层 run_status_head 同一条）`() {
+        assertEquals("aborted", ReportAnalyzerStatus.head("aborted:bound_network_lost"))
+        assertEquals("completed", ReportAnalyzerStatus.head("COMPLETED"))
+        assertEquals("completed", ReportAnalyzerStatus.head("  completed  "))
+        assertNull("空白视同未知", ReportAnalyzerStatus.head("   "))
+        assertNull(ReportAnalyzerStatus.head(null))
+    }
+
+    /**
+     * 两个方向的 null 语义**刻意不同**，各防一件事，别把它们看成同一条：
+     * - `isCompleted(null)` 为 **false**：防"把未知当健康"（缺证据不等于跑完，R-10）。
+     * - 而结论文案里**不点名** status 未知的老 run：防"把未知当故障"——它们根本没有
+     *   status 可读，报"中止"是冤枉（该分支由 ReportAnalyzer 侧测试覆盖）。
+     */
+    @Test
+    fun `状态未知不算跑完——缺证据不等于健康`() {
+        assertEquals(false, ReportAnalyzerStatus.isCompleted(null))
+        assertEquals(true, ReportAnalyzerStatus.isCompleted("completed"))
+        assertEquals(false, ReportAnalyzerStatus.isCompleted("aborted:x"))
+    }
+}
+
+/** 转调 [com.aneb.probe.scoring.ReportAnalyzer] 的状态判据，纯粹为让本测试读起来短。 */
+private object ReportAnalyzerStatus {
+    fun head(s: String?) = com.aneb.probe.scoring.ReportAnalyzer.statusHead(s)
+    fun isCompleted(s: String?) = com.aneb.probe.scoring.ReportAnalyzer.isCompleted(s)
 }
