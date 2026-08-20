@@ -108,6 +108,44 @@ MainTab.Test
 2. **既有纯函数层：维持并随批 2 扩**。批 2 改专业视图呈现时，同步给新增的"组→KPI→贡献分"展开加断言（`ResultAqsBreakdownTest` 已有骨架可扩）。
 3. **真机仅冒烟**：六屏渲染零崩溃 + 导航可达 + logcat 无 FATAL/ANR。**不做像素级/截图回归**（设计仍在迭代，基线会天天红，维护成本 > 收益）。
 
+### 5.1 第 1 层已落地——怎么写这类测试（追记 2026-08-20，D-526/527/529/538）
+
+上面第 1 层写作时被当作「需要真机/模拟器」而搁置（D-523 H-4 实测：`androidTest` 目录零结果、
+`createComposeRule` 全仓仅存于一句注释）。**那个前提不成立**，现已落地并进常设门禁链。
+本节写给下一个要加这类测试的人，免得再花一遍探路成本。
+
+**跑得起来的最小配置**（已在 `app/probe/build.gradle.kts` 落好，无需再改）：
+`testImplementation` 加 Robolectric + `compose.ui.test.junit4`（版本随 `compose-bom` 解析，
+不写死），`debugImplementation` 加 `ui-test-manifest`，并开
+`testOptions.unitTests.isIncludeAndroidResources = true`（不开则 `createComposeRule()` 起不来）。
+**走 `testImplementation` 而非 `androidTest` 是关键**——这样它跑在 JVM 上、不需要设备，
+因而能被 `verify_all` 的全量单测门带上（已实测该门确实执行 `:probe:testDebugUnitTest --rerun`）。
+
+**测试骨架**：`@RunWith(RobolectricTestRunner::class)` + `@Config(sdk = [35])` + `@get:Rule createComposeRule()`，
+内容包在 `AnebTheme { ... }` 里（组件普遍读 `AnebTheme.colors`）。
+
+**要动一次可见性**：待测 Composable 多为 `private`，测试够不到。照本仓既有先例改 `internal`
+（`RadioCollector.guardTick` 的 KDoc 亲述「`internal` 可见性就是为了让测试直接调用它」），
+**并在改动处写明理由**，免得下一个人以为是随手放宽。目前已这样处理的有
+`KpiLine`（本就是）／`ClaimScopeFooter`／`RunningGauge`。
+
+**四条踩过的坑，按顺序写下来**：
+
+1. **依赖首次拉取需要联网**。我一度看到 Gradle 缓存里有那两个库的**目录**就断言"离线可解析"，
+   实则只有 `.pom`/`.module` 元数据、**没有 AAR**，`--offline` 当场解析失败。拉过之后
+   `--offline` 实测通过——对已同步依赖的机器无门禁风险，**全新环境需要一次联网**。
+2. **断言别写得比事实窄**。初版按"恰好一个占位符"断言，实测缺失行渲染出**两处**
+   （KPI 值一处、分级 chip 一处，`grade` 为 null 时同样按 R-10 显占位符，**是正确行为**）。
+   是断言写窄，不是产品错。
+3. **守卫自己要造反例证伪**（D-322）。"渲染树里一个 0 都没有"这条，配了一条**用真实的 0**
+   （0 是合法测量值）证明检测器确实会响的用例——而不是去临时改产品代码，那要动工作树（D-321）。
+4. **只断言"有没有"会漏掉"在第几位"**（D-538）。往有序集合里加内容时，若下游有人拿
+   `first()` 当头条，位置本身就是语义，必须一并钉住。
+
+**当前覆盖**（`RenderRedlineTest`，9 条）：渲染树无假 0（**两处**：KPI 文本行 + **仪表几何**——
+后者是 `HalfGauge ?: 0` 那个先例的老家，第一版漏了，D-529 补上）／低置信角标双向／
+claim scope 文案与版本戳四项。
+
 ## 6. 风险与边界
 
 - 批 1 是纯搬运但**触及 MainActivity 全文件**——与任何同时改 MainActivity 的会话冲突。执行前须在板面认领并确认无并发方（CLAUDE.md 提交纪律：`git commit <pathspec>` + `git diff --cached` 逐行核）。
