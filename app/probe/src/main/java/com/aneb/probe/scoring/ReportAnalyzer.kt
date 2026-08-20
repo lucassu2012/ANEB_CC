@@ -561,7 +561,13 @@ object ReportAnalyzer {
         // 于是**整份报告的头条被悄悄换成了这句告诫**，而配套测试只断言 `any/none contains`、
         // 不管位置，全绿放行——D-300「去 PO 最先读的那一行上再找一遍」+ D-341「最容易漏的
         // 是一步之前的自己」，同一天第二次。位置现已由 `ReportAnalyzerTest` 钉住。
-        val aborted = valid.filter { it.runStatus != null && !isCompleted(it.runStatus) }
+        // **判空要落在归一化后的值上，不是原始字段**（跨端分叉修复，`StatusJudgementParityTest`
+        // docstring 记录的那处）：原写法 `it.runStatus != null` 会让**空串**漏过——空串非 null，
+        // 于是 `isCompleted("")` 为 false，它就被**报成"未正常结束"**；而分析侧
+        // `run_status_head("")` 返回 None、当未知放行。同一条记录两端读法相反。
+        // 空串本就是"未知"，而本段落自己的意图（见下方注释）恰是"未知不报中止，报了是冤枉"
+        // ——**我原先的实现与我自己写下的意图不一致**，不是两种口径之争。统一到「空串＝未知」。
+        val aborted = valid.filter { statusHead(it.runStatus) != null && !isCompleted(it.runStatus) }
         if (aborted.isNotEmpty()) {
             val heads = aborted.mapNotNull { statusHead(it.runStatus) }.distinct().sorted()
             out += "注意：本次分析包含 ${aborted.size} 个未正常结束的 run" +

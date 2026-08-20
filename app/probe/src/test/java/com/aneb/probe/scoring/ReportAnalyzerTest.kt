@@ -254,6 +254,21 @@ class ReportAnalyzerTest {
      * 注意这与 `isCompleted(null)==false` **不矛盾**：那条防的是"把未知当健康"，
      * 这条防的是"把未知当故障"，两个方向各防一件事。
      */
+    /**
+     * **空串＝未知，不得被报成中止**（跨端分叉修复，`StatusJudgementParityTest` docstring 记录）。
+     * 原实现按**原始字段** `runStatus != null` 判空：空串非 null → 被报"未正常结束"；
+     * 而分析侧 `run_status_head("")` 返回 None、当未知放行——**同一条记录两端读法相反**。
+     * 当前真实语料没有空串故零危害，**但那是语料碰巧，不是机制**（D-302 同族）。
+     */
+    @Test
+    fun `空串与纯空白 status 折成未知——两端读法一致`() {
+        val runs = cleanRuns().mapIndexed { i, r ->
+            r.copy(runStatus = if (i == 0) "" else "   ")
+        }
+        val a = ReportAnalyzer.analyze(runs)
+        assertTrue("空/空白 status 是未知，不是中止", a.conclusions.none { it.contains("未正常结束") })
+    }
+
     @Test
     fun `状态未知的老 run 不被报成中止——缺证据不等于有问题`() {
         val a = ReportAnalyzer.analyze(cleanRuns()) // runStatus 全部为 null（默认）
