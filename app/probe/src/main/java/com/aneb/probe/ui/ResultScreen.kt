@@ -1196,7 +1196,11 @@ private fun ScenarioCard(s: ScenarioResultEntity, track: GeoTrack.Summary?) {
 }
 
 @Composable
-private fun ClaimScopeFooter(run: TestRun) {
+// `internal` 而非 `private`：让渲染层红线测试直接调用它（同 `KpiLine` 与
+// `RadioCollector.guardTick` 的先例——后者 KDoc 亲述"`internal` 可见性就是为了让测试
+// 直接调用它"）。这条页脚是"报告被读成运营商网络评级/MOS"的唯一防线（D-323 定位加固），
+// 而**常量存在 ≠ 它被渲染出去了**，只有渲染树能回答后者（D-501 第三条红线）。
+internal fun ClaimScopeFooter(run: TestRun) {
     val colors = AnebTheme.colors
     Column(modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)) {
         HorizontalDivider(color = colors.hairline)

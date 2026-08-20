@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import com.aneb.probe.data.TestRun
 import com.aneb.probe.ui.theme.AnebTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -26,13 +27,15 @@ import org.robolectric.annotation.Config
  * D-523 H-4 实测：`androidTest` 目录零结果、`createComposeRule` 全仓仅存于一句注释——
  * 因为本仓只有 JVM JUnit、无 Robolectric，Compose 测试一直被认为需要设备。**那个前提
  * 现在不成立**：Robolectric 4.16.1 + `android-all-instrumented:15`（API 35，与本项目
- * `compileSdk` 同版）+ `ui-test-junit4`（随 compose-bom 解析）**本机缓存全齐、离线可跑**，
- * 且走 `testImplementation` 而非 `androidTest` ⇒ **能进常设门禁链**（D-518 刚把全量单测
- * 接进 `verify_all`），不需要设备、不需要模拟器。
+ * `compileSdk` 同版）+ `ui-test-junit4`（随 compose-bom 解析），走 `testImplementation`
+ * 而非 `androidTest` ⇒ 跑在 JVM 上、**能进常设门禁链**（D-518 刚把全量单测接进
+ * `verify_all`），不需要设备、不需要模拟器。
  *
- * 本文件覆盖三条红线里的**前两条**（渲染树无假 0、低置信角标）——它们落在已经是
- * `internal` 的 [KpiLine] 上，够得到；第三条（claim scope 页脚）所在的 Composable 目前
- * 仍是 `private`，另行处理，不为了凑数在这里放一条测不到真东西的断言。
+ * **依赖获取的实况（我一度说错，这里写准）**：Gradle 缓存里当时只有这两个库的
+ * `.pom`/`.module` **元数据、没有 AAR**，所以**首次拉取需要联网**；拉过之后 `--offline`
+ * 实测通过。对已同步过依赖的机器不构成门禁风险，全新环境需一次联网。
+ *
+ * 本文件覆盖 D-501 点名的**全部三条**红线：渲染树无假 0、低置信角标、claim scope 页脚。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -110,5 +113,43 @@ class RenderRedlineTest {
         val marks = compose.onAllNodesWithText(ResultFormat.LOW_CONFIDENCE_LABEL, substring = true)
             .fetchSemanticsNodes()
         assertEquals("未标低置信的行不该出现低置信标注", 0, marks.size)
+    }
+
+    // ---- 红线三：claim scope 页脚必须真的渲染出去 ----
+
+    private fun testRun() = TestRun(
+        runId = "run-1", startedAtEpochMs = 1_752_000_000_000L,
+        serverBase = "http://10.0.2.2:8443", mode = "forensic",
+        scenarioOrder = "s1_chat", transport = "auto",
+        kpiSet = "agent-qoe-kpi-v0.2", aqsVersion = "aqs-v0.1",
+        profileVersions = "s1_chat@0.2.0", schemaVersion = "1.0",
+        profileSource = "server", appVersionName = "0.3.0", appVersionCode = 1L,
+        guardMetadata = "private_dns_active=false", aqsScore = 89.2, aqsLowConfidence = false,
+        aqsVetoApplied = false, aqsNotComputableReason = null,
+        status = "completed", reportStatus = null,
+    )
+
+    /**
+     * 这句是"报告被读成运营商网络评级/MOS"的唯一防线（D-323 定位加固）。
+     * **常量存在 ≠ 它被渲染出去了**——只有渲染树能回答后者，这正是本条非要查渲染树的理由。
+     */
+    @Test
+    fun `claim scope 与 AQS 免责文案真的出现在渲染树里`() {
+        compose.setContent { AnebTheme { ClaimScopeFooter(testRun()) } }
+        compose.onNodeWithText(ResultFormat.CLAIM_SCOPE_TEXT, substring = true).assertIsDisplayed()
+        compose.onNodeWithText(ResultFormat.AQS_DISCLAIMER_TEXT, substring = true).assertIsDisplayed()
+    }
+
+    /**
+     * 版本戳同属该页脚的可信度信息：读者据它判断"这个分是哪套口径算出来的"。
+     * 少印一个，跨版本比较就无从察觉（同 D-404「版本戳与权重表名打架」那一族的防线）。
+     */
+    @Test
+    fun `版本戳四项都渲染出来，缺一项都会让跨版本比较无从察觉`() {
+        val run = testRun()
+        compose.setContent { AnebTheme { ClaimScopeFooter(run) } }
+        listOf(run.kpiSet, run.aqsVersion, run.schemaVersion, run.profileVersions).forEach { stamp ->
+            compose.onNodeWithText(stamp, substring = true).assertIsDisplayed()
+        }
     }
 }
