@@ -70,4 +70,38 @@ class ResultReporterD1Test {
         assertTrue(b.contains("\"d1_goodput_mbps\":null") || b.contains("\"d1_goodput_mbps\": null"))
         assertFalse("绝不用 0 顶替未测量（R-10）", b.contains("\"d1_goodput_mbps\":0"))
     }
+
+    // ---- 墙钟 skew 的导出面（T70/D-519；本组是它此前唯一没被钉住的一面）----
+
+    /**
+     * **`wall_skew_ms` 真的出现在 wire body 里**。
+     *
+     * 此前 D-519 只钉了纯函数（还原式/阈值判据）与汇池（跨 phase 取中位），
+     * **"它有没有被导出去"这一面没有任何测试**——而分析层的墙钟门（T68）读的正是这个键，
+     * 导不出去则整条链静默失效（同 D-323「每个读者拿得到的面上都要可查」）。
+     *
+     * 这一条比一般的导出面守卫更要紧：`wallSkewMs` 按 `@Ignore` 设计写在**类体**而非
+     * 构造参数（Room 拒绝 `@Ignore` 构造参数，见 Entities.kt 该字段 KDoc），
+     * 因而**不进 `copy()`**——将来若有人对本实体调 `copy()`，该值会**静默变回 null**、
+     * wire 上就此少一个数而没有任何东西报警。本条即那个风险的守卫。
+     */
+    @Test
+    fun `wall_skew_ms 真的出现在 wire body 的 clock 块里`() {
+        val b = body(scenario().also { it.wallSkewMs = -3_500L })
+        assertTrue("clock 块必须带 wall_skew_ms（T68 墙钟门的输入）", b.contains("\"wall_skew_ms\""))
+        assertTrue(
+            "负 skew（设备慢）须原样导出，符号不可丢",
+            b.contains("\"wall_skew_ms\":-3500") || b.contains("\"wall_skew_ms\": -3500"),
+        )
+    }
+
+    @Test
+    fun `wall_skew_ms 测不出时键仍在、值为 null 而非 0`() {
+        // 旧服务端不回带 anchor ⇒ 算不出 skew。0 恰是"钟完全对齐"的合法值，
+        // 把"测不出"写成 0 等于凭空断言钟是对的（R-10）。
+        val b = body(scenario()) // wallSkewMs 默认 null
+        assertTrue("键恒写（additive 字段）", b.contains("\"wall_skew_ms\""))
+        assertTrue(b.contains("\"wall_skew_ms\":null") || b.contains("\"wall_skew_ms\": null"))
+        assertFalse("绝不用 0 顶替测不出（R-10）", b.contains("\"wall_skew_ms\":0"))
+    }
 }
