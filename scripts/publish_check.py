@@ -42,6 +42,8 @@ import order_effect
 import radio_rollup
 import round_effect
 import transport_rollup
+# 墙钟判据复用单一实现，本文件不造第四份阈值副本（D-264）。
+import trust_rollup
 import trust_rollup
 import validity_rollup
 
@@ -445,6 +447,33 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
         rows.append(_row(PASS, "否决封顶", f"{len(cells)} 个格均无被否决封顶的 run"))
     else:
         rows.append(_row(NA, "否决封顶", "无可用 AQS 的格——否决封顶**未核算**"))
+
+    # 报告已经在印"墙钟可疑 N 条"（D-506/T68）与"忙闲标签会不会翻转"（D-543），
+    # 而这道门此前 86 项里**一条都不看它**——门比报告少读一项，正是 D-330 那个形状
+    # （报告的前门只读两项、漏掉 unreadable_files，于是整份读不进来也照出报告）。
+    # 墙钟错污染的是「哪天测的 / 忙还是闲 / 两战役谁在前」，恰恰是发布前最该拦的判读前提。
+    wall_ann = wall_susp = 0
+    for rec in records:
+        sk = [cc.fnum((s.get("clock") or {}).get("wall_skew_ms"))
+              for s in cc.iter_scenarios(rec)]
+        sk = [x for x in sk if x is not None]
+        if sk:
+            wall_ann += 1
+            if any(trust_rollup.wall_clock_suspect(x) for x in sk):
+                wall_susp += 1
+    if wall_susp:
+        rows.append(_row(WARN, "墙钟可信度",
+                         f"{wall_susp}/{wall_ann} 条 run 的设备墙钟与服务端差 > "
+                         f"{trust_rollup.WALL_SKEW_MAX_MS // 1000}s——**KPI 值不受影响**"
+                         "（计时走单调钟 R-24），但「哪天测的／忙还是闲／两战役谁在前」"
+                         "都由这把钟决定；按日分桶与忙闲结论须核对服务端时刻"
+                         "（`started_at_epoch_ms − clock.wall_skew_ms`）"))
+    elif wall_ann:
+        rows.append(_row(PASS, "墙钟可信度", f"{wall_ann} 条带墙钟证据的 run 均在阈值内"))
+    else:
+        rows.append(_row(NA, "墙钟可信度",
+                         "语料无 `clock.wall_skew_ms`（EchoWire 接线前的生产者）"
+                         "——墙钟**未核算**，不等于对得上"))
 
     # A heat-card dimension filled by a rule of thumb is not the same evidence
     # as one recorded on site, and the report says "busy is N points worse than

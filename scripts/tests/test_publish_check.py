@@ -1121,3 +1121,46 @@ def test_the_gate_figure_can_be_counted_in_the_transport_table():
 
     assert checked >= 6, f"only {checked} corpora carried a figure to check"
     assert with_finding >= 1, "the half where the section shows a real finding was never reached"
+
+
+# ---- 门也要看墙钟（D-506/T68 链，D-330"门比报告少读一项"同族）----
+
+def _wall_row(recs):
+    res = pc.check(recs)
+    rows = res["rows"] if isinstance(res, dict) else res
+    hits = [r for r in rows if "墙钟" in str(r.get("item", ""))]
+    assert hits, "发布门没有墙钟可信度这一项"
+    return hits[0]
+
+
+def test_gate_flags_suspect_wall_clocks_because_the_report_already_prints_them():
+    """报告在印"墙钟可疑"，门却不看——就是 D-330 那个形状。
+
+    反例证伪：把这一检查项去掉，本条即红（`_wall_row` 断言先炸）。
+    """
+    import copy
+    recs = copy.deepcopy(sc.generate(points=2, repeats=2,
+                                     campaigns=("base", "opt"), radio=True))
+    for r in recs[:3]:
+        for s in r["scenarios"]:
+            s.setdefault("clock", {})["wall_skew_ms"] = 900_000      # 15 分钟
+    row = _wall_row(recs)
+    assert row["severity"] == "WARN"
+    assert "KPI 值不受影响" in row["detail"]          # 不夸大：KPI 走单调钟
+    assert "started_at_epoch_ms − clock.wall_skew_ms" in row["detail"]   # 给可执行动作
+
+
+def test_gate_says_not_computed_rather_than_clean_without_the_field():
+    """接线前的语料没有该字段 ⇒ N/A「未核算」，**不得**判 PASS。
+
+    这是本项目反复咬中的形状：查不了被读成查过了。
+    """
+    import copy
+    recs = copy.deepcopy(sc.generate(points=2, repeats=2,
+                                     campaigns=("base", "opt"), radio=True))
+    for r in recs:
+        for s in r["scenarios"]:
+            (s.get("clock") or {}).pop("wall_skew_ms", None)
+    row = _wall_row(recs)
+    assert row["severity"] == "N/A"
+    assert "未核算" in row["detail"] and "不等于对得上" in row["detail"]
