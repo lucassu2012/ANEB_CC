@@ -55,7 +55,15 @@ def transport_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES):
         # disagreeing about whether that run counts. The median survives it; the
         # NOISE SCALE does not — a single 9999 pushed it to ±3110 on a 0..100
         # metric, and every real medium difference then reads 噪声内 (D-197).
-        if score is not None and cc.keep_value("aqs_score", score, implausible[key]):
+        if (score is not None
+                and cc.keep_value("aqs_score", score, implausible[key])
+                # D-534 §3: an aborted run's run-level AQS stays out of the pool.
+                # Ordered AFTER keep_value on purpose — an impossible value is a
+                # data-integrity signal worth counting even in a run that would
+                # not have pooled anyway. `g["n"]` is left alone: it counts
+                # records and has always been allowed to exceed the pool (a null
+                # AQS already does that).
+                and cc.run_pools_into_stats(rec)):
             g["aqs"].append(score)
 
     cells = []

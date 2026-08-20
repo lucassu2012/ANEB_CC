@@ -135,3 +135,29 @@ def test_markdown_renders_trajectory():
     assert "纵向趋势" in md
     assert "改善" in md
     assert "c1 → c2 → c3" in md
+
+
+def test_aborted_run_aqs_stays_out_of_the_trajectory():
+    """D-534 §3：中止 run 的 run 级 AQS 不进趋势轨迹。
+
+    这处**此前一条针对性守卫都没有**——突变实测显示，把
+    `cc.run_pools_into_stats` 删掉只会让 campaign_report 那两条变红，
+    trend 与 transport_rollup 的判据可以被无声移除。
+
+    夹具刻意让判据决定的是一个**判词**而不只是一个数字：c2 除五条真实的 72 分
+    之外再塞五条 10 分的中止 run。判据在 → 轨迹 60/72/85，读作 improving+单调；
+    判据没了 → c2 塌到 ~41，同一份语料读作 mixed——
+    **一条中止的 run 会凭空造出一段本不存在的回退**。
+
+    只扣住 run 级 AQS：场景级 metric 走 `_record_values` 的另一支，一字未动，
+    这正是横幅对「中止 run 的已完成场景」所作的承诺。
+    """
+    aborted = _camp(10, "c2", 2000)
+    for r in aborted:
+        r["run"]["status"] = "aborted:timeout"
+    recs = (_camp(60, "c1", 1000) + _camp(72, "c2", 2000) + aborted
+            + _camp(85, "c3", 3000))
+    c = trend.analyze(recs)["cells"][0]
+    assert c["trajectory"] == [60, 72, 85]
+    assert c["direction"] == "improving"
+    assert c["monotonic"] is True

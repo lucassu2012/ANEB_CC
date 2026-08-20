@@ -58,6 +58,13 @@ def _record_values(rec, metric, implausible):
         v = cc.run_aqs(rec)
         if v is None or not cc.keep_value(field, v, implausible):
             return []
+        # D-534 §3: an aborted run's run-level AQS stays out of the trend. Only
+        # this branch — the scenario-level metrics below are real measurements
+        # even in an aborted run, which is what the report banner promises.
+        # After keep_value for the same reason as transport_rollup: an
+        # impossible value is still worth counting.
+        if not cc.run_pools_into_stats(rec):
+            return []
         return [v]
     out = []
     for scn in cc.iter_scenarios(rec):

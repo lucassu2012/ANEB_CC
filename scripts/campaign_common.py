@@ -483,6 +483,46 @@ def run_aqs(rec):
     return v
 
 
+def run_pools_into_stats(rec):
+    """True if this run's **run-level** AQS may enter a pooled statistic.
+
+    False exactly when `run.status` carries a value other than `completed` —
+    an aborted run measured a fraction of what a completed one did, so its
+    single AQS characterises neither the cell it lands in nor itself (D-534 §3).
+
+    **Why this exists at all**: before D-534 `status` was written by the device,
+    carried in the contract, and present in every real record — and read by
+    nobody as a criterion. `run_status_head` was its only reader and it only
+    counted buckets. Meanwhile the report banner told readers, without
+    qualification, that a non-completed run's AQS 「不进中位」. That sentence
+    happened to be true on today's corpus for an unrelated reason (both aborted
+    runs are `KPI_MISSING`, so their AQS is null anyway) — coincidence, not
+    mechanism. The reachable counter-example: a run that finishes s1/s2/s3 and
+    aborts during `s4_throughput` has every AQS input (s4 is not in the input
+    mapping) and would pool a non-null score with `low_confidence=false`.
+
+    **`status: null` still pools, deliberately.** The schema marks `status`
+    required but types it `["string", "null"]`, so a null status is
+    contract-legal; `run_status_head` returns None for it. Dropping those would
+    silently change the denominator for a *legal* state (the D-336 shape) and
+    would read absence as a value, against R-10. Measured basis for that call:
+    across 3509 real records **0** have an unusable status, so this branch is
+    zero-instance today and cannot be exercised by the corpus (D-302) — which is
+    why it carries its own explicit counter-example test rather than relying on
+    one. If it ever occurs the reader still sees it: the status distribution
+    buckets it as `unknown`.
+
+    **Not split by `:reason`** (D-534 §3, verbatim): every abort reason is
+    equally disqualifying for pooling, and the reasons stay in the raw record.
+
+    Scenario-level KPIs are NOT affected — an aborted run's completed scenarios
+    are real measurements. Only the one run-level AQS is withheld, which is
+    exactly what the banner promises.
+    """
+    head = run_status_head(rec)
+    return head is None or head == "completed"
+
+
 def run_started_ms(rec):
     return fnum(run_obj(rec).get("started_at_epoch_ms"))
 

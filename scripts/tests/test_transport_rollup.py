@@ -161,3 +161,24 @@ def test_no_bucket_outside_the_two_media_is_pooled_into_one():
             f"{buckets['wifi']['aqs_median']}")
         assert "cellular" not in buckets, (
             f"{name}: pooled into cellular, a medium this corpus never measured")
+
+
+def test_aborted_run_aqs_stays_out_of_the_transport_median():
+    """D-534 SS3: an aborted run's run-level AQS does not pool here either.
+
+    This site had no targeted guard until a mutation run showed that removing
+    `cc.run_pools_into_stats` turned only the campaign_report tests red -- the
+    transport and trend gates could have been deleted in silence.
+
+    The numbers are chosen so the gate is visible: three completed runs at 100
+    and three aborted at 0. Gate on -> median 100. Gate off -> median 50.
+    `n` counts records either way (6): it has always been allowed to exceed the
+    pool, exactly as it does when an AQS is null.
+    """
+    recs = _recs("wifi", 100, 3)
+    bad = _recs("wifi", 0, 3)
+    for r in bad:
+        r["run"]["status"] = "aborted:timeout"
+    wifi = tr.transport_cells(recs + bad)[0]["transports"]["wifi"]
+    assert wifi["aqs_median"] == 100
+    assert wifi["n"] == 6
