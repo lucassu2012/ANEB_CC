@@ -356,7 +356,13 @@ class VoiceRunner(private val client: AnebClient = AnebClient()) {
                     lastUpEnqUs = nowUs()
                     session.sendFrame(RealtimeWire.encodeUplink(i, seq, payload))
                 }
-                if (session.queueSize() > 0) backpressure = true // 背压：入队打戳含排队 → 低置信
+                // 背压：入队打戳含排队 → 低置信。但采样点不能是"末帧刚入队时"——
+                // 那一刻末帧自己就在队列里，queueSize>0 几乎恒真（T65/D-507 实证 35/35
+                // 全 run 低置信，N1/M1/M3 置信标记失去区分力）。等一个帧周期让 socket
+                // 排出，仍有积压才是真背压；commit 相应晚一帧周期，TTFB 等 KPI 均以
+                // commitEnqUs 为基准相对计算，不受影响。
+                delay(plan.frameMs.toLong())
+                if (session.queueSize() > 0) backpressure = true
                 val commitEnqUs = nowUs()
                 session.sendText(RealtimeWire.jsonOut.encodeToString(RealtimeWire.SpeechCommit.serializer(), RealtimeWire.SpeechCommit(turnId = t.turnId)))
 
