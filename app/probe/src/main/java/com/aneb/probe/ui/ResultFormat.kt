@@ -255,6 +255,10 @@ object ResultFormat {
     // 导出，此前带 `validity`/`low_confidence` 却**不带 run 级 status**——拿这份 CSV 做分析
     // 的人看不出某些行来自一个**中止的 run**（同一条"status 只写不读"，换了个消费面）。
     // 追加在末列而非插在 `run_id` 后：既有下游若按位置取列不会错位（§2.14 同族的兼容考虑）。
+    // **自审记录（D-538 判据「加内容还要问它落在第几位」的应用，2026-08-20）**：当时实查
+    // App CSV **无任何脚本消费方**（分析层吃的是 JSONL 上报体），Kotlin 侧也无按位置取列的
+    // 读者——即"末列安全"这一条**当时无下游可验，是按原则做的**。将来若出现 CSV 消费方，
+    // 请回到这里确认它是**按列名**取值：一旦有人按位置取，列序就成了契约，再追加列要重估。
     // 值为 `run.status`；老 run 无 status 时为空串——**空≠completed**，读作"未知"（R-10）。
     const val CSV_HEADER: String =
         "run_id,mode,kpi_set,aqs_version,profile_id,profile_version,repeat_index,order_index," +
