@@ -16,6 +16,12 @@ room = "2.6.1"
 kotlinxSerializationJson = "1.7.3"
 kotlinxCoroutines = "1.8.1"
 junit = "4.13.2"
+# 渲染层红线测试（D-501 提案 §5 第 1 层）：Robolectric 让 Compose 测试跑在 JVM 上，
+# 不需要设备/模拟器——那三条断言（渲染树无假 0 / 低置信角标 / claim scope 页脚）
+# 纯函数测试**够不到**（D-501 亲述，HalfGauge `?: 0` 先例），只能查真实渲染树。
+# 4.16.1 与其 android-all-instrumented:15（API 35，同本项目 compileSdk）均已在本机
+# 缓存内，离线可解析。
+robolectric = "4.16.1"
 # 阶段 2 API 探针：key 存储（EncryptedSharedPreferences）。1.1.0-alpha06 为该库最新
 # 发布线（1.0.0 stable 依赖过旧 Tink 且缺 MasterKey API）；精确钉死，禁动态版本。
 securityCrypto = "1.1.0-alpha06"
@@ -37,6 +43,11 @@ compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
+# 渲染层红线测试（D-501）：版本随既有 compose-bom 解析，不另写死——写死就多一处会
+# 与 BOM 分叉的数字。
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
+compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 

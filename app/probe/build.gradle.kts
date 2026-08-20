@@ -90,6 +90,15 @@ android {
             assets.srcDirs("../../profiles")
         }
     }
+
+    testOptions {
+        unitTests {
+            // 渲染层红线测试（D-501）用 Robolectric 在 JVM 上跑真实 Compose 渲染树，
+            // 需要读到合并后的 Android 资源（主题/字符串）；不开这个开关，
+            // `createComposeRule()` 起不来。只影响单测，不影响任何产物。
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 ksp {
@@ -128,6 +137,17 @@ dependencies {
     ksp(libs.room.compiler)
 
     testImplementation(libs.junit)
+
+    // ---- 渲染层红线测试（D-501 提案 §5 第 1 层，保留在冲刺内的那三条断言）----
+    // 这三条（渲染树无假 0 / 低置信 ⚠ 角标 / claim scope 页脚）是"测量诚实性在 UI 的
+    // 最后防线"，而**纯函数测试够不到**——D-501 亲述并点名 HalfGauge `?: 0` 先例：
+    // 一个 `?: 0` 写在 Composable 里，纯函数层根本看不见它，只有查真实渲染树才抓得住。
+    // Robolectric 让 Compose 测试跑在 JVM 上（`testImplementation` 而非 `androidTest`），
+    // 不需要设备/模拟器，故能进常设门禁链（D-518 刚把全量单测接进 verify_all）。
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 // ---- 单测输入声明：仓库根 spec/语料文件（T66/D-508，含对本条自身首版的订正）----
