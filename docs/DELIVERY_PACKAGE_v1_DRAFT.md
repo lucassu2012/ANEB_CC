@@ -25,7 +25,7 @@
 | R-10 缺失≠零（渲染层） | 「没测出来」被画成「测出来最差」（半盘 0 刻度） | a50afba 修复+GaugeMathTest 增量守卫 5effc8f |
 | 低置信自声明 | 样本不足的分数被当高可信结论转述 | 屏上「本次证据不完整」实拍（T58c 冒烟④）；spec §8.4.3 三判据（含 72ff799 补齐的 window_underrun） |
 | claim scope 页脚 | 报告被读成运营商网络评级/MOS | 报告头尾双面（D-323 定位加固） |
-| 口径不可比守卫 | 语音 v0.1 历史分 79.8 与 v0.2 分数被跨口径比较 | test_voice_score_caliber（cb26dca 含数字边界修正） |
+| 口径不可比守卫 | 语音 v0.1 历史分 79.8（`aqs-voice-sim-v0.1`，M7 引入前口径，不与 v0.2 后的分数比较）与 v0.2 分数被跨口径比较 | test_voice_score_caliber（cb26dca 含数字边界修正） |
 | RttDominanceGuard 三条件 | 小负载把「时延」冒充「带宽」（U1 0.14Mbps 伪影族） | D-499 三常量+T66 绊线（钉 window/阈值之商） |
 | 发布门 publish_check | 带 FAIL 的语料出报告；WARN 未在正文交代 | verify_all 15 门（含 T58b 签名验证步 05edee3） |
 | 渲染完整性守卫 | 表格被裸竖线劈碎/孤行（源码整齐渲染残缺） | test_docs_commands 22 项（D-214 族） |
