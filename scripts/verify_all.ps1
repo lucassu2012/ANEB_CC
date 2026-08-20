@@ -1,4 +1,4 @@
-# ANEB Probe verify_all - phase 0 verification chain (ASCII-only for PS 5.1 compatibility)
+﻿# ANEB Probe verify_all - phase 0 verification chain (ASCII-only for PS 5.1 compatibility)
 # Runs: server vet/build/test, profile JSON validation, portrait red-line guard, app toolchain probe.
 # Writes: evidence/phase0/verify_all_<ts>.log (utf8) and regenerates evidence/phase0/sha256-manifest.txt
 # Exit code: 0 if no FAIL (NOT_EXECUTED allowed by default), 1 otherwise.
@@ -471,6 +471,42 @@ if ($notRun.Count -gt 0) {
     $notRun | ForEach-Object { "  - {0}  {1}" -f $_.check, $_.detail }
     if (-not $Strict) { "  (exit code ignores these; re-run with -Strict to make them fail)" }
 }
+# --- guard for the guards: 有没有哪一步的命令**根本没启动过**（D-532）---
+# D-532 实例：全量单测门在错误的工作目录下调 `.\gradlew.bat`，命令不存在，PowerShell 抛
+# CommandNotFoundException —— 它**不设 `$LASTEXITCODE`**，于是 `if ($LASTEXITCODE -eq 0)`
+# 沿用上一条命令成功的 0，那道门**从落地起一次没跑过却每次报 PASS**。
+#
+# 逐个 call site 审过一遍（python/go 都先解析成绝对路径再 `& $path` 调，不可能命中；
+# gradle 三处都在 `app/` 内），当时是孤例。但**"今天逐个查过是安全的"不等于"这类问题
+# 不会再来"**——判据沿用上一条退出码这个毛病，是写法本身带的。故在最外层加一道只读
+# 自检：捕获的输出里若出现命令不存在的签名，**整链判红**，而不是靠人去日志里撞见它。
+# 中英双签名：本仓在中英文 Windows 上都跑过。
+# **量法本身被反例证伪过一次，这里写清楚为什么是现在这个写法**：初版扫 `$log` 找
+# "is not recognized" 字样 —— 植入突变实测**它一次没响**。原因：CommandNotFoundException
+# 是 PowerShell 的**语句级**错误，在管道启动之前就抛出，`2>&1 | Out-String` **捕不到**
+# （所以当初它打在控制台、而日志里那一步照样写着 PASS）。改为查 `$Error`：语句级错误
+# 会被记进这个自动变量。
+#
+# 排除探针自身的正常"未找到"：本脚本用 `Get-Command python/go/java -ErrorAction Stop`
+# 探测工具链，缺工具时**本就应该**抛 CommandNotFoundException 并降级 NOT_EXECUTED，
+# 那是设计行为不是缺陷。判别方式＝**目标名长得像一条路径**（含分隔符或带可执行扩展名），
+# 探针传的是裸名字（`python`/`go`/`java`），真正的幽灵调用传的是 `.\gradlew.bat` 这类。
+$ghosts = @($Error | Where-Object {
+    $_.CategoryInfo.Reason -eq 'CommandNotFoundException' -and
+    ($_.CategoryInfo.TargetName -match '[\\/]' -or $_.CategoryInfo.TargetName -match '\.(bat|cmd|exe|ps1)$')
+})
+if ($ghosts.Count -gt 0) {
+    ''
+    'FAIL  gate-integrity  某一步的命令根本没启动（命令不存在），其 PASS 不可信'
+    ($ghosts | ForEach-Object { '  找不到的命令: ' + $_.CategoryInfo.TargetName } | Select-Object -Unique)
+    '  为什么这会造出假绿: CommandNotFoundException 不设 $LASTEXITCODE,'
+    '  于是 "if ($LASTEXITCODE -eq 0) { PASS }" 会沿用上一条命令成功的 0（D-532 实例）。'
+    '  处置: 先修工作目录/命令路径再重跑；在此之前本次汇总里的 PASS 都不作数。'
+    exit 1
+}
+
 if ($failed.Count -gt 0) { exit 1 }
 if ($Strict -and $notRun.Count -gt 0) { exit 1 }
 exit 0
+
+

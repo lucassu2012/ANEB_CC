@@ -144,10 +144,18 @@ class RttDominanceGuardTest {
         val windowMs = profileWindowMs().toDouble()
         val criticalRttMs = windowMs / RttDominanceGuard.RTT_DOMINANCE_MIN
 
-        // 恰好等于临界 RTT：ratio 恰为阈值，按 >= 语义判安全
+        // **"恰好等于临界"在浮点里不是所有阈值都表示得出来**（D-499 阈值 10→15 时实测暴露）：
+        //   阈值 10 → 临界 4000/10 = 400.0（可精确表示）→ 回乘 ratio = 10.0 → `>= 10` 成立；
+        //   阈值 15 → 临界 4000/15 = 266.6666666666667  → 回乘 ratio = 14.999999999999998
+        //            → `>= 15` **不成立**，本用例原写法当场变红。
+        // 那不是判据错，也不是常量错，是"恰好等于"这个测法在浮点下没有普遍意义。
+        // 改为在临界内侧一个极小量处断言安全——保住本用例真正要钉的语义（**翻转就发生在
+        // 临界这个数附近**：内侧安全、外侧不安全），且对任何阈值取值都成立。
+        // 两个常量本身仍由上面那条姊妹绊线逐值钉死，本处放宽不削弱绊线职责。
+        val justInside = criticalRttMs * (1 - 1e-9)
         val atCritical = RttDominanceGuard.evaluate(
-            windowActualMs = windowMs, rttRefMs = criticalRttMs, bytesTransferred = 200_000L)
-        assertTrue("RTT 恰在临界值上应判安全（ratio 恰等于阈值）", atCritical.ok)
+            windowActualMs = windowMs, rttRefMs = justInside, bytesTransferred = 200_000L)
+        assertTrue("RTT 在临界内侧应判安全（ratio 略高于阈值）", atCritical.ok)
 
         // 略超临界 RTT：ratio 跌破阈值，判不安全
         val justOver = RttDominanceGuard.evaluate(
