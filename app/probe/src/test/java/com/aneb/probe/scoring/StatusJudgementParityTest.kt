@@ -82,6 +82,43 @@ class StatusJudgementParityTest {
         assertTrue("null 不判为跑完", !ReportAnalyzer.isCompleted(null))
     }
 
+    /**
+     * **消费方判据这一层，现在可以钉了**（本类 docstring 原写着「后者正是待裁项，裁完再补」）。
+     * D-534 §3 已裁且两半均已落码：分析半 `run_pools_into_stats`（`a81dfee`/T75）、
+     * 设备半 `ReportAnalyzer` 的告诫句谓词（D-536 + D-539 修分叉）。**两端此刻一致**：
+     *
+     * - **未知**（缺失/空/空白）：分析侧**进池**（`head is None` → True）；设备侧**不报**"未正常结束"。
+     * - **`completed`**（含 `COMPLETED`）：进池 / 不报。
+     * - **`aborted:<任何 reason>`**：不进池 / 报。
+     *
+     * **未知那一格是本条真正的看点**：两端都选"未知＝良性"，理由同源——缺席是合同合法态
+     * （schema 把 `status` 类型写作 `["string","null"]`），当故障处理就是"读缺席为值"、违 R-10。
+     * 而 D-539 之前设备侧按**原始字段**判空，空串会被报成中止、与分析侧相反——**本条就是
+     * 那次分叉的防复发装置**。
+     */
+    @Test
+    fun `consumer predicates agree on all three status classes now that both halves landed`() {
+        val py = pySource
+        val i = py.indexOf("def run_pools_into_stats")
+        assertTrue("分析侧应有 run_pools_into_stats（D-534 §3 判据落点）", i >= 0)
+        val end = py.indexOf("\ndef ", i + 1).takeIf { it > 0 } ?: py.length
+        val body = py.substring(i, end)
+        // 源码文本钉住"未知进池"：它是零实例分支（真实语料 3509 条无不可用 status），
+        // 语料测不到，只能钉源码——该函数自己的 docstring 也是这么说的（D-302 同族）。
+        assertTrue(
+            "分析侧应仍是「未知或 completed 才进池」——若被改成只认 completed，" +
+                "未知会被当故障踢出分母，与设备侧相反且违 R-10",
+            body.contains("head is None or head ==") || body.contains("head is None or head=="),
+        )
+
+        // 设备侧三类取值的对照（是否报"未正常结束"）
+        assertEquals("null 折未知", null, ReportAnalyzer.statusHead(null))
+        assertEquals("空串折未知", null, ReportAnalyzer.statusHead(""))
+        assertTrue("completed 不报", ReportAnalyzer.isCompleted("completed"))
+        assertTrue("COMPLETED 不报（大小写折平）", ReportAnalyzer.isCompleted("COMPLETED"))
+        assertTrue("aborted 要报", !ReportAnalyzer.isCompleted("aborted:bound_network_lost"))
+    }
+
     @Test
     fun `blank status folds to unknown on the kotlin side too`() {
         // 这是分叉点所在（已报大脑待裁）：归一化层两端**一致**——都把空/空白折成 null；
