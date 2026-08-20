@@ -139,7 +139,7 @@ com.aneb.probe
 - SSE 解析自实现（约 100 行）而非 okhttp-sse，因为需要在**读到 event 首字节的时刻**打戳，okhttp-sse 回调在完整 event 解析后才触发，会引入解析偏差。
 - OkHttp 配置：`retryOnConnectionFailure(false)`（重试会掩盖网络问题）、每场景新建连接（消除连接复用导致的 TTFT 不可比）、`connectTimeout 10s / readTimeout 30s`。
 - 上行突发用 `RequestBody.writeTo` 手动分块写并逐块打戳，得到上行吞吐时间序列而不只是总耗时。
-- 前台 Service（`dataSync` 类型）承载测试执行，防止息屏/切后台被杀。
+- ~~前台 Service（`dataSync` 类型）承载测试执行，防止息屏/切后台被杀。~~ **实况（D-502 裁定改写）**：该 Service 从未实现；测量期存活实际由 `FLAG_KEEP_SCREEN_ON` 窗口 flag 保障（`KeepScreenOnPolicy`，T25/D-427 真机验证，D-437 135/135 零 stale 背书）——它防的是息屏节流非进程被杀，二者非同一件事。前台 Service 迁移经设计评审后**暂不实施**（`FOREGROUND_SERVICE_DESIGN_REVIEW_20260819.md`+D-502：屏亮在场态是既有语料前提，Doze 豁免会危险方向改 R-12 判据触发面）。
   〔⚠ 实况不符，待裁：见 `docs/FOREGROUND_SERVICE_DESIGN_REVIEW_20260819.md`——代码从未有过该 Service，测量期实际靠 `FLAG_KEEP_SCREEN_ON`（D-427，实测背书 D-437 135/135）〕
 - 读线程零分配打戳 + 事后批量落库、哨兵线程、热状态监听（见 §4 第 10 条）；取证模式 LiveScreen 降为 1–2Hz 摘要刷新，实时 token 瀑布只保留在快测模式（防渲染争抢 CPU 污染打点，阶段 1 验收有开/关对照项）。
 - 阶段 1 前配置 release `signingConfig`（自管 keystore，密钥不入库）；上报体记录 versionName/versionCode 与签名证书指纹，保证每份取证数据可溯源到具体 APK。
