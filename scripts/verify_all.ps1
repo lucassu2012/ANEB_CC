@@ -1,7 +1,13 @@
 # ANEB Probe verify_all - phase 0 verification chain (ASCII-only for PS 5.1 compatibility)
 # Runs: server vet/build/test, profile JSON validation, portrait red-line guard, app toolchain probe.
 # Writes: evidence/phase0/verify_all_<ts>.log (utf8) and regenerates evidence/phase0/sha256-manifest.txt
-# Exit code: 0 if no FAIL (NOT_EXECUTED allowed), 1 otherwise.
+# Exit code: 0 if no FAIL (NOT_EXECUTED allowed by default), 1 otherwise.
+#            With -Strict, NOT_EXECUTED also exits 1. Either way the summary now always
+#            prints the NOT_EXECUTED count and names them (T69): a check that verified
+#            NOTHING must never be indistinguishable from one that passed.
+
+# -Strict: treat NOT_EXECUTED as failure (default off; see summary block at the end).
+param([switch]$Strict)
 
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -369,12 +375,34 @@ if ($jdk -and $sdk -and $wrapperJar) {
     $log += "--- app-parity-tests ---"
     $log += $out
     $log += Add-Result 'app-parity-tests' $state 'gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun'
+
+    # --- FULL unit-test gate (T69, closes T67/D-514 finding G-1) ---
+    # Before this, the chain ran only *ParityTest + *AdapterSpecTest. Every other unit test
+    # (RttDominanceGuardTest, MigrationRegistryTest, KpiCalculator*, AqsScorer*, the 13
+    # MigrationV*Test files, ...) sat OUTSIDE the standing chain: whether it ran depended on
+    # a human remembering, not on a gate. That rewrote the meaning of every "has a test"
+    # claim in this repo -- "tested" only ever meant "someone ran it by hand once".
+    #
+    # Why viable only now: the comment above records that Gradle marked testDebugUnitTest
+    # UP-TO-DATE whenever a file OUTSIDE the module changed, so spec mutations survived.
+    # That root cause was fixed in T66/D-508 + T68/D-517 by declaring the repo-root
+    # spec/profiles/assets/schemas dirs as test inputs in app/probe/build.gradle.kts.
+    # Task-scoped --rerun additionally forces this task regardless of up-to-date state.
+    #
+    # The parity gate above is deliberately KEPT as its own check so a parity break is still
+    # named distinctly in the summary instead of being buried in a whole-suite FAIL.
+    $out = & .\gradlew.bat ':probe:testDebugUnitTest' '--rerun' '--no-daemon' 2>&1 | Out-String
+    $state = if ($LASTEXITCODE -eq 0) { 'PASS' } else { 'FAIL' }
+    $log += "--- app-unit-tests-full ---"
+    $log += $out
+    $log += Add-Result 'app-unit-tests-full' $state 'gradlew :probe:testDebugUnitTest --rerun (whole suite)'
 } else {
     $missing = @()
     if (-not $jdk) { $missing += 'JDK' }
     if (-not $sdk) { $missing += 'AndroidSDK' }
     if (-not $wrapperJar) { $missing += 'gradle-wrapper.jar' }
     $log += Add-Result 'app-parity-tests' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+    $log += Add-Result 'app-unit-tests-full' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
 # --- release signing dual-track (T58b / D-500(4)) ---
@@ -420,4 +448,21 @@ $results | ForEach-Object { "{0,-14} {1}  {2}" -f $_.state, $_.check, $_.detail 
 "log: $logPath"
 "manifest: $manifestPath ($($lines.Count) files)"
 $failed = @($results | Where-Object { $_.state -eq 'FAIL' })
-if ($failed.Count -gt 0) { exit 1 } else { exit 0 }
+$notRun = @($results | Where-Object { $_.state -eq 'NOT_EXECUTED' })
+
+# --- NOT_EXECUTED must be visible, not silently folded into a green run (T69, G-1) ---
+# The header contract is "exit 0 if no FAIL (NOT_EXECUTED allowed)". That is this repo's own
+# "cannot-check reported as no-problem" shape sitting on the OUTERMOST gate: on a box without
+# python every python gate degrades to NOT_EXECUTED and the chain still exits 0.
+# Default behaviour is deliberately UNCHANGED (flipping it would turn other sessions' runs red
+# without warning); instead the count is now always printed, and -Strict makes it decisive for
+# anyone who wants a real gate (CI, release checks).
+"checks: {0} total / {1} FAIL / {2} NOT_EXECUTED" -f $results.Count, $failed.Count, $notRun.Count
+if ($notRun.Count -gt 0) {
+    "NOT_EXECUTED checks (these verified NOTHING):"
+    $notRun | ForEach-Object { "  - {0}  {1}" -f $_.check, $_.detail }
+    if (-not $Strict) { "  (exit code ignores these; re-run with -Strict to make them fail)" }
+}
+if ($failed.Count -gt 0) { exit 1 }
+if ($Strict -and $notRun.Count -gt 0) { exit 1 }
+exit 0
