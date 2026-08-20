@@ -49,6 +49,34 @@ class ReportFormatTest {
         assertTrue("含文献锚点 HALO", md.contains("HALO"))
     }
 
+    /**
+     * **中止 run 的告诫必须出现在两个导出面上**（T76/D-536 + D-539）。
+     *
+     * 此前它只在页面（`ReportScreen` 逐条渲染 `conclusions`）与分析器产出上被验过，
+     * **markdown / JSON 两个导出面没有任何测试钉它**——而离线读报告的人拿到的恰恰是这两面。
+     * 这是「同一事实要在每个读者拿得到的面上都可查」那一族（D-323）：本条把导出面补上。
+     */
+    @Test
+    fun abortedRunCaveatReachesBothExportFaces() {
+        val runs = listOf(
+            summary("a", rtt = 30.0, ttft = 400.0, aqs = 88.0).copy(runStatus = "aborted:bound_network_lost"),
+            summary("b", rtt = 90.0, ttft = 900.0, aqs = 74.0).copy(runStatus = "completed"),
+            summary("c", rtt = 150.0, ttft = 1500.0, aqs = 60.0).copy(runStatus = "completed"),
+            summary("d", rtt = 210.0, ttft = 2100.0, aqs = 52.0).copy(runStatus = "completed"),
+        )
+        val a = ReportAnalyzer.analyze(runs)
+        assertTrue("markdown 导出面须带该告诫", ReportFormat.buildMarkdown(a).contains("未正常结束"))
+        assertTrue("JSON 导出面须带该告诫", ReportFormat.buildJson(a).contains("未正常结束"))
+    }
+
+    @Test
+    fun allCompletedRunsProduceNoCaveatOnExportFaces() {
+        // 配对反例：没有它，上一条可以靠"文案恒在"通过（守卫不得恒响，D-302 同族）。
+        val a = correlationAnalysis() // runStatus 全 null（未知）
+        assertFalse("无中止证据时 markdown 不得凭空带告诫", ReportFormat.buildMarkdown(a).contains("未正常结束"))
+        assertFalse("无中止证据时 JSON 不得凭空带告诫", ReportFormat.buildJson(a).contains("未正常结束"))
+    }
+
     @Test
     fun jsonEmitsNullNotZeroForMissing() {
         val json = ReportFormat.buildJson(correlationAnalysis())
