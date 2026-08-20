@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.aneb.probe.data.TestRun
+import com.aneb.probe.engine.LiveTelemetry
 import com.aneb.probe.ui.theme.AnebTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -35,7 +36,8 @@ import org.robolectric.annotation.Config
  * `.pom`/`.module` **元数据、没有 AAR**，所以**首次拉取需要联网**；拉过之后 `--offline`
  * 实测通过。对已同步过依赖的机器不构成门禁风险，全新环境需一次联网。
  *
- * 本文件覆盖 D-501 点名的**全部三条**红线：渲染树无假 0、低置信角标、claim scope 页脚。
+ * 本文件覆盖 D-501 点名的**全部三条**红线：渲染树无假 0（**两处**：KPI 文本行 + 仪表
+ * 几何，提案 §5 ① 括号里点名了后者）、低置信角标、claim scope 页脚。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -113,6 +115,56 @@ class RenderRedlineTest {
         val marks = compose.onAllNodesWithText(ResultFormat.LOW_CONFIDENCE_LABEL, substring = true)
             .fetchSemanticsNodes()
         assertEquals("未标低置信的行不该出现低置信标注", 0, marks.size)
+    }
+
+    /**
+     * **红线一的另一半：仪表几何**。T48 提案 §5 ① 的原话是"渲染树中必须出现 …/— 且
+     * **绝不出现 0**（**含仪表指针角/进度弧的几何值**）"——括号里那半句点的正是
+     * `HalfGauge ?: 0` 这个先例的老家：纯函数层（`GaugeMath.homeGaugeReadout`，D-462 已有
+     * 4 条单测）全绿，而屏上照样可以显示一个 0。
+     *
+     * 上面几条只覆盖了 KPI 文本行，**没覆盖仪表**——这是我自己交付里的缺口，补上。
+     */
+    @Test
+    fun `AQS 缺失时仪表中心显示占位符而不是 0`() {
+        val readout = GaugeMath.homeGaugeReadout(
+            metric = HomeGaugeMetric.Aqs,
+            autoFrac = 0.5f, autoVal = "42", autoLabel = "auto",
+            aqsRunning = null, ttftMs = null, itlMedianMs = null,
+        )
+        compose.setContent {
+            AnebTheme {
+                RunningGauge(
+                    frac = readout.fraction,
+                    centerVal = readout.centerVal,
+                    centerLabel = readout.centerLabel,
+                    upload = false,
+                    telemetry = LiveTelemetry(),
+                )
+            }
+        }
+        compose.onNodeWithText(readout.centerVal, substring = true).assertIsDisplayed()
+        val zeros = compose.onAllNodesWithText("0", substring = true).fetchSemanticsNodes()
+        assertEquals("AQS 缺失时仪表上不得出现 0（HalfGauge 先例）", 0, zeros.size)
+    }
+
+    @Test
+    fun `AQS 有值时仪表照常显示该数字`() {
+        // 与上一条配对：没有它，"仪表上没有 0"可以靠"仪表什么都不显示"作弊通过。
+        val readout = GaugeMath.homeGaugeReadout(
+            metric = HomeGaugeMetric.Aqs,
+            autoFrac = 0.5f, autoVal = "42", autoLabel = "auto",
+            aqsRunning = 87.0, ttftMs = null, itlMedianMs = null,
+        )
+        compose.setContent {
+            AnebTheme {
+                RunningGauge(
+                    frac = readout.fraction, centerVal = readout.centerVal,
+                    centerLabel = readout.centerLabel, upload = false, telemetry = LiveTelemetry(),
+                )
+            }
+        }
+        compose.onNodeWithText("87", substring = true).assertIsDisplayed()
     }
 
     // ---- 红线三：claim scope 页脚必须真的渲染出去 ----

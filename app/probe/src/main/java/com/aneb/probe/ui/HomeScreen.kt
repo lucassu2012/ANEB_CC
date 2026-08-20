@@ -372,7 +372,11 @@ private fun ConnectingRing() {
  * [frac] 由时间驱动连续推进（对齐 home.js），弧尖脉冲 + 上传段转紫（data-phase=upload）。
  */
 @Composable
-private fun RunningGauge(frac: Float, centerVal: String, centerLabel: String, upload: Boolean, telemetry: LiveTelemetry) {
+// `internal` 而非 `private`：让渲染层红线测试直接调用它（同 `KpiLine`/`ClaimScopeFooter`
+// 与 `RadioCollector.guardTick` 的先例）。T48 提案 §5 ① 的红线明确点名**仪表几何值**
+// （"绝不出现 0，含仪表指针角/进度弧的几何值"），而这里正是 `HalfGauge ?: 0` 那个
+// 先例的老家——纯函数层（GaugeMath）全绿而屏上显示 0，只有渲染树抓得住。
+internal fun RunningGauge(frac: Float, centerVal: String, centerLabel: String, upload: Boolean, telemetry: LiveTelemetry) {
     val colors = AnebTheme.colors
     val reduced = LocalReducedMotion.current
     // 指针平滑滑到实时值（减弱动效下直接跳到值，仍是真实值）
