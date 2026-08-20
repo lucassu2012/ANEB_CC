@@ -123,3 +123,80 @@ def test_cells_separated_by_point():
     by = {c["cell"]["point_id"]: c for c in tu.analyze(recs)["cells"]}
     assert by["P1"]["clock_hotspot"] is True
     assert by["P2"]["clock_hotspot"] is False
+
+
+# ---- 墙钟门（D-506/T68）。判据 = |wall_skew_ms| > 60s，标记非否决 ----
+
+def test_wall_skew_threshold_is_a_boundary_not_a_ballpark():
+    """恰好等于阈值不算可疑，越过一毫秒才算——严格 `>`，与设备侧同判据。
+
+    D-535 的教训：'恰好等于临界'在浮点下没有普遍意义，故这里用整数毫秒钉两侧。
+    """
+    assert tu.wall_clock_suspect(tu.WALL_SKEW_MAX_MS) is False
+    assert tu.wall_clock_suspect(tu.WALL_SKEW_MAX_MS + 1) is True
+    # 负偏差同样算——设备钟快了和慢了一样毁掉"哪天测的"
+    assert tu.wall_clock_suspect(-(tu.WALL_SKEW_MAX_MS + 1)) is True
+    assert tu.wall_clock_suspect(-tu.WALL_SKEW_MAX_MS) is False
+
+
+def test_missing_skew_is_not_suspect_and_not_clean():
+    """缺证据 ⇒ 不判疑（False），但也**不计入分母**——不能被读成'干净'。
+
+    这正是 EchoWire 接线前的语料形状：带 offset_suspect 却不带 wall_skew_ms。
+    若共用时钟的分母，'没测'会被渲染成'测了且没问题'。
+    """
+    assert tu.wall_clock_suspect(None) is False
+    recs = [_rec(clock={"offset_suspect": False, "drift_ppm": 1.0}) for _ in range(3)]
+    cell = tu.analyze(recs)["cells"][0]
+    assert cell["clock_annotated"] == 3      # 时钟侧有标注
+    assert cell["wall_annotated"] == 0       # 墙钟侧没有——分母各自独立
+    assert cell["wall_suspect"] == 0
+    assert cell["wall_suspect_share"] is None    # 不是 0.0，是"无从判断"
+    assert cell["abs_wall_skew_ms_median"] is None
+
+
+def test_wall_suspect_is_marked_never_vetoed():
+    """标记非否决（D-506）：墙钟可疑不影响任何既有判定，只多一行点名。"""
+    recs = ([_rec(clock={"offset_suspect": False, "wall_skew_ms": 8_640_000})]
+            + [_rec(clock={"offset_suspect": False, "wall_skew_ms": 12}) for _ in range(2)])
+    res = tu.analyze(recs)
+    cell = res["cells"][0]
+    assert cell["wall_annotated"] == 3
+    assert cell["wall_suspect"] == 1
+    # 没有把整格判脏：时钟侧仍然干净，热点标记不受墙钟影响
+    assert cell["clock_suspect"] == 0
+    assert cell["clock_hotspot"] is False
+    md = tu.render_markdown(res)
+    assert "墙钟可疑 1 条" in md
+    assert "服务端锚为准" in md          # 处置写在读者看得见的地方
+    assert "标记非否决" in md
+
+
+def test_wall_only_corpus_is_not_reported_as_no_evidence():
+    """只有墙钟证据的语料，不能被判成'无可信度证据'。
+
+    反例证伪：把 wall_annotated 从 no_evidence 判据里去掉，本条即红。
+    """
+    recs = [_rec(clock={"wall_skew_ms": 5}) for _ in range(3)]
+    res = tu.analyze(recs)
+    assert res["no_evidence"] is False
+    assert "无可信度证据" not in tu.render_markdown(res)
+
+
+def test_python_threshold_matches_the_kotlin_constant():
+    """跨端一致性：本侧常量是 AnebClient.WALL_SKEW_MAX_MS 的副本，必须逐字相等。
+
+    副本是不得已——设备侧算得出 wallClockSuspect() 却没把那个 bool 落进 wire，
+    分析层只能拿阈值重算（见 trust_rollup 顶部注释）。既然是副本，就用**从产物
+    导出**的方式钉住：直接抽 Kotlin 源码里的字面量，任一侧改动本条即红。
+    """
+    import re
+    src = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "app", "probe", "src", "main", "java", "com", "aneb", "probe", "net", "AnebClient.kt")
+    if not os.path.exists(src):          # 无 app 树的检出（分析层可独立使用）
+        return
+    with open(src, encoding="utf-8") as f:
+        m = re.search(r"WALL_SKEW_MAX_MS\s*:\s*Long\s*=\s*([0-9_]+)L", f.read())
+    assert m, "AnebClient.kt 里找不到 WALL_SKEW_MAX_MS——上游改名了，本侧副本失去锚点"
+    assert int(m.group(1).replace("_", "")) == tu.WALL_SKEW_MAX_MS

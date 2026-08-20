@@ -185,7 +185,8 @@ def _radio(rng, pi, band, rep, scn_index):
             "sampled_n": n, "stale": bool(stale)}
 
 
-def _scenario(rng, idx, rtt, *, order_index, suspect_clock, batching, transport,
+def _scenario(rng, idx, rtt, *, order_index, suspect_clock, suspect_wall=False,
+              batching, transport,
               noise=0.045, radio=None):
     kpi = _kpis(rng, rtt, noise)
     roll = rng.random()
@@ -206,7 +207,12 @@ def _scenario(rng, idx, rtt, *, order_index, suspect_clock, batching, transport,
         "validity": validity, "invalid_reasons": reasons, "kpi": kpi,
         "clock": {"offset_start_us": int(rng.uniform(-4000, 4000)),
                   "offset_end_us": int(rng.uniform(-4000, 4000)),
-                  "drift_ppm": round(drift, 2), "offset_suspect": bool(suspect_clock)},
+                  "drift_ppm": round(drift, 2), "offset_suspect": bool(suspect_clock),
+                  # 墙钟差（D-506/T68）。与 offset_suspect **分开**取值：钟"走得稳"
+                  # 与钟"指得对"是两回事，真实语料里确实会一个正常一个不正常；
+                  # 若绑在同一个开关上，墙钟那一列在彩排里永远走不到独立分支。
+                  "wall_skew_ms": (int(rng.choice([-1, 1]) * rng.uniform(70_000, 900_000))
+                                   if suspect_wall else int(rng.gauss(0, 300)))},
         "network_snapshot": dict(
             {"transport": transport, "capabilities": "INTERNET,VALIDATED",
              "interface": "rmnet0" if transport == "cellular" else "wlan0",
@@ -313,6 +319,9 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
                                 _scenario(rng, i, rtt,
                                           order_index=(rep + i) % len(PROFILES),
                                           suspect_clock=suspect_point and rng.random() < 0.7,
+                                          # 墙钟独立于时钟抽（D-506/T68）：低频但确实出现，
+                                          # 让彩排语料同时走到"可疑"与"正常"两个分支
+                                          suspect_wall=rng.random() < 0.08,
                                           batching=batching_point and band == "busy",
                                           transport=medium, noise=noise,
                                           radio=(_radio(rng, pi, band, rep, i)

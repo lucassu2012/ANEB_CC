@@ -936,6 +936,12 @@ def heat_cells(records, min_samples=cc.DEFAULT_MIN_SAMPLES, campaign_id=None):
         aqs = cc.run_aqs(rec)
         if aqs is None:
             continue
+        # D-534 §3: an aborted run's run-level AQS does not enter the medians.
+        # Its completed scenarios still do — they are real measurements — which
+        # is why this gate sits on the run-level score only. Before this, the
+        # banner promised the exclusion and nothing performed it.
+        if not cc.run_pools_into_stats(rec):
+            continue
         key = tuple(labels[d] for d in HEAT_DIMS)
         # AQS is defined on 0..100, and the grade bands have no upper guard: a
         # score of 9999 lands in `excellent` — the best grade in the report — with
@@ -1413,12 +1419,31 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
            "**此窗口不可信**，见语料级告警）"),
         "",
     ]
-    # Aborted/unknown runs are SURFACED, never silently dropped (survey gap 4):
-    # their completed scenarios are real measurements and stay in scenario-level
-    # stats; an aborted run's AQS is typically null and never enters medians.
-    if set(inv["statuses"]) - {"completed"}:
-        parts.append("> ⚠ 存在非 `completed` run（见上行分布）——其已完成场景仍计入场景级统计"
-                     "（run 级 AQS 为 null 不进中位）；**只显性化，不静默剔除**。")
+    # Aborted runs are SURFACED (survey gap 4) and, since D-534 §3, their
+    # run-level AQS is actually withheld. Until then this banner promised the
+    # exclusion while nothing performed it: both aborted runs in the corpus
+    # happen to carry a null AQS for an unrelated reason (KPI_MISSING), so the
+    # promise read true by coincidence, not by mechanism.
+    #
+    # `unknown` is deliberately NOT folded into that sentence. A null `status`
+    # is contract-legal (`type: ["string","null"]`) and such a run still pools
+    # (cc.run_pools_into_stats), so claiming it was excluded would be a second
+    # false promise in the same breath. It gets its own line instead — silence
+    # is what costs most for a state that is legal yet cannot prove itself.
+    excluded = sorted(set(inv["statuses"]) - {"completed", "unknown"})
+    if excluded:
+        parts.append("> ⚠ 存在非 `completed` run（见上行分布："
+                     + "、".join(f"`{s}`" for s in excluded)
+                     + "）——**其 run 级 AQS 已排除出中位数**"
+                     "（按 status 剔除，不按 `:reason` 细分）；"
+                     "**其已完成场景仍计入场景级统计**——那是真实测量。"
+                     "**只显性化，不静默剔除**。")
+        parts.append("")
+    if inv["statuses"].get("unknown"):
+        parts.append(f"> ⚠ {inv['statuses']['unknown']} 个 run 的 `status` 缺失或为 `null`"
+                     "（契约允许 `null`）——**其 run 级 AQS 仍计入中位**"
+                     "（缺席不是一个取值，R-10；剔除一个合法状态会悄悄改分母），"
+                     "但这些 run **无法自证是否正常结束**。")
         parts.append("")
     # Optional chain-of-custody block. Omitted (None) keeps the body deterministic
     # for the regression snapshot; the CLI injects a real manifest.
@@ -2583,6 +2608,9 @@ def effective_thresholds():
         "validity_min_rate": validity_rollup.DEFAULT_MIN_RATE,
         "buffering_hotspot_share": buffering_rollup.HOTSPOT_SHARE,
         "clock_hotspot_share": trust_rollup.CLOCK_HOTSPOT_SHARE,
+        # 墙钟判疑阈值（D-506/T68）。它决定可信度表里"墙钟可疑 N 条"这一句印不印，
+        # 且该句直接指挥读者"按日分桶须以服务端锚为准"——是决定输出的门，故入册。
+        "wall_skew_max_ms": trust_rollup.WALL_SKEW_MAX_MS,
         "aqs_grade_bands": [[b, g] for b, g in cc.AQS_GRADE_BANDS],
         # Records carry no timezone, so this offset decides two printed things:
         # which runs are busy and which are idle, and which day a run's validity

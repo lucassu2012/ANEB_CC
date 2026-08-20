@@ -290,6 +290,7 @@ _GATE_KEY = {
     ("stability", "DEFAULT_MAX_STABLE_ROWS"): "stability_max_stable_rows",
     ("trend", "MIN_CAMPAIGNS_FOR_TREND"): "min_campaigns_for_trend",
     ("trust_rollup", "CLOCK_HOTSPOT_SHARE"): "clock_hotspot_share",
+    ("trust_rollup", "WALL_SKEW_MAX_MS"): "wall_skew_max_ms",
     ("validity_rollup", "DEFAULT_MIN_RATE"): "validity_min_rate",
     # The first four were already in the manifest and in NEITHER table here,
     # because the scan could not see a constant that is not a number. The rest
@@ -451,6 +452,7 @@ _PERTURB = {
     "local_day_utc_offset_h": (campaign_common, "DEFAULT_TZ_OFFSET_H", 0),
     "buffering_hotspot_share": (buffering_rollup, "HOTSPOT_SHARE", 1.0),
     "clock_hotspot_share": (trust_rollup, "CLOCK_HOTSPOT_SHARE", 0.99),
+    "wall_skew_max_ms": (trust_rollup, "WALL_SKEW_MAX_MS", 1),
     "aqs_grade_bands": (campaign_common, "AQS_GRADE_BANDS",
                         [(95.0, "excellent"), (90.0, "good"),
                          (85.0, "fair"), (0.0, "poor")]),
