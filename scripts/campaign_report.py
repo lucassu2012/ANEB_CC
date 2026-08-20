@@ -30,6 +30,9 @@ import sys
 from collections import Counter, defaultdict
 
 import campaign_common as cc
+# 复用打标侧的推断函数，不在本文件重写一份小时判据（§2.14 同名实现必须一致）。
+# 无循环：annotate_campaign 只依赖 campaign_common（对本模块仅在 docstring 里提及）。
+import annotate_campaign as annotate
 import attribution
 import buffering_rollup
 import order_effect
@@ -95,6 +98,11 @@ def inventory(records):
         # finding is worth (D-153). Written by annotate_campaign, read by no one
         # until now.
         "label_sources": Counter(),
+        # 推断出来的 time_band 依赖 started_at_epoch_ms 的**本地小时**，而墙钟门
+        # （D-506/T68）标出的正是"这个钟指错了"。但"钟可疑"不等于"标签就错"——
+        # 多数偏差不跨忙/闲边界。所以这里不猜：拿服务端时刻（started − skew）
+        # 重算一次，**只数真的会翻转的那些**（D-541 的同一条链，第二个消费方）。
+        "tb_flip_checked": 0, "tb_flipped": 0,
         # earliest run per campaign — before/after ordering is a CHRONOLOGY
         # question, and campaign_id sort need not match time (D-161)
         "campaign_first_ms": {},
@@ -166,6 +174,19 @@ def inventory(records):
             inv["campaign_first_ms"][cid] = started
         src = (cc.run_obj(rec).get("campaign") or {}).get("label_source")
         inv["label_sources"][src if isinstance(src, str) and src else "declared"] += 1
+        # 只查"标签是推断来的"且"这条带得到墙钟差"的 run：其余无从判断，
+        # 不计入分母（缺证据不算干净，同 D-541 的分母纪律）。
+        if isinstance(src, str) and "inferred:time_band" in src and started is not None:
+            skews = [cc.fnum((s.get("clock") or {}).get("wall_skew_ms"))
+                     for s in cc.iter_scenarios(rec)]
+            skews = [s for s in skews if s is not None]
+            if skews:
+                inv["tb_flip_checked"] += 1
+                # 服务端时刻 = 设备时刻 − skew（skew 的定义就是"设备 − 服务端"，
+                # AnebClient.wallSkewMs）。取中位避免单场景异常主导。
+                srv_ms = started - cc.median(skews)
+                if annotate.infer_time_band(started) != annotate.infer_time_band(srv_ms):
+                    inv["tb_flipped"] += 1
     # labels that are probably one label typed two ways: they split a cell in
     # two and the split is invisible in the rendered table (D-149)
     inv["label_collisions"] = cc.label_collisions(records)
@@ -227,6 +248,20 @@ def corpus_warnings(inv):
                    "（按 `started_at_epoch_ms` 的本地小时,非现场记录;规则与所用时区偏移见"
                    "「覆盖盘点」的 `label_source`）。忙闲差异的结论**须注明这一点**——"
                    "推断错时段会把两类流量混在一起,而表面上看不出来。")
+        # 推断依据的那个钟本身可不可信（D-506/T68/D-541 的第二个消费方）。
+        # 不说"钟可疑所以标签可疑"——那是吓唬人；直接拿服务端时刻重算，
+        # **只报真的会翻转的条数**。0 条也要说，否则读者不知道这一层查过没有。
+        checked, flipped = inv.get("tb_flip_checked", 0), inv.get("tb_flipped", 0)
+        if checked:
+            if flipped:
+                out.append(f"> ⚠ 其中 **{flipped}/{checked} 条**若按**服务端**时刻"
+                           "（`started_at_epoch_ms − clock.wall_skew_ms`）重算，"
+                           "**忙/闲标签会翻转**——这些 run 现在被分在哪一边取决于一个"
+                           "已知指错了的钟，**忙闲对比不应把它们计入**。")
+            else:
+                out.append(f"> 其中 {checked} 条带得到墙钟差,按服务端时刻重算后"
+                           "**标签均不翻转**——推断所依据的钟在这批上不影响忙闲归属"
+                           "（其余条数无墙钟证据,无从判断,不计入本句分母）。")
     ver_mixed = []
     for key, label in (("kpi_sets", "kpi_set"), ("aqs_versions", "aqs_version"),
                        ("profile_version_sets", "profile_versions"),

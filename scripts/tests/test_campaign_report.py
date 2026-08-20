@@ -69,6 +69,96 @@ def test_inventory_status_absent_is_unknown_not_completed():
     assert inv["statuses"] == {"completed": 1, "unknown": 2}
 
 
+def test_aborted_run_aqs_stays_out_of_the_median():
+    """中止 run 的 run 级 AQS 不进中位（D-534 §3 落地）。
+
+    **这是本组的核心反例**，且刻意让它「若判据失效就当场看得见」：
+    五条 completed 全是 90，再塞一条 `aborted:timeout` 且分数 20。
+    判据在 → 中位仍是 90、n=5；判据没了 → 中位掉到 90 以下、n=6。
+    断言落在**数字**上而不是「有东西变了」（D-318）。
+
+    为什么这个反例是真实可达的：AQS 的 input_mapping 只吃 s1/s2/s3
+    （N1,N2←S1；T←S2；U1/D1←S3），**s4 根本不在里面**，而 `s4_throughput`
+    是主循环之后才追加的诊断相位——一个跑完 s1/s2/s3 后在 s4 中止的 run，
+    AQS 三个输入全齐，会带着非 null 且 low_confidence=false 的分数进池。
+    """
+    recs = aqs_records(90, 5, point="P1")
+    bad = aqs_records(20, 1, point="P1")[0]
+    bad["run"]["status"] = "aborted:timeout"
+    cells = rpt.heat_cells(recs + [bad])
+    assert len(cells) == 1
+    assert cells[0]["aqs_median"] == 90
+    assert cells[0]["n"] == 5
+
+
+def test_abort_reason_is_not_split_by_reason():
+    """不按 `:reason` 细分（D-534 §3 逐字）——任何中止原因一视同仁。
+
+    反例方向：若判据只认光秃秃的 `aborted` 而漏掉带 reason 的形式，
+    带 reason 的那条会漏进中位——那恰恰是真实语料里的写法
+    （契约 description 写的就是 `completed / aborted:<reason>`）。
+    """
+    recs = aqs_records(90, 5, point="P1")
+    for reason in ("aborted", "aborted:timeout", "aborted:user", "aborted:thermal"):
+        bad = aqs_records(20, 1, point="P1")[0]
+        bad["run"]["status"] = reason
+        cells = rpt.heat_cells(recs + [bad])
+        assert cells[0]["aqs_median"] == 90, reason
+        assert cells[0]["n"] == 5, reason
+
+
+def test_status_null_still_pools_because_it_is_contract_legal():
+    """`status: null` 仍进中位——这条分支语料一次也测不到，只能靠反例（D-302）。
+
+    实测依据：全语料 3509 条**没有一条** status 拿不到，故这个分支是零实例的，
+    真实语料无论如何都走不到它——「靠语料自然覆盖」在这里等于没有守卫。
+
+    为什么选「仍进池」而不是「剔除」：schema 把 `status` 列为必填却把类型写作
+    `["string","null"]`，即 **null 是契约合法状态**。剔掉一个合法状态会对分母
+    做一次静默改动（D-336 那个形状），也等于把「缺席」读成一个取值（违 R-10）。
+    代价由横幅补偿：它会单独说这些 run 无法自证是否正常结束。
+    """
+    recs = aqs_records(100, 3, point="P1")
+    unknown = aqs_records(0, 3, point="P1")
+    for u in unknown:
+        u["run"]["status"] = None
+    cells = rpt.heat_cells(recs + unknown)
+    # 进了池才有这两个数：n=6 且中位是 (0+100)/2=50。
+    # 若把 null 也剔掉 → n=3、中位 100，两个断言同时变红。
+    assert cells[0]["n"] == 6
+    assert cells[0]["aqs_median"] == 50
+
+
+def test_banner_says_excluded_not_null():
+    """横幅必须说「已排除」，不能再说「AQS 为 null 不进中位」。
+
+    那句旧话在今天的语料上是**巧合成立**：两条 aborted 的 AQS 恰好都是
+    `KPI_MISSING` 故为 null。措辞把巧合写成了机制，读者据此以为有人在把关。
+    """
+    recs = aqs_records(90, 5, point="P1")
+    bad = aqs_records(20, 1, point="P1")[0]
+    bad["run"]["status"] = "aborted:timeout"
+    md = rpt.build_report_markdown(recs + [bad])
+    assert "已排除出中位数" in md
+    assert "run 级 AQS 为 null 不进中位" not in md
+    assert "已完成场景仍计入场景级统计" in md
+
+
+def test_banner_does_not_claim_unknown_was_excluded():
+    """status 未知的 run **没有**被排除，横幅就不能顺口把它算进「已排除」那句。
+
+    这是拆成两句的唯一理由：`set(statuses) - {"completed"}` 把 unknown 也算作
+    非 completed，若沿用一句话，同一行里就会有第二个假承诺。
+    """
+    recs = aqs_records(90, 4, point="P1")
+    unknown = aqs_records(90, 1, point="P1")[0]
+    unknown["run"]["status"] = None
+    md = rpt.build_report_markdown(recs + [unknown])
+    assert "已排除出中位数" not in md      # 没有任何 run 被排除
+    assert "仍计入中位" in md              # 而是明说它们仍在池里
+    assert "无法自证是否正常结束" in md
+
+
 def test_report_surfaces_non_completed_runs():
     recs = aqs_records(90, 5)
     recs[0]["run"]["status"] = "aborted:timeout"
@@ -2229,3 +2319,56 @@ def test_real_spread_still_classifies_both_ways():
         _two_rounds_vals([8, 9, 10, 11, 12], [58, 59, 60, 61, 62]),
         "r1", "r2")["rows"][0]
     assert big["within_noise"] is False        # 50 points beyond it
+
+
+# ---- 推断出的 time_band，其依据的钟可不可信（D-506/T68/D-541 第二个消费方）----
+
+def _inferred_tb_recs(skew_ms):
+    """全部 run 标为 inferred:time_band，并给定统一的墙钟差。"""
+    import annotate_campaign as ann
+    import synth_campaign as sc
+    recs = sc.generate(points=2, repeats=2, campaigns=("base", "opt"), radio=True)
+    expected_flips = 0
+    for r in recs:
+        r["run"].setdefault("campaign", {})["label_source"] = "inferred:time_band"
+        st = r["run"]["started_at_epoch_ms"]
+        if ann.infer_time_band(st) != ann.infer_time_band(st - skew_ms):
+            expected_flips += 1
+        for s in r["scenarios"]:
+            s.setdefault("clock", {})["wall_skew_ms"] = skew_ms
+    return recs, expected_flips
+
+
+def test_inferred_time_band_flip_is_counted_not_merely_feared():
+    """不说"钟可疑所以标签可疑"（那是吓唬人），而是拿服务端时刻重算、只报真翻转的。
+
+    反例证伪：把翻转判断去掉（或恒判不翻转），本条即红。
+    """
+    recs, expected = _inferred_tb_recs(8 * 3600 * 1000)   # 8h，确定跨忙/闲边界
+    assert expected > 0, "夹具没造出翻转，本条会变成测空气"
+    md = rpt.build_report_markdown(recs)
+    m = re.search(r"\*\*(\d+)/(\d+) 条\*\*若按", md)
+    assert m, "存在会翻转的 run，报告却没有点名\n" + md[:600]
+    assert int(m.group(1)) == expected, (m.group(1), expected)
+    assert "忙闲对比不应把它们计入" in md          # 点名之后要给处置
+
+
+def test_no_flip_is_stated_rather_than_left_silent():
+    """0 条翻转也要说——否则读者不知道这一层到底查过没有。"""
+    recs, expected = _inferred_tb_recs(200)            # 200ms，不可能跨小时
+    assert expected == 0
+    md = rpt.build_report_markdown(recs)
+    assert "标签均不翻转" in md
+    assert "不计入本句分母" in md                      # 分母口径写明
+
+
+def test_runs_without_wall_evidence_are_not_counted_as_verified():
+    """没有墙钟证据的 run 不进分母——缺证据不算干净（同 D-541 的分母纪律）。"""
+    import synth_campaign as sc
+    recs = sc.generate(points=2, repeats=2, campaigns=("base", "opt"), radio=True)
+    for r in recs:
+        r["run"].setdefault("campaign", {})["label_source"] = "inferred:time_band"
+        for s in r["scenarios"]:
+            (s.get("clock") or {}).pop("wall_skew_ms", None)
+    md = rpt.build_report_markdown(recs)
+    assert "标签均不翻转" not in md and "条**若按" not in md
