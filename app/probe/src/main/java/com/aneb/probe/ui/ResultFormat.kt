@@ -251,9 +251,15 @@ object ResultFormat {
 
     // ---- CSV 导出（场景×KPI 展平） ----
 
+    // `run_status`（T76/D-536 同族，additive 追加在**末列**）：CSV 是"场景×KPI 展平"的逐行
+    // 导出，此前带 `validity`/`low_confidence` 却**不带 run 级 status**——拿这份 CSV 做分析
+    // 的人看不出某些行来自一个**中止的 run**（同一条"status 只写不读"，换了个消费面）。
+    // 追加在末列而非插在 `run_id` 后：既有下游若按位置取列不会错位（§2.14 同族的兼容考虑）。
+    // 值为 `run.status`；老 run 无 status 时为空串——**空≠completed**，读作"未知"（R-10）。
     const val CSV_HEADER: String =
         "run_id,mode,kpi_set,aqs_version,profile_id,profile_version,repeat_index,order_index," +
-            "validity,invalid_reasons,offset_drift_ppm,offset_suspect,kpi_id,value,unit,grade,low_confidence"
+            "validity,invalid_reasons,offset_drift_ppm,offset_suspect,kpi_id,value,unit,grade," +
+            "low_confidence,run_status"
 
     /** RFC4180 风格最小转义：含逗号/引号/换行的字段加引号，引号翻倍 */
     fun csvEscape(field: String): String =
@@ -283,6 +289,7 @@ object ResultFormat {
                     row.unit,
                     row.grade ?: "",
                     row.lowConfidence.toString(),
+                    run.status ?: "", // 空＝未知（老 run 无 status），不等于 completed
                 )
                 sb.append(cells.joinToString(",") { csvEscape(it) }).append('\n')
             }

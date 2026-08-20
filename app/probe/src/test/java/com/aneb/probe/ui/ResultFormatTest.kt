@@ -369,4 +369,35 @@ class ResultFormatTest {
         assertTrue("须指回逐项标注", r.contains("KPI 明细"))
         assertFalse("不得断言一个统一成因", r.contains("样本不足"))
     }
+
+    // ---- CSV 的 run_status 列（T76/D-536 同族，2026-08-20）----
+    // 背景：CSV 是"场景×KPI 展平"的逐行导出，此前带 validity/low_confidence 却不带 run 级
+    // status —— 拿它做分析的人**看不出某些行来自一个中止的 run**。UI 侧 T76 已"当面说出来"，
+    // 这里补上导出面的同一条。
+
+    @Test
+    fun csvCarriesRunStatusSoAbortedRunsAreVisibleDownstream() {
+        val csv = ResultFormat.buildCsv(run().copy(status = "aborted:user_cancel"), listOf(scenario()))
+        val lines = csv.trim().split('\n')
+        assertTrue("表头必须有 run_status 列", lines[0].endsWith("run_status"))
+        val idx = lines[0].split(',').indexOf("run_status")
+        assertTrue("run_status 应在表头中", idx >= 0)
+        lines.drop(1).forEach {
+            assertEquals("每行都应带上该 run 的 status", "aborted:user_cancel", it.split(',')[idx])
+        }
+    }
+
+    @Test
+    fun csvRunStatusIsEmptyForUnknownNeverFakedAsCompleted() {
+        // R-10：老 run 没有 status 时留空 —— **空≠completed**。若这里伪造成 "completed"，
+        // 下游会把"不知道"读成"跑完了"，正是 T76 里那条"缺证据≠有问题"的反方向错误。
+        val csv = ResultFormat.buildCsv(run().copy(status = null), listOf(scenario()))
+        val lines = csv.trim().split('\n')
+        val idx = lines[0].split(',').indexOf("run_status")
+        lines.drop(1).forEach {
+            val v = it.split(',')[idx]
+            assertEquals("status 未知时应留空", "", v)
+            assertTrue("绝不能把未知伪造成 completed", v != "completed")
+        }
+    }
 }
