@@ -33,13 +33,32 @@ import radio_rollup as rr
 import validate_results as vr
 
 
-def verify_run(records):
+def verify_run(records, stats=None):
     """(ok: bool, line: str)。三查全过 line 以 "PASS" 开头，否则以 "FAIL" 开头。
 
     只做编排：每一步的判据都来自被复用的函数，这里不重新判断"什么算合格"。
     """
     if not records:
         return False, "FAIL: 无可读记录（输入为空或全部行解析失败/不合法 JSON）"
+
+    # (0) loader 完整性 —— 在判"数据合不合格"之前，先确认"读进来的这批本身可不可信"。
+    # cc.load_records 的 stats 里，conflicts 是它自己命名的 data-integrity fault：
+    # 同一 run_id 出现两个**不同的** body。那不是良性重导出，两份不可平均，也不该
+    # 被当成一次成功采集放行。unreadable_files 同理——整个文件读不进来时，
+    # 沉默会让"少了一批数据"长得和"这批数据没问题"一模一样。
+    # 调用方不传 stats 时本段跳过（向后兼容），但 main() 一定会传。
+    if stats:
+        # 实测 loader 回填的键集与类型（不凭记忆写，D-325：键名/类型猜错会被伪装成"值为 0"）：
+        #   conflicts=list（冲突 run_id 列表）、unreadable_files=int、
+        #   另有 duplicates/kept/lines/malformed/no_run_id 均为 int。
+        conflicts = len(stats.get("conflicts") or [])
+        unreadable = int(stats.get("unreadable_files") or 0)
+        if conflicts:
+            return False, ("FAIL: 语料完整性——%d 个 run_id 出现了两个不同的 body"
+                           "（loader 判 data-integrity fault，两份不可平均）" % conflicts)
+        if unreadable:
+            return False, ("FAIL: 语料完整性——%d 个文件读不进来"
+                           "（缺席不是零：少了一批数据不能当成没问题）" % unreadable)
 
     # ① 契约门 —— 复用 validate_results，不重写 schema 判据。
     try:
@@ -95,12 +114,13 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     cc.force_utf8_stdout()
-    records, files = cc.load_records(args.inputs)
+    stats = {}
+    records, files = cc.load_records(args.inputs, stats=stats)
     if not files:
         sys.stderr.write("找不到匹配的输入文件：%s\n" % ", ".join(args.inputs))
         return 2
 
-    ok, line = verify_run(records)
+    ok, line = verify_run(records, stats)
     print(line)
     return 0 if ok else 1
 

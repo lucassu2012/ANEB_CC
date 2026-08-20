@@ -108,3 +108,46 @@ def test_pass_line_names_the_run_ids():
     ok, line = vrun.verify_run([rec])
     assert ok is True
     assert rid in line
+
+
+def test_fail_on_loader_conflicts_not_a_silent_pass():
+    """同一 run_id 两个不同 body 必须让判词变 FAIL（T71，承 T67/D-514 high#6）。
+
+    verify_run 是**外场批式采集的自动化决策点**（T42/D-460：每 RUN_END 后拉库→抽单条→
+    verify_run 判词，不过即停），它按退出码决定要不要继续采。此前它调 cc.load_records
+    却**不传 stats**，于是 loader 自己命名为 data-integrity fault 的 conflicts
+    对它构造性不可见——一批含冲突 run_id 的语料会被判 PASS 放行继续采集。
+    同一形状 D-325 在 publish_check、D-330 在 campaign_report 各修过一次，这是第三个消费方。
+    """
+    rec = _healthy_record(n_scenarios=1)
+    ok, line = vrun.verify_run([rec], stats={"conflicts": ["dup-run-id"], "unreadable_files": 0})
+    assert ok is False
+    assert line.startswith("FAIL")
+    assert "完整性" in line
+
+
+def test_fail_on_unreadable_files_absence_is_not_zero():
+    """读不进来的文件必须发声（缺席不是零，R-10 家族）。
+
+    整个文件读不进来时若沉默，「少了一批数据」长得和「这批数据没问题」一模一样。
+    """
+    rec = _healthy_record(n_scenarios=1)
+    ok, line = vrun.verify_run([rec], stats={"conflicts": [], "unreadable_files": 2})
+    assert ok is False
+    assert line.startswith("FAIL")
+
+
+def test_healthy_stats_still_pass_the_new_check_is_not_always_on():
+    """反例方向：stats 干净时新检查不得误伤（否则它退化为恒 FAIL）。"""
+    rec = _healthy_record(n_scenarios=1)
+    ok, line = vrun.verify_run([rec], stats={"conflicts": [], "unreadable_files": 0,
+                                             "duplicates": 0, "kept": 1, "lines": 1})
+    assert ok is True
+    assert line.startswith("PASS")
+
+
+def test_stats_omitted_keeps_backward_compatibility():
+    """不传 stats 的既有调用方不受影响（向后兼容）。"""
+    rec = _healthy_record(n_scenarios=1)
+    ok, line = vrun.verify_run([rec])
+    assert ok is True
