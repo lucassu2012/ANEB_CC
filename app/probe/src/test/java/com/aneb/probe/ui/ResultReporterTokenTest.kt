@@ -47,7 +47,14 @@ class ResultReporterTokenTest {
     private val workload = TokenBehaviorClassifier.WorkloadSignal(
         uplinkBytesPerRound = 2_621_440L,
         peakToMeanRatio = 1.6,
-        downlinkMediaBytes = 0L,
+        // **非零是有意的**：解析端 `ResultAqsBreakdown` 对该键写的是 `?: 0L` 兜底，
+        // 夹具若也填 0，键名一旦漂移 → 解析得 0 → 与夹具相等 → 下面那条
+        // `assertEquals(workload, tc.workload)` **不会响**，这个字段等于没被守住
+        // （同族 D-302「先数那个条件出现过几次，0 次的话你测的是空气」、
+        // D-325「`?: 0` 把键名写错伪装成值为 0」）。
+        // 取 4096：非零可辨，且远低于 `DOWNLINK_MEDIA_BYTES`(10MiB) 触发门限，
+        // 故 `TokenBehaviorClassifier.classify` 的判定行为逐字不变。
+        downlinkMediaBytes = 4_096L,
         tokenStreamLen = 600,
         toolLoopRounds = 8,
         hasThinkPause = true,
