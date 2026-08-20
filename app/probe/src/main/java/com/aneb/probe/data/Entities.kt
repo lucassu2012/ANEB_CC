@@ -448,6 +448,17 @@ data class AbResultEntity(
  */
 @Entity(tableName = "voice_result")
 data class VoiceResultEntity(
+    /**
+     * 纪元内自增序号——**不是跨纪元标识**（D-513 过程事实②）。
+     *
+     * `adb uninstall` / 清除应用数据会重建库，`id` 从 1 重计；08-19 装机冒烟就发生过一次。
+     * 因此**跨纪元比对、去重、计数一律以 [tsEpochMs] 为准**（实测归档语料 35 行时间戳全唯一），
+     * `id` 只在同一纪元内、同毫秒时作稳定排序的兜底——`VoiceResultDao.recent()` 正是
+     * `ORDER BY tsEpochMs DESC, id DESC` 这个口径。
+     *
+     * 与 `run` 表的差别：那边有 `runId`（SecureRandom+时间戳，天然跨纪元唯一），本表没有；
+     * 若将来语音记录需要与 run 侧 join 或跨纪元精确配对，那属数据面变更（加列＋迁移），须走决策。
+     */
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     /** 落库时刻（epoch ms） */
     val tsEpochMs: Long,
