@@ -163,6 +163,7 @@
             "u3_rtt_drift_ratio": { "type": ["number", "null"], "description": "rtt_ref_ms_post / rtt_ref_ms_pre" },
             "u3_rtt_dominance_ratio": { "type": ["number", "null"], "description": "window_actual_ms / rtt_ref_ms_pre" },
             "u3_rtt_dominance_ok": { "type": ["boolean", "null"], "description": "null=该场景未跑 s4_throughput" },
+            "u3_window_underrun": { "type": ["boolean", "null"], "description": "true=窗口在到点前就传完了(bytes 达上限且 window_actual_ms < window_target_ms)——「定长时间窗」的设计前提此时失效，spec §8.3.3 要求这类样本不得与正常的「窗口到点截断」样本混算。false=正常到点截断。null=该场景未跑 s4_throughput，或该 run 早于本字段上线(缺失≠false，R-10)。进契约的理由(D-534 §2)：它此前只折进 low_confidence 并打一条 ADAPTIVE_*_WINDOW 日志，而混算发生在分析层——分析层读 JSONL、永远看不到日志" },
             "d3_goodput_mbps": { "type": ["number", "null"], "description": "T47 批③(D-468/D-469)：单流自适应窗口下行 goodput 探针主口径(含慢启动)，additive、非 required；诊断期不进 AQS" },
             "d3_grade": { "type": ["string", "null"], "description": "诊断期恒为 null（未接入打分，spec §8.4.4）" },
             "d3_goodput_excl_slow_start_mbps": { "type": ["number", "null"] },
@@ -173,6 +174,7 @@
             "d3_rtt_ref_ms_post": { "type": ["number", "null"] },
             "d3_rtt_drift_ratio": { "type": ["number", "null"] },
             "d3_rtt_dominance_ratio": { "type": ["number", "null"] },
+            "d3_window_underrun": { "type": ["boolean", "null"], "description": "下行方向的同一语义，见 u3_window_underrun" },
             "d3_rtt_dominance_ok": { "type": ["boolean", "null"], "description": "null=该场景未跑 s4_throughput" },
             "seq_gap_count": { "type": "integer" },
             "seq_dup_count": { "type": "integer" }

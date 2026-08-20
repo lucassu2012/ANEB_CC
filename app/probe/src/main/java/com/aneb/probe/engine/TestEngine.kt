@@ -1008,6 +1008,10 @@ class TestEngine(private val context: Context) {
             d3RttDriftRatio = kpi.d3RttDriftRatio,
             d3RttDominanceRatio = kpi.d3RttDominanceRatio,
             d3RttDominanceOk = if (kpi.d3WindowTargetMs != null) kpi.d3RttDominanceOk else null,
+            // T75/D-534 §2：判据逐字镜像上面两行的 `windowTargetMs != null`——那是「本场景
+            // 跑没跑 s4_throughput」的既有判据。未跑即 null，不是 false（R-10：不知道 ≠ 没有）。
+            u3WindowUnderrun = if (kpi.u3WindowTargetMs != null) kpi.u3WindowUnderrun else null,
+            d3WindowUnderrun = if (kpi.d3WindowTargetMs != null) kpi.d3WindowUnderrun else null,
             seqGapCount = kpi.seqGapCount,
             seqDupCount = kpi.seqDupCount,
             // C07：per-KPI lowConfidence 持久化（结果页/导出标注用，KPI 文档 5.4）;

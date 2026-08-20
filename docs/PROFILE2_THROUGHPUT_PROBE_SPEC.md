@@ -202,6 +202,20 @@ bytes_requested` 且 `window_actual_ms < window_target_ms`——即请求在窗�
 （`kpi_quality` 的 `low_confidence=true` 附加原因，或实现阶段专门记一条诊断日志），不得与正常的
 "窗口到点截断"样本混算。
 
+> **〔D-534 §2 订正：上面这两个"或"的选项不等价，而本文当初把它们并列了〕**
+> 批③落地时取的是"记一条诊断日志"（`ScenarioRunner` 的 `ADAPTIVE_UPLOAD_WINDOW` /
+> `ADAPTIVE_DOWNLOAD_WINDOW` 行带 `underrun=`），**字面上满足了本节**。但本节自己的目的句是
+> 「**不得与正常的『窗口到点截断』样本混算**」——而**混算发生在分析层，分析层读 JSONL、
+> 永远看不到日志**。同时批④验收标准（见该批次）要求如实报告"`window_underrun` 出现次数"，
+> 那个数同样只能从产物里数。
+> 故自 D-534 起 `u3_window_underrun`/`d3_window_underrun` **进契约**（§8.4.2 字段表，
+> `boolean|null`，非必填，缺失≠false）。
+> **如实记两点**：①它并非完全不可得——`window_actual_ms < window_target_ms` 且
+> `bytes_transferred` 达上限即可推导，只是要三个字段加 profile 上限联合判断；
+> ②`low_confidence` 那条路径**只在 `rtt_dominance_ok=true` 时可解**——ok 为 false 时
+> `low_confidence` 恒真，underrun 被掩盖。进契约是为了让它有**单一来源**，
+> 而不是让每个消费方各推一遍（D-264）。
+
 #### 8.3.4 慢启动双口径：数据驱动，不用固定毫秒常量
 
 **U3（上行）：直接复用既有的数据驱动检测器，不新造**——`UploadAnalysis.estimateSlowStart`
@@ -386,6 +400,8 @@ test_validate_profiles.py` 需要同批追加至少一条覆盖新 phase 类型�
 | `u3_rtt_drift_ratio` | number\|null | `rtt_ref_ms_post / rtt_ref_ms_pre`；两者任一为 null 则整体 null | 本文新增，见 §8.3.3 |
 | `u3_rtt_dominance_ratio` | number\|null | `window_actual_ms / rtt_ref_ms_pre`，即自检判据本身，一等字段 | 本文新增，见 §8.3.3 |
 | `u3_rtt_dominance_ok` | boolean | 是否满足 §8.3.3 三条件交集 | 本文新增 |
+| `u3_window_underrun` | boolean\|null | §8.3.3 的「窗口提前完成」情形本身：`true`=到点前已传完，`false`=正常到点截断，`null`=未跑 s4 或早于本字段上线（缺失≠false，R-10） | **D-534 §2 新增**：此前只折进 `low_confidence` 并打一条日志，而批④验收标准要数它的出现次数 |
+| `d3_window_underrun` | boolean\|null | 下行方向的同一语义 | 同上 |
 | `d3_goodput_mbps` / `d3_grade` / `d3_goodput_excl_slow_start_mbps`（复用 `TransferWindowAnalysis`，§8.3.4）/ `d3_window_target_ms` / `d3_window_actual_ms` / `d3_bytes_transferred` / `d3_rtt_ref_ms_pre` / `d3_rtt_ref_ms_post` / `d3_rtt_drift_ratio` / `d3_rtt_dominance_ratio` / `d3_rtt_dominance_ok` | 同构镜像（下行） | — | 同上 |
 
 `u3_rtt_ref_ms_pre`/`d3_rtt_ref_ms_pre`（以及 `_post`/`_drift_ratio`）**两组字段取值恒相同**——两者

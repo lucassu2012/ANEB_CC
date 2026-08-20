@@ -275,6 +275,17 @@ data class KpiResult(
     val d3RttDriftRatio: Double? = null,
     val d3RttDominanceRatio: Double? = null,
     val d3RttDominanceOk: Boolean = false,
+    /**
+     * 窗口在到点前就传完（`bytes` 达上限且 `window_actual_ms < window_target_ms`），
+     * 此时「定长时间窗」的设计前提失效——spec §8.3.3 要求这类样本不得与正常的
+     * 「窗口到点截断」样本混算，批④验收标准要数它的出现次数（T75/D-534 §2）。
+     *
+     * **不能从 `low_confidence` 反推**：`lowConf = !rttDominanceOk || windowUnderrun`，
+     * 故 `rttDominanceOk=false` 时 lowConf 恒真、underrun 被完全掩盖。
+     */
+    val u3WindowUnderrun: Boolean = false,
+    /** 下行方向的同一语义，见 [u3WindowUnderrun]。 */
+    val d3WindowUnderrun: Boolean = false,
 )
 
 /**
@@ -578,6 +589,7 @@ object KpiCalculator {
             u3RttDriftRatio = driftRatio(input.adaptiveUpload),
             u3RttDominanceRatio = input.adaptiveUpload?.rttDominanceRatio,
             u3RttDominanceOk = input.adaptiveUpload?.rttDominanceOk ?: false,
+            u3WindowUnderrun = input.adaptiveUpload?.windowUnderrun ?: false,
             d3GoodputMbps = gate(d3),
             d3GoodputExclSlowStartMbps = gate(d3Excl),
             d3WindowTargetMs = input.adaptiveDownload?.windowTargetMs,
@@ -588,6 +600,7 @@ object KpiCalculator {
             d3RttDriftRatio = driftRatio(input.adaptiveDownload),
             d3RttDominanceRatio = input.adaptiveDownload?.rttDominanceRatio,
             d3RttDominanceOk = input.adaptiveDownload?.rttDominanceOk ?: false,
+            d3WindowUnderrun = input.adaptiveDownload?.windowUnderrun ?: false,
         )
     }
 

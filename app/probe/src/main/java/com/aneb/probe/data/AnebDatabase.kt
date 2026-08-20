@@ -61,7 +61,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      bytes_transferred/rtt_ref_ms_pre/_post/rtt_drift_ratio/rtt_dominance_ratio/
     //      rtt_dominance_ok 各 11 列×2 方向;诊断期不进任何 AQS facet;可空,历史行/非
     //      s4_throughput 场景 NULL＝「未跑该探针」而非「为零」,additive ADD COLUMN）
-    version = 20,
+    version = 21,
     exportSchema = true, // T45/D-463 §6.2：打开，快照进 app/probe/schemas/（ksp room.schemaLocation）
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -555,6 +555,36 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v20 → v21 的全部语句（T75 / D-534 §2：`window_underrun` 进契约）。
+         *
+         * 批③把「窗口在到点前就传完」这个情形折进了 `low_confidence`，另打一条
+         * `ADAPTIVE_*_WINDOW ... underrun=` 日志——spec §8.3.3 允许「附加原因**或**诊断日志」，
+         * 于是字面达标。但 §8.3.3 自己的目的句是「不得与正常的窗口到点截断样本混算」，
+         * 而**混算发生在分析层，分析层读 JSONL、永远看不到日志**；批④验收标准又要求
+         * 如实报告 `window_underrun` 出现次数，那个数同样只能从产物里数。故落库上线。
+         *
+         * `Boolean?` 落 SQLite 即 INTEGER（与既有 `u3RttDominanceOk` 同型）。
+         * 旧行为 NULL —— **缺失不是 false**（R-10）：那些 run 跑在本列上线之前，
+         * 我们不知道它们有没有 underrun，而不是知道它们没有。
+         */
+        internal val MIGRATION_20_21_SQL: List<String> = listOf(
+            "ALTER TABLE `scenario_result` ADD COLUMN `u3WindowUnderrun` INTEGER",
+            "ALTER TABLE `scenario_result` ADD COLUMN `d3WindowUnderrun` INTEGER",
+        )
+
+        /**
+         * v20 → v21（`window_underrun` 上线，additive）：只加列不动数据。人工验证同
+         * [MIGRATION_18_19] KDoc（覆盖安装后既有 scenario_result 行可见且两列 =NULL、
+         * `.schema scenario_result` 输出含新列、跑一次 s4_throughput 场景后新行两列有值、
+         * logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_20_21_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -568,7 +598,7 @@ abstract class AnebDatabase : RoomDatabase() {
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                         MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
-                        MIGRATION_19_20,
+                        MIGRATION_19_20, MIGRATION_20_21,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     //

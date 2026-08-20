@@ -164,6 +164,10 @@ object ResultReporter {
             put("u3_rtt_drift_ratio", s.u3RttDriftRatio)
             put("u3_rtt_dominance_ratio", s.u3RttDominanceRatio)
             put("u3_rtt_dominance_ok", s.u3RttDominanceOk)
+            // T75/D-534 §2：spec §8.3.3 的「窗口提前完成」情形本身上 wire。此前它只折进
+            // low_confidence 并打一条 ADAPTIVE_*_WINDOW 日志——而 §8.3.3 的目的句是
+            // 「不得与正常的窗口到点截断样本混算」，混算发生在分析层，分析层看不到日志。
+            put("u3_window_underrun", s.u3WindowUnderrun)
             put("d3_goodput_mbps", s.d3GoodputMbps); put("d3_grade", s.d3Grade)
             put("d3_goodput_excl_slow_start_mbps", s.d3GoodputExclSlowStartMbps)
             put("d3_window_target_ms", s.d3WindowTargetMs)
@@ -174,6 +178,7 @@ object ResultReporter {
             put("d3_rtt_drift_ratio", s.d3RttDriftRatio)
             put("d3_rtt_dominance_ratio", s.d3RttDominanceRatio)
             put("d3_rtt_dominance_ok", s.d3RttDominanceOk)
+            put("d3_window_underrun", s.d3WindowUnderrun)
             put("seq_gap_count", s.seqGapCount)
             put("seq_dup_count", s.seqDupCount)
         })

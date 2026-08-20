@@ -237,6 +237,15 @@ data class ScenarioResultEntity(
     val d3RttDriftRatio: Double? = null,
     val d3RttDominanceRatio: Double? = null,
     val d3RttDominanceOk: Boolean? = null,
+    // ---- window_underrun（v21 additive 列，T75/D-534 §2）----
+    // 「窗口在到点前就传完」——此时「定长时间窗」的设计前提失效，spec §8.3.3 要求这类样本
+    // 不得与正常的「窗口到点截断」样本混算。批③只把它折进 low_confidence 并打了一条
+    // ADAPTIVE_*_WINDOW 日志；日志到不了分析层，而混算恰恰发生在那里，批④验收标准又要
+    // 数它的出现次数。**注意它不能从 low_confidence 反推**：lowConf = !dominanceOk || underrun，
+    // dominanceOk=false 时 lowConf 恒真、underrun 被掩盖，故必须自己有一列。
+    // null = 该场景未跑 s4_throughput，或该 run 早于本列上线（R-10：不知道 ≠ 没有）。
+    val u3WindowUnderrun: Boolean? = null,
+    val d3WindowUnderrun: Boolean? = null,
 ) {
     /**
      * 设备墙钟 − 服务端墙钟（毫秒，本场景各 clock_sync 非 warmup 样本的中位；T64 §8/D-506）。
