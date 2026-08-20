@@ -571,7 +571,20 @@ abstract class AnebDatabase : RoomDatabase() {
                         MIGRATION_19_20,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
-                    .fallbackToDestructiveMigration()
+                    //
+                    // **必须用带 startVersions 的窄口径重载**：无参的
+                    // `fallbackToDestructiveMigration()` 对**所有**缺失迁移路径生效，
+                    // 而不是只对 <6——即上一行注释描述的意图与代码行为一度不一致
+                    // （T67/D-514 守卫审计查出）。后果不可逆：将来有人把 version 提到 21
+                    // 却忘了注册 MIGRATION_20_21，设备上全部历史 run 会被**静默删库重建**，
+                    // 不抛异常、不打日志，UI 上只表现为「历史空了」——而正上方那行注释
+                    // 亲口说这些数据是「取证资产，不可静默丢弃」。
+                    //
+                    // 改成窄口径后，v6+ 缺迁移会在打开库时**抛异常**而不是悄悄毁数据。
+                    // 这是有意选择的 fail-closed 方向：开发期漏注册迁移会立刻炸在开发者
+                    // 脸上（本仓一贯纪律：宁可拒绝出数，也不要静默产出/销毁），而不是等
+                    // 到有人发现历史没了才回头查。
+                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
                     .build()
                     .also { instance = it }
             }

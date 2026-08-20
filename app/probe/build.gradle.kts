@@ -158,6 +158,7 @@ tasks.withType<Test>().configureEach {
         "profiles",                        // RttDominanceGuardTest（window_ms 绊线）
         "app/probe/src/main/assets",       // AdapterSpecTest / ClientProfileDataParityTest 的运行时镜像侧
         "evidence/phase1/calibration",     // CalibrationFixtureTest
+        "app/probe/schemas",               // MigrationRegistryTest（当前 schema 版本的派生来源，T68）
     ).forEach { rel ->
         val d = File(repoRoot, rel)
         if (d.isDirectory) inputs.dir(d).withPropertyName(rel.replace('/', '_'))
