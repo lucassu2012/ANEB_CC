@@ -224,6 +224,23 @@ class ReportAnalyzerTest {
         assertTrue("须点名状态", line.contains("aborted"))
     }
 
+    /**
+     * **告诫句不得占用头条**：`ReportScreen` 拿 `conclusions.first()` 当头条卡
+     * （该处注释原文「头条结论（第一条，突出）」）。初版把这句插在列表最前，
+     * **整份报告的头条被悄悄换成了它**，而当时的测试只断言"存在/不存在"、不管位置，
+     * 于是全绿放行——D-300「去 PO 最先读的那一行上再找一遍」的又一个实例。
+     * 本条把位置钉死：告诫句必须在**末尾**，头条仍是真正的分析结论。
+     */
+    @Test
+    fun `告诫句排在末尾——不得顶替头条结论`() {
+        val runs = cleanRuns().mapIndexed { i, r ->
+            if (i == 0) r.copy(runStatus = "aborted:bound_network_lost") else r.copy(runStatus = "completed")
+        }
+        val a = ReportAnalyzer.analyze(runs)
+        assertFalse("头条（conclusions[0]）不该是告诫句", a.conclusions.first().contains("未正常结束"))
+        assertTrue("告诫句应在末尾", a.conclusions.last().contains("未正常结束"))
+    }
+
     @Test
     fun `全部正常结束时不加这句——守卫不得变成恒响的噪声`() {
         val runs = cleanRuns().map { it.copy(runStatus = "completed") }

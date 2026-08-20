@@ -487,19 +487,6 @@ object ReportAnalyzer {
         valid: List<RunSummary>,
     ): List<String> {
         val out = mutableListOf<String>()
-        // T76/D-534 §3 设备半：**中止的 run 若被算进来了，必须当面说一句**。
-        // 复用既有 `conclusions` 通道而不新增字段（同 D-534「优先复用既有通道」的处置）。
-        // 判据走 `isCompleted`（与分析层 `run_status_head` 同一条，§2.14 防同名不同义）；
-        // **状态未知的老 run 不算在内**——它们没有 status 可读，报"中止"是冤枉它们（R-10：
-        // 缺证据不等于有问题；这与 `isCompleted` 内部"未知不算跑完"是两个不同的问题，
-        // 那里防的是"把未知当健康"，这里防的是"把未知当故障"）。
-        val aborted = valid.filter { it.runStatus != null && !isCompleted(it.runStatus) }
-        if (aborted.isNotEmpty()) {
-            val heads = aborted.mapNotNull { statusHead(it.runStatus) }.distinct().sorted()
-            out += "注意：本次分析包含 ${aborted.size} 个未正常结束的 run" +
-                "（状态：${heads.joinToString("/")}），其已完成部分仍计入统计——" +
-                "这些 run 的分数是半截测量的结果，解读时按此折扣。"
-        }
         when (method) {
             Method.INSUFFICIENT -> {
                 out += "样本不足：当前有效 run n=$validCount，不同网络条件=$distinctConditions" +
@@ -561,6 +548,26 @@ object ReportAnalyzer {
         out += proj.toString()
 
         out += CLAIM_SCOPE_NOTE
+
+        // T76/D-534 §3 设备半：**中止的 run 若被算进来了，必须当面说一句**。
+        // 复用既有 `conclusions` 通道而不新增字段（同 D-534「优先复用既有通道」的处置）。
+        // 判据走 `isCompleted`（与分析层 `run_status_head` 同一条，§2.14 防同名不同义）；
+        // **状态未知的老 run 不算在内**——它们没有 status 可读，报"中止"是冤枉它们（R-10：
+        // 缺证据不等于有问题；这与 `isCompleted` 内部"未知不算跑完"是两个不同的问题，
+        // 那里防的是"把未知当健康"，这里防的是"把未知当故障"）。
+        //
+        // **必须追加在末尾，不能插在开头**：`ReportScreen` 拿 `conclusions.first()` 当
+        // **头条卡**（该处注释原文「头条结论（第一条，突出）」）。初版把这句插在列表最前，
+        // 于是**整份报告的头条被悄悄换成了这句告诫**，而配套测试只断言 `any/none contains`、
+        // 不管位置，全绿放行——D-300「去 PO 最先读的那一行上再找一遍」+ D-341「最容易漏的
+        // 是一步之前的自己」，同一天第二次。位置现已由 `ReportAnalyzerTest` 钉住。
+        val aborted = valid.filter { it.runStatus != null && !isCompleted(it.runStatus) }
+        if (aborted.isNotEmpty()) {
+            val heads = aborted.mapNotNull { statusHead(it.runStatus) }.distinct().sorted()
+            out += "注意：本次分析包含 ${aborted.size} 个未正常结束的 run" +
+                "（状态：${heads.joinToString("/")}），其已完成部分仍计入统计——" +
+                "这些 run 的分数是半截测量的结果，解读时按此折扣。"
+        }
         return out
     }
 
