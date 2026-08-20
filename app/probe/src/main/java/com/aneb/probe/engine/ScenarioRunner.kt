@@ -40,9 +40,31 @@ class ScenarioRunner(private val client: AnebClient) {
         val profileBytes: Long,
         val result: AnebClient.UploadResult,
     ) {
-        /** U1 计时终点＝2xx 响应头（R-07）；失败 null */
+        /**
+         * U1 计时终点＝2xx 响应头（R-07）；失败 null。
+         *
+         * **三条件 fail-closed，与下行 [DownloadOutcome] 对称**（T73，承 T67/D-514 审计）：
+         * 此前这里**只查 `error == null`**——连 2xx 都没查，更没拿服务端实收字节对账。
+         * 而 `server/handlers_upload.go` 的读循环对**任何非 MaxBytes 的读错误**（连接中断、
+         * 客户端提前关闭）都是 `break` 后**照常回 200 + 已收到的 total**。于是一次被中途
+         * 截断的上传会被报成「一次成功的、较小的上传」，而 U1 的字节数取的是
+         * `profileBytes`（profile 声明值，见 ScenarioKpi）而非实收值——**吞吐被高估**。
+         *
+         * 判据本来就在手边：服务端每次都回 `bytes`，客户端也早已解析进
+         * [AnebClient.UploadServerView.bytes]，只是**从没有人拿它与发送量对账**。
+         * 下行侧 D-37 早已按 Codex 合同做了同一件事（「非 2xx、截断或字节数不匹配必须记
+         * null」），本条只是把上行补成对称。
+         *
+         * `serverView == null`（响应体解析失败）时不据此判失败——那是慢启动口径退化为
+         * null 的既有语义（R-10），不应连带把 U1 也判死。
+         */
         val durationNanos: Long? =
-            if (result.error == null) {
+            if (result.error == null &&
+                (result.httpCode ?: 0) in 200..299 &&
+                (profileBytes <= 0 ||
+                    result.serverView == null ||
+                    result.serverView.bytes == profileBytes)
+            ) {
                 (result.timing?.responseHeadersStartNs ?: result.responseNanos)
                     ?.let { it - result.startNanos }
             } else {
