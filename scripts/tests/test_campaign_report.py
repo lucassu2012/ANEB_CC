@@ -2376,3 +2376,54 @@ def test_runs_without_wall_evidence_are_not_counted_as_verified():
             (s.get("clock") or {}).pop("wall_skew_ms", None)
     md = rpt.build_report_markdown(recs)
     assert "标签均不翻转" not in md and "条**若按" not in md
+
+
+# ---- 对比次序所依据的那把钟（D-161 事故形状 × D-506 墙钟门）----
+
+def _pair_recs(skew_on_opt_ms, *, skew_on_base_ms=0):
+    import synth_campaign as sc
+    recs = sc.generate(points=2, repeats=2, campaigns=("base", "opt"), radio=True)
+    for r in recs:
+        cid = (r["run"].get("campaign") or {}).get("campaign_id")
+        sk = skew_on_opt_ms if cid == "SYNTH-opt" else skew_on_base_ms
+        for s in r["scenarios"]:
+            s.setdefault("clock", {})["wall_skew_ms"] = sk
+    return recs
+
+
+def test_compare_order_flip_is_caught_because_the_sign_rides_on_it():
+    """先后反了，下面每个 Δ 的符号都反（D-161：改善印成回退）——必须点名。
+
+    反例证伪：让 compare_order_wall_flip 恒返回未翻转，本条即红。
+    """
+    import synth_campaign as sc
+    base = rpt.inventory(sc.generate(points=2, repeats=2,
+                                     campaigns=("base", "opt"), radio=True))
+    gap = (base["campaign_first_ms"]["SYNTH-opt"]
+           - base["campaign_first_ms"]["SYNTH-base"])
+    recs = _pair_recs(gap + 3600 * 1000)        # 比真实间隔还大 1h ⇒ 必翻
+    inv = rpt.inventory(recs)
+    assert rpt.compare_order_wall_flip(inv) == (True, True)
+    md = rpt.build_report_markdown(recs)
+    assert "顺序相反" in md
+    assert "符号可能整体反了" in md
+    assert "先定清哪把钟为准" in md              # 点名后给动作
+
+
+def test_small_skew_does_not_cry_wolf_about_order():
+    """偏差不足以翻转真实间隔时**不得报警**——误报会让这条提示很快没人看。"""
+    recs = _pair_recs(3 * 3600 * 1000)          # 3h，远小于两战役的真实间隔
+    inv = rpt.inventory(recs)
+    assert rpt.compare_order_wall_flip(inv) == (True, False)
+    assert "顺序相反" not in rpt.build_report_markdown(recs)
+
+
+def test_order_check_says_unknown_rather_than_clean_without_evidence():
+    """拿不到墙钟证据时返回 checked=False——「没法查」≠「查过了没问题」。"""
+    import synth_campaign as sc
+    recs = sc.generate(points=2, repeats=2, campaigns=("base", "opt"), radio=True)
+    for r in recs:
+        for s in r["scenarios"]:
+            (s.get("clock") or {}).pop("wall_skew_ms", None)
+    inv = rpt.inventory(recs)
+    assert rpt.compare_order_wall_flip(inv) == (False, False)

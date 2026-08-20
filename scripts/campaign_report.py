@@ -103,6 +103,10 @@ def inventory(records):
         # 多数偏差不跨忙/闲边界。所以这里不猜：拿服务端时刻（started − skew）
         # 重算一次，**只数真的会翻转的那些**（D-541 的同一条链，第二个消费方）。
         "tb_flip_checked": 0, "tb_flipped": 0,
+        # 同一把钟还决定**两个战役谁在前**（D-161：顺序反了，30 分改善被印成
+        # 「回退」）。故并记每战役最早 run 的**服务端**时刻——有它才谈得上
+        # "若按服务端钟排，先后会不会互换"。缺墙钟证据的 run 不进这张表。
+        "campaign_first_srv_ms": {},
         # earliest run per campaign — before/after ordering is a CHRONOLOGY
         # question, and campaign_id sort need not match time (D-161)
         "campaign_first_ms": {},
@@ -176,10 +180,16 @@ def inventory(records):
         inv["label_sources"][src if isinstance(src, str) and src else "declared"] += 1
         # 只查"标签是推断来的"且"这条带得到墙钟差"的 run：其余无从判断，
         # 不计入分母（缺证据不算干净，同 D-541 的分母纪律）。
-        if isinstance(src, str) and "inferred:time_band" in src and started is not None:
-            skews = [cc.fnum((s.get("clock") or {}).get("wall_skew_ms"))
+        skews_all = [cc.fnum((s.get("clock") or {}).get("wall_skew_ms"))
                      for s in cc.iter_scenarios(rec)]
-            skews = [s for s in skews if s is not None]
+        skews_all = [s for s in skews_all if s is not None]
+        if started is not None and skews_all:
+            srv = started - cc.median(skews_all)
+            if (cid not in inv["campaign_first_srv_ms"]
+                    or srv < inv["campaign_first_srv_ms"][cid]):
+                inv["campaign_first_srv_ms"][cid] = srv
+        if isinstance(src, str) and "inferred:time_band" in src and started is not None:
+            skews = skews_all
             if skews:
                 inv["tb_flip_checked"] += 1
                 # 服务端时刻 = 设备时刻 − skew（skew 的定义就是"设备 − 服务端"，
@@ -875,6 +885,16 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
     before_id, after_id = auto_compare_ids(inv_)
     labeled = [c for c in inv_["campaigns"] if c != cc.UNLABELED]
     if before_id and after_id:
+        # 这一对的先后是用**设备**墙钟定的，而 before/after 反了，下面每个 Δ 的
+        # 符号都跟着反（D-161：30 分改善印成「回退」）。墙钟门标的正是这把钟，
+        # 所以先问一句换成服务端钟顺序变不变——变了就不能让读者照着 Δ 下结论。
+        _ord_checked, _ord_flipped = compare_order_wall_flip(inv_)
+        if _ord_flipped:
+            bullets.append(
+                f"> ⚠ **本对比的先后次序按设备墙钟定为 {before_id} → {after_id}，"
+                "但按服务端墙钟（`started_at_epoch_ms − clock.wall_skew_ms`）重排"
+                "**顺序相反****——下面每个 Δ 的**符号可能整体反了**（D-161 同款事故："
+                "改善会被印成回退）。**先定清哪把钟为准，再读这一节。**")
         rows = [r for r in compare_campaigns(records, before_id, after_id,
                                              min_samples)["rows"]
                 if r["delta"] is not None]
@@ -1383,6 +1403,29 @@ def auto_compare_ids(inv):
     firsts = inv["campaign_first_ms"]
     a, b = sorted(labeled, key=lambda c: (firsts[c], c))
     return (a, b)
+
+
+def compare_order_wall_flip(inv):
+    """按**服务端**钟重排，两个战役的先后会不会互换（D-161 的事故形状 × D-506 的钟）。
+
+    `auto_compare_ids` 用设备墙钟定谁在前，而 before/after 一旦搞反，三个面上每个
+    Δ 的**符号**都跟着反——D-161 就是 30 分改善被印成 `回退`。墙钟门（D-506）标出的
+    正是"这把钟指错了"，所以这里必须问一句：换成服务端钟，这一对还是这个顺序吗？
+
+    返回 (checked, flipped)：`checked=False` 表示无从判断（两个战役里有一个拿不到
+    墙钟证据）——**不等于"查过且没问题"**，渲染侧据此说"无从判断"而不是沉默。
+    """
+    pair = auto_compare_ids(inv)
+    if pair == (None, None):
+        return (False, False)
+    srv = inv.get("campaign_first_srv_ms") or {}
+    if any(c not in srv for c in pair):
+        return (False, False)
+    a, b = pair
+    # 与 auto_compare_ids 同款排序键（含 campaign_id 的 tie-break），只换时间源，
+    # 否则"翻转"可能只是两套排序规则的差异，而不是钟造成的。
+    srv_first = sorted(pair, key=lambda c: (srv[c], c))[0]
+    return (True, srv_first != a)
 
 
 def inventory_note(inv, min_samples):
