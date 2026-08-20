@@ -99,7 +99,11 @@ def test_abort_reason_is_not_split_by_reason():
     （契约 description 写的就是 `completed / aborted:<reason>`）。
     """
     recs = aqs_records(90, 5, point="P1")
-    for reason in ("aborted", "aborted:timeout", "aborted:user", "aborted:thermal"):
+    # `guard_rejected:<reasons>` 是设备侧真会写出的**第三族**取值（TestEngine.kt 的
+    # NetGuard 硬拒测分支），而全语料实测 0 实例——即光靠语料这一支永远测不到，
+    # 而本测试初版只喂了 aborted*，漏的正是它。
+    for reason in ("aborted", "aborted:timeout", "aborted:user", "aborted:thermal",
+                   "guard_rejected:vpn_detected"):
         bad = aqs_records(20, 1, point="P1")[0]
         bad["run"]["status"] = reason
         cells = rpt.heat_cells(recs + [bad])

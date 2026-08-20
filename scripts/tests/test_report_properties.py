@@ -2497,9 +2497,19 @@ _ARITH_CASES = (
     ("分段 离差/典型 = MAD ÷ |典型|", "## 分段异常定位",
      ("典型值(中位)", "离差(MAD)", "离差/典型"),
      lambda t, m, p: abs(m / abs(t) * 100.0 - p) if t else None, 15),
+    # Floor moved 10 -> 7 by D-534 §3, and the reason must survive: excluding an
+    # aborted run's run-level AQS from the pools legitimately removes rows here.
+    # Measured on this exact corpus set, old criterion vs new: 13 -> 7 (this
+    # case) and 17 -> 11 (接入介质 Δ, still above its floor). The random corpora
+    # mint `aborted:timeout` for 1 run in 3 and give them real scores — 81
+    # non-completed runs of which 60 carry a non-null AQS — so the old code was
+    # pooling all 60 into these medians. Only the two AQS-based comparison cases
+    # moved; the five scenario-level/validity cases below are byte-identical,
+    # which is the evidence that the gate did not leak past run-level AQS.
+    # A further drop is NOT explained by that change and should trip this.
     ("优化前后 Δ = after − before", "## 优化前后对比",
      ("before", "after", "Δ"),
-     lambda b, a, d: abs((a - b) - d), 10),
+     lambda b, a, d: abs((a - b) - d), 7),
     ("有效性 尝试 = 有效+低置信+失效+未知", "## 有效性与失效原因",
      ("尝试", "有效(严格)", "低置信", "失效", "未知"),
      lambda att, v, lc, inv, unk: abs((v + lc + inv + unk) - att), 150),
