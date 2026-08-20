@@ -18,7 +18,7 @@
 - R-10（缺失≠零）贯穿到渲染层（HalfGauge idle 修复 a50afba+渲染红线守卫 5effc8f）
 - 低置信自声明+claim scope 页脚（「终端至仿真节点应用层端到端」，不外推运营商网络评级/MOS）
 - 口径可追溯：AQS v0.2 冻结至真实 API 语料（D-505）、语音 v0.1/v0.2 分数不可比守卫（cb26dca）
-- 核心机制表（守卫/机制 → 防什么 → 证据锚；节选最外层的一圈，全量见 scripts/tests/ 663 条与 app 测试 748+ 条）：
+- 核心机制表（守卫/机制 → 防什么 → 证据锚；节选最外层的一圈，全量见 scripts/tests/ 663 条与 app 单测**全绿，实数以台账最新条目为准**（不写死，见 H-3））：
 
 | 机制 | 防什么 | 锚 |
 |---|---|---|
@@ -81,7 +81,7 @@
 | App | ~~设计文档前台 Service 分叉修正~~ **已完**：三处标注（2d9d48d）+承诺句按 D-502 改写为实况（KeepScreenOnPolicy+评审指针） | 闭环 08-20 |
 | App | `LiveMetric.render` 渲染接线 | D-69 已知剩余项，待设备窗验手感 |
 | App | R8 未开启 | 前置=keep 规则+12 个 MigrationVxTest 全量（D-500②） |
-| App | Compose 渲染层无自动化测试 | 纯函数层已覆盖（**101 套件/758 tests 全绿**——旧数 346 已过期勿引），createComposeRule 三断言为后续项（D-501 保留） |
+| App | ~~Compose 渲染层无自动化测试~~ **已落地** | **渲染层三条红线已进常设门禁**（`RenderRedlineTest` 9 条 + `StResultsRenderTest` 5 条，走 `testImplementation`+Robolectric 跑在 JVM、被 `verify_all` 全量单测门带上；D-526/527/529/538 + T48 §5.1 写了怎么写）。**app 单测全绿；实数以 `DECISION_LOG.md` 最新条目为准，本文不写死**（审计 H-3 修法建议原文——它每天都在动，本审计期间就从 765 变到 767；最近一次实测 110 套件/834，2026-08-20）。旧数 346/748/758 均已过期勿引 |
 | App | release 下 uiautomator 树为空+恢复栈单层 | T58c 两条登记级观察（不阻塞交付，自动化用 debug 包） |
 | 施工 | EchoWire 墙钟门 | D-506 已裁，spec §8 已备；客户端=v2、分析门=v3 队列 |
 | 施工 | E2 对拍四点 | D-511 已裁语义，施工待 E2 线复活+clock_pin 阻塞解除 |
