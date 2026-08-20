@@ -77,7 +77,7 @@
 | 外部 | E-06 公共 CA（域名+Let's Encrypt） | 落地后撤 release 私有锚（D-500③ 日落条款） |
 | PO | 正式发布 keystore | D-500④（现用 throwaway 仅装机验证） |
 | 解冻条件 | 评分 v0.2 冻结 | 解除条件=E-03 真实 API key 语料（D-505 原则：不为仿真调参） |
-| App | 语音 lowConfidence 恒真 bug | D-507 发现（backpressure 采样时点），v2 队列 |
+| App | ~~语音 lowConfidence 恒真 bug~~ **已修**（faa8b14）：采样时点等一帧周期后查真积压，真机对照 id9/10=1(旧) vs id11/12=0(修后)，区分力恢复 | 闭环 08-20 |
 | App | 设计文档前台 Service 分叉修正 | **已裁 D-502**（暂不实施+修文档），修正件在 v2 队列（2d9d48d 已标注三处，承诺句改写待做） |
 | App | `LiveMetric.render` 渲染接线 | D-69 已知剩余项，待设备窗验手感 |
 | App | R8 未开启 | 前置=keep 规则+12 个 MigrationVxTest 全量（D-500②） |
