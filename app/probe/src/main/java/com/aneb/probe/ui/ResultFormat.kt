@@ -116,6 +116,36 @@ object ResultFormat {
     }
 
     /**
+     * 低置信的**「为什么低」一句话**（D-505③；null＝本 run 无低置信证据，调用方不渲染此行）。
+     *
+     * **判据逐字照 `AqsScorer` 的那一行导出，不另立口径**：
+     * ```
+     * lowConf = kpi.validity == VALID_LOW_CONFIDENCE || inputs.values.any { it.lowConfidence }
+     * ```
+     * 即恰好两个来源——**场景判定**与**权重项证据不足**——本函数就报这两个，各自点名具体是谁。
+     *
+     * **刻意不写"样本不足"这类统一说法**：各 KPI 变低置信的成因并不相同（T1/U1 是每场景
+     * 只测 1 次不足下限 3，D-374；U3/D3 是 `!rttDominanceOk` 或 `windowUnderrun`，D-514），
+     * 硬给一个统一原因就是发明。故此处**只点名是哪些 KPI**，把逐项成因指回下方 KPI 明细里
+     * 已有的低置信标注——D-505③ 要的是"低置信要可解释"，不是"要消灭低置信"。
+     */
+    fun lowConfidenceReason(scenarios: List<ScenarioResultEntity>): String? {
+        val lowConfScenarios = scenarios.count { it.validity == "valid_low_confidence" }
+        val kpis = scenarios
+            .flatMap { it.lowConfidenceKpis.split(',') }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+        if (lowConfScenarios == 0 && kpis.isEmpty()) return null
+        val parts = buildList {
+            if (lowConfScenarios > 0) add("$lowConfScenarios 个场景判定为低置信")
+            if (kpis.isNotEmpty()) add("KPI ${kpis.joinToString("/")} 证据不足")
+        }
+        return "低置信原因：" + parts.joinToString("；") + "（逐项见下方 KPI 明细的低置信标注）"
+    }
+
+    /**
      * 单场景全量 KPI 行（含双口径并列项：T2 剔/含 coalesced、T3 剔/含 resume、
      * U1 含/剔慢启动——KPI 文档 5.1 双口径都要展示）。
      * 并列口径行不给分级（进 AQS/门限的只有主口径，防止并列口径被误读为评级结论）。

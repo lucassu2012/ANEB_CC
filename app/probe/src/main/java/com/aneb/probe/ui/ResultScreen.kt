@@ -526,6 +526,17 @@ private fun AqsHeadlineCard(
             if (run.aqsLowConfidence == true) {
                 Spacer(Modifier.height(8.dp))
                 InlineBadge("⚠ ${ResultFormat.LOW_CONFIDENCE_LABEL} · 证据不完整，本分数仅供参考", colors.lowConf, colors.fairSoft)
+                // 「为什么低」一句话（D-505③）：此前这里只印"低置信"三个字、不说原因——
+                // 裁定原话是「低置信要可解释不是要消灭」。原因逐字照 AqsScorer 的判据导出
+                // （场景判定 + 权重项证据不足两个来源），见 ResultFormat.lowConfidenceReason。
+                ResultFormat.lowConfidenceReason(scenarios)?.let { why ->
+                    Text(
+                        why,
+                        fontSize = 10.sp,
+                        color = colors.muted,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {

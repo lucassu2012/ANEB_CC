@@ -318,4 +318,55 @@ class ResultFormatTest {
         assertTrue(ResultFormat.AQS_DISCLAIMER_TEXT.contains("实验性"))
         assertTrue(ResultFormat.LOW_CONFIDENCE_LABEL.contains("low_confidence"))
     }
+
+    // ---- 低置信「为什么低」（D-505③）：原因须照 AqsScorer 的两个来源导出 ----
+
+    @Test
+    fun `无低置信证据时返回 null——调用方据此不渲染该行`() {
+        assertNull(ResultFormat.lowConfidenceReason(listOf(scenario())))
+    }
+
+    @Test
+    fun `来源一：场景判定为低置信时点名场景数`() {
+        val r = ResultFormat.lowConfidenceReason(
+            listOf(scenario(validity = "valid_low_confidence"), scenario(validity = "valid")),
+        )!!
+        assertTrue("须点名场景数", r.contains("1 个场景"))
+    }
+
+    @Test
+    fun `来源二：权重项证据不足时点名是哪些 KPI`() {
+        val r = ResultFormat.lowConfidenceReason(listOf(scenario(lowConfidenceKpis = "T1,U1")))!!
+        assertTrue("须点名 KPI", r.contains("T1"))
+        assertTrue(r.contains("U1"))
+    }
+
+    @Test
+    fun `跨场景去重且排序——同一个 KPI 在多场景低置信只报一次`() {
+        val r = ResultFormat.lowConfidenceReason(
+            listOf(scenario(lowConfidenceKpis = "U1,T1"), scenario(lowConfidenceKpis = "T1")),
+        )!!
+        assertTrue("去重+排序后应是 T1/U1", r.contains("T1/U1"))
+    }
+
+    @Test
+    fun `两个来源同时存在时都要报，不能只报一个`() {
+        val r = ResultFormat.lowConfidenceReason(
+            listOf(scenario(validity = "valid_low_confidence", lowConfidenceKpis = "T1")),
+        )!!
+        assertTrue(r.contains("场景"))
+        assertTrue(r.contains("T1"))
+    }
+
+    /**
+     * 刻意不给统一成因（如"样本不足"）：各 KPI 变低置信的原因并不相同——T1/U1 是每场景
+     * 只测 1 次不足下限（D-374），U3/D3 是 `!rttDominanceOk` 或 `windowUnderrun`（D-514）。
+     * 硬给一个统一原因就是发明，故文案只点名 KPI 并把逐项成因指回 KPI 明细。
+     */
+    @Test
+    fun `不发明统一成因，而是指回逐项标注`() {
+        val r = ResultFormat.lowConfidenceReason(listOf(scenario(lowConfidenceKpis = "T1")))!!
+        assertTrue("须指回逐项标注", r.contains("KPI 明细"))
+        assertFalse("不得断言一个统一成因", r.contains("样本不足"))
+    }
 }
