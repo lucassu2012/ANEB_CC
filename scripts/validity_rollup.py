@@ -30,6 +30,9 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
 import campaign_common as cc
+# 墙钟判据复用 trust_rollup 的单一实现——本文件不再造第三份阈值副本（D-264）。
+# 无循环：trust_rollup 只依赖 campaign_common。
+import trust_rollup
 
 CELL_DIMS = ("point_id", "carrier", "time_band")
 VALIDITY_STATES = ("valid", "valid_low_confidence", "invalid", "unknown")
@@ -117,8 +120,24 @@ def validity_trend(records, tz_offset_h=None, stats=None):
     days = defaultdict(Counter)
     day_cells = defaultdict(set)
     undated = 0
+    # 本表按 run.started_at_epoch_ms（**设备**墙钟）分桶。而墙钟门（D-506/T68）标出的
+    # 正是"这条的设备墙钟指错了"——错的恰恰是"哪天测的"，也就是本表的分桶键本身。
+    # 所以必须把它数出来：否则 D-494 那种"钟错 10 天"的语料会被照常画成一条趋势，
+    # 而没有任何东西提示读者这些行的日期归属不可信。
+    # **只数不改桶**：改用推算的服务端时间会移动已发布报告里的行，属口径变更需裁定。
+    wall_suspect_runs = 0
+    wall_annotated_runs = 0
     shift = timedelta(hours=tz_offset_h)
     for rec in records:
+        skews = [cc.fnum((scn.get("clock") or {}).get("wall_skew_ms"))
+                 for scn in cc.iter_scenarios(rec)]
+        skews = [s for s in skews if s is not None]
+        if skews:
+            wall_annotated_runs += 1
+            # 一条 run 里任一场景墙钟可疑 ⇒ 该 run 的 started_at 不可信：
+            # started_at 是 run 级的单个数，没有"部分可信"这回事。
+            if any(trust_rollup.wall_clock_suspect(s) for s in skews):
+                wall_suspect_runs += 1
         ms = cc.run_started_ms(rec)
         if ms is None:
             # `run.started_at_epoch_ms` is absent from validate_results.py, so a
@@ -152,6 +171,10 @@ def validity_trend(records, tz_offset_h=None, stats=None):
         common = set(sets[0]).intersection(*sets[1:]) if len(sets) > 1 else set()
         union = set().union(*sets) if sets else set()
         stats["undated_scenarios"] = undated
+        # 分桶键的可信度（D-506/T68）。分母是"带 wall_skew_ms 的 run"，不是全体——
+        # EchoWire 接线前的语料一条都不带，那时 0/0 表示"无从判断"而非"全都可信"。
+        stats["wall_suspect_runs"] = wall_suspect_runs
+        stats["wall_annotated_runs"] = wall_annotated_runs
         # flag and evidence out of one computation, so they cannot disagree
         stats["cells_uneven"] = sorted(union - common) if len(sets) > 1 else []
         stats["days_share_cells"] = (
@@ -242,6 +265,20 @@ def render_markdown(res):
         # falling line — and the per-cell table above carries no dates, so the
         # reader cannot connect them (D-336).
         ts = res.get("trend_stats") or {}
+        # 分桶键自己可不可信（D-506/T68）。本表按**设备**墙钟分桶，而墙钟门标出的
+        # 恰恰是"这条的设备墙钟指错了"——D-494 就是钟错 10 天却没有任何产物能显示。
+        # 故此处不只报"有几条可疑"，还给出**读者可执行的**换算式：报告别处印着
+        # "按日分桶须以服务端锚为准"，但产物里没有服务端锚这个字段，只有差值，
+        # 不给式子那句话就是一句无法执行的承诺。
+        wsr = ts.get("wall_suspect_runs") or 0
+        if wsr:
+            lines += [f"> ⚠ 本表按 `run.started_at_epoch_ms`（**设备**墙钟）分桶，"
+                      f"而本语料有 **{wsr}/{ts.get('wall_annotated_runs')} 条 run 墙钟可疑**"
+                      f"（|设备−服务端| > {trust_rollup.WALL_SKEW_MAX_MS / 1000:.0f}s）"
+                      "——**这些行落在哪一天不可信**。服务端墙钟可由 "
+                      "`started_at_epoch_ms − clock.wall_skew_ms` 还原"
+                      "（skew 的定义就是「设备 − 服务端」）；**本表未做该校正**，"
+                      "因为改分桶键会移动已发布报告里的行，属口径变更需裁定。", ""]
         uneven = ts.get("cells_uneven") or []
         if uneven:
             shown = "、".join(cc.md_cell(c) for c in uneven[:3])

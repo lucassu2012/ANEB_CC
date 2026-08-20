@@ -353,3 +353,57 @@ def test_a_zero_strict_valid_cell_still_reads_a_full_rate():
     body = [x.strip() for x in rows[0].strip().strip("|").split("|")]
     assert body[cells.index("有效(严格)")] == "0", body
     assert body[cells.index("低置信")] == "3", body
+
+
+# ---- 分桶键自己的可信度（D-506/T68）----
+
+def _wall_recs(n, *, skew_ms, started_ms):
+    """n 条 run，每条一个场景，clock 带指定的 wall_skew_ms。"""
+    out = []
+    for _ in range(n):
+        r = make_record(aqs=90, started_ms=started_ms,
+                        campaign={"campaign_id": "base", "tier": "metro",
+                                  "point_id": "P1", "carrier": "cmcc",
+                                  "time_band": "busy"},
+                        scenarios=[("s1_chat", {})])
+        r["scenarios"][0]["clock"] = {"wall_skew_ms": skew_ms}
+        out.append(r)
+    return out
+
+
+def test_trend_counts_runs_whose_bucketing_key_is_itself_untrustworthy():
+    """墙钟可疑的 run 要被数出来——它们落在哪一天本身就不可信。
+
+    反例证伪：把 wall_suspect_runs 的统计去掉，本条即红。
+    """
+    recs = (_wall_recs(2, skew_ms=600_000, started_ms=_T0)          # 10 分钟，可疑
+            + _wall_recs(3, skew_ms=250, started_ms=_T0 + _DAY))    # 250ms，正常
+    stats = {}
+    vr.validity_trend(recs, stats=stats)
+    assert stats["wall_annotated_runs"] == 5
+    assert stats["wall_suspect_runs"] == 2
+
+
+def test_unannotated_corpus_is_not_reported_as_trustworthy_dates():
+    """EchoWire 接线前的语料一条都不带 wall_skew_ms ⇒ 0/0 = 无从判断，不是全可信。"""
+    recs = (_day_recs(2, point="P1", validity="valid", started_ms=_T0)
+            + _day_recs(2, point="P1", validity="valid", started_ms=_T0 + _DAY))
+    stats = {}
+    vr.validity_trend(recs, stats=stats)
+    assert stats["wall_annotated_runs"] == 0
+    assert stats["wall_suspect_runs"] == 0     # 分母为 0，渲染侧据此不出警示
+
+
+def test_trend_warning_carries_an_executable_formula_not_just_a_scolding():
+    """点名之后必须给读者**能执行**的换算式。
+
+    报告别处印着"按日分桶须以服务端锚为准"，但产物里根本没有服务端锚这个字段，
+    只有差值；不给式子，那句话就是一句无法执行的承诺（横幅替下游作承诺的红线族）。
+    """
+    recs = (_wall_recs(2, skew_ms=900_000, started_ms=_T0)
+            + _wall_recs(2, skew_ms=100, started_ms=_T0 + _DAY))
+    md = vr.render_markdown(vr.analyze(recs))
+    assert "设备**墙钟" in md or "**设备**墙钟" in md
+    assert "started_at_epoch_ms − clock.wall_skew_ms" in md   # 可执行的还原式
+    assert "本表未做该校正" in md                              # 不谎称已校正
+    assert "口径变更需裁定" in md                              # 为什么没做
