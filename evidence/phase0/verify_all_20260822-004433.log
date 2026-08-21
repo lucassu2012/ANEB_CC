@@ -1,0 +1,622 @@
+﻿verify_all run at 20260822-004433
+repo: E:\C Project\ANEB
+go: C:\Program Files\Go\bin\go.exe
+--- server-vet (exit 0) ---
+
+PASS  server-vet  go vet ./...
+--- server-build (exit 0) ---
+
+PASS  server-build  go build ./...
+--- server-test (exit 0) ---
+ok  	aneb-server	2.545s
+?   	aneb-server/tools/capture	[no test files]
+?   	aneb-server/tools/gencert	[no test files]
+?   	aneb-server/tools/h3check	[no test files]
+?   	aneb-server/tools/mockllm	[no test files]
+
+PASS  server-test  go test -count=1 ./...
+PASS  profiles-valid  4 profiles ok
+--- portraits-redline (exit 0) ---
+Checked 4 portraits: deepseek.yaml, doubao.yaml, kimi.yaml, tongyi.yaml
+  gate[deepseek]: blocked by 4: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist, session_duration_s_dist
+  gate[doubao]: blocked by 4: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist, session_duration_s_dist
+  gate[kimi]: blocked by 4: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist, session_duration_s_dist
+  gate[tongyi]: blocked by 4: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist, session_duration_s_dist
+OK: all red-line invariants hold (R1-R20: params gate intact, no caliber overclaim, provenance consistent, per-field capture status backs every filled param).
+
+PASS  portraits-redline  check_redline.py
+--- adapters-spec (exit 0) ---
+Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  key sets derived from AdapterSpec.kt (13 DTOs)
+OK: all adapter-spec invariants hold (A1 no key the strict parser would reject, A2 required keys present, A3 assets mirror byte-identical and carries nothing extra, A4 every value has the type its DTO declares, A5 the parse() require()s hold, R21 version stamp complete-if-present, R22 status recognised).
+
+PASS  adapters-spec  validate_adapters.py
+--- adapters-spec-unit (exit 0) ---
+ran 42 reflex tests: 42 passed, 0 failed
+
+PASS  adapters-spec-unit  ran 42 reflex tests: 42 passed, 0 failed
+--- portraits-redline-unit (exit 0) ---
+ran 38 reflex tests: 38 passed, 0 failed
+
+PASS  portraits-redline-unit  ran 38 reflex tests: 38 passed, 0 failed
+--- portraits-schema (exit 0) ---
+OK: 4 portrait(s) conform to portrait.schema.json (shape gate).
+
+PASS  portraits-schema  validate_schema.py
+--- portraits-schema-unit (exit 0) ---
+ran 10 schema reflex tests: 10 passed, 0 failed
+
+PASS  portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+--- campaign-analysis-unit (exit 0) ---
+input records: 1 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default_c0syoa4j\batch_quick.jsonl (1)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default_c0syoa4j\batch_forensic.jsonl (0)
+rejected: 0 (missing_mode=0, other_mode=0)
+python.exe :   reject run_id=test-5199 reason=missing_mode
+At E:\C Project\ANEB\scripts\verify_all.ps1:217 char:12
++     $out = & $py $campaignTest 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  reject run_id...on=missing_mode:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+input records: 4 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_v1ofp3u2\q.jsonl (2)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_v1ofp3u2\f.jsonl (1)
+rejected: 1 (missing_mode=1, other_mode=0)
+skip C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_badpath_kx6e00cu\does_not_exist.jsonl: [Errno 2] No such file 
+or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\split_by_run_mode_badpath_kx6e00cu\\does_not_exist.jsonl'
+cannot read schema C:\Users\lucas\AppData\Local\Temp\tmpnem06iiv\nope.json: [Errno 2] No such file or directory: 'C:\\U
+sers\\lucas\\AppData\\Local\\Temp\\tmpnem06iiv\\nope.json'
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+contract VIOLATIONS: 1 in 1 record(s)
+  - record[0].claim_scope: must be 'application_end_to_end_to_probe_node', got 'wrong'
+campaign-analysis reflex: 697/697 passed
+
+PASS  campaign-analysis-unit  campaign-analysis reflex: 697/697 passed
+--- results-contract-unit (exit 0) ---
+contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+
+PASS  results-contract-unit  contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+--- spec-scoring-unit (exit 0) ---
+spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+
+PASS  spec-scoring-unit  spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+--- profiles-deep (exit 0) ---
+profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+
+PASS  profiles-deep  profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+--- voice-plan-parity (exit 0) ---
+voice plan parity OK: 9 constants + 9 plan literals matched
+
+PASS  voice-plan-parity  voice plan parity OK: 9 constants + 9 plan literals matched
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:compressDebugAssets UP-TO-DATE
+> Task :probe:desugarDebugFileDependencies UP-TO-DATE
+> Task :probe:checkDebugDuplicateClasses UP-TO-DATE
+> Task :probe:mergeDebugStartupProfile UP-TO-DATE
+> Task :probe:mergeExtDexDebug UP-TO-DATE
+> Task :probe:mergeLibDexDebug UP-TO-DATE
+> Task :probe:mergeDebugJniLibFolders UP-TO-DATE
+> Task :probe:mergeDebugNativeLibs UP-TO-DATE
+> Task :probe:stripDebugDebugSymbols UP-TO-DATE
+> Task :probe:validateSigningDebug UP-TO-DATE
+> Task :probe:writeDebugAppMetadata UP-TO-DATE
+> Task :probe:writeDebugSigningConfigVersions UP-TO-DATE
+
+> Task :probe:compileDebugKotlin
+gradlew.bat : e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:28
+:26 Unresolved reference 'AnebTheme'.
+At E:\C Project\ANEB\scripts\verify_all.ps1:348 char:12
++     $out = & .\gradlew.bat ':probe:assembleDebug' '--no-daemon' 2>&1  ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///E:/C...ce 'AnebTheme'.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:68:13 Unresolved
+ reference 'AnebTheme'.
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:126:13 Unresolve
+d reference 'AnebTheme'.
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:146:13 Unresolve
+d reference 'AnebTheme'.
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:160:13 Unresolve
+d reference 'AnebTheme'.
+
+> Task :probe:compileDebugKotlin FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':probe:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCo
+mpilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 31s
+31 actionable tasks: 1 executed, 30 up-to-date
+
+FAIL  app-assembleDebug  gradlew :probe:assembleDebug
+--- app-parity-tests ---
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:preDebugUnitTestBuild UP-TO-DATE
+> Task :probe:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :probe:generateDebugUnitTestConfig UP-TO-DATE
+
+> Task :probe:compileDebugKotlin FAILED
+gradlew.bat : e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:28
+:26 Unresolved reference 'AnebTheme'.
+At E:\C Project\ANEB\scripts\verify_all.ps1:371 char:12
++     $out = & .\gradlew.bat ':probe:testDebugUnitTest' '--tests' '*Par ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///E:/C...ce 'AnebTheme'.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:68:13 Unresolved
+ reference 'AnebTheme'.
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:126:13 Unresolve
+d reference 'AnebTheme'.
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:146:13 Unresolve
+d reference 'AnebTheme'.
+e: file:///E:/C%20Project/ANEB/app/probe/src/main/java/com/aneb/probe/ui/components/LiveMetricStrip.kt:160:13 Unresolve
+d reference 'AnebTheme'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':probe:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCo
+mpilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 31s
+22 actionable tasks: 1 executed, 21 up-to-date
+
+FAIL  app-parity-tests  gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun
+--- app-unit-tests-full ---
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:preDebugUnitTestBuild UP-TO-DATE
+> Task :probe:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :probe:generateDebugUnitTestConfig UP-TO-DATE
+> Task :probe:kspDebugKotlin
+> Task :probe:compileDebugKotlin
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:processDebugJavaRes
+> Task :probe:bundleDebugClassesToRuntimeJar
+> Task :probe:bundleDebugClassesToCompileJar
+> Task :probe:kspDebugUnitTestKotlin
+> Task :probe:compileDebugUnitTestKotlin
+> Task :probe:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :probe:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :probe:testDebugUnitTest
+
+BUILD SUCCESSFUL in 1m 11s
+30 actionable tasks: 8 executed, 22 up-to-date
+
+PASS  app-unit-tests-full  gradlew :probe:testDebugUnitTest --rerun (whole suite)
+--- app-release-signing ---
+powershell.exe : e: java.lang.IllegalStateException: Storage for [E:\C Project\ANEB\app\probe\build\kspCaches\release\s
+ymbolLookups\id-to-file.tab] is already registered
+At E:\C Project\ANEB\scripts\verify_all.ps1:425 char:12
++     $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $sig ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: java.lang.Il...eady registered:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+	at org.jetbrains.kotlin.com.intellij.util.io.FilePageCache.registerPagedFileStorage(FilePageCache.java:410)
+	at org.jetbrains.kotlin.com.intellij.util.io.PagedFileStorage.<init>(PagedFileStorage.java:72)
+	at org.jetbrains.kotlin.com.intellij.util.io.ResizeableMappedFile.<init>(ResizeableMappedFile.java:55)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentBTreeEnumerator.<init>(PersistentBTreeEnumerator.java:128)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentEnumerator.createDefaultEnumerator(PersistentEnumerator.java:52
+)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:165)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:140)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.buildImplementation(PersistentMapBuilder.java:88)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.build(PersistentMapBuilder.java:71)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:45)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:71)
+	at org.jetbrains.kotlin.incremental.storage.LazyStorage.createMap(LazyStorage.kt:62)
+	at org.jetbrains.kotlin.incremental.storage.LazyStorage.getStorageOrCreateNew(LazyStorage.kt:59)
+	at org.jetbrains.kotlin.incremental.storage.LazyStorage.set(LazyStorage.kt:80)
+	at org.jetbrains.kotlin.incremental.storage.PersistentStorageWrapper.set(PersistentStorage.kt:96)
+	at org.jetbrains.kotlin.incremental.LookupStorage.addFileIfNeeded(LookupStorage.kt:165)
+	at org.jetbrains.kotlin.incremental.LookupStorage.addAll$lambda$4(LookupStorage.kt:117)
+	at org.jetbrains.kotlin.utils.CollectionsKt.keysToMap(collections.kt:117)
+	at org.jetbrains.kotlin.incremental.LookupStorage.addAll(LookupStorage.kt:117)
+	at org.jetbrains.kotlin.incremental.BuildUtilKt.update(buildUtil.kt:134)
+	at com.google.devtools.ksp.LookupStorageWrapperImpl.update(IncrementalContext.kt:231)
+	at com.google.devtools.ksp.common.IncrementalContextBase.updateLookupCache(IncrementalContextBase.kt:133)
+	at com.google.devtools.ksp.common.IncrementalContextBase.updateCaches(IncrementalContextBase.kt:365)
+	at com.google.devtools.ksp.common.IncrementalContextBase.access$updateCaches(IncrementalContextBase.kt:62)
+	at com.google.devtools.ksp.common.IncrementalContextBase$updateCachesAndOutputs$1.invoke(IncrementalContextBase.kt:476
+)
+	at com.google.devtools.ksp.common.IncrementalContextBase$updateCachesAndOutputs$1.invoke(IncrementalContextBase.kt:428
+)
+	at com.google.devtools.ksp.common.IncrementalContextBase.closeFilesOnException(IncrementalContextBase.kt:408)
+	at com.google.devtools.ksp.common.IncrementalContextBase.updateCachesAndOutputs(IncrementalContextBase.kt:428)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.doAnalysis(KotlinSymbolProcessingExtension.kt:376)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFa
+cadeForJVM.kt:112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAn
+alyzerFacadeForJVM.kt:75)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze$lambda$12(KotlinToJVMBytecodeCompiler.kt:
+373)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:
+112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:364)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.repeatAnalysisIfNeeded(KotlinToJVMBytecodeCompile
+r.kt:282)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.runFrontendAndGenerateIrUsingClassicFrontend(Kotl
+inToJVMBytecodeCompiler.kt:195)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt
+:106)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:170)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:103)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:49)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:101)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1555)
+	at jdk.internal.reflect.GeneratedMethodAccessor92.invoke(Unknown Source)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:360)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:712)
+	at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:587)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:828)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:705)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:704)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+	Suppressed: java.lang.Exception: Storage[E:\C Project\ANEB\app\probe\build\kspCaches\release\symbolLookups\id-to-file.
+tab] registration stack trace
+		at org.jetbrains.kotlin.com.intellij.util.io.FilePageCache.registerPagedFileStorage(FilePageCache.java:437)
+		at org.jetbrains.kotlin.com.intellij.util.io.PagedFileStorage.<init>(PagedFileStorage.java:72)
+		at org.jetbrains.kotlin.com.intellij.util.io.ResizeableMappedFile.<init>(ResizeableMappedFile.java:55)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentBTreeEnumerator.<init>(PersistentBTreeEnumerator.java:128)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentEnumerator.createDefaultEnumerator(PersistentEnumerator.java:5
+2)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:165)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:140)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.buildImplementation(PersistentMapBuilder.java:88)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.build(PersistentMapBuilder.java:71)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:45)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:71)
+		at org.jetbrains.kotlin.incremental.storage.LazyStorage.createMap(LazyStorage.kt:62)
+		at org.jetbrains.kotlin.incremental.storage.LazyStorage.getStorageIfExists(LazyStorage.kt:53)
+		at org.jetbrains.kotlin.incremental.storage.LazyStorage.get(LazyStorage.kt:76)
+		at org.jetbrains.kotlin.incremental.storage.PersistentStorageWrapper.get(PersistentStorage.kt:92)
+		at org.jetbrains.kotlin.incremental.LookupStorage.get(LookupStorage.kt:99)
+		at com.google.devtools.ksp.LookupStorageWrapperImpl.get(IncrementalContext.kt:224)
+		at com.google.devtools.ksp.common.IncrementalContextBase$calcDirtyFiles$1.invoke(IncrementalContextBase.kt:234)
+		at com.google.devtools.ksp.common.IncrementalContextBase$calcDirtyFiles$1.invoke(IncrementalContextBase.kt:212)
+		at com.google.devtools.ksp.common.IncrementalContextBase.closeFilesOnException(IncrementalContextBase.kt:408)
+		at com.google.devtools.ksp.common.IncrementalContextBase.calcDirtyFiles(IncrementalContextBase.kt:212)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$2.invoke(KotlinSymbolProcessingExtensio
+n.kt:206)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$2.invoke(KotlinSymbolProcessingExtensio
+n.kt:199)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.handleException(KotlinSymbolProcessingExtension.kt
+:430)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.doAnalysis(KotlinSymbolProcessingExtension.kt:199)
+		at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerF
+acadeForJVM.kt:112)
+		at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownA
+nalyzerFacadeForJVM.kt:75)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze$lambda$12(KotlinToJVMBytecodeCompiler.kt
+:373)
+		at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt
+:112)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:364)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.runFrontendAndGenerateIrUsingClassicFrontend(Kot
+linToJVMBytecodeCompiler.kt:195)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.k
+t:106)
+		at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:170)
+		at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:43)
+		at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:103)
+		at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:49)
+		at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:101)
+		at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1555)
+		at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+		at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+		... 15 more
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':probe:kspReleaseKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCo
+mpilerWorkAction
+   > Internal compiler error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 14s
+A: FAIL 构建失败
+e: java.lang.IllegalStateException: Storage for [E:\C Project\ANEB\app\probe\build\kspCaches\release\symbolLookups\id-t
+o-file.tab] is already registered
+	at org.jetbrains.kotlin.com.intellij.util.io.FilePageCache.registerPagedFileStorage(FilePageCache.java:410)
+	at org.jetbrains.kotlin.com.intellij.util.io.PagedFileStorage.<init>(PagedFileStorage.java:72)
+	at org.jetbrains.kotlin.com.intellij.util.io.ResizeableMappedFile.<init>(ResizeableMappedFile.java:55)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentBTreeEnumerator.<init>(PersistentBTreeEnumerator.java:128)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentEnumerator.createDefaultEnumerator(PersistentEnumerator.java:52
+)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:165)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:140)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.buildImplementation(PersistentMapBuilder.java:88)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.build(PersistentMapBuilder.java:71)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:45)
+	at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:71)
+	at org.jetbrains.kotlin.incremental.storage.LazyStorage.createMap(LazyStorage.kt:62)
+	at org.jetbrains.kotlin.incremental.storage.LazyStorage.getStorageOrCreateNew(LazyStorage.kt:59)
+	at org.jetbrains.kotlin.incremental.storage.LazyStorage.set(LazyStorage.kt:80)
+	at org.jetbrains.kotlin.incremental.storage.PersistentStorageWrapper.set(PersistentStorage.kt:96)
+	at org.jetbrains.kotlin.incremental.LookupStorage.addFileIfNeeded(LookupStorage.kt:165)
+	at org.jetbrains.kotlin.incremental.LookupStorage.addAll$lambda$4(LookupStorage.kt:117)
+	at org.jetbrains.kotlin.utils.CollectionsKt.keysToMap(collections.kt:117)
+	at org.jetbrains.kotlin.incremental.LookupStorage.addAll(LookupStorage.kt:117)
+	at org.jetbrains.kotlin.incremental.BuildUtilKt.update(buildUtil.kt:134)
+	at com.google.devtools.ksp.LookupStorageWrapperImpl.update(IncrementalContext.kt:231)
+	at com.google.devtools.ksp.common.IncrementalContextBase.updateLookupCache(IncrementalContextBase.kt:133)
+	at com.google.devtools.ksp.common.IncrementalContextBase.updateCaches(IncrementalContextBase.kt:365)
+	at com.google.devtools.ksp.common.IncrementalContextBase.access$updateCaches(IncrementalContextBase.kt:62)
+	at com.google.devtools.ksp.common.IncrementalContextBase$updateCachesAndOutputs$1.invoke(IncrementalContextBase.kt:476
+)
+	at com.google.devtools.ksp.common.IncrementalContextBase$updateCachesAndOutputs$1.invoke(IncrementalContextBase.kt:428
+)
+	at com.google.devtools.ksp.common.IncrementalContextBase.closeFilesOnException(IncrementalContextBase.kt:408)
+	at com.google.devtools.ksp.common.IncrementalContextBase.updateCachesAndOutputs(IncrementalContextBase.kt:428)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.doAnalysis(KotlinSymbolProcessingExtension.kt:376)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFa
+cadeForJVM.kt:112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAn
+alyzerFacadeForJVM.kt:75)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze$lambda$12(KotlinToJVMBytecodeCompiler.kt:
+373)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:
+112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:364)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.repeatAnalysisIfNeeded(KotlinToJVMBytecodeCompile
+r.kt:282)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.runFrontendAndGenerateIrUsingClassicFrontend(Kotl
+inToJVMBytecodeCompiler.kt:195)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt
+:106)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:170)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:43)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:103)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:49)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:101)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1555)
+	at jdk.internal.reflect.GeneratedMethodAccessor92.invoke(Unknown Source)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:360)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:712)
+	at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:587)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:828)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:705)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:704)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+	Suppressed: java.lang.Exception: Storage[E:\C Project\ANEB\app\probe\build\kspCaches\release\symbolLookups\id-to-file.
+tab] registration stack trace
+		at org.jetbrains.kotlin.com.intellij.util.io.FilePageCache.registerPagedFileStorage(FilePageCache.java:437)
+		at org.jetbrains.kotlin.com.intellij.util.io.PagedFileStorage.<init>(PagedFileStorage.java:72)
+		at org.jetbrains.kotlin.com.intellij.util.io.ResizeableMappedFile.<init>(ResizeableMappedFile.java:55)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentBTreeEnumerator.<init>(PersistentBTreeEnumerator.java:128)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentEnumerator.createDefaultEnumerator(PersistentEnumerator.java:5
+2)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:165)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapImpl.<init>(PersistentMapImpl.java:140)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.buildImplementation(PersistentMapBuilder.java:88)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentMapBuilder.build(PersistentMapBuilder.java:71)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:45)
+		at org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap.<init>(PersistentHashMap.java:71)
+		at org.jetbrains.kotlin.incremental.storage.LazyStorage.createMap(LazyStorage.kt:62)
+		at org.jetbrains.kotlin.incremental.storage.LazyStorage.getStorageIfExists(LazyStorage.kt:53)
+		at org.jetbrains.kotlin.incremental.storage.LazyStorage.get(LazyStorage.kt:76)
+		at org.jetbrains.kotlin.incremental.storage.PersistentStorageWrapper.get(PersistentStorage.kt:92)
+		at org.jetbrains.kotlin.incremental.LookupStorage.get(LookupStorage.kt:99)
+		at com.google.devtools.ksp.LookupStorageWrapperImpl.get(IncrementalContext.kt:224)
+		at com.google.devtools.ksp.common.IncrementalContextBase$calcDirtyFiles$1.invoke(IncrementalContextBase.kt:234)
+		at com.google.devtools.ksp.common.IncrementalContextBase$calcDirtyFiles$1.invoke(IncrementalContextBase.kt:212)
+		at com.google.devtools.ksp.common.IncrementalContextBase.closeFilesOnException(IncrementalContextBase.kt:408)
+		at com.google.devtools.ksp.common.IncrementalContextBase.calcDirtyFiles(IncrementalContextBase.kt:212)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$2.invoke(KotlinSymbolProcessingExtensio
+n.kt:206)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$2.invoke(KotlinSymbolProcessingExtensio
+n.kt:199)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.handleException(KotlinSymbolProcessingExtension.kt
+:430)
+		at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.doAnalysis(KotlinSymbolProcessingExtension.kt:199)
+		at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerF
+acadeForJVM.kt:112)
+		at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownA
+nalyzerFacadeForJVM.kt:75)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze$lambda$12(KotlinToJVMBytecodeCompiler.kt
+:373)
+		at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt
+:112)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:364)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.runFrontendAndGenerateIrUsingClassicFrontend(Kot
+linToJVMBytecodeCompiler.kt:195)
+		at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.k
+t:106)
+		at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:170)
+		at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:43)
+		at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:103)
+		at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:49)
+		at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:101)
+		at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1555)
+		at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+		at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+		... 15 more
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':probe:kspReleaseKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCo
+mpilerWorkAction
+   > Internal compiler error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 15s
+B: FAIL 无密钥时构建失败（违背 D-500④ 不阻断承诺）
+RESULT: FAIL (2)
+
+FAIL  app-release-signing  scripts/verify_signing_fallback.ps1 (signed + unsigned-fallback)
