@@ -46,6 +46,13 @@ object ResultReporter {
         tokenWorkload: com.aneb.probe.scoring.TokenBehaviorClassifier.WorkloadSignal? = null,
         /** S1 会话完成率（D-33 实测；null 值=无遍数据不写字段，R-10）。 */
         tokenS1: com.aneb.probe.scoring.KpiValue? = null,
+        /**
+         * run 级环境摘要（THERMAL 接线，D-556；同构先例 skipped_profiles/D-534）：非 null 时
+         * **附加**写入 `run.env`（thermal_max_status + thermal_polluting_event_count，双键恒在）。
+         * 块缺席=该 run 早于本字段上线；双 null=无热监控；"none"+0=监控在位且全程干净
+         * （0 是真实读数，非 R-10 伪装）。纯 additive，老语料照常过 schema。
+         */
+        env: ThermalSummary.Env? = null,
     ): String = buildJsonObject {
         // ---- 合同字段（顶层，const/枚举锁定） ----
         put("claim_scope", CLAIM_SCOPE)
@@ -71,6 +78,14 @@ object ResultReporter {
                 putJsonArray("skipped_profiles") {
                     csv.split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { add(it) }
                 }
+            }
+            // THERMAL 接线（D-556，additive）：块缺席=早于上线；双 null=无监控；"none"+0=在位且干净。
+            // String?/Int? 的 null → JsonNull（not_computable_reason 同款先例），两键块内恒在。
+            if (env != null) {
+                put("env", buildJsonObject {
+                    put("thermal_max_status", env.thermalMaxStatus)
+                    put("thermal_polluting_event_count", env.thermalPollutingCount)
+                })
             }
             put("aqs", buildJsonObject {
                 put("score", aqs.score)

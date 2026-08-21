@@ -68,6 +68,10 @@ def load_schema(path):
                       if v.get("type")},
         "run_types": {k: v.get("type") for k, v in
                       run_schema.get("properties", {}).items() if v.get("type")},
+        # THERMAL 接线（D-556）：run.env 块内契约整块抽出（required/enum/minimum/
+        # additionalProperties 全从 schema 读，不手写第二份——理由同上）。老 schema 无
+        # env 键时为 {}，validate_record 侧整段跳过。
+        "env_spec": run_schema.get("properties", {}).get("env", {}),
     }
 
 
@@ -178,6 +182,38 @@ def validate_record(rec, sch, idx):
             if not score_null and has_reason:
                 _err(f, f"{tag}.run.aqs", f"score present ({aqs.get('score')}) yet "
                      f"not_computable_reason set ({reason!r}) — contradictory")
+        # THERMAL 接线（D-556）：run.env 块内不变量。本门是手写结构检查，schema 的
+        # enum/required/minimum 不会自动生效——不在这里显式接线，非法枚举照样过门
+        # （接线前实测 "toasty" 零 findings 通过）。D-305 同形状：schema 会写、生产端
+        # 会发，唯独门最容易没学会新块。判据全从 env_spec（即 schema）派生。
+        env = run.get("env")
+        env_spec = sch.get("env_spec") or {}
+        if isinstance(env, dict) and env_spec:
+            env_props = env_spec.get("properties", {})
+            _require(env, env_spec.get("required", []), f"{tag}.run.env", f)
+            if env_spec.get("additionalProperties") is False:
+                unknown = sorted(set(env) - set(env_props))
+                if unknown:
+                    _err(f, f"{tag}.run.env",
+                         f"unknown key(s) {unknown} (additionalProperties=false)")
+            _check_types(env, {k: v.get("type") for k, v in env_props.items()
+                               if v.get("type")}, f"{tag}.run.env", f)
+            st = env.get("thermal_max_status")
+            cnt = env.get("thermal_polluting_event_count")
+            enum = env_props.get("thermal_max_status", {}).get("enum")
+            if enum and "thermal_max_status" in env and st not in enum:
+                _err(f, f"{tag}.run.env.thermal_max_status", f"not in enum: {st!r}")
+            minimum = env_props.get("thermal_polluting_event_count", {}).get("minimum")
+            if (minimum is not None and isinstance(cnt, int)
+                    and not isinstance(cnt, bool) and cnt < minimum):
+                _err(f, f"{tag}.run.env.thermal_polluting_event_count",
+                     f"must be >= {minimum}, got {cnt!r}")
+            # R-10：双键同 null 同非 null——双 null=无监控、"none"+0=在位且干净，混搭
+            # 无语义。这是 draft-07 写不出的 cross-field 不变量，正是本门第 2 层的职责。
+            if ("thermal_max_status" in env and "thermal_polluting_event_count" in env
+                    and (st is None) != (cnt is None)):
+                _err(f, f"{tag}.run.env",
+                     f"null-ness mismatch: status={st!r} count={cnt!r} (双键同进退, R-10)")
     elif "run" in rec:
         _err(f, f"{tag}.run", "expected object")
 

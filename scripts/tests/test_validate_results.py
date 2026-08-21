@@ -42,6 +42,9 @@ def _valid_record():
             "app_version_code": 1, "guard_metadata": None, "status": "completed",
             "aqs": {"score": 90.0, "low_confidence": False, "veto_applied": False,
                     "not_computable_reason": None, "input_mapping": "m", "sub_scores": {}},
+            # THERMAL 接线（D-556）：接线后的生产端每条 run 恒带 env 块（TestEngine 恒传
+            # fold 结果）——夹具跟上今天的生产者形状；块缺席=老语料，另有专测钉其合法。
+            "env": {"thermal_max_status": "none", "thermal_polluting_event_count": 0},
         },
         "scenarios": [{
             "profile_id": "s1_chat", "profile_version": "0.2", "repeat_index": 0,
@@ -253,6 +256,9 @@ _SCHEMA_SITE = {
     "run_types":
         lambda s: _dig(s, "properties", "run", "properties",
                        "run_id").__setitem__("type", ["number"]),
+    "env_spec":
+        lambda s: _dig(s, "properties", "run", "properties", "env", "properties",
+                       "thermal_max_status").__setitem__("enum", ["ZZZ_ONLY"]),
     "hist_required":
         lambda s: _dig(s, "definitions", "scenario", "properties", "itl_histogram",
                        "required").append("zzz_not_a_field"),
@@ -329,3 +335,68 @@ def test_type_check_ignores_absent_fields_required_is_a_separate_job():
     out = []
     vd._check_types({}, {"t1_ttft_ms": ["number", "null"]}, "x", out)
     assert out == []
+
+
+# ---- run.env（THERMAL 接线，D-556）----
+# 缺口实证：schema 先行加了 env 块之后，本门对 thermal_max_status="toasty" 返回
+# 0 条 findings 放行——手写结构门不吃 schema 的 enum/required/minimum，每条都要在
+# validate_record 里显式接线（D-305 同形状：schema 会写、生产端会发，唯独门最容易
+# 没学会新块）。判据全从 env_spec（即 schema）派生，doctor 见 _SCHEMA_SITE。
+
+def test_env_block_absent_is_legal_old_corpus():
+    """块缺席=该 run 早于字段上线（R-10：缺失≠空）——老语料照常过。"""
+    rec = _valid_record()
+    del rec["run"]["env"]
+    assert _errors(rec) == []
+
+
+def test_env_double_null_is_legal_unmonitored():
+    """双 null=本 run 无热监控（PowerManager 不可用/监听注册失败）——合法且自证。"""
+    rec = _valid_record()
+    rec["run"]["env"] = {"thermal_max_status": None, "thermal_polluting_event_count": None}
+    assert _errors(rec) == []
+
+
+def test_env_bad_enum_rejected():
+    rec = _valid_record()
+    rec["run"]["env"]["thermal_max_status"] = "toasty"
+    assert any("thermal_max_status" in e and "enum" in e for e in _errors(rec))
+
+
+def test_env_missing_key_rejected():
+    """块内两键恒在（schema required）——只发一半的生产端要当场咬。"""
+    rec = _valid_record()
+    del rec["run"]["env"]["thermal_polluting_event_count"]
+    assert any("missing required field 'thermal_polluting_event_count'" in e
+               for e in _errors(rec))
+
+
+def test_env_extra_key_rejected():
+    """additionalProperties=false：未声明键混进块里=生产端在发没契约的东西。"""
+    rec = _valid_record()
+    rec["run"]["env"]["oops"] = 1
+    assert any("unknown key" in e for e in _errors(rec))
+
+
+def test_env_negative_count_rejected():
+    rec = _valid_record()
+    rec["run"]["env"]["thermal_polluting_event_count"] = -1
+    assert any("thermal_polluting_event_count" in e and ">= 0" in e for e in _errors(rec))
+
+
+def test_env_null_mix_rejected():
+    """R-10 cross-field：双键同 null 同非 null——status=null 而 count=0 的混搭无语义
+    （null=无监控、0=在位且干净，一半说没监控一半说监控到了）。draft-07 写不出这条，
+    正是本门第 2 层的职责。"""
+    rec = _valid_record()
+    rec["run"]["env"]["thermal_max_status"] = None
+    errs = _errors(rec)
+    assert any("null-ness mismatch" in e for e in errs), errs
+
+
+def test_env_count_as_string_rejected():
+    """数值序列化成字符串（T72 t1_ttft_ms 同形状的生产端回归）在 env 块里也要咬。"""
+    rec = _valid_record()
+    rec["run"]["env"]["thermal_polluting_event_count"] = "0"
+    assert any("type mismatch" in e and "thermal_polluting_event_count" in e
+               for e in _errors(rec))

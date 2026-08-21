@@ -192,6 +192,9 @@ class TestEngine(private val context: Context) {
 
         // ---------------- 全程监控（R-01/R-12/R-16 + RadioCollector 1Hz） ----------------
         val envBuf = ConcurrentLinkedQueue<EnvEvent>()
+        // THERMAL 接线（D-556）：envBuf 每场景被 drain，run 级热摘要须独立累计——
+        // 只收 detail 串，折叠语义全在 ThermalSummary（格式钉在 emitThermal）。
+        val thermalDetails = ConcurrentLinkedQueue<String>()
         val radioBuf = ConcurrentLinkedQueue<RadioSample>()
         // 实时遥测投影源（观测通道，非测量）：引擎在既有记录点追加式填充，采样协程只读。
         val telemetrySource = TelemetrySource()
@@ -236,6 +239,7 @@ class TestEngine(private val context: Context) {
             collectors += launch {
                 envMonitors.events.collect { ev ->
                     envBuf.add(ev)
+                    if (ev.type == EnvEventType.THERMAL) thermalDetails.add(ev.detail)
                     // §4.6：测中 Doze/省电状态变化 → invalid（初始状态行除外）
                     if ((ev.type == EnvEventType.POWER_SAVE || ev.type == EnvEventType.DOZE) &&
                         !ev.detail.startsWith("initial")
@@ -702,6 +706,7 @@ class TestEngine(private val context: Context) {
                 tokenWeightsTableId = tokenWeightsTableId,
                 tokenWorkload = tokenWorkload,
                 tokenS1 = composite.s1SessionSuccessRate,
+                env = ThermalSummary.fold(thermalDetails.toList()),
             )
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size
             if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {

@@ -35,6 +35,7 @@
         "guard_metadata": { "type": ["string", "null"], "description": "守卫元数据 JSON/KV 串" },
         "status": { "type": ["string", "null"], "description": "completed / aborted:<reason>" },
         "skipped_profiles": { "type": ["array", "null"], "items": { "type": "string" }, "description": "本次 run 里「配置上应跑却因 profile 缺失而被跳过」的 profile id 列表(D-534 §2/大脑 08-22 裁定)。动机:s4_throughput 缺 profile 时的跳过此前只打一行 PROFILE_WARN 日志——日志到不了分析层,产物里无从分辨「跑了」和「被跳过」。[]=明确零跳过;null/缺失=该 run 早于本字段上线(R-10:缺失≠空数组——不知道跳没跳,不是知道没跳)。非必填;数组为将来的可选相位留位,今天唯一生产者是 s4_throughput 分支" },
+        "env": { "type": "object", "additionalProperties": false, "required": ["thermal_max_status", "thermal_polluting_event_count"], "properties": { "thermal_max_status": { "type": ["string", "null"], "enum": ["none", "light", "moderate", "severe", "critical", "emergency", "shutdown", null], "description": "run 全程热状态最大值(EnvMonitors thermalName 序数取 max);null=本 run 无热监控" }, "thermal_polluting_event_count": { "type": ["integer", "null"], "minimum": 0, "description": "污染级(SEVERE+;R-11 判定留在 EnvMonitors 的 polluting 布尔,摘要只计数不重判)热事件条数;null=无监控。与 thermal_max_status 同 null 同非 null(块内 required 钉两键恒在)" } }, "description": "run 级环境摘要(THERMAL 接线,D-556/普查 5e5dd67;同构先例 skipped_profiles/D-534)。块缺席=该 run 早于本字段上线(R-10:缺失≠空——不知道热不热,不是知道不热);块在而双键 null=本 run 无热监控(PowerManager 不可用/监听注册失败);\"none\"+0=监控在位且全程干净——0 是真实读数非 R-10 伪装(计数器语义同款)。非必填,纯 additive,老语料照常过" },
         "aqs": {
           "type": "object",
           "additionalProperties": true,
