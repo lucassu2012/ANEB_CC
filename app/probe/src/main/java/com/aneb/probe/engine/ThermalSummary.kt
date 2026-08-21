@@ -15,6 +15,9 @@ package com.aneb.probe.engine
  *   （监控在位且全程干净），非缺测伪装——与计数器语义同款（TokenLiveSourceMappingTest）。
  *
  * R-11 的 SEVERE+ 判定留在 EnvMonitors（polluting 布尔），这里只折叠不重判。
+ *
+ * 覆盖面（勘察定案③）：EnvMonitors 唯一实例化点在 TestEngine——ContinuityRunner 等
+ * 旁路测量构造上不产 THERMAL 事件，本摘要只覆盖主 run 流程，不是它们的热证据。
  * thermalName 已覆盖 API 全值域，`status(N)` 兜底形状实际不可达；若出现则含括号不匹配
  * `\w+`、按无法解析不计入（宁缺勿错）。
  */
