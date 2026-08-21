@@ -36,7 +36,14 @@ if ($hasKeys) {
     if ((Invoke-Release) -ne 0) { Write-Output 'A: FAIL 构建失败'; $fail++ }
     else {
         $apk = Get-ReleaseApk
-        if ($apk.Name -like '*unsigned*') {
+        if (-not $apk) {
+            # 实战教训（2026-08-22 verify_all 日志）：共享工作树里他方并发构建可在
+            # Invoke-Release 与本行之间清掉 outputs——若不判空，$apk.FullName 为空串，
+            # apksigner 报 "Missing APK" 崩成一堆 NativeCommandError，**读日志的人看不出
+            # 是"没产出 APK"还是"签名坏了"**。清晰 FAIL 出来。
+            Write-Output 'A: FAIL 构建报成功但 outputs 里没有 APK（多为并发构建清理了产物；重跑即可）'; $fail++
+        }
+        elseif ($apk.Name -like '*unsigned*') {
             Write-Output "A: FAIL 密钥齐备却产出 $($apk.Name)（签名未被用上——最危险的静默失败）"; $fail++
         } else {
             $signer = & "$env:ANDROID_HOME\build-tools\35.0.0\apksigner.bat" verify --print-certs $apk.FullName 2>&1 | Select-String 'certificate DN'
@@ -54,7 +61,8 @@ try {
     if ((Invoke-Release) -ne 0) { Write-Output 'B: FAIL 无密钥时构建失败（违背 D-500④ 不阻断承诺）'; $fail++ }
     else {
         $apk = Get-ReleaseApk
-        if ($apk.Name -like '*unsigned*') { Write-Output "B: PASS 回落 $($apk.Name)，构建未中断" }
+        if (-not $apk) { Write-Output 'B: FAIL 构建报成功但 outputs 里没有 APK（同 A 分支注释）'; $fail++ }
+        elseif ($apk.Name -like '*unsigned*') { Write-Output "B: PASS 回落 $($apk.Name)，构建未中断" }
         else { Write-Output "B: FAIL 无密钥却产出 $($apk.Name)"; $fail++ }
     }
 } finally {
