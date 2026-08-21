@@ -105,6 +105,16 @@ fun VoiceTestScreen(
             VoiceTile("口到耳预算", sample?.mouthEarBudgetMs, "%.0f", "ms", c.fair, Modifier.weight(1f))
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        // ---- facet3 数据驱动实时区（T77 批 5a）：profile.live 声明按 render 四型渲染 ----
+        // 本批 additive（磁贴保留，批 5b 收敛去重）。source→字段映射见 voiceLiveValue，
+        // 其完备性由 VoiceLiveSourceMappingTest 钉住（profile 加指标而映射漏 = 测试红）。
+        com.aneb.probe.ui.components.LiveMetricStrip(
+            metrics = TestModeProfiles.ALL.first { it.id == "voice_realtime" }.live,
+            values = { source -> voiceLiveValue(sample, source) },
+        )
+
         Spacer(Modifier.height(16.dp))
 
         // ---- 连续性 mini-run 卡（受控断连，D-41 预定；独立结论，不并入语音分）----
@@ -419,3 +429,25 @@ private fun VoiceConclusionCard(sample: VoiceRunner.Sample) {
  */
 internal fun nearZeroRatioDisplay(ratio: Double?): String =
     ratio?.let { "%.1f%%".format(it * 100) } ?: "—"
+
+/**
+ * facet3 批 5a（T77）：voice profile 的 `live[].source` → 当前 Sample 值。
+ *
+ * 抽成顶层纯函数的原因与 [nearZeroRatioDisplay] 相同——Composable 内联写法测试钉不住。
+ * 完备性守卫（VoiceLiveSourceMappingTest）从 `TestModeProfiles.ALL` 的 voice_realtime.live
+ * **导出**全部 source 逐一喂入，未识别 source 返回 null 会被当作"缺测"渲染成 "—"——
+ * 那正是守卫要抓的形状（profile 加了指标而映射漏 = 新指标永远显示缺测）。
+ *
+ * `voice.frameJitterMs` 为派生别名（[DynamicMetricSelection.VOICE_DERIVED]）：
+ * max(上/下行帧抖动)，M1 同款取法；单边缺测取有的那边，双边缺测才是 null（R-10：
+ * 有一半证据不等于没有证据）。
+ */
+internal fun voiceLiveValue(sample: VoiceRunner.Sample?, source: String): Double? {
+    if (sample == null) return null
+    return when (source) {
+        "voice.mouthEarBudgetMs" -> sample.mouthEarBudgetMs
+        "voice.frameJitterMs" -> listOfNotNull(sample.upFrameJitterMs, sample.downFrameJitterMs).maxOrNull()
+        "rttMs" -> sample.rttMs
+        else -> null
+    }
+}
