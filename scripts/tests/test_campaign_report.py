@@ -2549,3 +2549,43 @@ def test_stability_csv_carries_the_thermal_columns_with_the_markdown():
     assert rows[0]["thermal_worst"] == "severe"
     assert rows[0]["thermal_polluting_runs"] == "1"
     assert rows[0]["thermal_annotated_runs"] == "1"
+
+
+# ---- voice 摘要消费半（D-562；边界=README「语音双通道边界」）----
+
+def test_voice_summary_is_counted_and_the_boundary_travels_with_it():
+    """携语音摘要的语料：清点行要有数、null 口径要有名字、边界句必须同行。
+
+    反例证伪：①不计 voice_runs ⇒ 行缺失即红；②null 口径渲染成空串 ⇒
+    「v1-paced-proxy(null)」断言红（D-333 无名桶）。
+    """
+    import copy
+    import synth_campaign as sc
+    recs = copy.deepcopy(sc.generate(points=2, repeats=2,
+                                     campaigns=("base", "opt"), radio=True))
+    # 语料自带 ~7 条；再强插一条 null 口径钉住命名
+    recs[0]["run"]["voice"] = {"caliber": None, "m7_max_frame_gap_ms": None,
+                               "mouth_ear_proxy_p50_ms": None,
+                               "low_confidence": False, "turns_ok": None,
+                               "ts_epoch_ms": 1783944000000}
+    inv = rpt.inventory(recs)
+    assert inv["voice_runs"] >= 2
+    assert inv["voice_calibers"]["v1-paced-proxy(null)"] >= 1
+    note = rpt.inventory_note(inv, 5)
+    assert "条 run 携语音摘要" in note
+    assert "v1-paced-proxy(null)" in note
+    assert "voice_result` 全表为权威" in note      # 边界句与数字同行
+
+
+def test_no_voice_corpus_says_nothing_about_voice():
+    """零携带（非语音战役的常态）⇒ 清点行零语音字眼——不造恒 N/A 噪音
+    （D-339：不为凑数给每个信号都加条目）。"""
+    import copy
+    import synth_campaign as sc
+    recs = copy.deepcopy(sc.generate(points=2, repeats=2,
+                                     campaigns=("base", "opt"), radio=True))
+    for r in recs:
+        r["run"].pop("voice", None)
+    inv = rpt.inventory(recs)
+    assert inv["voice_runs"] == 0
+    assert "语音" not in rpt.inventory_note(inv, 5)

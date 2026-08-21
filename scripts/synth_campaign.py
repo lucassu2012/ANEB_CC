@@ -272,6 +272,23 @@ DESIGNED_EFFECTS = (
 )
 
 
+def _voice_summary(voice_rng, started_ms):
+    """run.voice 摘要（D-562 消费半）：~10% run 携块（voice 是独立测试模式，
+    块缺席是常态而非缺口）；六键恒在，各值按实体语义独立可空（R-10）——
+    偶发 null 口径（=v1 paced-proxy）钉住「无名桶要有名字」的渲染（D-333）。"""
+    if voice_rng.random() >= 0.10:
+        return None
+    v1_era = voice_rng.random() < 0.15
+    return {
+        "caliber": None if v1_era else "server-sim(aneb-realtime-session-v1)",
+        "m7_max_frame_gap_ms": None if v1_era else round(voice_rng.uniform(80, 900), 1),
+        "mouth_ear_proxy_p50_ms": None if v1_era else round(voice_rng.uniform(150, 420), 1),
+        "low_confidence": (not v1_era) and voice_rng.random() < 0.2,
+        "turns_ok": None if v1_era else voice_rng.randint(3, 6),
+        "ts_epoch_ms": int(started_ms),
+    }
+
+
 def _env_summary(env_rng):
     """run.env 热摘要（D-560 消费半）。分布让彩排同时走到消费方的全部分支：
     ~5% 双 null（监控不在位）；其余按 none/light/moderate/severe 加权，severe 配
@@ -307,6 +324,8 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
     wall_rng = random.Random(seed + 506)
     # THERMAL 摘要专用流（D-560 接线的消费半）：同上理由自开一流，零主流抽样。
     env_rng = random.Random(seed + 560)
+    # voice 摘要专用流（D-562 接线的消费半）：同上，零主流抽样。
+    voice_rng = random.Random(seed + 562)
     pids = _point_ids(points)
     records = []
     counter = 0
@@ -399,6 +418,12 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
                                     # count>0 ⇒ max>=severe 的语义一致性在此成立。
                                     # 全部从 env_rng 抽——零主流抽样（D-546/D-548）。
                                     "env": _env_summary(env_rng),
+                                    # voice 摘要（D-562 wire 半的合成对应；voice_rng
+                                    # 独立流零主流抽样）。schema 的 voice 是 object
+                                    # 无 null——缺席=键不存在，故条件展开而非置 null。
+                                    **({"voice": _v} if (_v := _voice_summary(
+                                        voice_rng,
+                                        campaign_start + counter * 90_000)) else {}),
                                     "status": "completed" if usable else "aborted:all_invalid",
                                     "aqs": aqs,
                                     "campaign": {  # marker #2: the SYNTH- prefix

@@ -87,6 +87,9 @@ def inventory(records):
         # runs that CARRY the field at all (denominator — key absent is a third
         # state, "predates the field", never folded into "nothing skipped").
         "skipped_profiles": Counter(), "skip_reporting_runs": 0, "runs_with_skips": 0,
+        # D-562 voice 摘要（消费半）：run 计数 + 口径分布 + 低置信数。块缺席是
+        # 常态（voice 是独立测试模式），零携带时任何面都不提它——不造恒 N/A 噪音。
+        "voice_runs": 0, "voice_calibers": Counter(), "voice_low_conf": 0,
         # version dimensions that define what the numbers MEAN — pooling across
         # them compares different metric/scoring definitions under one name (D-137)
         "kpi_sets": Counter(), "aqs_versions": Counter(), "app_versions": Counter(),
@@ -153,6 +156,16 @@ def inventory(records):
                 inv["runs_with_skips"] += 1
             for pid in names:
                 inv["skipped_profiles"][pid] += 1
+        # D-562 voice 摘要：六键块，各值独立可空；null 口径=v1 paced-proxy（schema
+        # description 原文）——无名桶必须有名字（D-333），不得渲染成空串。
+        vo = cc.run_obj(rec).get("voice")
+        if isinstance(vo, dict):
+            inv["voice_runs"] += 1
+            cal = vo.get("caliber")
+            inv["voice_calibers"][cal if isinstance(cal, str) and cal
+                                  else "v1-paced-proxy(null)"] += 1
+            if vo.get("low_confidence"):
+                inv["voice_low_conf"] += 1
         inv["profile_version_sets"][rec.get("profile_versions") or "absent"] += 1
         inv["kpi_sets"][rec.get("kpi_set") or "absent"] += 1
         inv["aqs_versions"][rec.get("aqs_version") or "absent"] += 1
@@ -1460,8 +1473,17 @@ def inventory_note(inv, min_samples):
     exact reason; this line stayed behind, so an HTML-only reader saw the grades
     and the medians but not how many records carried an AQS or a campaign label
     at all — the size of what the report is actually about (D-337)."""
-    return (f"输入记录：{inv['records']}；含 run.aqs：{inv['aqs_present']}；"
+    line = (f"输入记录：{inv['records']}；含 run.aqs：{inv['aqs_present']}；"
             f"含 campaign 标签：{inv['with_campaign']}。样本地板 min_samples={min_samples}。")
+    # D-562 voice 摘要：有携带才说话（voice 是独立模式，零携带非缺口不造噪音）；
+    # 说话必带边界句——摘要只供并入与计数，判读权威是设备库全表（README
+    # 「语音双通道边界」同文；本行是该边界在报告面上的唯一出口）。
+    if inv.get("voice_runs"):
+        cals = "、".join(f"{c}×{n}" for c, n in cc.ranked(inv["voice_calibers"]))
+        line += (f"另有 **{inv['voice_runs']} 条 run 携语音摘要**（口径 {cals}；"
+                 f"低置信 {inv['voice_low_conf']}）——摘要仅供并入与计数，"
+                 "**语音判读以设备库 `voice_result` 全表为权威**。")
+    return line
 
 
 def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
