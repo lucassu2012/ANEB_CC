@@ -2,6 +2,9 @@ package com.aneb.probe.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.aneb.probe.data.TestRun
@@ -46,6 +49,13 @@ class RenderRedlineTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** "渲染树里找 0"检测器（值路径）：排除门限微刻度图例（kpi-scale-legend 祖先）后的计数。 */
+    private fun zerosOutsideScaleLegend(): Int =
+        compose.onAllNodes(
+            hasText("0", substring = true) and !hasAnyAncestor(hasTestTag("kpi-scale-legend")),
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().size
+
     private fun row(
         id: String = "T1",
         label: String = "首字响应",
@@ -75,8 +85,11 @@ class RenderRedlineTest {
         // 反面（这条才是红线本身）：**渲染树里一个"0"都不许有**。
         // 纯函数层永远抓不到这一条——formatValue 返回"—"是对的，而 Composable 里
         // 随便一个 `?: 0` 就能把它变回 0，两边各自都"绿"。
-        val zeros = compose.onAllNodesWithText("0", substring = true).fetchSemanticsNodes()
-        assertEquals("缺失值不得以 0 出现在渲染树里（R-10 假 0）", 0, zeros.size)
+        // 〔T62 批 2 追注〕检测器**窄豁免**门限微刻度的图例数字（"200/500/1000"含 0 子串，
+        // 但那是量尺不是值）：只排除 kpi-scale-legend 祖先下的节点——值路径混进 0 依旧
+        // 被抓（下一条自证测试仍钉着"真 0 恰好 1 个"，若有人删掉图例 tag 本条会重新变红）。
+        val zeros = zerosOutsideScaleLegend()
+        assertEquals("缺失值不得以 0 出现在渲染树里（R-10 假 0）", 0, zeros)
     }
 
     /**
@@ -90,8 +103,8 @@ class RenderRedlineTest {
     @Test
     fun `自证检测器：真实的 0 会被上一条的判据抓到`() {
         compose.setContent { AnebTheme { KpiLine(row(value = 0.0, grade = "poor")) } }
-        val zeros = compose.onAllNodesWithText("0", substring = true).fetchSemanticsNodes()
-        assertEquals("检测器必须能看见渲染出来的 0，否则上一条是空气守卫", 1, zeros.size)
+        val zeros = zerosOutsideScaleLegend()
+        assertEquals("检测器必须能看见渲染出来的 0，否则上一条是空气守卫", 1, zeros)
     }
 
     @Test

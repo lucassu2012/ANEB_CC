@@ -1,6 +1,8 @@
 package com.aneb.probe.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.testTag
+import com.aneb.probe.engine.KpiGrading
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -985,7 +987,72 @@ internal fun KpiLine(row: ResultFormat.KpiRow, prefix: String = "") {
                     Text(ResultFormat.LOW_CONFIDENCE_LABEL, fontSize = 11.sp, color = colors.lowConf)
                 }
             }
+            // T62 批 2：门限微刻度——有门限的 KPI 恒显刻度（读者随行可对照"值落在哪一档、
+            // 离上一档多远"），落点标记仅在有值时画（R-10：缺失不落点，null≠最左）。
+            KpiThresholdScale(row)
         }
+    }
+}
+
+/**
+ * 门限微刻度（T62 批 2）：等宽四段（左→右恒＝优→良→可→差，高者优也不换排列——方向差异
+ * 只体现在**边界标签**上，读者永远"越左越好"）+ 三个边界值标签 + 当前值落点。
+ *
+ * **单一来源纪律（D-02）**：三根边界线的数值从 [KpiGrading.bands] **读**出来，本组件不持有
+ * 任何门限字面量；档位判定也不在此重算（行色/chip 均来自 row.grade）。落点几何走
+ * [GaugeMath.thresholdMarkerFraction]（纯函数，已单测钉死边界落点与 grade 翻转一致）。
+ * 无门限的 id（T5/双口径并列行等）bands 为 null，整个刻度不渲染。
+ */
+@Composable
+internal fun KpiThresholdScale(row: ResultFormat.KpiRow) {
+    val bands = KpiGrading.bands(row.id) ?: return
+    val colors = AnebTheme.colors
+    val frac = GaugeMath.thresholdMarkerFraction(row.value, bands.a, bands.b, bands.c, bands.lowerBetter)
+    Column(modifier = Modifier.padding(top = 3.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().height(5.dp)) {
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight().background(colors.excellentSoft))
+                Box(Modifier.weight(1f).fillMaxHeight().background(colors.goodSoft))
+                Box(Modifier.weight(1f).fillMaxHeight().background(colors.fairSoft))
+                Box(Modifier.weight(1f).fillMaxHeight().background(colors.poorSoft))
+            }
+            if (frac != null) {
+                Row(Modifier.fillMaxSize()) {
+                    if (frac > 0f) Spacer(Modifier.weight(frac))
+                    Box(
+                        Modifier.width(2.dp).fillMaxHeight().background(colors.ink)
+                            .testTag("kpi-scale-marker-${row.id}"),
+                    )
+                    if (frac < 1f) Spacer(Modifier.weight(1f - frac))
+                }
+            }
+        }
+        // testTag 供 RenderRedlineTest 的"无假 0"检测器**窄豁免**：图例数字（200/500/1000…）
+        // 是量尺不是值，红线管的是**值路径**——豁免只及本祖先，值里混进 0 依旧被抓。
+        Row(Modifier.fillMaxWidth().testTag("kpi-scale-legend")) {
+            // 三个边界标签各居其段界：用 1:1:1:1 四列、标签右对齐到前三列末
+            listOf(bands.a, bands.b, bands.c).forEach { v ->
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    Text(
+                        formatBoundary(v, row.unit),
+                        fontSize = 8.5.sp, color = colors.faint, fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+/** 边界标签格式：ratio → 百分数（去尾零），其余 → 整数去尾零（单位随行值显示，不重复）。 */
+private fun formatBoundary(v: Double, unit: String): String {
+    return if (unit == "ratio") {
+        val p = v * 100
+        if (p == kotlin.math.floor(p)) String.format(java.util.Locale.ROOT, "%.0f%%", p)
+        else String.format(java.util.Locale.ROOT, "%.1f%%", p)
+    } else {
+        if (v == kotlin.math.floor(v)) String.format(java.util.Locale.ROOT, "%.0f", v)
+        else String.format(java.util.Locale.ROOT, "%.1f", v)
     }
 }
 

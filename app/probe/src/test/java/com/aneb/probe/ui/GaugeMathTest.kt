@@ -221,4 +221,33 @@ class GaugeMathTest {
         assertEquals(1f, GaugeMath.resultGaugeFraction(140.0), 0f)   // 越界收敛，不溢出画面
         assertEquals(0f, GaugeMath.resultGaugeFraction(-5.0), 0f)
     }
+
+    // ---- thresholdMarkerFraction（T62 批 2 门限微刻度落点）----
+
+    @Test
+    fun `落点在边界值处与 grade 的翻转语义一致`() {
+        // 低者优（T1 形状 200/500/1000）：v==a 已是"良"，落点恰为段界 0.25
+        fun f(v: Double?) = GaugeMath.thresholdMarkerFraction(v, 200.0, 500.0, 1000.0, true)
+        assertEquals(0.25f, f(200.0)!!, 1e-6f)
+        assertEquals(0.5f, f(500.0)!!, 1e-6f)
+        assertEquals(0.75f, f(1000.0)!!, 1e-6f)   // v==c 仍"可"，落点恰在可/差界
+        assertEquals(0.125f, f(100.0)!!, 1e-6f)   // 优段中点
+        assertTrue("差段开区间 2c 处夹取到 1", f(9999.0)!! == 1f)
+    }
+
+    @Test
+    fun `缺失不落点——null 返回 null 而不是最左`() {
+        // 0f 是"优段最左"这个有意义的位置（R-10：缺失绝不能借用它）
+        assertEquals(null, GaugeMath.thresholdMarkerFraction(null, 200.0, 500.0, 1000.0, true))
+    }
+
+    @Test
+    fun `高者优的排列仍是左优右差——方向差异只在标签`() {
+        // U1 形状 20/5/1（Mbps）：值越大越靠左
+        fun f(v: Double?) = GaugeMath.thresholdMarkerFraction(v, 20.0, 5.0, 1.0, false)
+        assertEquals(0.25f, f(20.0)!!, 1e-6f)     // v==a 是"良"起点
+        assertTrue("30 Mbps 应落进优段（<0.25）", f(30.0)!! < 0.25f)
+        assertTrue("0.5 Mbps 应落进差段（>0.75）", f(0.5)!! > 0.75f)
+        assertTrue("排列单调：值越好越靠左", f(30.0)!! < f(10.0)!! && f(10.0)!! < f(2.0)!! && f(2.0)!! < f(0.5)!!)
+    }
 }

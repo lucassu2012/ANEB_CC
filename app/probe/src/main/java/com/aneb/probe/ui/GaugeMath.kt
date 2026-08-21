@@ -59,6 +59,40 @@ object GaugeMath {
     fun resultGaugeFraction(aqsScore: Double?): Float =
         ((aqsScore?.toFloat() ?: 0f) / 100f).coerceIn(0f, 1f)
 
+    /**
+     * 门限微刻度上的落点（T62 批 2）。刻度恒为**等宽四段、左→右＝优→良→可→差**（高者优的
+     * KPI 也一样——方向差异体现在**边界标签**上，不体现在段的排列上，读者永远"越左越好"）。
+     *
+     * 返回 0..1 的横向占比；`value == null` 返回 null（R-10：缺失不落点，调用方不画标记——
+     * 0f 是"优段最左"这个有意义的位置，绝不能拿来当"没有"）。
+     *
+     * 段内线性插值；差段开区间取 `[c, 2c]`（高者优取 `[a/2, a]` 镜像）后夹取——差段没有
+     * 自然上界，2 倍宽度只是**展示折衷**，档位判定不受它影响（档位来自 KpiGrading.grade）。
+     * 边界值的落点与 grade() 的翻转语义一致：低者优下 v==a 已是"良"，落点恰为 0.25。
+     */
+    fun thresholdMarkerFraction(value: Double?, a: Double, b: Double, c: Double, lowerBetter: Boolean): Float? {
+        if (value == null) return null
+        fun seg(lo: Double, hi: Double, v: Double): Double =
+            if (hi == lo) 0.5 else ((v - lo) / (hi - lo)).coerceIn(0.0, 1.0)
+        val f = if (lowerBetter) {
+            when {
+                value < a -> 0.00 + 0.25 * seg(0.0, a, value)
+                value < b -> 0.25 + 0.25 * seg(a, b, value)
+                value <= c -> 0.50 + 0.25 * seg(b, c, value)
+                else -> 0.75 + 0.25 * seg(c, 2 * c, value)
+            }
+        } else {
+            // 高者优（a>b>c）：优段值域 (a, 2a]，映射后仍是左优右差
+            when {
+                value > a -> 0.00 + 0.25 * seg(2 * a, a, value) // lo=2a、hi=a：v 越大越靠左（越优）
+                value >= b -> 0.25 + 0.25 * seg(a, b, value)
+                value >= c -> 0.50 + 0.25 * seg(b, c, value)
+                else -> 0.75 + 0.25 * seg(c, 0.0, value)
+            }
+        }
+        return f.toFloat().coerceIn(0f, 1f)
+    }
+
     data class GaugeReadout(val fraction: Float, val centerVal: String, val centerLabel: String)
 
     /**
