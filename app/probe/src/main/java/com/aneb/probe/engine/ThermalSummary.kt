@@ -9,7 +9,8 @@ package com.aneb.probe.engine
  *
  * 语义（R-10）：
  * - 一条 `status=` 事件都没有 →（null, null）＝本 run 无热监控。EnvMonitors 的不可用路径
- *   （`power_manager_unavailable` / `listener_registration_failed: …`）不含 `status=`，天然落到这里；
+ *   （`power_manager_unavailable` / `listener_registration_failed: …` /
+ *   `initial_unknown: …`——初值读取失败的诚实标记，大脑批复 08-22 ③）不含 `status=`，天然落到这里；
  * - 有 → 名字按 PowerManager 序数取 max ＋ polluting=true 条数。"none"+0 是**真实读数**
  *   （监控在位且全程干净），非缺测伪装——与计数器语义同款（TokenLiveSourceMappingTest）。
  *

@@ -72,6 +72,8 @@ def load_schema(path):
         # additionalProperties 全从 schema 读，不手写第二份——理由同上）。老 schema 无
         # env 键时为 {}，validate_record 侧整段跳过。
         "env_spec": run_schema.get("properties", {}).get("env", {}),
+        # voice 摘要接线（大脑 08-22 裁定 voice 半）：同 env_spec 一字不差的提取逻辑。
+        "voice_spec": run_schema.get("properties", {}).get("voice", {}),
     }
 
 
@@ -149,6 +151,35 @@ def _check_types(obj, types, path, out):
                  % (want, type(obj[k]).__name__, obj[k]))
 
 
+def _check_block(obj, spec, path, out):
+    """按 schema 提取件（required/additionalProperties/type/enum/minimum）核一个嵌套块。
+
+    判据全部从 spec（load_schema 的提取物，即契约本身）读出——不在本文件手写第二份
+    （load_schema docstring 同理）。THERMAL（D-556）与 voice（大脑 08-22 裁定）两块共用：
+    同一逻辑第二个消费方出现时立即抽共用，不留两份会各自漂移的副本（D-315）。
+    块级 cross-field 不变量（如 env 的双键同 null）不在此处——那是各块自己的语义，留在调用点。
+    """
+    props = spec.get("properties", {})
+    _require(obj, spec.get("required", []), path, out)
+    if spec.get("additionalProperties") is False:
+        unknown = sorted(set(obj) - set(props))
+        if unknown:
+            _err(out, path, f"unknown key(s) {unknown} (additionalProperties=false)")
+    _check_types(obj, {k: v.get("type") for k, v in props.items() if v.get("type")},
+                 path, out)
+    for k, p in props.items():
+        if k not in obj:
+            continue
+        v = obj[k]
+        enum = p.get("enum")
+        if enum and v not in enum:
+            _err(out, f"{path}.{k}", f"not in enum: {v!r}")
+        minimum = p.get("minimum")
+        if (minimum is not None and isinstance(v, (int, float))
+                and not isinstance(v, bool) and v < minimum):
+            _err(out, f"{path}.{k}", f"must be >= {minimum}, got {v!r}")
+
+
 def validate_record(rec, sch, idx):
     """Return a list of (severity, message) findings for one record.
 
@@ -189,31 +220,23 @@ def validate_record(rec, sch, idx):
         env = run.get("env")
         env_spec = sch.get("env_spec") or {}
         if isinstance(env, dict) and env_spec:
-            env_props = env_spec.get("properties", {})
-            _require(env, env_spec.get("required", []), f"{tag}.run.env", f)
-            if env_spec.get("additionalProperties") is False:
-                unknown = sorted(set(env) - set(env_props))
-                if unknown:
-                    _err(f, f"{tag}.run.env",
-                         f"unknown key(s) {unknown} (additionalProperties=false)")
-            _check_types(env, {k: v.get("type") for k, v in env_props.items()
-                               if v.get("type")}, f"{tag}.run.env", f)
+            _check_block(env, env_spec, f"{tag}.run.env", f)
             st = env.get("thermal_max_status")
             cnt = env.get("thermal_polluting_event_count")
-            enum = env_props.get("thermal_max_status", {}).get("enum")
-            if enum and "thermal_max_status" in env and st not in enum:
-                _err(f, f"{tag}.run.env.thermal_max_status", f"not in enum: {st!r}")
-            minimum = env_props.get("thermal_polluting_event_count", {}).get("minimum")
-            if (minimum is not None and isinstance(cnt, int)
-                    and not isinstance(cnt, bool) and cnt < minimum):
-                _err(f, f"{tag}.run.env.thermal_polluting_event_count",
-                     f"must be >= {minimum}, got {cnt!r}")
             # R-10：双键同 null 同非 null——双 null=无监控、"none"+0=在位且干净，混搭
             # 无语义。这是 draft-07 写不出的 cross-field 不变量，正是本门第 2 层的职责。
             if ("thermal_max_status" in env and "thermal_polluting_event_count" in env
                     and (st is None) != (cnt is None)):
                 _err(f, f"{tag}.run.env",
                      f"null-ness mismatch: status={st!r} count={cnt!r} (双键同进退, R-10)")
+        # voice 摘要（大脑 08-22 裁定 voice 半）：块内契约同走 _check_block（判据从
+        # voice_spec 即 schema 派生）。无块级 cross-field——六键各自独立可空是实体语义
+        # （v1 行 caliber/turns_ok/proxy 恒 null 而 low_confidence 恒 false），不造假不变量
+        # （D-337「这种情况下正确的动作是不加守卫」）。
+        voice = run.get("voice")
+        voice_spec = sch.get("voice_spec") or {}
+        if isinstance(voice, dict) and voice_spec:
+            _check_block(voice, voice_spec, f"{tag}.run.voice", f)
     elif "run" in rec:
         _err(f, f"{tag}.run", "expected object")
 

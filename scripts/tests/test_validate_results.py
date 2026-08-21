@@ -45,6 +45,11 @@ def _valid_record():
             # THERMAL 接线（D-556）：接线后的生产端每条 run 恒带 env 块（TestEngine 恒传
             # fold 结果）——夹具跟上今天的生产者形状；块缺席=老语料，另有专测钉其合法。
             "env": {"thermal_max_status": "none", "thermal_polluting_event_count": 0},
+            # voice 摘要（大脑 08-22 裁定 voice 半）：24h 窗内有 Done 行时生产端带 voice 块。
+            # 夹具取 v2 口径全值行；v1 形状（caliber/turns_ok/proxy 恒 null）另有专测钉其合法。
+            "voice": {"caliber": "server-sim-v2", "m7_max_frame_gap_ms": 180.5,
+                      "mouth_ear_proxy_p50_ms": 412.0, "low_confidence": False,
+                      "turns_ok": 12, "ts_epoch_ms": 1783943000000},
         },
         "scenarios": [{
             "profile_id": "s1_chat", "profile_version": "0.2", "repeat_index": 0,
@@ -259,6 +264,9 @@ _SCHEMA_SITE = {
     "env_spec":
         lambda s: _dig(s, "properties", "run", "properties", "env", "properties",
                        "thermal_max_status").__setitem__("enum", ["ZZZ_ONLY"]),
+    "voice_spec":
+        lambda s: _dig(s, "properties", "run", "properties", "voice", "properties",
+                       "ts_epoch_ms").__setitem__("type", ["string"]),
     "hist_required":
         lambda s: _dig(s, "definitions", "scenario", "properties", "itl_histogram",
                        "required").append("zzz_not_a_field"),
@@ -400,3 +408,59 @@ def test_env_count_as_string_rejected():
     rec["run"]["env"]["thermal_polluting_event_count"] = "0"
     assert any("type mismatch" in e and "thermal_polluting_event_count" in e
                for e in _errors(rec))
+
+
+# ---- run.voice（大脑 08-22 裁定 voice 半）----
+# 判据全从 voice_spec（即 schema）派生，经通用 _check_block（与 env 共用，D-315 抽共用）。
+# 六键无块级 cross-field——各自独立可空是 voice_result 实体语义（v1 行多键恒 null），
+# 不造假不变量（D-337）。voice_spec 的 doctor 见 _SCHEMA_SITE。
+
+def test_voice_block_absent_is_legal_old_corpus():
+    """块缺席=窗内无 Done 行或 run 早于上线（R-10：缺失≠空）——老语料照常过。"""
+    rec = _valid_record()
+    del rec["run"]["voice"]
+    assert _errors(rec) == []
+
+
+def test_voice_v1_shape_is_legal():
+    """v1 paced-proxy 行：caliber/m7/proxy/turns_ok 恒 null、low_confidence 恒 false——
+    全部是实体写明的合法状态，六键恒在值可空。"""
+    rec = _valid_record()
+    rec["run"]["voice"] = {"caliber": None, "m7_max_frame_gap_ms": None,
+                           "mouth_ear_proxy_p50_ms": None, "low_confidence": False,
+                           "turns_ok": None, "ts_epoch_ms": 1783943000000}
+    assert _errors(rec) == []
+
+
+def test_voice_missing_ts_rejected():
+    """溯源键 ts_epoch_ms 是块内 required——没有它跨纪元无从对账（D-513）。"""
+    rec = _valid_record()
+    del rec["run"]["voice"]["ts_epoch_ms"]
+    assert any("missing required field 'ts_epoch_ms'" in e for e in _errors(rec))
+
+
+def test_voice_null_ts_rejected():
+    """ts_epoch_ms 类型 integer 不含 null——被挂接的行必然有落库时刻。"""
+    rec = _valid_record()
+    rec["run"]["voice"]["ts_epoch_ms"] = None
+    assert any("type mismatch" in e and "ts_epoch_ms" in e for e in _errors(rec))
+
+
+def test_voice_extra_key_rejected():
+    """additionalProperties=false：v3 普查定的最小集之外的列上 wire=D-276 反模式复活。"""
+    rec = _valid_record()
+    rec["run"]["voice"]["rtt_ms"] = 42.0
+    assert any("unknown key" in e for e in _errors(rec))
+
+
+def test_voice_m7_as_string_rejected():
+    """数值序列化成字符串（T72 同形状）在 voice 块也要咬。"""
+    rec = _valid_record()
+    rec["run"]["voice"]["m7_max_frame_gap_ms"] = "180.5"
+    assert any("type mismatch" in e and "m7_max_frame_gap_ms" in e for e in _errors(rec))
+
+
+def test_voice_negative_turns_rejected():
+    rec = _valid_record()
+    rec["run"]["voice"]["turns_ok"] = -1
+    assert any("turns_ok" in e and ">= 0" in e for e in _errors(rec))

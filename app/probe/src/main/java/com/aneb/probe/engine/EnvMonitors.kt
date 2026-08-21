@@ -73,14 +73,21 @@ class EnvMonitors(private val context: Context) {
                 )
             }
             // 初始状态显式入时间轴（区分「无事件」与「未监控」）
-            emitThermal(
-                try {
-                    pm.currentThermalStatus
-                } catch (t: Throwable) {
-                    PowerManager.THERMAL_STATUS_NONE
-                },
-                initial = true,
-            )
+            // R-10（大脑批复 2026-08-22 ③随批修）：初值读取失败绝不伪装 none——监控失败
+            // 与真凉设备必须可分。读不到 → initial_unknown（ThermalSummary 折叠端不含
+            // status=，天然不计入 run 级摘要；监听器随后若有真事件，摘要仍按真事件出）。
+            val initialThermal = try {
+                pm.currentThermalStatus
+            } catch (t: Throwable) {
+                null
+            }
+            if (initialThermal != null) {
+                emitThermal(initialThermal, initial = true)
+            } else {
+                _events.tryEmit(
+                    EnvEvent(now(), EnvEventType.THERMAL, "initial_unknown: status_read_failed"),
+                )
+            }
             _events.tryEmit(EnvEvent(now(), EnvEventType.POWER_SAVE, "initial power_save=${pm.isPowerSaveMode}"))
             _events.tryEmit(EnvEvent(now(), EnvEventType.DOZE, "initial device_idle=${pm.isDeviceIdleMode}"))
         } else {

@@ -31,6 +31,21 @@ class ThermalSummaryTest {
     }
 
     @Test
+    fun `initial_unknown（初值读取失败的诚实标记）不计入——只有它时=双 null`() {
+        // 大脑批复 08-22 ③：读不到就是不知道，绝不伪装 none。若监听器随后有真事件，
+        // 摘要仍按真事件出（下一行验证混合形状）。
+        assertEquals(
+            ThermalSummary.Env(null, null),
+            ThermalSummary.fold(listOf("initial_unknown: status_read_failed")),
+        )
+        assertEquals(
+            "初值失败但监听器活着——真事件照常折叠",
+            ThermalSummary.Env("light", 0),
+            ThermalSummary.fold(listOf("initial_unknown: status_read_failed", "status=light polluting=false")),
+        )
+    }
+
+    @Test
     fun `只有初始 none = ("none", 0)——0 是真实读数（监控在位且全程干净），非 R-10 伪装`() {
         assertEquals(
             ThermalSummary.Env("none", 0),
@@ -76,6 +91,11 @@ class ThermalSummaryTest {
             "EnvMonitors.emitThermal 的 detail 模板改了——ThermalSummary.DETAIL_FORMAT 的正则" +
                 "会静默解析不到、一切 run 折成双 null（谎称无监控）。两处必须一起改。",
             src.contains("\${prefix}status=\${thermalName(status)} polluting=\$polluting"),
+        )
+        assertTrue(
+            "EnvMonitors 的 initial_unknown 诚实标记没了（大脑批复 08-22 ③的修复被回退）——" +
+                "初值读取失败将重新伪装成正常事件或整个消失。",
+            src.contains("\"initial_unknown: status_read_failed\""),
         )
     }
 

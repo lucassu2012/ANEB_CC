@@ -699,6 +699,26 @@ class TestEngine(private val context: Context) {
                 ipReachable = reach?.ip?.status,
                 ipReachMs = reach?.ip?.elapsedMs,
             )
+            // ---------------- run 级 voice 摘要（大脑 08-22 裁定 voice 半，additive） ----------------
+            // 挂接走 AqsV02Gate/D-26 同款先例：24h 窗内最近 Done 行 + 溯源 ts_epoch_ms（D-513）。
+            // 边界：wire 摘要只供战役报告链并入与横幅计数；语音判读权威=设备库 voice_result 全表
+            // （scripts/README「语音双通道边界」同文）。voice_result 无 runId 外键（Entities KDoc：
+            // 加列须走决策）——窗口挂接正是不加列的实现。nowEpochMs 复用 v0.2 段的同一时刻，
+            // 两个 24h 窗口口径一致。
+            val voiceSummary = VoiceSummary.select(
+                runCatching { db.voiceResultDao().recent(1) }.getOrElse { emptyList() },
+                nowEpochMs,
+            )
+            if (voiceSummary != null) {
+                log(
+                    "VOICE_SUMMARY run_id=$runId ts_epoch_ms=${voiceSummary.tsEpochMs} " +
+                        "caliber=${voiceSummary.caliber ?: "null"} " +
+                        "low_confidence=${voiceSummary.lowConfidence}"
+                )
+            } else {
+                log("VOICE_SUMMARY run_id=$runId available=false reason=no_done_row_in_24h")
+            }
+
             // D-26：v0.2 有出分则 additive 写入 run.aqs_v02；D-29：Token 出分+工作量 additive 写入 run.aqs_token
             val body = ResultReporter.build(
                 runEntity, scenarioReports, aqsResult, aqsV02,
@@ -707,6 +727,7 @@ class TestEngine(private val context: Context) {
                 tokenWorkload = tokenWorkload,
                 tokenS1 = composite.s1SessionSuccessRate,
                 env = ThermalSummary.fold(thermalDetails.toList()),
+                voice = voiceSummary,
             )
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size
             if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {

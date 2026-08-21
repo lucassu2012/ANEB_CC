@@ -53,6 +53,14 @@ object ResultReporter {
          * （0 是真实读数，非 R-10 伪装）。纯 additive，老语料照常过 schema。
          */
         env: ThermalSummary.Env? = null,
+        /**
+         * run 级 voice 摘要（大脑 08-22 裁定 voice 半；挂接先例 AqsV02Gate/D-26，窗口与选择在
+         * [VoiceSummary]）：非 null 时**附加**写入 `run.voice`（六键恒在，各值按 voice_result
+         * 实体语义独立可空，R-10 原样透传；ts_epoch_ms=溯源，跨纪元以它为准，D-513）。
+         * 块缺席=24h 窗内无 Done 行或 run 早于本字段上线。边界：摘要只供战役报告链并入与
+         * 横幅计数，不得作判读源（scripts/README「语音双通道边界」同文）。
+         */
+        voice: VoiceSummary.Voice? = null,
     ): String = buildJsonObject {
         // ---- 合同字段（顶层，const/枚举锁定） ----
         put("claim_scope", CLAIM_SCOPE)
@@ -85,6 +93,17 @@ object ResultReporter {
                 put("env", buildJsonObject {
                     put("thermal_max_status", env.thermalMaxStatus)
                     put("thermal_polluting_event_count", env.thermalPollutingCount)
+                })
+            }
+            // voice 摘要（大脑 08-22 裁定，additive）：六键恒在块内，值按实体语义独立可空（R-10）。
+            if (voice != null) {
+                put("voice", buildJsonObject {
+                    put("caliber", voice.caliber)
+                    put("m7_max_frame_gap_ms", voice.m7MaxFrameGapMs)
+                    put("mouth_ear_proxy_p50_ms", voice.mouthEarProxyP50Ms)
+                    put("low_confidence", voice.lowConfidence)
+                    put("turns_ok", voice.turnsOk)
+                    put("ts_epoch_ms", voice.tsEpochMs)
                 })
             }
             put("aqs", buildJsonObject {
