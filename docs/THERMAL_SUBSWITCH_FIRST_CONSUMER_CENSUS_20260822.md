@@ -70,7 +70,7 @@ THERMAL 的缺口形状是「采了、但**其信息以任何派生形式都不�
 | env_event | 9248 | **无** | 缺口，已裁派 v2 接线（本页 §3） |
 | **voice_result** | 35 | **无**（117 个 report_body 无一含 voice） | **同 THERMAL 形状，请裁**：语音只活在设备库，进不了 wire 语料报告链——T65/M7 全靠拉库分析；要么接线（run 级 voice 摘要 additive），要么明文把「拉库」定为语音的正式通道 |
 | adapter_obs | 15 | 无 | 按设计本地（E 实验仪器化通道 A，spec 即本地面） |
-| api_probe_result | 42 | 无 | 疑似按设计本地（独立探测功能面板）；未见依赖，不请裁只登记 |
+| api_probe_result | 42 | 无 | **按设计本地（确证）**：ApiProbe.kt KDoc 明文「结果绝不进 AQS、不进 /results 上报……若阶段 3 需上报须先扩展服务合同 TODO(阶段3)」——自带预案，非缺口 |
 | synthetic_result | 2 | 无 | 按设计本地（演示语料） |
 | ab_result / continuity_result | 0/0 | — | 空行，无从判定用途现状，不判 |
 
