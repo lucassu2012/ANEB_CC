@@ -72,7 +72,7 @@ THERMAL 的缺口形状是「采了、但**其信息以任何派生形式都不�
 | adapter_obs | 15 | 无 | 按设计本地（E 实验仪器化通道 A，spec 即本地面） |
 | api_probe_result | 42 | 无 | **按设计本地（确证）**：ApiProbe.kt KDoc 明文「结果绝不进 AQS、不进 /results 上报……若阶段 3 需上报须先扩展服务合同 TODO(阶段3)」——自带预案，非缺口 |
 | synthetic_result | 2 | 无 | 按设计本地（演示语料） |
-| ab_result / continuity_result | 0/0 | — | 空行，无从判定用途现状，不判 |
+| ab_result / continuity_result | 0/0 | — | 实验模式表（Entities KDoc：Cronet A/B 逐样本 v7／阶段 2 C 组连续性汇总 v5）——0 行=该模式未在本机跑过，**非缺口** |
 
 —— v3，2026-08-22。出处：D-534 §4（冻结与解冻）/ R-11（THERMAL SEVERE+ 污染标）/
 R-13（SUB_SWITCH）/ D-302（空气守卫纪律）/ D-506 链（additive 接线先例）/
