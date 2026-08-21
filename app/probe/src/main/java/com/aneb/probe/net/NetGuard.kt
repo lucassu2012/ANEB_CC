@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.PowerManager
 import android.os.SystemClock
 import com.aneb.probe.data.EnvEvent
 import com.aneb.probe.data.EnvEventType
@@ -119,6 +120,15 @@ object NetGuard {
         metadata["active_transports"] = activeCaps?.let { transportNames(it) } ?: "none"
         metadata["active_validated"] =
             (activeCaps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true).toString()
+        // ---- 省电/Doze 测前快照只记元数据（D-557 裁 B：标记非否决）----
+        // 省电态影响的是「测量环境质量」不是「测量有效性」——拒测会系统性删掉
+        // 弱网外场（电池供电）的样本，是对分母的选择性偏倚（D-557 §3 案 C 的否决理由）。
+        // 布尔实值不给判词（判词留给分析层）；PowerManager 拿不到时如实记 unknown，
+        // 不猜 false（R-10：不知道 ≠ 没开省电）。测中的状态**变化**另有
+        // EnvMonitors → invalidate（R-12），与本快照分工不同。
+        val pwr = context.getSystemService(PowerManager::class.java)
+        metadata["power_save"] = pwr?.isPowerSaveMode?.toString() ?: "unknown(no_power_manager)"
+        metadata["device_idle"] = pwr?.isDeviceIdleMode?.toString() ?: "unknown(no_power_manager)"
         metadata["checked_at_nanos"] = SystemClock.elapsedRealtimeNanos().toString()
 
         return GuardResult(ok = reasons.isEmpty(), reasons = reasons, metadata = metadata)
