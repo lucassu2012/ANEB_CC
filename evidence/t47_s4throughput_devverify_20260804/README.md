@@ -82,3 +82,15 @@ low_confidence=true 理解**（D3 侧 `underrun=false`，不受影响）。
 **已修范围**：`AdaptiveWindowResult` 补 `windowUnderrun` 字段并接进 `low_confidence`，
 配 4 条反例测试（含突变验证：回退修复后测试确实变红）。**未做**：把 `window_underrun`
 本身加进 wire body/schema——那是契约变更，spec 的字段表未列它，留待裁定。
+
+## 订正指针（2026-08-22 追加，债务表「D-479 高置信旧表述」项收口）
+
+1. **上段「未做/留待裁定」已过期**：`window_underrun` 已经 D-534 §2 裁定进契约并落地
+   （`u3_window_underrun`/`d3_window_underrun` 进 schema 与 wire，commit `622ac4a`，D-544）。
+2. **本目录的置信标记按旧判据产生，读者以现行判据为准**：采集当日（08-04）
+   `low_confidence` 只由 `!rtt_dominance_ok` 一条决定，故第 34 行的
+   `low_confidence=false` 三项是**旧判据的产物**；现行判据是 spec §8.4.3 的三条件取或
+   （`!rtt_dominance_ok` **或 window_underrun** 或字节/样本数不足，`72ff799` 补齐）——
+   按现行判据，该批 **U3 应读作 `low_confidence=true`**（上段 08-19 注记的判读指引不变，
+   本条只是把「为什么」从缺陷描述升级为新旧判据的对照：不是当时标错了汇总，
+   是判据本身后来变严了，两者都如实留档）。
