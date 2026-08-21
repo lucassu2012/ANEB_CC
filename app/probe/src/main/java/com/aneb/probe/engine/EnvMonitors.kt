@@ -31,7 +31,18 @@ class EnvMonitors(private val context: Context) {
 
     private val directExecutor = Executor { it.run() }
 
+    // replay=4（省电态判据·先数后建，08-22）：start() 里那三条 initial 事件
+    // （THERMAL/POWER_SAVE/DOZE，注释明言「初始状态显式入时间轴，区分无事件与未监控」）
+    // **从未真正进过时间轴**——TestEngine 先调 start()（同步 tryEmit）后 launch collect，
+    // 而 replay=0 的 SharedFlow 在零订阅者时事件直接消失。真机实证：voice30 库 19 run
+    // 的 env_event 里非 initial 事件 9243 条（APP_JANK/THERMAL/PATH_CHANGE…链路通畅），
+    // initial 全类 = 0 —— 写下的意图没有守卫，随启动时序静默漂移（D-267 形状）。
+    // 修法选 replay 而非调换 start/collect 顺序：launch 的订阅挂载是异步的，调序
+    // 只是把窗口变小，不是关掉。EnvMonitors 每 run 新建实例（TestEngine 局部 val），
+    // replay 无跨 run 泄漏；4 = initial 三条 + 1 余量，且 initial 与 collect 挂载之间
+    // 无异步回调可插队，不会被挤出 replay 缓存。
     private val _events = MutableSharedFlow<EnvEvent>(
+        replay = 4,
         extraBufferCapacity = 256,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
