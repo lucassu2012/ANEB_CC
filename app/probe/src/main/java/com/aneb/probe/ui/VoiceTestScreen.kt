@@ -97,12 +97,13 @@ fun VoiceTestScreen(
 
         Spacer(Modifier.height(22.dp))
 
-        // ---- 指标磁贴：RTT / 上行帧抖动 / 下行帧抖动 / 口到耳预算 ----
+        // ---- 指标磁贴（批 5b 收敛后）：上行/下行帧抖动 ----
+        // RTT 与口到耳预算磁贴已删——与下方 strip 的 rtt/m2e **同源重复**（批 5a 注记的
+        // "收敛去重"即此）。帧抖动上下行拆分**保留**：strip 的 fj 是二者 max（M1 同款），
+        // 方向信息只在这两块磁贴上，删了就没了。
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            VoiceTile("RTT", sample?.rttMs, "%.0f", "ms", c.good, Modifier.weight(1f))
             VoiceTile("上行帧抖动", sample?.upFrameJitterMs, "%.1f", "ms", c.brand, Modifier.weight(1f))
             VoiceTile("下行帧抖动", sample?.downFrameJitterMs, "%.1f", "ms", c.excellent, Modifier.weight(1f))
-            VoiceTile("口到耳预算", sample?.mouthEarBudgetMs, "%.0f", "ms", c.fair, Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(12.dp))

@@ -189,12 +189,13 @@ fun SpeedTestScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        // ---- 指标磁贴：时延 / 抖动 / 下行峰值 / 上行峰值 / UDP 未返回 ----
+        // ---- 指标磁贴（批 5b 收敛后）：抖动 / 下行峰值 / 上行峰值 / UDP 未返回 ----
+        // 时延磁贴已删——与下方 facet3 实时区的 rtt（WAVEFORM）同源重复；留下的四块都不在
+        // live 声明里（峰值＝会话极值非瞬时、UDP＝取证协变量、抖动无 live 条目），不是遗漏。
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            StatTile("时延", fmt(sample?.rttMs, "%.0f"), "ms", c.good, Modifier.weight(1f))
             StatTile("抖动", fmt(sample?.jitterMs, "%.0f"), "ms", c.fair, Modifier.weight(1f))
             StatTile("下行峰值", if (peakDown > 0f) "%.1f".format(peakDown) else "—", "Mbps", c.excellent, Modifier.weight(1f))
             StatTile("上行峰值", if (peakUp > 0f) "%.1f".format(peakUp) else "—", "Mbps", c.brand, Modifier.weight(1f))
@@ -210,6 +211,16 @@ fun SpeedTestScreen(
                 Modifier.weight(1f),
             )
         }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ---- facet3 数据驱动实时区（T77 批 5b）：basic_network profile.live（dl/ul/rtt）----
+        // source→字段映射见 [speedLiveValue]，完备性由 SpeedLiveSourceMappingTest 钉住
+        // （profile 加指标而映射漏＝测试红，voice 模板同款）。
+        com.aneb.probe.ui.components.LiveMetricStrip(
+            metrics = TestModeProfiles.ALL.first { it.id == "basic_network" }.live,
+            values = { source -> speedLiveValue(sample, source) },
+        )
 
         Spacer(Modifier.height(16.dp))
 
@@ -784,3 +795,21 @@ private fun ConclusionCard(
 }
 
 private fun fmt(v: Double?, pattern: String): String = v?.let { pattern.format(it) } ?: "—"
+
+/**
+ * basic_network 面 source→字段映射（LiveMetricStrip 取值器；批 5b）。
+ * 完备性由 SpeedLiveSourceMappingTest 钉住；未知 source 返回 null（组件渲染为缺测）。
+ */
+internal fun speedLiveValue(sample: SpeedRunner.Sample?, source: String): Double? {
+    if (sample == null) return null
+    return when (source) {
+        "rttMs" -> sample.rttMs
+        "jitterMs" -> sample.jitterMs
+        "upMbps" -> sample.upMbps
+        "downMbps" -> sample.downMbps
+        "progress" -> sample.progress.toDouble()
+        "udpUnreturnedPct" -> sample.udpUnreturnedPct
+        "udpRttMs" -> sample.udpRttMs
+        else -> null
+    }
+}

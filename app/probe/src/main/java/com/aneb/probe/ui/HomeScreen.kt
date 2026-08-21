@@ -230,6 +230,14 @@ fun HomeScreen(
                         },
                     )
                     Spacer(Modifier.height(10.dp))
+                    // ---- facet3 数据驱动实时区（T77 批 5b）：token_experience profile.live 六项。
+                    // source→字段映射见 [tokenLiveValue]（TokenLiveSourceMappingTest 钉完备性）。
+                    // 不删本屏既有仪表/折线：切换仪表与平滑度折线是变换后的呈现，非同源重复。
+                    com.aneb.probe.ui.components.LiveMetricStrip(
+                        metrics = TestModeProfiles.ALL.first { it.id == "token_experience" }.live,
+                        values = { source -> tokenLiveValue(telemetry, source) },
+                    )
+                    Spacer(Modifier.height(10.dp))
                     HeroCaption("正在检查 AI 持续输出与稳定性 · 已测 ${elapsedSec}s · ${progress.phaseName}")
                     Spacer(Modifier.weight(1.1f))
                 }
@@ -670,4 +678,28 @@ internal object NetworkLabel {
         }
         return "$transport · ${run.mode} · ${fmt.format(Date(run.startedAtEpochMs))}"
     }
+}
+
+/**
+ * token 面（LiveTelemetry）source→字段映射（LiveMetricStrip 取值器；批 5b）。
+ * itlRecentMs 是滑窗列表：取**最新一项**——strip 每 refreshMs 采样一次、按 windowMs
+ * 自建波形窗，喂列表尾即得逐拍波形。stallCount/tokensReceived 是计数：0 是**真实
+ * 读数**（0 次卡顿＝好结果），非 R-10 伪装——伪装指"缺测冒充 0"，计数器从测量开始就在。
+ */
+internal fun tokenLiveValue(t: com.aneb.probe.engine.LiveTelemetry, source: String): Double? = when (source) {
+    "rttMs" -> t.rttMs
+    "jitterMs" -> t.jitterMs
+    "rsrp" -> t.rsrp?.toDouble()
+    "sinr" -> t.sinr?.toDouble()
+    "upMbps" -> t.upMbps
+    "liveUpMbps" -> t.liveUpMbps
+    "ttftMs" -> t.ttftMs
+    "itlRecentMs" -> t.itlRecentMs.lastOrNull()
+    "itlMedianMs" -> t.itlMedianMs
+    "stallCount" -> t.stallCount.toDouble()
+    "tokensReceived" -> t.tokensReceived.toDouble()
+    "tokenRatePerSec" -> t.tokenRatePerSec
+    "fraction" -> t.fraction
+    "aqsRunning" -> t.aqsRunning
+    else -> null
 }
