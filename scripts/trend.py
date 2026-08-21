@@ -142,6 +142,39 @@ def campaign_order(records, explicit=None):
     return sorted(present, key=lambda c: (earliest.get(c, float("inf")), c))
 
 
+def wall_order_flip(records, explicit=None):
+    """按**服务端**钟重排，N 战役的时序会不会变（D-545 二战役版的同类，D-269）。
+
+    campaign_order 用设备墙钟排 N 个战役，而顺序一变，每格 trajectory 的首末
+    对调、改善/回退判词跟着反——与 D-161/D-545 同一个事故形状，只是从一对
+    推广到一列。返回 (checked, flipped, device_order, server_order)：
+
+    * explicit 给了显式顺序 ⇒ (False, False, [], [])——顺序不是时间定的，
+      谈不上"钟指错了"；
+    * 任一参与排序的战役拿不到服务端时刻（cc.run_server_started_ms 全 None）
+      ⇒ checked=False——"没法查"≠"查过且没问题"（D-545 分母纪律）；
+    * 排序键与 campaign_order 逐字同款（(ms, cid) 的 tie-break），只换时间源
+      ——否则"翻转"可能只是两套排序规则的差异，而不是钟造成的（D-545）。
+    """
+    if explicit:
+        return (False, False, [], [])
+    device = campaign_order(records)
+    srv_earliest = {}
+    for rec in records:
+        cid = cc.campaign_labels(rec)["campaign_id"]
+        if cid == cc.UNLABELED:
+            continue
+        srv = cc.run_server_started_ms(rec)
+        if srv is None:
+            continue
+        if cid not in srv_earliest or srv < srv_earliest[cid]:
+            srv_earliest[cid] = srv
+    if any(c not in srv_earliest for c in device):
+        return (False, False, device, [])
+    server = sorted(device, key=lambda c: (srv_earliest[c], c))
+    return (True, server != device, device, server)
+
+
 def _direction(traj, higher_better, within_noise=None, order_ok=True):
     """Classify a trajectory (list of medians / None) -> verdict dict.
 
@@ -227,11 +260,17 @@ def analyze(records, metric=DEFAULT_METRIC, order=None,
             "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
             **verdict,
         })
+    wall_checked, wall_flipped, dev_order, srv_order = wall_order_flip(
+        records, order)
     return {
         "metric": metric,
         "higher_is_better": higher_better,
         "campaigns": ids,
         "order_basis": basis,
+        # 设备钟排的时序，换服务端钟会不会变（D-545 同族；checked=False =
+        # 无从判断，渲染侧不得把它读成"查过没问题"）
+        "wall_order": {"checked": wall_checked, "flipped": wall_flipped,
+                       "device": dev_order, "server": srv_order},
         # excluded from the chronology, never from the accounting (D-210)
         "unlabeled_records": sum(
             1 for r in records
@@ -270,6 +309,19 @@ def render_markdown(res):
     if not res["cells"]:
         lines.append("_无可成轨迹的单元。_")
         return "\n".join(lines)
+
+    wall = res.get("wall_order") or {}
+    if wall.get("flipped"):
+        lines += ["> ⚠ **本时序按设备墙钟排为 " + " → ".join(wall["device"])
+                  + "，但按服务端墙钟（`started_at_epoch_ms − clock.wall_skew_ms`）"
+                  "重排是 " + " → ".join(wall["server"])
+                  + "**——列的先后一变，每格 trajectory 首末对调、"
+                  "改善/回退判词跟着反（D-161/D-545 同款事故）。"
+                  "**先定清哪把钟为准，再读本节；或用 `--order` 显式指定顺序。**", ""]
+    elif not wall.get("checked") and res.get("order_basis") == "time":
+        lines += ["> ➖ 本时序按**设备**墙钟排；语料无（或不全带）墙钟证据"
+                  "（`clock.wall_skew_ms`），服务端钟复核**无从进行**——"
+                  "不等于查过且没问题（D-545 分母纪律）。", ""]
 
     head = ("| 点位 | 运营商 | 时段 | " + " | ".join(res["campaigns"])
             + " | 首末Δ | 噪声 | 方向 | 备注 |")

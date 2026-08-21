@@ -161,3 +161,54 @@ def test_aborted_run_aqs_stays_out_of_the_trajectory():
     assert c["trajectory"] == [60, 72, 85]
     assert c["direction"] == "improving"
     assert c["monotonic"] is True
+
+
+# ---- 服务端钟重排（D-545 二战役版的 N 战役同类；修复来自 D-269 找同类）----
+
+def _skew(recs, ms):
+    """给每条记录一个墙钟差场景（aqs_records 不带 scenarios，metric=aqs 不读它）。"""
+    for r in recs:
+        r["scenarios"] = [{"clock": {"wall_skew_ms": ms}}]
+    return recs
+
+
+def test_wall_flip_flips_the_column_order_and_says_so():
+    """c3 的墙钟快了 ~28h：按服务端钟它其实在 c2 之前——列序一变判词全反。"""
+    recs = (_skew(_camp(60, "c1", 1000), 0)
+            + _skew(_camp(72, "c2", 2000), 0)
+            + _skew(_camp(85, "c3", 3000), 100_000_000))
+    res = trend.analyze(recs)
+    wall = res["wall_order"]
+    assert wall["checked"] is True and wall["flipped"] is True
+    assert wall["server"] == ["c1", "c3", "c2"]
+    md = trend.render_markdown(res)
+    assert "按服务端墙钟" in md and "c1 → c3 → c2" in md
+    assert "--order" in md                     # 给出可执行的出路
+
+
+def test_suspect_but_order_preserving_skew_does_not_cry_wolf():
+    """全体 2 分钟偏移（早过 60s 阈值）但顺序不变——不得报警。
+
+    误报会让这类提示很快没人看（D-545 特意加过同款守卫）。
+    """
+    recs = (_skew(_camp(60, "c1", 1000), 120_000)
+            + _skew(_camp(72, "c2", 2000), 120_000)
+            + _skew(_camp(85, "c3", 3000), 120_000))
+    res = trend.analyze(recs)
+    assert res["wall_order"] == {"checked": True, "flipped": False,
+                                 "device": ["c1", "c2", "c3"],
+                                 "server": ["c1", "c2", "c3"]}
+    md = trend.render_markdown(res)
+    assert "按服务端墙钟" not in md and "无从进行" not in md
+
+
+def test_no_wall_evidence_reads_as_cannot_check_not_clean():
+    """接线前语料无 wall_skew_ms ⇒ 无从判断，必须说出口（≠查过没问题）。"""
+    recs = (_camp(60, "c1", 1000) + _camp(72, "c2", 2000) + _camp(85, "c3", 3000))
+    res = trend.analyze(recs)
+    assert res["wall_order"]["checked"] is False
+    md = trend.render_markdown(res)
+    assert "无从进行" in md and "不等于查过且没问题" in md
+    # 显式 --order 时顺序不是时间定的：两种墙钟条都不该出现
+    md2 = trend.render_markdown(trend.analyze(recs, order=["c2", "c1", "c3"]))
+    assert "无从进行" not in md2 and "按服务端墙钟" not in md2

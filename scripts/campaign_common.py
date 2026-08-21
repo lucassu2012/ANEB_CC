@@ -124,10 +124,15 @@ DEFAULT_TZ_OFFSET_H = 8
 
 # run.started_at_epoch_ms carries real weight: it orders before/after (D-161),
 # bounds the reported collection window (D-138), decides the tier-simultaneity
-# verdict (D-155) and drives --infer-time-band (D-153). Nothing ever checked its
-# magnitude, so a seconds-valued epoch — the classic 1e9-vs-1e12 slip — sorts a
-# campaign to 1970 and re-creates the D-161 inversion through a different door,
-# while the report still states its ordering basis as "time".
+# verdict (D-155), drives --infer-time-band (D-153), and orders trend.py's
+# N-campaign chronology whose 改善/回退 verdicts flip with it (D-196). This list
+# was hand-written as "four consumers" and the wall-clock chain (D-541/543/545)
+# walked it as such — trend.py, the fifth, was found only by grepping for
+# readers of the field afterwards: enumerate from the product, not the list
+# (D-273/D-315). Nothing ever checked the field's magnitude, so a seconds-valued
+# epoch — the classic 1e9-vs-1e12 slip — sorts a campaign to 1970 and re-creates
+# the D-161 inversion through a different door, while the report still states
+# its ordering basis as "time".
 EPOCH_MS_MIN = 1_577_836_800_000    # 2020-01-01T00:00:00Z
 EPOCH_MS_MAX = 4_102_444_800_000    # 2100-01-01T00:00:00Z
 
@@ -442,11 +447,20 @@ def run_status_head(rec):
     所以**在把它变成判据之前先把取值集合钉住**。
 
     返回 None 表示 status 缺失/空/非字符串——缺席不是 'completed'，调用方须自行区分。
+
+    **空头也是 None**（T76 交界复核补）：``":timeout"`` 这类「非空但冒号前为空白」的
+    形状，此前会返回**空串**——于是它被当成一个空名字的"非 completed 状态"剔除出
+    中位、并在 inventory 里生出一个空串桶；而设备侧 ``ReportAnalyzer.statusHead`` 的
+    ``takeIf { isNotEmpty() }`` 恰好把同一输入折成 null（未知）。**同一条记录两端读法
+    相反**，正是上面 KDoc 自称「逐字镜像」要防的形状——v2 在设备侧修过纯空串那半
+    （StatusJudgement 注释记录在案），这一形状是它的残余。没有头部的状态无法判定，
+    归 unknown（进池 + 横幅单独交代），不是一个叫空串的状态。生产端三族写法
+    （completed / aborted:* / guard_rejected:*）都带非空头，不受影响。
     """
     st = run_obj(rec).get("status")
     if not isinstance(st, str) or not st.strip():
         return None
-    return st.split(":", 1)[0].strip().lower()
+    return st.split(":", 1)[0].strip().lower() or None
 
 
 def run_id(rec):
@@ -525,6 +539,25 @@ def run_pools_into_stats(rec):
 
 def run_started_ms(rec):
     return fnum(run_obj(rec).get("started_at_epoch_ms"))
+
+
+def run_server_started_ms(rec):
+    """服务端钟下的 run 起点 ms：started_at − median(全场景 wall_skew_ms)。
+
+    skew 的定义就是「设备 − 服务端」（AnebClient.wallSkewMs，D-506）；取中位
+    避免单场景异常主导。None = 无 started 或无任何墙钟证据——「拿不到」≠
+    「等于设备钟」，调用方必须把 None 说成「无从判断」而不是当作干净
+    （D-541/D-545 的分母纪律）。campaign_report 的库存与 trend 的时序复核
+    共读本函数：同一个量只有一份实现（2.14/D-264）。"""
+    started = run_started_ms(rec)
+    if started is None:
+        return None
+    skews = [fnum((s.get("clock") or {}).get("wall_skew_ms"))
+             for s in iter_scenarios(rec)]
+    skews = [s for s in skews if s is not None]
+    if not skews:
+        return None
+    return started - median(skews)
 
 
 # Records produced by scripts/synth_campaign.py carry BOTH of these markers.

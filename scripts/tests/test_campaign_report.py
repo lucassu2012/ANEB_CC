@@ -69,6 +69,31 @@ def test_inventory_status_absent_is_unknown_not_completed():
     assert inv["statuses"] == {"completed": 1, "unknown": 2}
 
 
+def test_empty_status_head_is_unknown_not_an_empty_bucket():
+    """空头（`":timeout"` 这类冒号前为空白的形状）归 unknown，不是一个叫空串的状态。
+
+    T76 交界复核抓到的两端分叉：分析侧此前对它返回**空串**——被当成空名字的
+    "非 completed 状态"剔除出中位、inventory 生出空串桶、横幅打印一个空桶名；
+    而设备侧 `ReportAnalyzer.statusHead` 的 `takeIf { isNotEmpty() }` 把同一输入折成
+    null（未知、不点名）。**同一条记录两端结论相反**——KDoc 自称「逐字镜像」，
+    差的正是这一形状（v2 修过纯空串那半，这是它的残余）。
+
+    该形状全语料 3509 条零实例（生产端三族写法都带非空头），语料测不到它，
+    只能靠本反例钉住（D-302）。
+    """
+    recs = aqs_records(90, 2)
+    recs[1]["run"]["status"] = ":timeout"
+    inv = rpt.inventory(recs)
+    assert inv["statuses"] == {"completed": 1, "unknown": 1}   # 不再有 "" 桶
+    # 未知即进池（与 status:null 同一条规则）：n=2 而非 1
+    cells = rpt.heat_cells(recs)
+    assert cells[0]["n"] == 2
+    # 横幅侧也不把它当成"已排除"的状态点名
+    md = rpt.build_report_markdown(recs)
+    assert "已排除出中位数" not in md
+    assert "无法自证是否正常结束" in md
+
+
 def test_aborted_run_aqs_stays_out_of_the_median():
     """中止 run 的 run 级 AQS 不进中位（D-534 §3 落地）。
 
@@ -2419,7 +2444,12 @@ def test_small_skew_does_not_cry_wolf_about_order():
 
 
 def test_order_check_says_unknown_rather_than_clean_without_evidence():
-    """拿不到墙钟证据时返回 checked=False——「没法查」≠「查过了没问题」。"""
+    """拿不到墙钟证据时返回 checked=False——「没法查」≠「查过了没问题」。
+
+    渲染侧也要说出口：compare_order_wall_flip 的 docstring 自 D-545 起就承诺
+    "渲染侧据此说无从判断而不是沉默"，但那条分支曾整整缺席一轮（D-267：
+    双向承诺里没测试的那一边最容易过期）——本测试的后两行就是补上的那半。
+    """
     import synth_campaign as sc
     recs = sc.generate(points=2, repeats=2, campaigns=("base", "opt"), radio=True)
     for r in recs:
@@ -2427,3 +2457,6 @@ def test_order_check_says_unknown_rather_than_clean_without_evidence():
             (s.get("clock") or {}).pop("wall_skew_ms", None)
     inv = rpt.inventory(recs)
     assert rpt.compare_order_wall_flip(inv) == (False, False)
+    md = rpt.build_report_markdown(recs)
+    assert "服务端钟复核**无从进行**" in md
+    assert "不等于查过且没问题" in md

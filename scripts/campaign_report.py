@@ -180,22 +180,17 @@ def inventory(records):
         inv["label_sources"][src if isinstance(src, str) and src else "declared"] += 1
         # 只查"标签是推断来的"且"这条带得到墙钟差"的 run：其余无从判断，
         # 不计入分母（缺证据不算干净，同 D-541 的分母纪律）。
-        skews_all = [cc.fnum((s.get("clock") or {}).get("wall_skew_ms"))
-                     for s in cc.iter_scenarios(rec)]
-        skews_all = [s for s in skews_all if s is not None]
-        if started is not None and skews_all:
-            srv = started - cc.median(skews_all)
+        # 服务端时刻的算法（started − median(skew)，skew=设备−服务端，
+        # AnebClient.wallSkewMs）单一实现在 cc.run_server_started_ms ——
+        # trend 的时序复核共读同一个函数（2.14/D-264）。
+        srv = cc.run_server_started_ms(rec)
+        if srv is not None:
             if (cid not in inv["campaign_first_srv_ms"]
                     or srv < inv["campaign_first_srv_ms"][cid]):
                 inv["campaign_first_srv_ms"][cid] = srv
-        if isinstance(src, str) and "inferred:time_band" in src and started is not None:
-            skews = skews_all
-            if skews:
+            if isinstance(src, str) and "inferred:time_band" in src:
                 inv["tb_flip_checked"] += 1
-                # 服务端时刻 = 设备时刻 − skew（skew 的定义就是"设备 − 服务端"，
-                # AnebClient.wallSkewMs）。取中位避免单场景异常主导。
-                srv_ms = started - cc.median(skews)
-                if annotate.infer_time_band(started) != annotate.infer_time_band(srv_ms):
+                if annotate.infer_time_band(started) != annotate.infer_time_band(srv):
                     inv["tb_flipped"] += 1
     # labels that are probably one label typed two ways: they split a cell in
     # two and the split is invisible in the rendered table (D-149)
@@ -895,6 +890,14 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                 "但按服务端墙钟（`started_at_epoch_ms − clock.wall_skew_ms`）重排"
                 "**顺序相反****——下面每个 Δ 的**符号可能整体反了**（D-161 同款事故："
                 "改善会被印成回退）。**先定清哪把钟为准，再读这一节。**")
+        elif not _ord_checked:
+            # compare_order_wall_flip 的 docstring 自 D-545 起就承诺"渲染侧据此说
+            # 无从判断而不是沉默"，而这条 else 分支是后来补的——承诺先于实现
+            # （D-267：双向承诺里没测试的那一边最容易过期）。
+            bullets.append(
+                "> ➖ 本对比的先后次序按**设备**墙钟定；语料无（或不全带）墙钟证据"
+                "（`clock.wall_skew_ms`），服务端钟复核**无从进行**——不等于"
+                "查过且没问题（D-545 分母纪律）。")
         rows = [r for r in compare_campaigns(records, before_id, after_id,
                                              min_samples)["rows"]
                 if r["delta"] is not None]
