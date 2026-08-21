@@ -571,9 +571,10 @@ PO 批复 D1=「只测当前手机所在位置」后，「实地走点」这项�
 「服务端时刻」只有一份实现：`cc.run_server_started_ms`（D-552）。**方法教训两条**：
 ①消费方清单是手写的就会漏——「四个消费方」漏了 trend，靠 grep 从产物枚举才找到（D-273
 再证；教训已写进 `campaign_common.py` 该注释自身）；②docstring 里替渲染侧许的诺（「说
-无从判断而不是沉默」）悬空了一轮才被补上（D-267 再证）。**待裁**：分桶键是否改服务端
-时刻，见 [`DECISION_REQUEST_WALL_DAY_BUCKET_20260822.md`](DECISION_REQUEST_WALL_DAY_BUCKET_20260822.md)
-（关键实测：现存 48 个语料文件零 `wall_skew_ms`，改键对已发布报告零影响）。
+无从判断而不是沉默」）悬空了一轮才被补上（D-267 再证）。~~待裁：分桶键~~ **已裁已落地
+（同日）**：B2 终裁（全证据整表换服务端键／混合整表回退＋横幅／零证据逐字节不变）见
+[`DECISION_REQUEST_WALL_DAY_BUCKET_20260822.md`](DECISION_REQUEST_WALL_DAY_BUCKET_20260822.md)
+与 D-555（施工），劝告句随后全部指针化（D-559）——分桶钟源看趋势表头与 CSV `day_clock` 列。
 
 ---
 
