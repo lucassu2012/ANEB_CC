@@ -18,7 +18,7 @@
 - R-10（缺失≠零）贯穿到渲染层（HalfGauge idle 修复 a50afba+渲染红线守卫 5effc8f）
 - 低置信自声明+claim scope 页脚（「终端至仿真节点应用层端到端」，不外推运营商网络评级/MOS）
 - 口径可追溯：AQS v0.2 冻结至真实 API 语料（D-505）、语音 v0.1/v0.2 分数不可比守卫（cb26dca）
-- 核心机制表（守卫/机制 → 防什么 → 证据锚；节选最外层的一圈，全量见 scripts/tests/ 663 条与 app 单测**全绿，实数以台账最新条目为准**（不写死，见 H-3））：
+- 核心机制表（守卫/机制 → 防什么 → 证据锚；节选最外层的一圈，全量见 scripts/tests/ 与 app 单测**全绿，实数以台账最新条目为准**（不写死，见 H-3；08-22 参考值：Python 697/697））：
 
 | 机制 | 防什么 | 锚 |
 |---|---|---|
@@ -27,14 +27,14 @@
 | claim scope 页脚 | 报告被读成运营商网络评级/MOS | 报告头尾双面（D-323 定位加固） |
 | 口径不可比守卫 | 语音 v0.1 历史分 79.8（`aqs-voice-sim-v0.1`，M7 引入前口径，不与 v0.2 后的分数比较）与 v0.2 分数被跨口径比较 | test_voice_score_caliber（cb26dca 含数字边界修正） |
 | RttDominanceGuard 三条件 | 小负载把「时延」冒充「带宽」（U1 0.14Mbps 伪影族） | D-499 三常量+T66 绊线（钉 window/阈值之商） |
-| 发布门 publish_check | 带 FAIL 的语料出报告；WARN 未在正文交代 | verify_all 15 门（含 T58b 签名验证步 05edee3） |
+| 发布门 publish_check | 带 FAIL 的语料出报告；WARN 未在正文交代 | verify_all 全链（检查项数随门禁演进增长 15→19，D-523 H-2 订正、08-22 实测 19；含 T58b 签名验证步 05edee3） |
 | 渲染完整性守卫 | 表格被裸竖线劈碎/孤行（源码整齐渲染残缺） | test_docs_commands 22 项（D-214 族） |
 | caliber 逐轮核对 | 服务端静默回落 v1 口径混入 v2 语料 | T50 §①C；35/35 零回落实证（DW-05） |
 | 守卫的守卫 | 门禁跑了但不算数（UP-TO-DATE 跳过/管道退出码吞失败） | T66/D-508 输入声明修复；guard-pipe 教训（记忆库） |
 | 双盲判读 | 单方推理错误被结论正确掩盖 | D-507 vs D-510（落点同、三推理订正） |
 
-### 3. 战役分析层（scripts/，663 reflex 守卫）
-- 一键复跑实证（T60 干跑 08-19）：verify_all 15/15 → campaign_report 全语料重出 → publish_check 可发布（FAIL 0）
+### 3. 战役分析层（scripts/ reflex 守卫——数随台账增长不写死，08-22 实测 697/697）
+- 一键复跑实证（T60 干跑 08-19；08-22 复核 Python 697/697 全绿）：verify_all 全链 → campaign_report 全语料重出 → publish_check 可发布（FAIL 0）。门数不写死——随门禁演进 15→19（D-523 H-2 订正），当日实数以链跑日志汇总行（`checks: N total`）为准
 - 工具地图=`scripts/README.md` 分层表（逐-run/战役级/守门/规格门禁/彩排五层，各工具一句话定位在册），此处不复制（防两处漂移，§2.14）
 
 ## 二、不能实现什么（边界分两类）
@@ -65,9 +65,9 @@
   - **权威语料**：`t46_full_corpus_analysis_20260804/full_corpus_labelled.jsonl`（73 run/489 场景全语料，一切分析层结论的数据源）｜`phase3/realdevice_data/voice30_voice_result_only.db`（语音 35 行单表；全库 112MB 本地留存不入库）
   - **战役档案**：`m2_pilot_20260731/`（首份真实数据战役）｜`m3_expansion_*`（扩展轮系列，PAUSED 线资产）｜`m2_rerun_20260819/`（M2 复跑正式产物，D-512）
   - **机制证据**：`nr_timeline_20260802/`（RAT 时间线+radio-zero 机制 D-457）｜`t47_s4throughput_devverify_20260804/`（吞吐真机 D-479，诊断期口径）｜`e1_realdevice_20260802/`+`e234_*`（E 系对拍）
-  - **门禁日志**：`phase0/`（verify_all 历史 log+sha256-manifest 281 文件清单）
+  - **门禁日志**：`phase0/`（verify_all 历史 log+sha256-manifest 清单；**文件数随每次链跑递增，不写死**——每跑一次链就多一份日志入清单）
   - 读法规则：目录按「战役/任务_日期」命名，先由台账 D 号证据列定位，勿按名猜（同 docs/ 索引规则）。
-- 工具链：`scripts/` 战役分析层（20+ CLI+campaign_common 共享库+663 reflex 守卫；入口与分层见 `scripts/README.md`）；`verify_all.ps1` 发布门（15 步）；设备批采工装（acceptance_batch/voice_batch2，会话 scratchpad，用后即弃类）
+- 工具链：`scripts/` 战役分析层（20+ CLI+campaign_common 共享库+reflex 守卫，数随台账增长、08-22 实测 697；入口与分层见 `scripts/README.md`）；`verify_all.ps1` 发布门（步数以其汇总行为准，08-22 实测 19）；设备批采工装（acceptance_batch/voice_batch2，会话 scratchpad，用后即弃类）
 
 ## 四、遗留债务清单（08-20 晨汇集；App 端六条采信 T61 供料 §5，状态已按台账刷新）
 
