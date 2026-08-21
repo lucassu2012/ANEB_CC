@@ -66,6 +66,12 @@ object ResultReporter {
             put("app_version_code", run.appVersionCode)
             put("guard_metadata", run.guardMetadata)
             put("status", run.status)
+            // D-534 §2：键缺席=该 run 早于本字段上线（R-10 缺失≠空数组），""→[]=明确零跳过。
+            run.skippedProfiles?.let { csv ->
+                putJsonArray("skipped_profiles") {
+                    csv.split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { add(it) }
+                }
+            }
             put("aqs", buildJsonObject {
                 put("score", aqs.score)
                 put("low_confidence", aqs.lowConfidence)

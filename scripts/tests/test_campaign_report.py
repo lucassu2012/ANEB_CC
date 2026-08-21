@@ -69,6 +69,35 @@ def test_inventory_status_absent_is_unknown_not_completed():
     assert inv["statuses"] == {"completed": 1, "unknown": 2}
 
 
+def test_skipped_profiles_three_states_and_run_counting():
+    """D-534 §2 消费方守卫：三态分开 + 分子数的是 run 不是 (profile,run) 对。
+
+    夹具四条 run：①键缺席（早于字段上线——不进分母）②[]（明确零跳过）
+    ③["s4_throughput"] ④["s4_throughput","s9_future"]（一个 run 跳两个——
+    若按 pair 求和当 run 数，这条会被数成 2，D-333 形状）。
+    """
+    recs = aqs_records(90, 4, point="P1")
+    # rec0: 键缺席（aqs_records 默认不带该字段——先断言这个前提，防夹具漂移）
+    assert "skipped_profiles" not in recs[0]["run"]
+    recs[1]["run"]["skipped_profiles"] = []
+    recs[2]["run"]["skipped_profiles"] = ["s4_throughput"]
+    recs[3]["run"]["skipped_profiles"] = ["s4_throughput", "s9_future"]
+    inv = rpt.inventory(recs)
+    assert inv["skip_reporting_runs"] == 3        # 键缺席那条不进分母
+    assert inv["runs_with_skips"] == 2            # run 数，不是 3 个 pair
+    assert inv["skipped_profiles"] == {"s4_throughput": 2, "s9_future": 1}
+    md = rpt.build_report_markdown(recs)
+    assert "2 个 run 存在**被跳过的 profile**" in md
+    assert "`s4_throughput` × 2" in md
+    assert "分母=3" in md
+
+    # 全部零跳过（或早于上线）时那一行整个不出现——恒响的横幅是噪声
+    clean = aqs_records(90, 3, point="P1")
+    clean[0]["run"]["skipped_profiles"] = []
+    md2 = rpt.build_report_markdown(clean)
+    assert "被跳过的 profile" not in md2
+
+
 def test_empty_status_head_is_unknown_not_an_empty_bucket():
     """空头（`":timeout"` 这类冒号前为空白的形状）归 unknown，不是一个叫空串的状态。
 

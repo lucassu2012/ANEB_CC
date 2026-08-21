@@ -218,6 +218,10 @@ class TestEngine(private val context: Context) {
         var radioShareJob: Job? = null
         var status = "completed"
         var reportStatus: String? = null
+        // D-534 §2：配置上应跑却因 profile 缺失而被跳过的 profile id。空 = 明确零跳过
+        // （与 null=「早于上线」区分，R-10）。今天唯一生产者是 s4_throughput 分支。
+        // guard_rejected 等早退路径不经过收尾 copy，其行保持 NULL（未走到跳过判定）。
+        val skippedProfiles = ArrayList<String>()
         var aqs: AqsScorer.AqsResult? = null
         val orderRecord = ArrayList<String>()
         val scenarioReports = ArrayList<Pair<ScenarioResultEntity, ItlHistogram>>()
@@ -603,6 +607,9 @@ class TestEngine(private val context: Context) {
                 )
             } else {
                 log("PROFILE_WARN missing=s4_throughput note=throughput_probe_skipped")
+                // D-534 §2：跳过进产物，不再只活在日志里——分析层读 JSONL 看不到日志，
+                // 无从分辨「跑了」和「被跳过」，而两者对吞吐覆盖统计含义完全不同。
+                skippedProfiles += "s4_throughput"
             }
 
             // ---------------- run 级 AQS ----------------
@@ -671,6 +678,8 @@ class TestEngine(private val context: Context) {
                 aqsVetoApplied = aqsResult.vetoApplied,
                 aqsNotComputableReason = aqsResult.notComputableReason,
                 status = status,
+                // D-534 §2：空集 join 得 ""=明确零跳过；与 null（早于上线/早退路径）区分。
+                skippedProfiles = skippedProfiles.joinToString(","),
                 // v0.2 并列出分（无可用 continuity 数据时全 null＝无 v0.2 分支）
                 aqsV02Score = aqsV02?.score,
                 aqsV02LowConfidence = aqsV02?.lowConfidence,

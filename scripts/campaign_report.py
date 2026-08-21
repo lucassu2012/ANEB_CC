@@ -83,6 +83,10 @@ def inventory(records):
         "carriers": Counter(), "time_bands": Counter(), "tiers": Counter(),
         "aqs_present": 0,
         "statuses": Counter(),
+        # D-534 §2: {profile_id -> runs that skipped it}; skip_reporting_runs =
+        # runs that CARRY the field at all (denominator — key absent is a third
+        # state, "predates the field", never folded into "nothing skipped").
+        "skipped_profiles": Counter(), "skip_reporting_runs": 0, "runs_with_skips": 0,
         # version dimensions that define what the numbers MEAN — pooling across
         # them compares different metric/scoring definitions under one name (D-137)
         "kpi_sets": Counter(), "aqs_versions": Counter(), "app_versions": Counter(),
@@ -133,6 +137,22 @@ def inventory(records):
         # split on ":" but did NOT case-fold, so the demo corpus' `COMPLETED` formed
         # its own bucket and tripped the "non-completed run" banner on 12 healthy runs.
         inv["statuses"][cc.run_status_head(rec) or "unknown"] += 1
+        # D-534 §2 (skipped_profiles, 08-22): three states, kept apart on purpose.
+        # Key absent = the run predates the field (R-10: not knowing is not "none
+        # skipped"); [] = explicitly nothing skipped; non-empty = these profiles
+        # were configured to run and silently weren't — this report is the first
+        # reader the signal has ever had (it used to live only in a device log).
+        sk = cc.run_obj(rec).get("skipped_profiles")
+        if isinstance(sk, list):
+            inv["skip_reporting_runs"] += 1
+            names = {pid.strip() for pid in sk if isinstance(pid, str) and pid.strip()}
+            # runs_with_skips counts RUNS; skipped_profiles counts (profile, run)
+            # pairs. Summing the latter to headline "N runs" would let one run
+            # skipping two profiles read as two runs (the D-333 shape).
+            if names:
+                inv["runs_with_skips"] += 1
+            for pid in names:
+                inv["skipped_profiles"][pid] += 1
         inv["profile_version_sets"][rec.get("profile_versions") or "absent"] += 1
         inv["kpi_sets"][rec.get("kpi_set") or "absent"] += 1
         inv["aqs_versions"][rec.get("aqs_version") or "absent"] += 1
@@ -1519,6 +1539,16 @@ def build_report_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
                      "（按 status 剔除，不按 `:reason` 细分）；"
                      "**其已完成场景仍计入场景级统计**——那是真实测量。"
                      "**只显性化，不静默剔除**。")
+        parts.append("")
+    # D-534 §2: a skipped profile only prints when it HAPPENED — every run that
+    # carries the field and skipped nothing stays silent (a permanent "0 skipped"
+    # banner is noise), and runs predating the field are not counted as clean.
+    if inv["skipped_profiles"]:
+        det = "、".join(f"`{p}` × {n}" for p, n in cc.ranked(inv["skipped_profiles"]))
+        parts.append(f"> ⚠ {inv['runs_with_skips']} 个 run 存在**被跳过的 profile**"
+                     f"（{det}；分母={inv['skip_reporting_runs']} 个带此字段的 run）——"
+                     "「配置上应跑却因 profile 缺失而未跑」，对应能力的覆盖统计请按此打折读；"
+                     "早于该字段上线的 run 无从判断，不计入分母。")
         parts.append("")
     if inv["statuses"].get("unknown"):
         parts.append(f"> ⚠ {inv['statuses']['unknown']} 个 run 的 `status` 缺失或为 `null`"

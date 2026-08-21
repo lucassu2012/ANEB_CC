@@ -71,6 +71,13 @@ data class TestRun(
     val ipReachable: String? = null,
     /** bare-IP 通道探测耗时（ms）；失败或未探测记 null */
     val ipReachMs: Long? = null,
+    // ---- 被跳过的 profile 清单（v22 additive 列，D-534 §2/大脑 08-22 裁定）----
+    // 「配置上应跑却因 profile 缺失而被跳过」的 profile id，逗号 join（与 scenarioOrder
+    // 同风格）。动机：s4_throughput 缺 profile 时的跳过此前只打一行 PROFILE_WARN 日志——
+    // 日志到不了分析层，产物里无从分辨「跑了」和「被跳过」。
+    // "" = 明确零跳过；null = 该 run 早于本列上线（R-10：不知道跳没跳，不是知道没跳）。
+    // wire 侧由 ResultReporter 映射为字符串数组（""→[]，null→null）。
+    val skippedProfiles: String? = null,
 )
 
 @Entity(

@@ -216,6 +216,18 @@ bytes_requested` 且 `window_actual_ms < window_target_ms`——即请求在窗�
 > `low_confidence` 恒真，underrun 被掩盖。进契约是为了让它有**单一来源**，
 > 而不是让每个消费方各推一遍（D-264）。
 
+> **〔D-534 §2 并入裁定 · 08-22 施工：`run.skipped_profiles` 上线〕**
+> 本 spec 落地时写明「缺 profile 时静默跳过（既有容忍风格）」——实现里其实打了一行
+> `PROFILE_WARN missing=s4_throughput` 日志，**准确说法是「日志里有、产物里没有」**：
+> 分析层读 JSONL，无从分辨一个 run 的 s4 是「跑了」还是「被跳过」，而两者对
+> 吞吐覆盖统计的含义完全不同。核实过既有通道均不合适（`guard_metadata` 是
+> NetGuard 元数据、run 开头即构建完且分析层零读者——写进去等于再造一个
+> 写了没人读的信号），故新增 run 级字段（大脑 08-22 裁定，合并版）：
+> **`skipped_profiles`（字符串数组，非必填）**——本次 run 里「配置上应跑却因
+> profile 缺失而被跳过」的 profile id 列表。`[]`=明确零跳过；`null`/缺失=该 run
+> 早于本字段上线（**R-10：缺失≠空数组**——不知道跳没跳，不是知道没跳）。
+> 数组为将来的可选相位留位；今天唯一生产者是本 spec 的 s4_throughput 分支。
+
 #### 8.3.4 慢启动双口径：数据驱动，不用固定毫秒常量
 
 **U3（上行）：直接复用既有的数据驱动检测器，不新造**——`UploadAnalysis.estimateSlowStart`

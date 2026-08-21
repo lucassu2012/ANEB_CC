@@ -61,7 +61,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      bytes_transferred/rtt_ref_ms_pre/_post/rtt_drift_ratio/rtt_dominance_ratio/
     //      rtt_dominance_ok 各 11 列×2 方向;诊断期不进任何 AQS facet;可空,历史行/非
     //      s4_throughput 场景 NULL＝「未跑该探针」而非「为零」,additive ADD COLUMN）
-    version = 21,
+    version = 22,
     exportSchema = true, // T45/D-463 §6.2：打开，快照进 app/probe/schemas/（ksp room.schemaLocation）
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -585,6 +585,32 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v21 → v22 的全部语句（D-534 §2 并入裁定 / 大脑 08-22 合并版：`skipped_profiles`
+         * 进契约）。s4_throughput 缺 profile 时的跳过此前只打一行 `PROFILE_WARN` 日志——
+         * 日志到不了分析层，产物里无从分辨「跑了」和「被跳过」。既有通道核实过均不
+         * 合适（`guard_metadata` 是 NetGuard 元数据、run 开头即构建完且分析层零读者），
+         * 故新增 run 级列。逗号 join（同 `scenarioOrder` 风格）；wire 侧映射为字符串数组。
+         *
+         * 旧行为 NULL —— **缺失不是空数组**（R-10）：那些 run 跑在本列上线之前，
+         * 我们不知道它们跳没跳过，而不是知道它们没跳。
+         */
+        internal val MIGRATION_21_22_SQL: List<String> = listOf(
+            "ALTER TABLE `test_run` ADD COLUMN `skippedProfiles` TEXT",
+        )
+
+        /**
+         * v21 → v22（`skipped_profiles` 上线，additive）：只加列不动数据。人工验证同
+         * [MIGRATION_18_19] KDoc（覆盖安装后既有 test_run 行可见且新列 =NULL、
+         * `.schema test_run` 输出含新列、缺 s4 profile 跑一轮后新行该列 ="s4_throughput"、
+         * 全 profile 在位跑一轮后 =""、logcat 无 Migration 异常）。
+         */
+        internal val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_21_22_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -598,7 +624,7 @@ abstract class AnebDatabase : RoomDatabase() {
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                         MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
-                        MIGRATION_19_20, MIGRATION_20_21,
+                        MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     //

@@ -34,6 +34,7 @@
         "app_version_code": { "type": ["integer", "null"] },
         "guard_metadata": { "type": ["string", "null"], "description": "守卫元数据 JSON/KV 串" },
         "status": { "type": ["string", "null"], "description": "completed / aborted:<reason>" },
+        "skipped_profiles": { "type": ["array", "null"], "items": { "type": "string" }, "description": "本次 run 里「配置上应跑却因 profile 缺失而被跳过」的 profile id 列表(D-534 §2/大脑 08-22 裁定)。动机:s4_throughput 缺 profile 时的跳过此前只打一行 PROFILE_WARN 日志——日志到不了分析层,产物里无从分辨「跑了」和「被跳过」。[]=明确零跳过;null/缺失=该 run 早于本字段上线(R-10:缺失≠空数组——不知道跳没跳,不是知道没跳)。非必填;数组为将来的可选相位留位,今天唯一生产者是 s4_throughput 分支" },
         "aqs": {
           "type": "object",
           "additionalProperties": true,
