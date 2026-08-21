@@ -475,6 +475,36 @@ def check(records, min_samples=cc.DEFAULT_MIN_SAMPLES, stats=None):
                          "语料无 `clock.wall_skew_ms`（EchoWire 接线前的生产者）"
                          "——墙钟**未核算**，不等于对得上"))
 
+    # 热污染标（D-560 接线的首消费方，大脑裁定）。R-11：SEVERE+ 热迁移=污染标，
+    # **标记非否决**——受影响 run 的 KPI 判读须带热条件说明，门不作废任何值。
+    # 分母纪律与墙钟项同款：块缺席=接线前生产者、双 null=监控不在位，两者都
+    # 不算"干净"，由 N/A 面如实说出（查不了 ≠ 查过了）。
+    env_ann = env_pol = 0
+    for rec in records:
+        env = cc.run_obj(rec).get("env")
+        if not isinstance(env, dict):
+            continue
+        status = env.get("thermal_max_status")
+        count = cc.fnum(env.get("thermal_polluting_event_count"))
+        if status is None and count is None:
+            continue                      # 双 null=无监控，不进分母
+        env_ann += 1
+        if count and count > 0:
+            env_pol += 1
+    if env_pol:
+        rows.append(_row(WARN, "热污染标",
+                         f"{env_pol}/{env_ann} 条 run 存在 SEVERE+ 热迁移事件"
+                         "（`run.env.thermal_polluting_event_count` > 0，R-11 污染标）"
+                         "——**标记非否决**：这些 run 的 KPI（尤其解析/渲染路径的 "
+                         "ITL）判读须带热条件说明；逐格热状态见稳定性表「热状态」列"))
+    elif env_ann:
+        rows.append(_row(PASS, "热污染标",
+                         f"{env_ann} 条带热监控证据的 run 均无污染标事件"))
+    else:
+        rows.append(_row(NA, "热污染标",
+                         "语料无 `run.env` 热监控证据（块缺席=接线前的生产者；"
+                         "双 null=监控不在位）——热状态**未核算**，不等于干净"))
+
     # A heat-card dimension filled by a rule of thumb is not the same evidence
     # as one recorded on site, and the report says "busy is N points worse than
     # idle" either way (D-153)

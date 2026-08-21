@@ -272,6 +272,24 @@ DESIGNED_EFFECTS = (
 )
 
 
+def _env_summary(env_rng):
+    """run.env 热摘要（D-560 消费半）。分布让彩排同时走到消费方的全部分支：
+    ~5% 双 null（监控不在位）；其余按 none/light/moderate/severe 加权，severe 配
+    polluting 1..2（SEVERE+ 迁移计数，R-11——count>0 ⇒ max>=severe）。"""
+    r = env_rng.random()
+    if r < 0.05:
+        return {"thermal_max_status": None, "thermal_polluting_event_count": None}
+    if r < 0.70:
+        status, count = "none", 0
+    elif r < 0.85:
+        status, count = "light", 0
+    elif r < 0.96:
+        status, count = "moderate", 0
+    else:
+        status, count = "severe", env_rng.randint(1, 2)
+    return {"thermal_max_status": status, "thermal_polluting_event_count": count}
+
+
 def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle"),
              tiers=("metro", "regional", "core"), repeats=5,
              campaigns=("base", "opt"), seed=20260725, start_ms=1783944000000,
@@ -287,6 +305,8 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
     # （如 `test_synth_campaign` 注释记的「30 of the 96 cells here, measured」）会静默失效。
     # 将来再加需要随机的新字段，请照此各开各的流，不要往主流里插抽样。
     wall_rng = random.Random(seed + 506)
+    # THERMAL 摘要专用流（D-560 接线的消费半）：同上理由自开一流，零主流抽样。
+    env_rng = random.Random(seed + 560)
     pids = _point_ids(points)
     records = []
     counter = 0
@@ -373,6 +393,12 @@ def generate(*, points=8, carriers=("cmcc", "cucc"), time_bands=("busy", "idle")
                                     "profile_source": "server",
                                     "app_version_name": "0.0-synthetic",
                                     "app_version_code": 0, "guard_metadata": None,
+                                    # run 级热摘要（D-560 wire 半的合成对应）：
+                                    # 双 null=无监控 / 双非 null 成对（前门不变量）；
+                                    # polluting 计的是 SEVERE+ 迁移（R-11），故
+                                    # count>0 ⇒ max>=severe 的语义一致性在此成立。
+                                    # 全部从 env_rng 抽——零主流抽样（D-546/D-548）。
+                                    "env": _env_summary(env_rng),
                                     "status": "completed" if usable else "aborted:all_invalid",
                                     "aqs": aqs,
                                     "campaign": {  # marker #2: the SYNTH- prefix

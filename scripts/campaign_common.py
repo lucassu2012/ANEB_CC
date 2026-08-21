@@ -97,6 +97,22 @@ _CARRIER_ALIASES = {
 
 DEFAULT_MIN_SAMPLES = 5   # per-tier / per-cell sample floor for low_confidence
 
+# run.env.thermal_max_status 的枚举序（轻→重；D-560 接线）。取值集合与顺序以
+# spec/schemas/result-run.schema.json 的 enum 为准——本表只是它的 Python 排序面，
+# 有守卫对拍两面（集合相等 + "none" 最轻），改 schema 不改这里会当场红。
+THERMAL_STATUS_ORDER = ("none", "light", "moderate", "severe",
+                        "critical", "emergency", "shutdown")
+
+
+def thermal_worse(a, b):
+    """两个热状态取较重者；None 视为无读数（不是 "none"——R-10 区分）。"""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    order = THERMAL_STATUS_ORDER
+    return a if order.index(a) >= order.index(b) else b
+
 # PO ruling D-366 (2026-07-31, approving DECISION_REQUEST item F option 1):
 # s1_chat's 2KB upload finishes inside ~2 RTT, so its u1_goodput_mbps is a
 # round-trip count wearing Mbps units, not a throughput measurement (D-363).

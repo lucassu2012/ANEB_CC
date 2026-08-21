@@ -207,6 +207,12 @@ _NOT_A_REPORT_GATE = {
         "the Chinese display name of each tier; the tiers themselves are archived "
         "as `tiers`. Perturbing it changes words on the page and leaves every "
         "numeral identical",
+    ("campaign_common", "THERMAL_STATUS_ORDER"):
+        "the Python ordering face of the schema enum run.env.thermal_max_status "
+        "(D-560) — not a tunable gate: its value set and ordering are pinned to "
+        "the schema by test_thermal_order_matches_the_schema_enum, so drifting "
+        "it independently is already a red test, and there is no number here "
+        "for the manifest to archive",
     ("campaign_common", "GRADE_COLORS"): "HTML swatch colours",
     # Same class, added with the fix that stopped an unknown grade borrowing the
     # no-data grey (D-298): both change how the page looks and what it calls the

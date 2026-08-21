@@ -71,32 +71,32 @@
 
 > **本表共 24 个单元**：✗超门 0，CV 不可计算 0，其余稳定。摘要的「N/M 单元超 CV 门」即各 KPI 分表这两个数各自相加。
 
-| 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |
-|---|---|---|---|---|---|---|
-| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — |
-| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — |
+| 单元 | n | 中位 | 均值 | CV% | 稳定? | 热状态 | 备注 |
+|---|---|---|---|---|---|---|---|
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=base · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P1 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=busy · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=core · profile_id=s1_chat | 6 | 65 | 65 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=metro · profile_id=s1_chat | 6 | 20 | 20 | 0 | 稳定 | — | — |
+| campaign_id=opt · point_id=P2 · carrier=cmcc · time_band=idle · tier=regional · profile_id=s1_chat | 6 | 38 | 38 | 0 | 稳定 | — | — |
 
 ## 采样量核算（目标：分辨 5% 的差异）
 

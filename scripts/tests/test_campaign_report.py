@@ -2524,3 +2524,28 @@ def test_validity_trend_csv_carries_the_day_clock_because_the_heading_does_not_t
         rpt.write_csv_tables(recs(3, t0) + recs(3, t0 + day), prefix2)
         rows2 = _rollup_csv(prefix2, "validity_trend")
         assert rows2 and all(r["day_clock"] == "device" for r in rows2), rows2
+
+
+def test_stability_csv_carries_the_thermal_columns_with_the_markdown():
+    """热状态列与 markdown 同批到 CSV（D-303 教训前置）；空 worst=无证据非 none。
+
+    反例证伪：CSV 行漏写三列之一，本条即红（DictReader 取不到键或值不符）。
+    """
+    import os
+    import tempfile
+    from synth import make_record
+    r = make_record(campaign={"campaign_id": "base", "tier": "metro",
+                              "point_id": "P1", "carrier": "cmcc",
+                              "time_band": "busy"},
+                    scenarios=[("s1_chat", {"t2_itl_p95_ms": 20.0})])
+    r["run"]["env"] = {"thermal_max_status": "severe",
+                       "thermal_polluting_event_count": 1}
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "th")
+        rpt.write_csv_tables([r], prefix)
+        rows = [x for x in _rollup_csv(prefix, "stability")
+                if x["kpi"] == "t2_itl_p95_ms"]
+    assert rows
+    assert rows[0]["thermal_worst"] == "severe"
+    assert rows[0]["thermal_polluting_runs"] == "1"
+    assert rows[0]["thermal_annotated_runs"] == "1"

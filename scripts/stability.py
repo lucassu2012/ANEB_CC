@@ -21,7 +21,11 @@ from collections import Counter
 import campaign_common as cc
 
 DEFAULT_CV_GATE = 10.0  # percent — plan M1 acceptance「复测 CV ≤ 10%」
-DEFAULT_STABILITY_KPIS = ("t1_ttft_ms", "n1_rtt_p50_ms", "u1_goodput_mbps")
+# t2_itl 于 D-560 进列：热污染标的首要标的是解析/渲染路径的 ITL（R-11），
+# 「ITL 表的热状态列」若无 ITL 行则裁定落空——此前缺席只因 M1 验收口径
+# 点的是 TTFT，不是被排除过。
+DEFAULT_STABILITY_KPIS = ("t1_ttft_ms", "t2_itl_p95_ms",
+                          "n1_rtt_p50_ms", "u1_goodput_mbps")
 # tier is IN the key: a repeat targets the same server tier, so pooling tiers would
 # conflate tier-difference with measurement noise. CV here = true same-condition
 # repeatability.
@@ -147,8 +151,15 @@ def stability_cells(records, kpi_key, group_by=None,
     group_by = STAB_GROUP_BY if group_by is None else group_by
     buckets = {}
     implausible = {}
+    # 热状态按 **run 级**并入格（D-560 首消费方之二，大脑裁定「ITL 表的热状态列」）：
+    # env 是 run 级的单个块，一条 run 喂给某格多少个场景都只记一次；
+    # 双 null=监控不在位，不进分母（同发布门的分母纪律：缺证据不算干净）。
+    env_by_key = {}
+    env_seen = set()
     for rec in records:
         labels = cc.campaign_labels(rec)
+        env = cc.run_obj(rec).get("env")
+        env = env if isinstance(env, dict) else None
         for scn in cc.iter_scenarios(rec):
             v = cc.scenario_kpi(scn, kpi_key)
             if v is None:
@@ -156,6 +167,16 @@ def stability_cells(records, kpi_key, group_by=None,
             pid = scn.get("profile_id") or "?"
             key = tuple(pid if f == "profile_id" else (labels.get(f) or cc.UNLABELED)
                         for f in group_by)
+            if (key, id(rec)) not in env_seen:
+                env_seen.add((key, id(rec)))
+                if env and env.get("thermal_max_status") is not None:
+                    agg = env_by_key.setdefault(
+                        key, {"worst": None, "polluting_runs": 0, "annotated_runs": 0})
+                    agg["annotated_runs"] += 1
+                    agg["worst"] = cc.thermal_worse(agg["worst"],
+                                                    env["thermal_max_status"])
+                    if cc.fnum(env.get("thermal_polluting_event_count")) or 0:
+                        agg["polluting_runs"] += 1
             # Out of the pool, counted where it shows — the treatment the heat
             # card and the attribution matrix have given impossible values since
             # D-178, and which the corpus banner has been promising on this
@@ -171,6 +192,7 @@ def stability_cells(records, kpi_key, group_by=None,
     for key in sorted(set(buckets) | {k for k, c in implausible.items() if c}):
         vals = buckets.get(key) or []
         cv = cv_percent(vals)
+        env_agg = env_by_key.get(key) or {}
         cells.append({
             "cell": dict(zip(group_by, key)), "kpi": kpi_key, "n": len(vals),
             "mean": cc.mean(vals), "median": cc.median(vals), "cv_percent": cv,
@@ -179,6 +201,11 @@ def stability_cells(records, kpi_key, group_by=None,
             "unstable": (cv is not None and cv > cv_gate),
             "low_confidence": len(vals) < min_samples,
             "implausible_values": dict(sorted((implausible.get(key) or {}).items())),
+            # 热状态（D-560）：格内带热监控证据的 run 的最重状态 + 污染 run 数；
+            # worst=None 且 annotated=0 = 无证据（渲染成 —，不是 "none"）。
+            "thermal_worst": env_agg.get("worst"),
+            "thermal_polluting_runs": env_agg.get("polluting_runs", 0),
+            "thermal_annotated_runs": env_agg.get("annotated_runs", 0),
         })
     # Annotated HERE, not at each call site: every surface (report section,
     # summary bullet, CSV, --plan) reads the same field off the same cells, so
@@ -254,8 +281,8 @@ def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
                   "**已排除出该格的 n / 中位 / 均值 / CV**，仅计数。它们不是「测得很差」，"
                   "是**根本不是一次测量**——同一生产者写出过不可能的值，同批其他数值也不可信，"
                   "该格的稳定性结论请整体存疑，而不是只扣掉这几条。", ""]
-    lines += ["| 单元 | n | 中位 | 均值 | CV% | 稳定? | 备注 |",
-              "|---|---|---|---|---|---|---|"]
+    lines += ["| 单元 | n | 中位 | 均值 | CV% | 稳定? | 热状态 | 备注 |",
+              "|---|---|---|---|---|---|---|---|"]
     for c in cells:
         cell_label = " · ".join(f"{k}={cc.md_cell(v)}" for k, v in c["cell"].items())
         if c["cv_percent"] is None:
@@ -285,9 +312,18 @@ def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
         if c["low_confidence"]:
             notes.append("low_conf")
         note = "; ".join(notes) or "—"
+        # 热状态（D-560）：无证据=—（不是 "none"，R-10）；污染 run 点名数量，
+        # 因为它改变读者对该格 ITL/CV 的信任（R-11 标记非否决）。
+        if not c.get("thermal_annotated_runs"):
+            thermal = "—"
+        else:
+            thermal = c.get("thermal_worst") or "—"
+            if c.get("thermal_polluting_runs"):
+                thermal += f" **⚠污染{c['thermal_polluting_runs']}run**"
         lines.append(
             f"| {cell_label} | {c['n']} | {cc.fmt_num(c['median'], 2)} | "
-            f"{cc.fmt_num(c['mean'], 2)} | {cc.fmt_num(c['cv_percent'], 1)} | {stable} | {note} |")
+            f"{cc.fmt_num(c['mean'], 2)} | {cc.fmt_num(c['cv_percent'], 1)} | {stable} | "
+            f"{thermal} | {note} |")
     if omitted:
         lines += ["", f"> 另有 **{omitted}** 个**稳定**单元未列出（表内保留全部 ✗超门、"
                       f"CV 不可计算、含不可能读数的单元，以及前 {max_stable_rows} 个稳定单元）。"

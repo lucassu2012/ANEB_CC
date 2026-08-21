@@ -1164,3 +1164,47 @@ def test_gate_says_not_computed_rather_than_clean_without_the_field():
     row = _wall_row(recs)
     assert row["severity"] == "N/A"
     assert "未核算" in row["detail"] and "不等于对得上" in row["detail"]
+
+
+# ---- 热污染标（D-560 接线的首消费方；R-11 标记非否决）----
+
+def _thermal_row(recs):
+    res = pc.check(recs)
+    rows = res["rows"] if isinstance(res, dict) else res
+    hits = [r for r in rows if r.get("item") == "热污染标"]
+    assert hits, "发布门没有热污染标这一项"
+    return hits[0]
+
+
+def test_gate_counts_polluting_runs_and_says_mark_not_veto():
+    """有 SEVERE+ 迁移的 run ⇒ WARN，且措辞必须写明「标记非否决」（R-11）。
+
+    反例证伪：把 env_pol 的计数去掉，本条即红。
+    """
+    import copy
+    recs = copy.deepcopy(sc.generate(points=2, repeats=2,
+                                     campaigns=("base", "opt"), radio=True))
+    for r in recs[:3]:
+        r["run"]["env"] = {"thermal_max_status": "severe",
+                           "thermal_polluting_event_count": 2}
+    row = _thermal_row(recs)
+    assert row["severity"] == "WARN"
+    assert "标记非否决" in row["detail"]          # 不夸大：门不作废任何值
+    assert "热状态」列" in row["detail"]          # 给读者指到逐格面
+
+
+def test_gate_says_not_computed_when_env_is_absent_or_unmonitored():
+    """块缺席与双 null 都是「未核算」，不得判 PASS（查不了≠查过了）。"""
+    import copy
+    recs = copy.deepcopy(sc.generate(points=2, repeats=2,
+                                     campaigns=("base", "opt"), radio=True))
+    for r in recs:
+        r["run"].pop("env", None)
+    assert _thermal_row(recs)["severity"] == "N/A"
+    recs2 = copy.deepcopy(recs)
+    for r in recs2:
+        r["run"]["env"] = {"thermal_max_status": None,
+                           "thermal_polluting_event_count": None}
+    row = _thermal_row(recs2)
+    assert row["severity"] == "N/A"
+    assert "不等于干净" in row["detail"]

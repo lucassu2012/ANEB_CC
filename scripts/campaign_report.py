@@ -2312,7 +2312,10 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # a bare False has three causes wanting three different
                     # actions, and `no_network_cv` is the one that must never
                     # read as 「查过了，是网络问题」.
-                    "scenario_intrinsic_jitter", "scenario_jitter_reason"])
+                    "scenario_intrinsic_jitter", "scenario_jitter_reason",
+                    # 热状态（D-560）：与 markdown 同批加列（D-303 的教训前置）。
+                    # thermal_worst 空=无热监控证据（不是 "none"，R-10）。
+                    "thermal_worst", "thermal_polluting_runs", "thermal_annotated_runs"])
         for k in stability.DEFAULT_STABILITY_KPIS:
             for c in stability.stability_cells(records, k, min_samples=min_samples):
                 cell = c["cell"]
@@ -2323,7 +2326,10 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                             c["unstable"], c["low_confidence"],
                             _cell(c.get("cv_not_computable_reason")), _bad(c),
                             c.get("scenario_intrinsic_jitter"),
-                            c.get("scenario_jitter_reason") or ""])
+                            c.get("scenario_jitter_reason") or "",
+                            _cell(c.get("thermal_worst")),
+                            c.get("thermal_polluting_runs", 0),
+                            c.get("thermal_annotated_runs", 0)])
     written.append(p)
 
     # The sample-size table the markdown now renders (D-388). Exported in FULL —

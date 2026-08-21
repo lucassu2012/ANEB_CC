@@ -675,3 +675,70 @@ def test_the_two_plan_gates_move_the_NUMBERS_not_just_the_wording():
     assert moved_cap != base_cap, (
         "the caption quotes a multiplier that did not follow PLAN_POWER: "
         "the prose keeps the old gate under a heading announcing the new one")
+
+
+# ---- 热状态列（D-560 接线的首消费方之二）----
+
+def _thermal_recs():
+    """两 run 喂同一格：moderate(3场景) + severe污染(1场景)——worst 必须取 severe，
+    且 run 级去重（moderate 那条 3 个场景只算 1 条 annotated run）。"""
+    from synth import make_record
+    r1 = make_record(campaign={"campaign_id": "base", "tier": "metro",
+                               "point_id": "P1", "carrier": "cmcc",
+                               "time_band": "busy"},
+                     scenarios=[("s1_chat", {"t2_itl_p95_ms": 20.0 + i})
+                                for i in range(3)])
+    r1["run"]["env"] = {"thermal_max_status": "moderate",
+                        "thermal_polluting_event_count": 0}
+    r2 = make_record(campaign={"campaign_id": "base", "tier": "metro",
+                               "point_id": "P1", "carrier": "cmcc",
+                               "time_band": "busy"},
+                     scenarios=[("s1_chat", {"t2_itl_p95_ms": 24.0})])
+    r2["run"]["env"] = {"thermal_max_status": "severe",
+                        "thermal_polluting_event_count": 1}
+    return [r1, r2]
+
+
+def test_thermal_worst_is_run_deduped_and_takes_the_heavier_status():
+    """反例证伪：worst 取较轻者、或按场景计 annotated，本条即红。"""
+    cells = stability.stability_cells(_thermal_recs(), "t2_itl_p95_ms")
+    assert len(cells) == 1
+    c = cells[0]
+    assert c["thermal_worst"] == "severe"
+    assert c["thermal_annotated_runs"] == 2        # run 级，不是 4 个场景
+    assert c["thermal_polluting_runs"] == 1
+    md = stability.render_markdown(cells, "t2_itl_p95_ms")
+    assert "| 热状态 |" in md
+    assert "severe **⚠污染1run**" in md
+
+
+def test_no_thermal_evidence_renders_dash_not_none():
+    """无监控证据的格渲染 —（不是 "none"——R-10：没测≠测得干净）。"""
+    from synth import make_record
+    recs = [make_record(campaign={"campaign_id": "base", "tier": "metro",
+                                  "point_id": "P1", "carrier": "cmcc",
+                                  "time_band": "busy"},
+                        scenarios=[("s1_chat", {"t2_itl_p95_ms": 20.0})])]
+    cells = stability.stability_cells(recs, "t2_itl_p95_ms")
+    c = cells[0]
+    assert c["thermal_worst"] is None and c["thermal_annotated_runs"] == 0
+    row = [l for l in stability.render_markdown(cells, "t2_itl_p95_ms").splitlines()
+           if l.startswith("| campaign_id=")][0]
+    assert "| — |" in row and "none" not in row
+
+
+def test_thermal_order_matches_the_schema_enum():
+    """cc.THERMAL_STATUS_ORDER 是 schema enum 的排序面——两面对拍防漂（D-264）：
+    集合相等 + "none" 最轻。改 schema 不改 cc（或反之）当场红。"""
+    import json, os
+    import campaign_common as cc
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "spec", "schemas", "result-run.schema.json")
+    schema = json.load(open(p, encoding="utf-8"))
+    env = schema["properties"]["run"]["properties"]["env"]
+    enum = [v for v in env["properties"]["thermal_max_status"]["enum"]
+            if v is not None]
+    assert set(enum) == set(cc.THERMAL_STATUS_ORDER), (enum, cc.THERMAL_STATUS_ORDER)
+    assert cc.THERMAL_STATUS_ORDER[0] == "none"
+    assert cc.thermal_worse("moderate", "severe") == "severe"
+    assert cc.thermal_worse(None, "light") == "light"
