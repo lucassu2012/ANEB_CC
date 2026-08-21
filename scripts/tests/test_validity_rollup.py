@@ -399,11 +399,75 @@ def test_trend_warning_carries_an_executable_formula_not_just_a_scolding():
 
     报告别处印着"按日分桶须以服务端锚为准"，但产物里根本没有服务端锚这个字段，
     只有差值；不给式子，那句话就是一句无法执行的承诺（横幅替下游作承诺的红线族）。
+
+    B2 终裁（2026-08-22）后本测试改用**混合**语料：全注语料已换服务端键、
+    警示随之换义（见下方 B2 三条），"未做校正须给自救式"这个形状只剩混合路径。
     """
     recs = (_wall_recs(2, skew_ms=900_000, started_ms=_T0)
-            + _wall_recs(2, skew_ms=100, started_ms=_T0 + _DAY))
+            + _wall_recs(2, skew_ms=100, started_ms=_T0 + _DAY)
+            + _day_recs(1, point="P1", validity="valid", started_ms=_T0))  # 无证据⇒混合
     md = vr.render_markdown(vr.analyze(recs))
     assert "设备**墙钟" in md or "**设备**墙钟" in md
     assert "started_at_epoch_ms − clock.wall_skew_ms" in md   # 可执行的还原式
-    assert "本表未做该校正" in md                              # 不谎称已校正
-    assert "口径变更需裁定" in md                              # 为什么没做
+    assert "这些行落在哪一天不可信" in md                     # 不谎称已校正
+    assert "整表回退" in md                                    # 为什么没换键（B2）
+
+
+# ---- B2 终裁（2026-08-22）：分桶键三态 ----
+
+def test_b2_no_evidence_corpus_renders_exactly_as_before_the_ruling():
+    """接线前语料（零墙钟证据）⇒ 设备键路径逐字节保持 B2 之前的样子。
+
+    「已发布不重排」靠的就是这条：老语料重跑，表头原文、零新增横幅。
+    """
+    recs = (_day_recs(2, point="P1", validity="valid", started_ms=_T0)
+            + _day_recs(2, point="P1", validity="valid", started_ms=_T0 + _DAY))
+    stats = {}
+    vr.validity_trend(recs, stats=stats)
+    assert stats["bucket_key"] == "device"
+    md = vr.render_markdown(vr.analyze(recs))
+    assert f"### 有效率趋势（按本地日，UTC+{8}）" in md      # 表头原文，无键源后缀
+    assert "服务端**墙钟分桶" not in md and "整表回退" not in md
+    assert "wall_skew_ms" not in md                            # 零新增墙钟话术
+
+
+def test_b2_full_evidence_corpus_buckets_by_server_day_and_declares_it():
+    """全部已定日 run 带证据 ⇒ 整表换服务端键：跨日界的 skew 要真的移动行归属。
+
+    夹具：三段设备日；第三段 skew=+25h ⇒ 服务端时刻落回第二天。服务端键下
+    第三天这一行**必须消失**、其场景并入第二天，且表头声明键源。
+    反例证伪：换键判定恒 False 或 key_ms 仍用设备 ms，本条即红。
+    """
+    recs = (_wall_recs(2, skew_ms=0, started_ms=_T0)
+            + _wall_recs(2, skew_ms=0, started_ms=_T0 + _DAY)
+            + _wall_recs(1, skew_ms=25 * 3600 * 1000, started_ms=_T0 + 2 * _DAY))
+    stats = {}
+    trend = vr.validity_trend(recs, stats=stats)
+    assert stats["bucket_key"] == "server"
+    assert stats["srv_capable_runs"] == stats["dated_runs"] == 5
+    days = [t["day"] for t in trend]
+    assert len(days) == 2, days                    # 第三设备日并入第二服务端日
+    assert trend[1]["attempted"] == 3              # 2 条本日 + 1 条被校正并入
+    md = vr.render_markdown(vr.analyze(recs))
+    assert "**服务端**墙钟分桶）" in md            # 表头声明键源
+    assert "已按服务端墙钟分桶" in md              # 可疑条的警示换义为"已校正"
+    assert "这些行落在哪一天不可信" not in md
+
+
+def test_b2_partial_evidence_falls_back_whole_table_and_says_so():
+    """混合语料 ⇒ 整表回退设备键：带证据的大 skew run 也**不得**单独换轨。
+
+    「部分证据不得整表升级，也不得同表混两把钟」——B2 否决逐记录双轨的
+    那半正是本条钉住的：同一物理时刻在同一张表里只能落一天。
+    """
+    recs = (_wall_recs(2, skew_ms=25 * 3600 * 1000, started_ms=_T0 + 2 * _DAY)
+            + _day_recs(2, point="P1", validity="valid", started_ms=_T0)
+            + _day_recs(2, point="P1", validity="valid", started_ms=_T0 + _DAY))
+    stats = {}
+    trend = vr.validity_trend(recs, stats=stats)
+    assert stats["bucket_key"] == "device"
+    assert stats["srv_capable_runs"] == 2 and stats["dated_runs"] == 6
+    assert len(trend) == 3                         # 大 skew run 仍按设备日独立成行
+    md = vr.render_markdown(vr.analyze(recs))
+    assert "带墙钟证据但未全带" in md and "整表回退" in md
+    assert "服务端**墙钟分桶）" not in md          # 表头不得谎称服务端键

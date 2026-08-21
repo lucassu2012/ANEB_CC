@@ -2489,3 +2489,38 @@ def test_order_check_says_unknown_rather_than_clean_without_evidence():
     md = rpt.build_report_markdown(recs)
     assert "服务端钟复核**无从进行**" in md
     assert "不等于查过且没问题" in md
+
+
+def test_validity_trend_csv_carries_the_day_clock_because_the_heading_does_not_travel():
+    """B2 换键后，CSV 单独打开时必须能看出拿到的是哪把钟的日（D-318 同理）。
+
+    全证据语料 ⇒ 逐行 day_clock=server；零证据语料 ⇒ 逐行 device。
+    反例证伪：把 day_clock 列去掉或恒写 device，本条即红。
+    """
+    import os
+    import tempfile
+    from synth import make_record
+    t0, day = 1783944000000, 86400000
+
+    def recs(n, started_ms, skew=None):
+        out = []
+        for _ in range(n):
+            r = make_record(campaign={"campaign_id": "base", "tier": "metro",
+                                      "point_id": "P1", "carrier": "cmcc",
+                                      "time_band": "busy"},
+                            scenarios=[("s1_chat", {})], started_ms=started_ms)
+            r["scenarios"][0]["validity"] = "valid"
+            if skew is not None:
+                r["scenarios"][0]["clock"] = {"wall_skew_ms": skew}
+            out.append(r)
+        return out
+
+    with tempfile.TemporaryDirectory() as d:
+        prefix = os.path.join(d, "srv")
+        rpt.write_csv_tables(recs(3, t0, skew=0) + recs(3, t0 + day, skew=0), prefix)
+        rows = _rollup_csv(prefix, "validity_trend")
+        assert rows and all(r["day_clock"] == "server" for r in rows), rows
+        prefix2 = os.path.join(d, "dev")
+        rpt.write_csv_tables(recs(3, t0) + recs(3, t0 + day), prefix2)
+        rows2 = _rollup_csv(prefix2, "validity_trend")
+        assert rows2 and all(r["day_clock"] == "device" for r in rows2), rows2

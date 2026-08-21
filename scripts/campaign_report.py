@@ -2448,12 +2448,16 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # this file sees a decaying rate and no way to tell a harness
         # regression from a change of site (D-336). The corpus-level counts
         # repeat per row, as _order_effect.csv already does for rotation.
-        w.writerow(["local_day", "attempted", "usable", "valid_rate",
+        # day_clock（B2 终裁）：同一张表在两种钟下行归属不同，而 CSV 离开页面后
+        # 连表头那句键源声明也没有（local_day 改名的同一个理由，D-318）——
+        # 键源逐行重复，随本文件"corpus-level counts repeat per row"的既有惯例。
+        w.writerow(["local_day", "day_clock", "attempted", "usable", "valid_rate",
                     "cells", "days_share_cells", "undated_scenarios"])
         if len(validity["trend"]) > 1:
             vts = validity.get("trend_stats") or {}
             for t in validity["trend"]:
-                w.writerow([t["day"], t["attempted"], t["usable"],
+                w.writerow([t["day"], _cell(vts.get("bucket_key")),
+                            t["attempted"], t["usable"],
                             _cell(t["valid_rate"]),
                             "; ".join(t.get("cells") or []),
                             _cell(vts.get("days_share_cells")),

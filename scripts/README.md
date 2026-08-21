@@ -244,7 +244,10 @@ python verify_run.py <run.jsonl 或 glob>
 五态计数 + 有效率（低于门默认 80% 标 `LOW_VALID_RATE`），失效原因直方图（解释样本去哪了），
 按**本地日**（UTC+8，与 `--infer-time-band` 同一偏移，见 `campaign_common.DEFAULT_TZ_OFFSET_H`）
 有效率趋势（衰减=测量装置回归信号）；CSV 列名为 `local_day`，因为导出物离开页面后
-就没有那句小标题替它说明是哪种「日」了（D-318）。`VALID_LOW_CONFIDENCE` 计入可用但单列；
+就没有那句小标题替它说明是哪种「日」了（D-318）。**日取自哪把钟由 B2 终裁自动判定**
+（2026-08-22）：全部已定日 run 带 `clock.wall_skew_ms` ⇒ 整表按**服务端**时刻分桶，
+否则整表设备墙钟——部分证据不得升级、不得同表混两把钟；键源写在表头与 CSV
+`day_clock` 列上，混合语料另有回退横幅。`VALID_LOW_CONFIDENCE` 计入可用但单列；
 `unknown` 独立成桶绝不默认算有效。防幸存者偏差——报告只显示 n=4 不显示尝试数 40 时，
 若失效恰集中在恶劣条件，中位数方向性偏乐观。
 

@@ -120,14 +120,18 @@ def validity_trend(records, tz_offset_h=None, stats=None):
     days = defaultdict(Counter)
     day_cells = defaultdict(set)
     undated = 0
-    # 本表按 run.started_at_epoch_ms（**设备**墙钟）分桶。而墙钟门（D-506/T68）标出的
-    # 正是"这条的设备墙钟指错了"——错的恰恰是"哪天测的"，也就是本表的分桶键本身。
-    # 所以必须把它数出来：否则 D-494 那种"钟错 10 天"的语料会被照常画成一条趋势，
-    # 而没有任何东西提示读者这些行的日期归属不可信。
-    # **只数不改桶**：改用推算的服务端时间会移动已发布报告里的行，属口径变更需裁定。
+    # 本表的分桶键（D-506/T68 → B2 终裁，2026-08-22）：墙钟门标出的正是"这条的
+    # 设备墙钟指错了"——错的恰恰是"哪天测的"，也就是本表的分桶键本身。
+    # **B2**：仅当**全部已定日 run** 都带墙钟证据（cc.run_server_started_ms 非 None）
+    # 时，整表换用**服务端**时刻分桶；只要有一条不带，整表回退设备墙钟——
+    # 部分证据不得整表升级，也**不得同表混两把钟**（同一物理时刻落两天，
+    # 表内自相矛盾，比统一设备钟更危险）。接线前语料（零证据）走设备键，
+    # 输出与 B2 之前逐字节相同——"已发布不重排"由此自然满足。
+    # undated（无 started_at 的 run）本来就不参与分桶，故不阻断换键。
     wall_suspect_runs = 0
     wall_annotated_runs = 0
     shift = timedelta(hours=tz_offset_h)
+    dated = []
     for rec in records:
         skews = [cc.fnum((scn.get("clock") or {}).get("wall_skew_ms"))
                  for scn in cc.iter_scenarios(rec)]
@@ -148,7 +152,12 @@ def validity_trend(records, tz_offset_h=None, stats=None):
             # `attempted` uses, or the two numbers would not be comparable.
             undated += sum(1 for _ in cc.iter_scenarios(rec))
             continue
-        day = (datetime.fromtimestamp(ms / 1000.0, timezone.utc)
+        dated.append((rec, ms, cc.run_server_started_ms(rec)))
+    srv_capable = sum(1 for _, _, srv in dated if srv is not None)
+    server_keyed = bool(dated) and srv_capable == len(dated)
+    for rec, ms, srv in dated:
+        key_ms = srv if server_keyed else ms
+        day = (datetime.fromtimestamp(key_ms / 1000.0, timezone.utc)
                + shift).strftime("%Y-%m-%d")
         labels = cc.campaign_labels(rec)
         cell = "/".join(str(labels[d]) for d in CELL_DIMS)
@@ -175,6 +184,10 @@ def validity_trend(records, tz_offset_h=None, stats=None):
         # EchoWire 接线前的语料一条都不带，那时 0/0 表示"无从判断"而非"全都可信"。
         stats["wall_suspect_runs"] = wall_suspect_runs
         stats["wall_annotated_runs"] = wall_annotated_runs
+        # B2 分桶键判定与其证据（键与横幅出自同一次计算，两者不可能不一致）
+        stats["bucket_key"] = "server" if server_keyed else "device"
+        stats["dated_runs"] = len(dated)
+        stats["srv_capable_runs"] = srv_capable
         # flag and evidence out of one computation, so they cannot disagree
         stats["cells_uneven"] = sorted(union - common) if len(sets) > 1 else []
         stats["days_share_cells"] = (
@@ -253,7 +266,15 @@ def render_markdown(res):
         lines += [f"- `{r}` × {n}" for r, n in res["corpus_reasons"].items()]
         lines.append("")
     if len(res["trend"]) > 1:
-        lines += [f"### 有效率趋势（按本地日，UTC+{cc.DEFAULT_TZ_OFFSET_H}）", "",
+        _ts = res.get("trend_stats") or {}
+        # B2（2026-08-22 终裁）：键源必须写在表头上——同一张表在两种钟下会给出
+        # 不同的行归属，读者第一眼就该知道拿到的是哪一种。设备键路径的表头
+        # 保持 B2 之前的原文：接线前语料（零墙钟证据）的输出承诺逐字节不变。
+        _head = (f"### 有效率趋势（按本地日，UTC+{cc.DEFAULT_TZ_OFFSET_H}，"
+                 "**服务端**墙钟分桶）"
+                 if _ts.get("bucket_key") == "server"
+                 else f"### 有效率趋势（按本地日，UTC+{cc.DEFAULT_TZ_OFFSET_H}）")
+        lines += [_head, "",
                   "| 日期 | 尝试 | 可用 | 有效率 |", "|---|---|---|---|"]
         for t in res["trend"]:
             lines.append(f"| {t['day']} | {t['attempted']} | {t['usable']} | "
@@ -265,20 +286,34 @@ def render_markdown(res):
         # falling line — and the per-cell table above carries no dates, so the
         # reader cannot connect them (D-336).
         ts = res.get("trend_stats") or {}
-        # 分桶键自己可不可信（D-506/T68）。本表按**设备**墙钟分桶，而墙钟门标出的
-        # 恰恰是"这条的设备墙钟指错了"——D-494 就是钟错 10 天却没有任何产物能显示。
-        # 故此处不只报"有几条可疑"，还给出**读者可执行的**换算式：报告别处印着
-        # "按日分桶须以服务端锚为准"，但产物里没有服务端锚这个字段，只有差值，
-        # 不给式子那句话就是一句无法执行的承诺。
+        # 分桶键三态（D-506/T68 → B2 终裁）。设备键+零证据的老路径什么都不加
+        # （接线前语料输出逐字节不变）；其余两态各自把键源、证据面与后果说全，
+        # 且判定与横幅出自 validity_trend 的同一次计算，不可能各说各话。
         wsr = ts.get("wall_suspect_runs") or 0
-        if wsr:
-            lines += [f"> ⚠ 本表按 `run.started_at_epoch_ms`（**设备**墙钟）分桶，"
-                      f"而本语料有 **{wsr}/{ts.get('wall_annotated_runs')} 条 run 墙钟可疑**"
-                      f"（|设备−服务端| > {trust_rollup.WALL_SKEW_MAX_MS / 1000:.0f}s）"
-                      "——**这些行落在哪一天不可信**。服务端墙钟可由 "
-                      "`started_at_epoch_ms − clock.wall_skew_ms` 还原"
-                      "（skew 的定义就是「设备 − 服务端」）；**本表未做该校正**，"
-                      "因为改分桶键会移动已发布报告里的行，属口径变更需裁定。", ""]
+        if ts.get("bucket_key") == "server":
+            if wsr:
+                lines += [f"> {wsr}/{ts.get('wall_annotated_runs')} 条 run 设备墙钟"
+                          f"可疑（|设备−服务端| > "
+                          f"{trust_rollup.WALL_SKEW_MAX_MS / 1000:.0f}s）——"
+                          "**本表已按服务端墙钟分桶**（B2：全部已定日 run 带 "
+                          "`clock.wall_skew_ms`），这些行的日期归属已用 "
+                          "`started_at_epoch_ms − clock.wall_skew_ms` 校正；"
+                          "**报告其他按设备钟叙时的面不随本表**。", ""]
+        elif ts.get("srv_capable_runs"):
+            # 混合语料：有证据但未全带——整表回退设备键（B2：部分证据不得整表
+            # 升级，也不得同表混两把钟），并把"哪几行不可信 + 怎么自救"说全。
+            mixed = (f"> ⚠ 本语料 **{ts['srv_capable_runs']}/{ts.get('dated_runs')} "
+                     "条已定日 run 带墙钟证据但未全带**——按 B2 终裁本表整表回退 "
+                     "`run.started_at_epoch_ms`（**设备**墙钟）分桶：部分证据不得"
+                     "整表升级，也不得同表混两把钟。")
+            if wsr:
+                mixed += (f"其中 **{wsr} 条 run 墙钟可疑**"
+                          f"（|设备−服务端| > "
+                          f"{trust_rollup.WALL_SKEW_MAX_MS / 1000:.0f}s）——"
+                          "**这些行落在哪一天不可信**；服务端日可由 "
+                          "`started_at_epoch_ms − clock.wall_skew_ms` 还原"
+                          "（skew 的定义就是「设备 − 服务端」）。")
+            lines += [mixed, ""]
         uneven = ts.get("cells_uneven") or []
         if uneven:
             shown = "、".join(cc.md_cell(c) for c in uneven[:3])
