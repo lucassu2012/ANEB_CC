@@ -377,6 +377,10 @@ stdout。被上述战役级工具 import。
   **不表述为** MOS / 无线层评级 / 运营商全网 SLA。
 - 缺 `run.campaign` 标签的记录塌缩为 `unlabeled`/`unknown` 桶并在报告标注 coverage 缺口——不猜、不补零。
 - 样本 < `min_samples`（默认 5）标 `low_confidence`，不隐藏。
+- **语音双通道边界（大脑裁定 2026-08-22，随 voice 摘要上 wire 一并写明）**：wire 的
+  run 级 voice 摘要**只供战役报告链并入与横幅计数**；**语音判读（T65 式锚点判读、
+  逐轮明细分析）的权威通道仍是设备库 `voice_result` 全表**——摘要不得被当判读源，
+  两用途分清。本层消费方建成后须在其 docstring 复述本边界。
 
 ## 测试
 
