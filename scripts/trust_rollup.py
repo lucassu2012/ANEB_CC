@@ -173,7 +173,7 @@ def render_markdown(res):
         "> 上方时延中位数背后的**仪器**可信度：时钟可疑=R-22（|漂移|>100ppm 或端点缺失），"
         "该场景 TTFT/ITL 存疑；**墙钟可疑**=|设备与服务端墙钟差|>60s（D-506，"
         "**标记非否决**——KPI 计时走单调钟 R-24 不受污染，被污染的是「哪天测的」，"
-        "故按日分桶须以服务端锚为准）；seq 异常=gap/dup>0；解析开销大会混淆 ITL"
+        "按日分桶的钟源已由 B2 自动判定——见有效率趋势表头与 CSV `day_clock` 列）；seq 异常=gap/dup>0；解析开销大会混淆 ITL"
         "（端侧算力≠网络）。各信号**各自**的分母=实际带该标注的场景数，"
         "未标注**不算干净**（墙钟与时钟分母不同：EchoWire 接线前的语料带 offset_suspect "
         "却不带 wall_skew_ms）。时钟可疑过半标 `时钟可疑热点`。",
@@ -198,7 +198,7 @@ def render_markdown(res):
         # 墙钟只标记不否决（D-506）：出现即点名，不设"过半"门槛——一条墙钟错
         # 就足以让那一条的「哪天测的」不可信，而按日分桶是逐条读的。
         if c["wall_suspect"]:
-            notes.append(f"**墙钟可疑 {c['wall_suspect']} 条**（按日分桶须以服务端锚为准）")
+            notes.append(f"**墙钟可疑 {c['wall_suspect']} 条**（分桶钟源见有效率趋势表头/day_clock 列）")
         if c["low_confidence"]:
             notes.append("low_conf")
         lines.append(

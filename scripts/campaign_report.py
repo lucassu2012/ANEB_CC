@@ -2723,8 +2723,8 @@ def effective_thresholds():
         "validity_min_rate": validity_rollup.DEFAULT_MIN_RATE,
         "buffering_hotspot_share": buffering_rollup.HOTSPOT_SHARE,
         "clock_hotspot_share": trust_rollup.CLOCK_HOTSPOT_SHARE,
-        # 墙钟判疑阈值（D-506/T68）。它决定可信度表里"墙钟可疑 N 条"这一句印不印，
-        # 且该句直接指挥读者"按日分桶须以服务端锚为准"——是决定输出的门，故入册。
+        # 墙钟判疑阈值（D-506/T68）。它决定可信度表里"墙钟可疑 N 条"这一句印不印
+        # （该句的注记自 B2 起改为指向分桶钟源声明的指针）——是决定输出的门，故入册。
         "wall_skew_max_ms": trust_rollup.WALL_SKEW_MAX_MS,
         "aqs_grade_bands": [[b, g] for b, g in cc.AQS_GRADE_BANDS],
         # Records carry no timezone, so this offset decides two printed things:

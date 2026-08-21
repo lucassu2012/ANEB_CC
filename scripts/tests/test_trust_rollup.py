@@ -168,7 +168,7 @@ def test_wall_suspect_is_marked_never_vetoed():
     assert cell["clock_hotspot"] is False
     md = tu.render_markdown(res)
     assert "墙钟可疑 1 条" in md
-    assert "服务端锚为准" in md          # 处置写在读者看得见的地方
+    assert "分桶钟源" in md and "day_clock" in md   # 处置（B2 后=指针）写在读者看得见的地方
     assert "标记非否决" in md
 
 

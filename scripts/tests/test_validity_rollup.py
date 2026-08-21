@@ -397,7 +397,7 @@ def test_unannotated_corpus_is_not_reported_as_trustworthy_dates():
 def test_trend_warning_carries_an_executable_formula_not_just_a_scolding():
     """点名之后必须给读者**能执行**的换算式。
 
-    报告别处印着"按日分桶须以服务端锚为准"，但产物里根本没有服务端锚这个字段，
+    信任表点名墙钟可疑时，读者需要知道怎么换算到服务端日，但产物里根本没有服务端锚这个字段，
     只有差值；不给式子，那句话就是一句无法执行的承诺（横幅替下游作承诺的红线族）。
 
     B2 终裁（2026-08-22）后本测试改用**混合**语料：全注语料已换服务端键、
