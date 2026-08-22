@@ -50,6 +50,16 @@ def _valid_record():
             "voice": {"caliber": "server-sim-v2", "m7_max_frame_gap_ms": 180.5,
                       "mouth_ear_proxy_p50_ms": 412.0, "low_confidence": False,
                       "turns_ok": 12, "ts_epoch_ms": 1783943000000},
+            # aqs_v02/aqs_token（大脑 08-22 裁定接门）：条件性产物（v0.2 需 continuity 源），
+            # 夹具取两块齐备的全功能 run；块缺席=无源/老语料，另有专测钉其合法。
+            "aqs_v02": {"aqs_version": "aqs-v0.2", "score": 87.5, "low_confidence": False,
+                        "veto_applied": False, "not_computable_reason": None,
+                        "sub_scores": {"C": 88.0}},
+            "aqs_token": {"aqs_version": "aqs-token-v0.1", "score": 90.1,
+                          "low_confidence": False, "veto_applied": False,
+                          "not_computable_reason": None,
+                          "weights_table_id": "WEIGHTS_TOKEN_MM",
+                          "s1_veto_applied": False, "sub_scores": {"T": 91.0}},
         },
         "scenarios": [{
             "profile_id": "s1_chat", "profile_version": "0.2", "repeat_index": 0,
@@ -267,6 +277,12 @@ _SCHEMA_SITE = {
     "voice_spec":
         lambda s: _dig(s, "properties", "run", "properties", "voice", "properties",
                        "ts_epoch_ms").__setitem__("type", ["string"]),
+    "aqs_v02_spec":
+        lambda s: _dig(s, "properties", "run", "properties", "aqs_v02",
+                       "required").append("zzz_not_a_field"),
+    "aqs_token_spec":
+        lambda s: _dig(s, "properties", "run", "properties", "aqs_token",
+                       "required").append("zzz_not_a_field"),
     "hist_required":
         lambda s: _dig(s, "definitions", "scenario", "properties", "itl_histogram",
                        "required").append("zzz_not_a_field"),
@@ -464,3 +480,44 @@ def test_voice_negative_turns_rejected():
     rec = _valid_record()
     rec["run"]["voice"]["turns_ok"] = -1
     assert any("turns_ok" in e and ">= 0" in e for e in _errors(rec))
+
+
+# ---- run.aqs_v02 / run.aqs_token（大脑 08-22 裁定「同族同待遇」，D-560 家族第三例）----
+# 接线前实测：aqs_v02 缺 required 的 score 零 findings 过门——schema 写了 required 而手写
+# 门不吃。主 aqs 的 required 早有 aqs_required 老线在管；这两块此前完全无人管。
+# score↔reason 的 R-10 cross-field 仅主 aqs 有裁定，这里刻意不外推（D-337 假不变量之戒）。
+
+def test_aqs_parallel_blocks_absent_is_legal():
+    """两块都是条件性产物（v0.2 需 continuity 源）——缺席=无源/老语料，合法。"""
+    rec = _valid_record()
+    del rec["run"]["aqs_v02"]
+    del rec["run"]["aqs_token"]
+    assert _errors(rec) == []
+
+
+def test_aqs_v02_missing_required_score_rejected():
+    """接线前恰好实测放行的那个形状，现在必须咬。"""
+    rec = _valid_record()
+    del rec["run"]["aqs_v02"]["score"]
+    assert any("aqs_v02: missing required field 'score'" in e for e in _errors(rec))
+
+
+def test_aqs_token_missing_weights_table_id_rejected():
+    rec = _valid_record()
+    del rec["run"]["aqs_token"]["weights_table_id"]
+    assert any("aqs_token: missing required field 'weights_table_id'" in e
+               for e in _errors(rec))
+
+
+def test_aqs_v02_score_as_string_rejected():
+    """数值序列化成字符串（T72 同形状）在并列出分块也要咬。"""
+    rec = _valid_record()
+    rec["run"]["aqs_v02"]["score"] = "87.5"
+    assert any("type mismatch" in e and "aqs_v02" in e and "score" in e
+               for e in _errors(rec))
+
+
+def test_aqs_token_bool_flag_as_string_rejected():
+    rec = _valid_record()
+    rec["run"]["aqs_token"]["s1_veto_applied"] = "false"
+    assert any("type mismatch" in e and "s1_veto_applied" in e for e in _errors(rec))

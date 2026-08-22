@@ -74,6 +74,10 @@ def load_schema(path):
         "env_spec": run_schema.get("properties", {}).get("env", {}),
         # voice 摘要接线（大脑 08-22 裁定 voice 半）：同 env_spec 一字不差的提取逻辑。
         "voice_spec": run_schema.get("properties", {}).get("voice", {}),
+        # aqs_v02/aqs_token（大脑 08-22 裁定，D-560 同族第三例）：并列出分块的
+        # required/type 提取，enforcement 走 _check_block（提取逻辑与 env/voice 一字不差）。
+        "aqs_v02_spec": run_schema.get("properties", {}).get("aqs_v02", {}),
+        "aqs_token_spec": run_schema.get("properties", {}).get("aqs_token", {}),
     }
 
 
@@ -237,6 +241,16 @@ def validate_record(rec, sch, idx):
         voice_spec = sch.get("voice_spec") or {}
         if isinstance(voice, dict) and voice_spec:
             _check_block(voice, voice_spec, f"{tag}.run.voice", f)
+        # aqs_v02 / aqs_token（大脑 08-22 裁定：同族同待遇——D-560 家族第三例）：schema
+        # 声明了 required/type 而门此前一条不管（接线前合成案实测「aqs_v02 缺 score」零
+        # findings 过门）。「生产端单一来源」是缓释不是豁免——合同门防的正是未来第二生产者
+        # 与损坏语料。additionalProperties 非 false 故无未知键检查；score↔reason 的 R-10
+        # cross-field 仅主 aqs 有裁定与测试，两并列块不在本单擅自外推（D-337）。
+        for blk_key, spec_key in (("aqs_v02", "aqs_v02_spec"), ("aqs_token", "aqs_token_spec")):
+            blk = run.get(blk_key)
+            blk_spec = sch.get(spec_key) or {}
+            if isinstance(blk, dict) and blk_spec:
+                _check_block(blk, blk_spec, f"{tag}.run.{blk_key}", f)
     elif "run" in rec:
         _err(f, f"{tag}.run", "expected object")
 
