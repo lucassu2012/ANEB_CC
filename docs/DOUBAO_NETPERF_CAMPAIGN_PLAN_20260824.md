@@ -206,4 +206,33 @@ deviceidle 白名单已加、IME/systemui 已豁免、a11y 服务已重绑、诊
 
 ---
 
-*豆包网络诉求战役方案 v0.1.0 · 2026-08-24 · 规格先行，实测待排窗*
+## 9. 可行性实测结果（2026-08-24，PO 授权 B-1/B-2/B-3 之后）
+
+PO 已授权设备窗（B-1）、L3 整形器（B-2）；口径裁定（B-3）按本文建议——**UI 呈现口径、
+无 σ=0、缩小版规模；RCT 窗内机会式标定，分布不分离即诚实降级 cadence-only**。
+授权后**就地实测环境**，浮现三条硬**环境**阻塞（区别于 §7 的授权阻塞——这三条授权后才暴露），
+**均需 PO / 在场者动手，非本会话可自解**：
+
+| # | 阻塞 | 实测证据 | 谁能解 |
+|---|---|---|---|
+| **E-1 设备物理锁** | P40 屏灭真锁（PIN/图案），无法驱动豆包 | `dumpsys window`：`mDreamingLockscreen=true`；豆包 `com.larus.nova` 确在焦点后台运行但锁屏挡操作 | 在场者物理解锁（swipe 不解，D-481 同款） |
+| **E-2 PC 未提权** | WinDivert 内核驱动 `WinDivert.sys` 加载需管理员，clumsy 因此起不来 | `IsInRole(Administrator)=False`；winget/choco 在但驱动加载仍需 UAC 提权 | PO 以管理员身份起会话 / 授权驱动 |
+| **E-3 热点硬件不支持** | 单 WiFi 网卡（Intel AC 9560）、无有线上行；`Hosted network supported=No`；`并发信道=0`/`次级 STA=0` | `netsh wlan show drivers` / `show wirelesscapabilities` | 换机制（见下）或加 USB WiFi/网卡 |
+
+**机制改判（承 E-3）**：原 §4 推荐的「PC 热点 + WinDivert」在本机**基本不可行**——网卡不能同时
+做 station+AP，也无有线上行兜底。**改推荐：反向 USB 网络共享（gnirehtet：P40 经 USB 走 PC，
+PC 的 WiFi 作上行）+ clumsy/WinDivert 在 PC 转发路径整形**，绕开射频并发限制、对单网卡硬件稳健。
+代价：gnirehtet 手机端是 VPN client（需装 + 授 VPN，须设备解锁）；整形仍需 E-2 提权。
+**备选 C**＝加一块 USB WiFi/以太网卡，走独立 Linux/树莓派 `tc netem`（最干净、与原文 netem 同族）。
+
+**一条不需整形、不需提权的先行批（E-1 解锁即可跑）**：**基线 + 自然网络对照**——用现役观察通道
+（A 无障碍 / B 帧差 / D PCAPdroid 免解密）测豆包各功能在**当前 WiFi** 与**切蜂窝**（切手机 radio，
+零 PC 介入）两条件下的 UI-TTFT/cadence/RCT 与多模态上行字节。它不给受控档扫描，但给出**每功能的
+基线网络行为 + 一个自然的双条件对照**，是缩小版战役的合理第一步，且**只卡在 E-1 一条**。
+
+**当前执行闸门**：受控扫描（批 D/G/A）= E-1 ∧ E-2 ∧（机制定：反向 tether 或备选 C）；
+基线批 = 仅 E-1。三条环境阻塞未解前**不开设备窗**（避免开窗即空跑，D-481 先例）。
+
+---
+
+*豆包网络诉求战役方案 v0.1.0（§9 追补 2026-08-24 可行性实测）· 规格先行，实测待排窗*
