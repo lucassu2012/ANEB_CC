@@ -96,7 +96,17 @@ deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 
 | **< 5ms** | ❌ 已迁 Compose | **停本批**。核心量口径变更，须先重定簇判据——**这是窗内不可压缩项，不要硬跑** |
 | 介于两者之间 | ⚠ 不明 | 记录原值、按 §4 中止判据处理，不自行解释 |
 
-**⚠ 别踩的一个坑（会白烧窗内时间）**：`spec/adapters/doubao.json` 的 `send_button.note` 写着「发送按钮特征**待**真机 `ADAPTER_EVT` 诊断日志反推回填」。**这条诊断 D-52 已经跑过并证伪**——豆包自定义 View **零 `TYPE_VIEW_CLICKED` 事件**，点击锚点路线对豆包不可用（四正则留 null 是**有意保留能力**给标准控件 App，不是待办）。**不要照那句注记再跑一遍。**（spec 注记本身是双侧严格解析文件，按 D-387 不在本批顺手改，已报大脑。）
+**⚠ 别踩的坑之二：`doubao.json` 的 `package_note` 有一句与文件自身矛盾**。它（D-405，2026-08-02 过渡标注）写着「**三条节点规则本就全 PENDING-VALIDATION（正则全 null、宿主走 generic 兜底、规则不作打点闸门）**」。**四份适配器并排数过，这句对豆包是假的**：
+
+| 适配器 | `input_node` / `response_node` / `send_button` 的 status | 「正则全 null」 |
+|---|---|---|
+| kimi、tongyi | 三段全 `PENDING-VALIDATION` | ✅ **真** |
+| **doubao** | `VALIDATED` / `VALIDATED-PARTIAL` / `PENDING-VALIDATION` | ❌ **假**——前两段各带 `view_id`+`class_name` 两条 |
+| deepseek | `VALIDATED-PARTIAL` / `PENDING` / `PENDING` | ❌ 部分假（两段各带 `class_name`） |
+
+那句对 kimi/tongyi 成立，却被写进了**唯二有已验证正则**的两份。**结论「只标注不停用」仍对，但理由是 §1.D 实据 1–3（只评估框架类名 + 核心量不经正则），不是「正则全 null」**——按 D-405 自己的话，「**一条经不起查的理由比没有理由更糟**」。开窗时**别照那句去推断适配器跑在 generic 兜底**：D-50 基线 `ADAPTER_OBS mode=doubao events=28 rule_matched=26` 证明它跑在规格模式且规则在匹配。
+
+**⚠ 别踩的坑之一（会白烧窗内时间）**：`spec/adapters/doubao.json` 的 `send_button.note` 写着「发送按钮特征**待**真机 `ADAPTER_EVT` 诊断日志反推回填」。**这条诊断 D-52 已经跑过并证伪**——豆包自定义 View **零 `TYPE_VIEW_CLICKED` 事件**，点击锚点路线对豆包不可用（四正则留 null 是**有意保留能力**给标准控件 App，不是待办）。**不要照那句注记再跑一遍。**（spec 注记本身是双侧严格解析文件，按 D-387 不在本批顺手改，已报大脑。）
 
 ### D. 额度上限预检（本协议新增，方案 §10.4 点名）
 - 豆包免费档**轮次上限未核**；60 轮有触顶风险。
