@@ -29,7 +29,7 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 ### B. 观察通道三件（A/B/D）各自可用
 | 通道 | 核查动作 | 不满足的后果 |
 |---|---|---|
-| **A** 无障碍事件流 | `AnebAccessibilityService` 已启用且**已重绑**；**节点正则对豆包 14.7.0 重验通过** | 主通道（TTFT/cadence/RCT）无数据 |
+| **A** 无障碍事件流 | `AnebAccessibilityService` 已启用且**已重绑**；**事件流单会话不碎段**；**豆包 14.7.0 仍是 View 系**（判据见 §1.D） | 主通道（TTFT/cadence/RCT）无数据 |
 | **B** `screencap` ROI 帧差 | 现场量出豆包响应区 ROI（`x,y,w,h`）——`e234_collect.py --roi` **必填无默认值** | 交叉验证缺失；⚠ B 采样 ~2–3.5s/帧（E1 实测），**只作粗验、不能判 1 帧级** |
 | **D** PCAPdroid 免解密抓包 | 已授 VPN、只读方向字节 | F3/F4 上行诉求**失去证据源**（这是本批最强的一块） |
 
@@ -37,7 +37,7 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 > | 前置 | 实测 | 结论 |
 > |---|---|---|
 > | a11y 服务已启用 | `enabled_accessibility_services` = `com.aneb.probe/…AnebAccessibilityService`；`accessibility_enabled` = `1` | ✅ **已启用**（⚠「**已重绑**」仍须解锁后确认——重绑是解锁态动作） |
-> | 豆包版本 | `dumpsys package com.larus.nova` → `versionName=14.7.0` | ✅ **14.7.0 在位**（与方案记载一致；⚠ **正则是对 14.4.0 写的、已漂 3 版**，重验仍是开窗必做） |
+> | 豆包版本 | `dumpsys package com.larus.nova` → `versionName=14.7.0` | ✅ **14.7.0 在位**（与方案记载一致；⚠ 版本漂的**真实风险不在正则**——本文 v1.1 订正，见 §1.D） |
 > | deviceidle 白名单 | `dumpsys deviceidle whitelist` → `user,com.aneb.probe,10306` | ✅ **探针在白名单**（豆包是被观察方，不需入白名单） |
 >
 > **🔵 同批只读验掉的另四项（开窗资源前提，2026-08-29）**：
@@ -50,18 +50,53 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 >
 > **⚠ 由 IME 这项牵出「a11y 必须重绑」的真正理由（不是形式要求）**：
 > `AnebAccessibilityService` 的豁免取 `default_input_method` 再 `substringBefore('/')`
-> → `com.baidu.input_huawei`，与实测一致，**豁免会生效**；且代码注释就记着
-> 「真机实证：**百度输入法把 `com.larus.nova` 观察切成两段，`ttft_send_ms` 恒 null**」——
-> **正是我们要测的包**。**但 `imePkg` 只在 `onServiceConnected()` 读一次**：
-> 若 IME 在服务绑定之后被换过，豁免就指向旧值、切段问题复现。
+> → `com.baidu.input_huawei`，与实测一致，**豁免会生效**。**但 `imePkg` 只在
+> `onServiceConnected()` 读一次**：若 IME 在服务绑定之后被换过，豁免就指向旧值、
+> **D-51 的会话碎段复现**（D-51 实证：百度输入法的 STATE 与候选栏 CONTENT/TEXT 事件把
+> 观察切成 8/1/8 三段；修复＝IME 包全事件豁免，实证 DeepSeek 单会话 `events=108`）。
 > **故 ①B 的「已重绑」不是走过场——它是让 IME 豁免重新取值的唯一途径。**
+>
+> **⚠ 本文 v1.1 订正（我引错了症状）**：v1.0 此处写「碎段导致 `ttft_send_ms` 恒 null」。
+> 查 D-51/D-52 后更正——`ttft_send_ms` 在豆包上**与 IME 无关地恒 null**（v1 input-clear
+> 因发送后容器重建不发 TEXT_CHANGED 而失效；v2 点击锚点因**豆包自定义 View 零 CLICKED 事件**
+> 被 D-52 真机证伪）。**碎段今天真正污染的是 `ttft_cluster_ms` 与 `cadence`**——即本批的核心量，
+> 因为 v3 簇分割靠「>400ms 静默」切簇，**碎段会把一次问答切成多个会话、簇结构失真**。
+> 结论方向不变（重绑仍是硬前提），但**代价比 v1.0 说的更大，不是更小**。
 
-> **仍须解锁后才能做的四条**：①a11y **重绑**；②**节点正则对 14.7.0 重验**（最大风险项）；
-> ③IME/systemui 豁免核实；④**ROI 现场量**（`--roi` 必填无默认值）。
+> **仍须解锁后才能做的四条**：①a11y **重绑**；②**UI 栈判定**（豆包 14.7.0 是否仍 View 系——
+> **本批最大风险项**，判据与做法见 §1.D）；③IME/systemui 豁免核实；④**ROI 现场量**
+> （`--roi` 必填无默认值）。
+> **开窗第一件做 ②**：它若失败，后续 60 轮的核心量全部失真，且修复时间挪不出窗外。
 
 ### C. OEM 系统侧五条前置（`INSTRUMENTATION_SPEC` §5.3；任一不满足则数据不得入库）
-deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 诊断日志走 `Log.i` · **节点正则对 14.7.0 重验通过**。
+deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 诊断日志走 `Log.i` · **UI 栈判定为 View 系且事件流不碎段**（§1.D）。
 > 这五条的共同形状是「**失败时静默出错值或静默无数据而不报错**」（D-386）——所以必须**开窗前逐条核**，不能事后看数据像不像。
+
+### D. 版本漂风险订正（v1.1，2026-08-29；**推翻本文 v1.0 的风险排序**）
+
+**v1.0 写的**：「节点正则是对 14.4.0 写的、已漂 3 版，重验是最大风险项」。**查代码与决策日志后，这个定性是错的。**
+
+**实据三条（可逐条复核）**：
+
+| # | 事实 | 出处 |
+|---|---|---|
+| 1 | **运行时只编译 `class_name` 正则**，`view_id_regex` 存而不评估（取 `getSource` 跨进程开销，R-16／D-49 偏离 2） | `AnebAccessibilityService.kt:58`（注释）与 `:65/:69/:72`（三处 `toRegexSafe()` 全是 `classNameRegex`）；`AdapterSpec.kt:198` |
+| 2 | 被评估的两条都是**框架类名**，不含 App 版本特征：input＝`android\.widget\.EditText`，response＝`android\.widget\.TextView\|androidx\.recyclerview\.widget\.RecyclerView`。**唯二含 `com.larus.nova:id/…` 的是 view_id，恰好不评估** | `spec/adapters/doubao.json` |
+| 3 | **本批核心量不依赖任何正则**：`ttft_ui_ms` 来自 **v3 簇分割**，D-52 逐字「**纯时戳结构法，不依赖任何锚点事件**」；response 侧 `ruleMatch()` 只做**标注计数、非闸门**（漂了掉 `rule_matched` 计数，不丢数据） | D-52；`AnebAccessibilityService.kt:41`、`:77-87` |
+
+**故正则漂移的真实后果**＝`rule_matched` 计数下降，**不是数据缺失**。判读时按 D-50 基线对照即可：首份实测 `events=28 rule_matched=26`（≈93%）。
+
+**真正的版本漂风险是另一件事——UI 栈迁移**：豆包若从 View 系迁到 Compose，按 **D-51 实证**（DeepSeek＝Compose）事件会**同帧突发合流**，`cadence_p50` 从豆包 View 系的 ~100ms **塌到 0.2–0.4ms**，而 v3 簇分割的 >400ms 静默判据建立在逐帧节奏之上——**簇结构随之失真，核心量作废**。D-51 同时记着「两栈打点口径**不可互比**」，故这不是精度问题而是**口径问题**。
+
+**开窗第一件事的判据（一轮问答即可判，无需跑满）**：手动开豆包问一句，读 `ADAPTER_OBS` 的 `cadence_p50_ms`。
+
+| 读到 | 判定 | 动作 |
+|---|---|---|
+| 落 **99–112ms** 带（D-51/D-52 累计 8 轮 99.4–111.6） | ✅ 仍 View 系 | 照 §2 开跑 |
+| **< 5ms** | ❌ 已迁 Compose | **停本批**。核心量口径变更，须先重定簇判据——**这是窗内不可压缩项，不要硬跑** |
+| 介于两者之间 | ⚠ 不明 | 记录原值、按 §4 中止判据处理，不自行解释 |
+
+**⚠ 别踩的一个坑（会白烧窗内时间）**：`spec/adapters/doubao.json` 的 `send_button.note` 写着「发送按钮特征**待**真机 `ADAPTER_EVT` 诊断日志反推回填」。**这条诊断 D-52 已经跑过并证伪**——豆包自定义 View **零 `TYPE_VIEW_CLICKED` 事件**，点击锚点路线对豆包不可用（四正则留 null 是**有意保留能力**给标准控件 App，不是待办）。**不要照那句注记再跑一遍。**（spec 注记本身是双侧严格解析文件，按 D-387 不在本批顺手改，已报大脑。）
 
 ### D. 额度上限预检（本协议新增，方案 §10.4 点名）
 - 豆包免费档**轮次上限未核**；60 轮有触顶风险。
@@ -168,7 +203,9 @@ SPEC-2 §2.1 的验收判据写「首批语料落库（**独立 `campaign_id`**�
 | 脚本报「**读不到任务板**」 | 与「查无此项」**不是同一回事**：这是板面文件本身读不到（路径/权限/编码） | 核 `docs/BRAIN_TASKBOARD.md` 是否存在且可读；**别急着改 DW 号**——号可能没错，是板读不到 |
 | 脚本抛 `ROI 要写成 x,y,w,h 四个非负整数` / `ROI 的宽高必须为正` | ①B 现场量的 ROI 写错格式或量成了零宽高 | 重量一次：`adb shell wm size` 看分辨率，截图确认响应区像素范围；**四个数用英文逗号、无空格也可**（脚本容忍空格但不容忍缺项） |
 | 豆包出现限流/额度提示 | 免费档触顶（①D 预检没挡住） | **立即停**，如实记录已完成格数与触顶轮次；**不换账号**（D-49） |
-| 通道 A 无事件 / 节点正则不匹配 | 14.7.0 UI 结构已漂（正则对 14.4.0 写的） | 停本批。**这是已知风险**（方案只读核实时点名「正则对 14.4.0 已漂 3 版待重验」）；记为前置未满足，不产出数据 |
+| 通道 A 无事件 | a11y 未重绑 / 进程被 iAware 冻结 / 豁免失效 | 停本批，记为前置未满足，不产出数据（**不要靠事后看数据像不像**，D-386） |
+| `cadence_p50_ms` < 5ms | **豆包已迁 Compose**，v3 簇判据失效（§1.D） | 停本批。**本批最大风险项**；记原值与版本号，核心量口径须先重定，**不在窗内硬修** |
+| `rule_matched / events` 显著低于 D-50 基线 26/28 | 节点正则对 14.7.0 漂了 | **不停批**——`ruleMatch` 是标注计数非闸门（§1.D 实据 3）。记录比值，产物照出，回填 spec 留下轮 |
 | 通道 D 抓不到豆包流量 | VPN 未授或 App 走了未捕获通道 | F3/F4 的上行结论**不得给出**（失去唯一证据源）；F1/F2 的 UI 侧仍可继续 |
 | 同一格 5 轮里 UI 读数跨度极大（如 TTFT 相差 >3×） | 可能撞上网络波动或服务端排队 | **如实记录全部 5 轮，不剔除异常值**（登记级本就该记录波动）；README 标注该格「跨度大，n=5 不足以分辨」 |
 | 块 1 与块 4 的 WiFi 读数显著不同 | 期间有漂移（②的自检钩子响了） | **条件对照打折**：README 明写「WiFi 两块不一致，条件差与时段差不可分离」——**不要挑一块当代表** |
