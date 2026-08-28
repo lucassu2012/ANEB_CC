@@ -1104,18 +1104,17 @@ def test_every_doc_table_row_survives_rendering():
                 # 表内一行只写到 `| A-3 … | PO …` 就断了）。跳过=表内一行
                 # 静默消失，而读者看到的是少一行的表——比格数不符更难发现。
                 # 判据：正在一张表里（width 已定）且行首是 `|`，就该有行尾 `|`。
-                # ⚠ **本判据已实现，暂缓启用——只差一处，且不在本 lane**（2026-08-29）。
-                # 它实测咬出两处真错（单元格内容折行致首有尾无）：
-                #   * `M7_ANCHOR_RECALIBRATION_PLAN.md` —— **已修**（大脑裁定归本
-                #     lane，五处折行并回上一格，去空白字符数前后相同=零内容丢失）；
-                #   * `PORTRAITS_TRISTATE_PROPOSAL_20260828.md:56` —— **v4 正在新建
-                #     （git 未跟踪），裁定「不碰」**，已知会其提交前自修。
-                # 本文件的枚举面是 `os.listdir`，**未跟踪文件照样被扫**，所以现在
-                # 开启会因别人在建的草稿把全树门变红。**待 v4 提交后删掉下面这行
-                # `TRAILING_PIPE_OFF = True` 即启用**——判据不丢、红不挡全树。
-                TRAILING_PIPE_OFF = True
+                # 表内一行首有 `|` 而尾无 ⇒ 该行**不会渲染进表**，读者看到的是
+                # 少一行的表——比格数不符更难发现（格数不符至少还在表里）。
+                # 落地实录（2026-08-29）：本判据实现时咬出两处真错，一处
+                # （`M7_ANCHOR_RECALIBRATION_PLAN`）由本 lane 修（五处折行并回
+                # 上一格，去空白字符数前后相同=零内容丢失），另一处属他人在建
+                # 文件、曾用 `TRAILING_PIPE_OFF` 门控暂缓——**其后经实证是遗弃
+                # 草稿并被属主删除**（真交付在 `spec/portraits/…20260829.md`），
+                # 阻塞消失遂启用。门控惯例：被关的守卫必须留下解除路径与确切
+                # 依赖，否则关闭态会变成永久债。
                 s = _strip_quote(line).strip()
-                if (not TRAILING_PIPE_OFF and width is not None
+                if (width is not None
                         and s.startswith("|") and not s.endswith("|")):
                     orphans.append("%s:%d（行尾缺 `|`，该行不会渲染进表）"
                                    % (os.path.basename(doc), i + 1))
