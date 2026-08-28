@@ -1,5 +1,7 @@
 # ANEB 进展对齐报告——按《系统开发计划 v1.0》架构映射
 
+> 🗄 **历史文档（2026-08-28 降级）**：本文（含 §7.5 失效字样台账、§7.6 框架↔实现差集）**已被 [`REQUIREMENTS_BASELINE_v2.0.md`](REQUIREMENTS_BASELINE_v2.0.md) 取代**：§7.5 四条与 §7.6 五条已逐条搬进基线 §4 并各给归宿，**台账就此冻结归档**——此后新增偏差加在基线 §4.3，不再回来改本文。本文保留原样不删、不改写。
+
 > 2026-07-17。权威指导 = [SYSTEM_DEV_PLAN_v1.0.md](SYSTEM_DEV_PLAN_v1.0.md)(产品负责人拍板,"3 个子项目 + 1 个横切机制")。
 > 本文把**已交付的实际进展**逐项挂到 P1a/P1b/P2/P3 + Profile 横切上,标注完成度与缺口。
 > 现状事实源:本仓 `feat/result-dev-v2`(HEAD d5a1379)、[DECISION_LOG.md](DECISION_LOG.md) D-1..D-46、[PROFILE_FRAMEWORK.md](PROFILE_FRAMEWORK.md)、Codex 维护的 TEST_SERVER_CAPABILITIES.md(E-01 权威能力合同)。

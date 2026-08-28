@@ -2,6 +2,8 @@
 
 研究智能体互联网时代移动通信网络新型性能与体验诉求，并提供配套测量工具 **ANEB Probe**。
 
+> **需求单一事实源**：[`docs/REQUIREMENTS_BASELINE_v2.0.md`](docs/REQUIREMENTS_BASELINE_v2.0.md)（需求基线 v2.0，可改写、带版本号）+ 其配套 [`docs/TEST_MASTER_PLAN_v2.0.md`](docs/TEST_MASTER_PLAN_v2.0.md)（测试执行总计划）。`SYSTEM_DEV_PLAN_v1.0.md` 与 `PLAN_ALIGNMENT_2026-07-17.md` 已降级为**历史文档**（保留不删，失效字样已收进基线 §4）。
+
 ## 仓库结构
 
 - `docs/` — 研究文档
