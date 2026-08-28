@@ -66,3 +66,4 @@
 2. 板面认领 T79。
 3. 通读 PLAN_ALIGNMENT §0/§7.5/§7.6 与 DELIVERY_PACKAGE_v1_DRAFT 头部——这三处是现状总表的主料。
 4. 起草 1.2 一页清骨架（它最急：PO 清欠会的议程）。
+5. 读同分支 `docs/coordination/INBOX_V1.md` 与 `BROADCAST.md`——远程协调通道（协议 `docs/coordination/PROTOCOL.md`）；此后每次开工与收工 fetch 本分支查收。

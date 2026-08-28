@@ -72,3 +72,4 @@ CLAUDE.md 会话名单补 v4 与本次四单分工的修订提案（含 20260711
 2. 板面认领 T82，注明名单补丁在途。
 3. 从 4.2 动手（SPEC-1 在等这份供稿）。
 4. 4.1 的素材起点：spec/README §3 版本纪律节 + 任务板"第四批裁定回执"里的四表并列记录。
+5. 读同分支 `docs/coordination/INBOX_V4.md` 与 `BROADCAST.md`——远程协调通道（协议 `docs/coordination/PROTOCOL.md`）；此后每次开工与收工 fetch 本分支查收。

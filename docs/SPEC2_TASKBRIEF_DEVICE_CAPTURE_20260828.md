@@ -71,3 +71,4 @@
 2. 板面认领 T80。
 3. 核对 E-1 现状（设备是否已解锁）——未解则整单 BLOCKED_EXTERNAL 记板，转做 2.4 纸面核对。
 4. 已解则按 2.1 → 2.5（搭车）→ 2.4 顺序开第一个设备窗。
+5. 读同分支 `docs/coordination/INBOX_V2.md` 与 `BROADCAST.md`——远程协调通道（协议 `docs/coordination/PROTOCOL.md`）；此后每次开工与收工 fetch 本分支查收。

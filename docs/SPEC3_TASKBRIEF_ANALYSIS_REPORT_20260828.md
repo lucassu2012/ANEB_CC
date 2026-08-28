@@ -63,3 +63,4 @@
 2. 板面认领 T81。
 3. 跑一遍现状：`campaign_report` 对 t46 语料的 `输入记录` 行 + evidence 战役目录清单——这就是 3.1 的对拍基线。
 4. 从 3.1 动手（它是其他一切的度量底座）。
+5. 读同分支 `docs/coordination/INBOX_V3.md` 与 `BROADCAST.md`——远程协调通道（协议 `docs/coordination/PROTOCOL.md`）；此后每次开工与收工 fetch 本分支查收。
