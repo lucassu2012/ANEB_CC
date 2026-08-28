@@ -1104,12 +1104,15 @@ def test_every_doc_table_row_survives_rendering():
                 # 表内一行只写到 `| A-3 … | PO …` 就断了）。跳过=表内一行
                 # 静默消失，而读者看到的是少一行的表——比格数不符更难发现。
                 # 判据：正在一张表里（width 已定）且行首是 `|`，就该有行尾 `|`。
-                # ⚠ **本判据已实现但暂缓启用**（2026-08-29）：实测咬出两处真错
-                # （`PORTRAITS_TRISTATE_PROPOSAL_20260828.md:56`、
-                # `M7_ANCHOR_RECALIBRATION_PLAN.md:74`，均为单元格内容折行导致
-                # 首有尾无），但**两处都属他人 lane 且修法涉及内容归属判断**
-                # （不是转义那种机械修复），故不由本 lane 代改；启用它会把红门
-                # 留给全树。已报属主，**修完即删下面这行 `TRAILING_PIPE_OFF`**。
+                # ⚠ **本判据已实现，暂缓启用——只差一处，且不在本 lane**（2026-08-29）。
+                # 它实测咬出两处真错（单元格内容折行致首有尾无）：
+                #   * `M7_ANCHOR_RECALIBRATION_PLAN.md` —— **已修**（大脑裁定归本
+                #     lane，五处折行并回上一格，去空白字符数前后相同=零内容丢失）；
+                #   * `PORTRAITS_TRISTATE_PROPOSAL_20260828.md:56` —— **v4 正在新建
+                #     （git 未跟踪），裁定「不碰」**，已知会其提交前自修。
+                # 本文件的枚举面是 `os.listdir`，**未跟踪文件照样被扫**，所以现在
+                # 开启会因别人在建的草稿把全树门变红。**待 v4 提交后删掉下面这行
+                # `TRAILING_PIPE_OFF = True` 即启用**——判据不丢、红不挡全树。
                 TRAILING_PIPE_OFF = True
                 s = _strip_quote(line).strip()
                 if (not TRAILING_PIPE_OFF and width is not None
