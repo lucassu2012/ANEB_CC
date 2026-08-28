@@ -3,6 +3,7 @@ total,real_runs,111
 total,synthetic_records,560
 total,scenarios,627
 total,aqs_runs,110
+total,aqs_versioned_runs,111
 total,low_confidence_runs,100
 campaign_id,unlabeled,28
 campaign_id,m3-expansion-wave0,20

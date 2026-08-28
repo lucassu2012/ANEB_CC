@@ -97,12 +97,14 @@ def buckets(real):
                                  "time_band")}
     rat = Counter()
     validity = Counter()
-    aqs_runs = low_conf = 0
+    aqs_runs = low_conf = aqs_versioned = 0
     scn_total = 0
     for r in real:
         labels = cc.campaign_labels(r)
         for k in by:
             by[k][labels.get(k) or cc.UNLABELED] += 1
+        if r.get("aqs_version"):
+            aqs_versioned += 1        # 顶层版本戳：与「出了分」是两个量
         aqs = (cc.run_obj(r).get("aqs") or {})
         if isinstance(aqs, dict) and aqs.get("score") is not None:
             aqs_runs += 1
@@ -114,7 +116,8 @@ def buckets(real):
             radio = radio_rollup.radio_of(scn)
             rat[(radio or {}).get("rat") or "no_radio_block"] += 1
     return {"by": by, "rat": rat, "validity": validity, "scn_total": scn_total,
-            "aqs_runs": aqs_runs, "low_conf": low_conf}
+            "aqs_runs": aqs_runs, "low_conf": low_conf,
+            "aqs_versioned": aqs_versioned}
 
 
 def room_dbs(root):
@@ -163,7 +166,14 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs):
     lc = (f"{bk['low_conf']}/{bk['aqs_runs']}"
           f"（{bk['low_conf'] / bk['aqs_runs'] * 100:.0f}%）"
           if bk["aqs_runs"] else "0/0（无带分 run，无从判断）")
-    lines.append(f"- 带 AQS 的 run：{bk['aqs_runs']}；其中 low_confidence：{lc}\n")
+    # 「带 AQS」有两种数法，差一条也要说清是哪一种（同名不同义比不同名更危险，
+    # D-326）：本行按 **run.aqs.score 非空**（真出了分）计；顶层 `aqs_version`
+    # 是另一个量——有版本戳不等于出了分（实测差 1 条：有版本、无分数）。
+    _vonly = bk["aqs_versioned"] - bk["aqs_runs"]
+    lines.append(f"- 带 AQS **分数**的 run（`run.aqs.score` 非空）：{bk['aqs_runs']}；"
+                 f"其中 low_confidence：{lc}"
+                 f"｜顶层 `aqs_version` 版本戳共 {bk['aqs_versioned']} 条，"
+                 f"其中 **{_vonly} 条只有版本戳、没有分数**（两个量不可混用）\n")
     lines.append("| 维度 | 分布（run 计） |\n|---|---|")
     for k, title in (("campaign_id", "战役"), ("point_id", "点位"),
                      ("carrier", "运营商"), ("time_band", "时窗")):
@@ -206,6 +216,7 @@ def render_csv_rows(real, synth, bk):
             ("total", "synthetic_records", len(synth)),
             ("total", "scenarios", bk["scn_total"]),
             ("total", "aqs_runs", bk["aqs_runs"]),
+            ("total", "aqs_versioned_runs", bk["aqs_versioned"]),
             ("total", "low_confidence_runs", bk["low_conf"])]
     for k in ("campaign_id", "point_id", "carrier", "time_band"):
         rows += [(k, key, cnt) for key, cnt in cc.ranked(bk["by"][k])]

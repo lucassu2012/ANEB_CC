@@ -200,3 +200,30 @@ def test_a_placeholder_point_id_is_labelled_as_one():
                       cl.buckets(recs), [])
     assert "PENDING-PO-01 是占位符不是点位" in md
     assert "不可当作一个真实站点计入覆盖" in md
+
+
+def test_the_two_aqs_calibers_are_never_conflated():
+    """「带 AQS」有两种数法：`run.aqs.score` 非空（真出了分）vs 顶层
+    `aqs_version` 版本戳（有戳不等于出了分）。实测差 1 条——**同名不同义比
+    不同名更危险**（D-326），故两个数同行并列且差额点名。
+
+    反例证伪：只印一个数、或把版本戳数当成出分数，本条即红。
+    """
+    scored = make_record(aqs=80, started_ms=1783944000000,
+                         campaign={"campaign_id": "c", "tier": "metro",
+                                   "point_id": "P1", "carrier": "ctcc",
+                                   "time_band": "busy"},
+                         scenarios=[("s1_chat", {})], run_id="scored")
+    versioned_only = make_record(started_ms=1783944000000,
+                                 campaign={"campaign_id": "c", "tier": "metro",
+                                           "point_id": "P1", "carrier": "ctcc",
+                                           "time_band": "busy"},
+                                 scenarios=[("s1_chat", {})], run_id="vonly")
+    versioned_only["run"].pop("aqs", None)          # 有顶层版本戳、无分数
+    recs = [scored, versioned_only]
+    bk = cl.buckets(recs)
+    assert bk["aqs_runs"] == 1 and bk["aqs_versioned"] == 2
+    md = cl.render_md([("f.jsonl", 2, 2)], [], recs, [], {"lines": 2}, bk, [])
+    assert "`run.aqs.score` 非空）：1" in md
+    assert "版本戳共 2 条" in md
+    assert "1 条只有版本戳、没有分数" in md
