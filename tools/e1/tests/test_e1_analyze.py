@@ -713,3 +713,40 @@ def test_the_provisional_threshold_says_it_is_provisional():
     assert "n<100 时 p99 恒等于最大值" in head[-1200:], "没写清本判据自己的依据"
     _, why = ea.gate_verdict({"status": ea.PASS, "n": 1, "p99_ms": 1.0}, 16.667)
     assert "PROVISIONAL" in why, "拒绝理由里没告诉操作者这是暂定门限"
+
+
+def test_adapter_obs_projects_every_key_the_line_carries():
+    """`ADAPTER_OBS` 行有 13 个键，`_kv()` 本来就全解析了——**此前只投影 5 个**，
+    于是 `rule_matched`／两个 TTFT 口径／`session_span_ms` 在整个分析侧零读者：
+    **不是取不到，是取到了又扔掉**（T78 豆包批的核心量正是它们）。
+
+    反例证伪：把新增八键中任何一个从投影里删掉，本条即红。
+    """
+    line = ("07-19 11:27:13.000 I/AnebProbe(1234): ADAPTER_OBS pkg=com.larus.nova "
+            "mode=observe events=28 rule_matched=26 first_delta_ms=120.5 "
+            "cadence_p50_ms=99.0 session_span_ms=54321.0 confidence=high "
+            "reason=throttle ttft_send_ms=880.0 anchor_source=input_clear "
+            "ttft_cluster_ms=910.0 ttft_density_ms=905.0")
+    rows = ea.parse_adapter_obs([line])
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["rule_matched"] == 26 and r["events"] == 28
+    assert r["ttft_cluster_ms"] == 910.0 and r["ttft_density_ms"] == 905.0
+    assert r["session_span_ms"] == 54321.0
+    assert r["reason"] == "throttle" and r["anchor_source"] == "input_clear"
+    assert r["confidence"] == "high" and r["ttft_send_ms"] == 880.0
+
+
+def test_a_line_missing_the_new_keys_yields_none_not_zero():
+    """老格式的行（只有前五键）⇒ 新键一律 `None`，**不是 0**（R-10）。
+
+    `rule_matched=0` 与「这行根本没这个字段」是两件事：前者是「一次都没命中」，
+    后者是「不知道」。判读把后者读成前者，会把一个没测过的量写成测出来是零。
+    """
+    line = ("07-19 11:27:13.000 I/AnebProbe(1234): ADAPTER_OBS pkg=com.larus.nova "
+            "mode=observe events=28 first_delta_ms=120.5 cadence_p50_ms=99.0")
+    r = ea.parse_adapter_obs([line])[0]
+    assert r["events"] == 28                      # 老键照常
+    for k in ("rule_matched", "ttft_cluster_ms", "ttft_density_ms",
+              "session_span_ms", "ttft_send_ms"):
+        assert r[k] is None, "%s 应为 None 而不是 %r" % (k, r[k])

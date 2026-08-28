@@ -237,7 +237,7 @@ def parse_adapter_events(lines):
 
 
 def parse_adapter_obs(lines):
-    """`ADAPTER_OBS ...` 聚合行 -> [{'pkg','mode','events','cadence_p50_ms','first_delta_ms'}]。
+    """`ADAPTER_OBS ...` 聚合行 -> 逐行 dict，**13 个键全投影**（该行有多少给多少）。
 
     仅用于「通道 A 是否看见了这串翻转」的弱检查；**不得**据此折算任何时间误差。
     """
@@ -253,6 +253,20 @@ def parse_adapter_obs(lines):
             "events": _int(d, "events"),
             "cadence_p50_ms": _float(d, "cadence_p50_ms"),
             "first_delta_ms": _float(d, "first_delta_ms"),
+            # 以下八键**此前被丢弃**：`_kv()` 早已把整行 13 键都解析出来，
+            # 而本函数只投影前五个——于是 T78 豆包批要用的核心量
+            # （`rule_matched` 正则命中数、`ttft_cluster_ms`/`ttft_density_ms`
+            # 两个 TTFT 口径、`session_span_ms` 会话跨度）在**整个分析侧零读者**：
+            # 不是取不到，是取到了又扔掉（2026-08-29 实查：`tools/`+`scripts/`
+            # 非测试命中各 0）。R-10：缺键给 None，不给 0。
+            "rule_matched": _int(d, "rule_matched"),
+            "session_span_ms": _float(d, "session_span_ms"),
+            "confidence": d.get("confidence"),
+            "reason": d.get("reason"),
+            "ttft_send_ms": _float(d, "ttft_send_ms"),
+            "anchor_source": d.get("anchor_source"),
+            "ttft_cluster_ms": _float(d, "ttft_cluster_ms"),
+            "ttft_density_ms": _float(d, "ttft_density_ms"),
         })
     return out
 
