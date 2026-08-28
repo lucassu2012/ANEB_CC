@@ -391,6 +391,26 @@ stdout。被上述战役级工具 import。
 组织，**两张表无论语料怎么标都不可能带出这个信息**；单战役工作流下 `_comparison.csv`
 也同样没有。真实语料读 `False`——**留空会被读成「不知道」，那是 R-10 反过来犯**。
 
+## 战役报告走哪条链：wire 批 vs 观察批（D-576/D-577，2026-08-29 裁定 A 案）
+
+**两类语料，两条链，不可互喂**：
+
+| 语料类型 | 例 | 分析链 | 产物 |
+|---|---|---|---|
+| **wire 批**（ANEB probe 契约 JSONL） | wave-1、s4 吞吐批 | `campaign_report` + `publish_check` | md+HTML+CSV 三面 + 发布门 |
+| **观察批**（a11y／帧差／抓包） | 豆包先行批（T78） | `tools/e234/e2_analyze.py` 等 | e234 分析产物 + 判读页 |
+
+**为什么不能互喂**：观察批产物（`adapter.log`／`screencap_index.jsonl`／pcap）**结构上没有**
+`run.campaign.campaign_id` 等契约字段——那是「字段不该存在」，不是「忘了填」（D-576）；
+喂 `validate_results.py` 即 `exit 1 contract VIOLATIONS`。反方向也不做：**不给观察量套
+KPI 契约**去凑一份「看起来像 AQS 语料其实不是」的东西（D-577 否 B 案的理由）。
+
+**观察批判读页归档**：`evidence/doubao_wave0_<日期>/`
+（⚠ **不是 `doubao_pilot_`**——旧名，2026-08-29 按 SPEC-2 §2.1 验收判据统一为 `wave0`；
+本仓已有人照旧名写过一次，包括我）。子结构按 e234 惯例：每格每轮一目录
+（`<条件>_<功能>_r<轮次>/`，含 `adapter.log`／`screencap_index.jsonl`／`collect_notes.json`），
+判读页与战役 README 落目录根。
+
 ## 口径红线
 
 - `claim_scope` 恒为 `application_end_to_end_to_probe_node`：**应用层端到指定节点路径**，
