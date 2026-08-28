@@ -53,6 +53,9 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 > | **运营商** | `gsm.operator.alpha`／`.numeric` → **中国电信 / 46011** | ✅ 单运营商 **ctcc**，与既有语料标注同源；**双运营商维度本批不做**（清单 #3 未解，如实标注） |
 > | **当前制式** | `getprop gsm.network.type` → **`NR_SA`**（5G 独立组网） | ⚠ **蜂窝条件今天是 NR 不是 LTE**——见 §②-A G-5「制式漂移」 |
 > | **起始网络原值** | `settings get global wifi_on` → **1**；`mobile_data` → **1** | ✅ 两者都开＝WiFi 条件的起始态；**⑤ 说的「切回原值」就是把 WiFi 开回来**（此前 ⑤ 要求恢复、① 从没要求记原值） |
+> | **a11y 实际绑定态** | `dumpsys accessibility` → `Bound services:{Service[label=ANEB Profile 3 观察打点（只读）…]}`，四类事件（`VIEW_CLICKED`／`VIEW_TEXT_CHANGED`／`WINDOW_STATE_CHANGED`／`WINDOW_CONTENT_CHANGED`）与设计一致 | ✅ **不只是「已启用」，是此刻真的绑着**（此前只验过 settings 开关） |
+> | **探针进程** | `pidof com.aneb.probe` → `22981`；`ETIME` → **`3-18:10:30`**（连续运行 3 天 18 小时，起于约 08-25 11:45） | ✅ **服务稳定、无崩溃重绑循环**——通道 A 健康的直接证据 |
+> | **已装构建** | `versionName=0.1.0-phase0`、`versionCode=1`、`lastUpdateTime=2026-08-20 11:17` | ⚠ **9 天前的构建**——见 §1.D「源码↔二进制」 |
 >
 > **⚠ 由这两项量出一个此前没人写的静默失败（2026-08-29 实测得出）**：
 > 屏幕超时 **10 分钟 < 会话上限 15 分钟**。今天安全**只因为 `stay_on_while_plugged_in=7` 且 USB 连着**——
@@ -77,7 +80,9 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 > 因为 v3 簇分割靠「>400ms 静默」切簇，**碎段会把一次问答切成多个会话、簇结构失真**。
 > 结论方向不变（重绑仍是硬前提），但**代价比 v1.0 说的更大，不是更小**。
 
-> **仍须解锁后才能做的四条**：①a11y **重绑**；②**UI 栈判定**（豆包 14.7.0 是否仍 View 系——
+> **仍须解锁后才能做的四条**：①a11y **重绑**（**已降级**：实测此刻**已绑定**且连续运行 3d18h，
+> 故这不再是「未知态待处理」；但**绑定时刻与 IME 最后一次变更的先后关系只读查不出来**，
+> 而 `imePkg` 只在 `onServiceConnected()` 取一次——**重绑是花 10 秒买一个确定性**，仍建议做）；②**UI 栈判定**（豆包 14.7.0 是否仍 View 系——
 > **本批最大风险项**，判据与做法见 §1.D）；③IME/systemui 豁免核实；④**ROI 现场量**
 > （`--roi` 必填无默认值；**量法、设备几何与两帧自检已备齐，见 §1.G**——窗内约 2 分钟，不必现场摸索）。
 > **开窗第一件做 ②**：它若失败，后续 65 轮的核心量全部失真，且修复时间挪不出窗外。
@@ -97,6 +102,22 @@ deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 
 | 1 | **运行时只编译 `class_name` 正则**，`view_id_regex` 存而不评估（取 `getSource` 跨进程开销，R-16／D-49 偏离 2） | `AnebAccessibilityService.kt:58`（注释）与 `:65/:69/:72`（三处 `toRegexSafe()` 全是 `classNameRegex`）；`AdapterSpec.kt:198` |
 | 2 | 被评估的两条都是**框架类名**，不含 App 版本特征：input＝`android\.widget\.EditText`，response＝`android\.widget\.TextView\|androidx\.recyclerview\.widget\.RecyclerView`。**唯二含 `com.larus.nova:id/…` 的是 view_id，恰好不评估** | `spec/adapters/doubao.json` |
 | 3 | **本批核心量不依赖任何正则**：`ttft_ui_ms` 来自 **v3 簇分割**，D-52 逐字「**纯时戳结构法，不依赖任何锚点事件**」；response 侧 `ruleMatch()` 只做**标注计数、非闸门**（漂了掉 `rule_matched` 计数，不丢数据） | D-52；`AnebAccessibilityService.kt:41`、`:77-87` |
+
+> **⚠ 先答一个此前没人问的问题：上面三条实据是我读源码得出的，而设备上跑的是 `2026-08-20 11:17` 装的二进制——它们是同一份吗？**（2026-08-29 核过，答案是**是**）
+>
+> | 查什么 | 结果 |
+> |---|---|
+> | `adapter/` 自 08-20 11:17 起的提交数 | **0** |
+> | `AnebAccessibilityService.kt` 最后改动 | 2026-08-03（`224326c`） |
+> | `ObsStats.kt` 最后改动 | 2026-07-19（`9122ee2`） |
+> | `AdapterSpec.kt` 最后改动 | 2026-08-02（`c4170b8`） |
+>
+> **三者全部早于安装日 ⇒ 上面的实据链对设备上那个二进制成立**（诚实的否定：风险查过、已排除）。
+>
+> **🔴 但由此得出一条反直觉的硬要求：开窗前不要重装探针。**
+> `app/probe/` 整体自 08-20 起**已有 37 次提交**（语音摘要、THERMAL 接线、Room 迁移口径等）。
+> 重装＝把一个**未经本协议验证**的构建放上设备，**§1.D 的全部核查当场作废**，
+> 而它正是本批「开窗第一件事」的判据来源。**要装也得等本批采完。**
 
 **故正则漂移的真实后果**＝`rule_matched` 计数下降，**不是数据缺失**。
 
@@ -500,6 +521,7 @@ SPEC-2 §2.1 的验收判据写「首批语料落库（**独立 `campaign_id`**�
    > | 8 | **锚格 vs 块 1 的对照结论**（含「一致＝诚实的否定」那一支） | §2 | 只在有差异时才写＝选择性汇报 |
    > | 9 | **`deviceidle` 白名单是既有残留**这一笔 | §5-2 | 下一个人会误以为是本批加的而去撤它 |
    > | 10 | **全部偏离**（含每格是否跑满、有无被 900s 截断） | 本条原文、§4 | 四态诚实（R-10）；截断格若不标，末轮数据会被当完整轮读 |
+   > | 11 | **已装探针的 `versionName` 与 `lastUpdateTime`** | §1.B、§1.D | 让这批语料**可归属到一个具体二进制**。**这正是 D-405 那笔债的正向用法**——当年适配器规格「验于哪个版本」没人记，于是永远不可考；**这次我们记得到，就该记**（记漏了，下一个人会重蹈「给一次没记版本的测量硬安版本号」的坑） |
 5. 板面 T78 更新状态与证据路径，出 where-are-we 简报。
 6. **窗后待办（D-578 裁「窗前不修、窗后修」）**：以**一次 `spec/adapters/doubao.json` + `app/probe/src/main/assets/spec_adapters/doubao.json` 同提交**修两条已成误导的 note——
    ①`send_button.note` 的「待真机 `ADAPTER_EVT` 诊断反推回填」（**D-52 已跑过并证伪**：豆包自定义 View 零 `TYPE_VIEW_CLICKED`；四正则留 null＝**有意保留能力**给标准控件 App）；
