@@ -55,10 +55,15 @@ def discover(root):
         recs, _ = cc.load_records([path], dedupe=False, stats=st, quiet=True)
         n = sum(1 for r in recs if isinstance(cc.run_obj(r), dict)
                 and cc.run_obj(r))
+        bad = st.get("malformed", 0) + st.get("unreadable_files", 0)
         if n:
             corpus.append((path, n, st.get("lines", 0)))
         else:
-            skipped.append((path, st.get("lines", 0)))
+            # 「装不出契约记录」有两种：真不是语料（空文件/别的 JSON），与
+            # **装载失败**（坏行/读不了）。合成一个桶就是把「查不了」印成
+            # 「查过了，不是语料」——本仓反复咬中的形状。故带上失败计数，
+            # 渲染面据此分开措辞。
+            skipped.append((path, st.get("lines", 0), bad))
     return corpus, skipped
 
 
@@ -117,6 +122,13 @@ def room_dbs(root):
                 except sqlite3.Error:
                     row[key] = None          # 表不存在=None，不是 0（R-10）
             con.close()
+            # 三张表全 None = 这个文件读不出任何本项目的表（损坏/根本不是
+            # ANEB 库）。只靠内层 except 时它会渲染成三个「—」，与「表不存在」
+            # 无从区分——docstring 承诺的「读不了如实记」就落空了（sqlite3
+            # 对非法文件在 connect 不抛、在 execute 才抛，被内层吞成 None）。
+            if all(row.get(k) is None for k in ("runs", "scenarios",
+                                                "voice_rows")):
+                row["error"] = "no readable ANEB table"
         except sqlite3.Error as e:
             row["error"] = str(e)
         out.append(row)
@@ -153,9 +165,17 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs):
     lines.append("| 文件 | 契约记录 | 原始行 |\n|---|---|---|")
     for path, kept, total in corpus:
         lines.append(f"| {path.replace(os.sep, '/')} | {kept} | {total} |")
-    if skipped:
+    plain = [p for p, _, bad in skipped if not bad]
+    broken = [(p, bad) for p, _, bad in skipped if bad]
+    if plain:
         lines.append("\n跳过（0 条契约记录，非语料）：" +
-                     "、".join(f"`{p.replace(os.sep, '/')}`" for p, _ in skipped))
+                     "、".join(f"`{p.replace(os.sep, '/')}`" for p in plain))
+    if broken:
+        # 装载失败 ≠ 不是语料：前者是「查不了」，要单独喊出来，否则一份
+        # 坏掉的语料文件会静静地被算成「本来就不该计入」。
+        lines.append("\n⚠ **装载失败（坏行/读不了，不等于「不是语料」）**：" +
+                     "、".join(f"`{p.replace(os.sep, '/')}`（{bad} 处）"
+                               for p, bad in broken))
     lines.append("")
     return "\n".join(lines)
 
@@ -192,8 +212,11 @@ def main(argv=None):
         w.writerow(["face", "key", "count"])
         for row in render_csv_rows(real, synth, bk):
             w.writerow(row)
+    broken_n = sum(1 for _, _, bad in skipped if bad)
+    broken_n = sum(1 for _, _, bad in skipped if bad)
     print(f"real_runs={len(real)} synthetic={len(synth)} "
-          f"files={len(corpus)} skipped={len(skipped)}")
+          f"files={len(corpus)} skipped={len(skipped)}"
+          + (f" (其中装载失败 {broken_n})" if broken_n else ""))
     print(f"written: {a.md}, {a.csv}")
     return 0
 

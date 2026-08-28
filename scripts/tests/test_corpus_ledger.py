@@ -104,3 +104,49 @@ def test_md_face_carries_the_do_not_hand_edit_and_no_sum_rules():
     assert "勿手编" in md
     assert "不可相加" in md
     assert "进展」声明必须引用本台账" in md
+
+
+# ---- 审计续轮补的两条：零守卫函数里的「查不了被读成查过了」（T81 自审）----
+
+def test_a_corrupt_corpus_file_is_not_reported_as_not_a_corpus():
+    """坏行文件与「本来就不是语料」必须分开说。
+
+    两者都装不出契约记录，合成一个桶就是把「查不了」印成「查过了，不是
+    语料」——一份坏掉的语料文件会静静地被算成本来就不该计入。
+    反例证伪：discover 回到 2 元组（不带失败计数），本条即红。
+    """
+    import io as _io
+    import os as _os
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _io.open(_os.path.join(d, "empty.jsonl"), "w").write("")
+        _io.open(_os.path.join(d, "bad.jsonl"), "w",
+                 encoding="utf-8").write("{broken\n")
+        corpus, skipped = cl.discover(d)
+    assert corpus == []
+    by = {_os.path.basename(p): bad for p, _, bad in skipped}
+    assert by["bad.jsonl"] > 0, "装载失败的文件必须带失败计数"
+    assert by["empty.jsonl"] == 0, "空文件是真的不是语料，不该被说成坏了"
+    md = cl.render_md([], skipped, [], [], {"lines": 1},
+                      cl.buckets([]), [])
+    assert "装载失败" in md and "不等于「不是语料」" in md
+    assert "`" + "bad.jsonl" not in md.split("装载失败")[0], \
+        "坏文件不该同时出现在「非语料」那句里"
+
+
+def test_an_unreadable_db_says_so_instead_of_rendering_three_dashes():
+    """损坏的库要报「读不了」，不能渲染成三个「—」冒充「表不存在」。
+
+    sqlite3 对非法文件在 connect 不抛、在 execute 才抛，被逐表的内层 except
+    吞成 None——docstring 承诺的「如实记读不了」曾因此落空（本条钉住它）。
+    反例证伪：去掉 all(...) 那段兜底，本条即红。
+    """
+    import io as _io
+    import os as _os
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _io.open(_os.path.join(d, "broken.db"), "w").write("not a database")
+        rows = cl.room_dbs(d)
+    assert len(rows) == 1 and "error" in rows[0]
+    md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), rows)
+    assert "读不了" in md
