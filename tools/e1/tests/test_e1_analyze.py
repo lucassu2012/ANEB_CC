@@ -357,13 +357,13 @@ def test_gate_uses_measured_frame_not_hardcoded_33ms():
     这正是 spec §3.1 说的那件事：门限按实测刷新率换算，不硬编码 33
     （一个常量被改后谁还在用旧基数算它，D-312）。
     """
-    s = {"status": ea.PASS, "p99_ms": 20.0}
+    s = {"status": ea.PASS, "n": 12, "p99_ms": 20.0}
     assert ea.gate_verdict(s, 16.667)[0] == ea.FAIL
     assert ea.gate_verdict(s, 33.333)[0] == ea.PASS
 
 
 def test_gate_without_frame_ms_is_not_executed_not_fail():
-    s = {"status": ea.PASS, "p99_ms": 1.0}
+    s = {"status": ea.PASS, "n": 12, "p99_ms": 1.0}
     assert ea.gate_verdict(s, None)[0] == ea.NOT_EXECUTED
 
 
@@ -553,8 +553,8 @@ def test_g2_true_meaning_does_not_move_with_the_total_verdict():
     """总量判定可以是 PASS 也可以是 FAIL，G-2 本义两种情况下都不变——
     证明两者是独立字段，不是同一个判断换了个措辞（D-417/D-418 形状）。
     """
-    passing = {"status": ea.PASS, "p99_ms": 1.0}
-    failing = {"status": ea.PASS, "p99_ms": 999.0}
+    passing = {"status": ea.PASS, "n": 12, "p99_ms": 1.0}
+    failing = {"status": ea.PASS, "n": 12, "p99_ms": 999.0}
     assert ea.gate_verdict(passing, 16.667)[0] == ea.PASS
     assert ea.g2_true_meaning()[0] == ea.NOT_EXECUTED
     assert ea.gate_verdict(failing, 16.667)[0] == ea.FAIL
@@ -568,7 +568,10 @@ def test_analyze_carries_g2_true_meaning_independent_of_channel_c_verdict():
     见 docs/G2_REACHABILITY_MEMO_20260802.md；这里用合成数据钉住"不管总量
     是哪个状态词，G-2 本义都不跟着变"这条不变量）。
     """
-    res = ea.analyze(_stim_lines(count=4, warmup=0), [], _sf_text(count=4), "", [])
+    # count=6（不是 4）：W-4/A 行给本判据加了 PROVISIONAL 最小 n=5，n<5 一律
+    # NOT_EXECUTED。本条钉的是「G-2 本义不随总量判词变」，总量取哪个词无所谓，
+    # 但要取得到——故把夹具放大到过门，而不是把门调松去迁就夹具。
+    res = ea.analyze(_stim_lines(count=6, warmup=0), [], _sf_text(count=6), "", [])
     assert res["channel_c_verdict"][0] == ea.PASS
     assert res["g2_true_meaning"][0] == ea.NOT_EXECUTED
     assert res["g2_true_meaning"] != res["channel_c_verdict"]
@@ -593,8 +596,10 @@ def test_render_still_shows_g2_true_meaning_line_when_total_is_fail_shaped():
     静默丢掉这行）。这里专门用总量 FAIL 的夹具钉住"该行不随总量判定的
     正负而消失"（大脑 D-421 追补③）。
     """
-    res = ea.analyze(_stim_lines(count=4, warmup=0), [],
-                     _sf_text(count=4, present_delay_ns=30_000_000), "", [])
+    # count=6：同上，W-4 最小 n=5 之后 n=4 会判 NOT_EXECUTED，而本条需要
+    # 一个货真价实的 FAIL 形状来钉「G-2 本义行不随总量正负而消失」。
+    res = ea.analyze(_stim_lines(count=6, warmup=0), [],
+                     _sf_text(count=6, present_delay_ns=30_000_000), "", [])
     assert res["channel_c_verdict"][0] == ea.FAIL   # 确认夹具真的是 FAIL 形状
     md = ea.render_markdown(res)
     g2_lines = [ln for ln in md.splitlines() if ln.startswith("**G-2 本义")]
@@ -629,8 +634,8 @@ def test_g2_candidate_c_does_not_move_with_the_total_verdict():
     两种情况下都不变——证明它与 `g2_true_meaning()` 一样，是独立于本次数据
     的固定字段，只随 frame_ms 这个共享输入变，不随总量判定变。
     """
-    passing = {"status": ea.PASS, "p99_ms": 1.0}
-    failing = {"status": ea.PASS, "p99_ms": 999.0}
+    passing = {"status": ea.PASS, "n": 12, "p99_ms": 1.0}
+    failing = {"status": ea.PASS, "n": 12, "p99_ms": 999.0}
     assert ea.gate_verdict(passing, 16.667)[0] == ea.PASS
     assert ea.g2_candidate_c(16.667) == ea.g2_candidate_c(16.667)
     assert ea.gate_verdict(failing, 16.667)[0] == ea.FAIL
@@ -653,3 +658,58 @@ def test_render_shows_candidate_c_line_once_regardless_of_total_verdict():
         assert len(lines) == 1
         assert "33.334ms" in lines[0]
         assert "候选 B" in lines[0]
+
+
+# ── W-4：最小 n（A 行）与 dropped 进判词（B1）──────────────────
+
+def test_a_single_sample_no_longer_passes_the_gate():
+    """n=1 时「p99 ≤ 1 帧」退化成「这一次没超」——不足以当结论（A 行，D-511 同构）。
+
+    实测过的病例形状：n=1/dropped=9 判 PASS。
+    反例证伪：去掉 n<min_n 分支，本条即红。
+    """
+    v, why = ea.gate_verdict({"status": ea.PASS, "n": 1, "p99_ms": 1.0}, 16.667)
+    assert v == ea.NOT_EXECUTED
+    assert "样本量不足" in why and "n=1" in why
+
+
+def test_the_threshold_is_a_boundary_not_a_vibe():
+    """门上/门下各一条：n=4 拒、n=5 放（GATE_MIN_N=5）。
+
+    钉的是「恰好在门上」这一侧——只测远离门限的值证明不了门在哪。
+    """
+    below = ea.gate_verdict({"status": ea.PASS, "n": ea.GATE_MIN_N - 1,
+                             "p99_ms": 1.0}, 16.667)
+    at = ea.gate_verdict({"status": ea.PASS, "n": ea.GATE_MIN_N,
+                          "p99_ms": 1.0}, 16.667)
+    assert below[0] == ea.NOT_EXECUTED
+    assert at[0] == ea.PASS
+
+
+def test_the_verdict_carries_its_own_denominator():
+    """B1：判词自带 n 与 dropped——一个 PASS 旁边没有分母，读者无从判断它值多少
+    （§2.15「汇池出来的数要交代汇了谁」在判词层的应用）。
+
+    反例证伪：判词不再拼 scale，本条即红。
+    """
+    v, why = ea.gate_verdict({"status": ea.PASS, "n": 12, "dropped": 9,
+                              "p99_ms": 1.0}, 16.667)
+    assert v == ea.PASS
+    assert "n=12" in why and "9 条被丢弃" in why
+    # dropped=0 时不该硬塞一句空话
+    _, why2 = ea.gate_verdict({"status": ea.PASS, "n": 12, "p99_ms": 1.0}, 16.667)
+    assert "n=12" in why2 and "丢弃" not in why2
+
+
+def test_the_provisional_threshold_says_it_is_provisional():
+    """PROVISIONAL 常量必须在**读者看得见的地方**自称 PROVISIONAL——
+    否则一个没有敏感性分析背书的数会被当成定值引用（D-469 先例）。
+    """
+    import inspect
+    src = inspect.getsource(ea)
+    i = src.index("GATE_MIN_N = ")
+    head = src[:i]
+    assert "PROVISIONAL" in head[-1200:], "常量定义处附近没有 PROVISIONAL 声明"
+    assert "n<100 时 p99 恒等于最大值" in head[-1200:], "没写清本判据自己的依据"
+    _, why = ea.gate_verdict({"status": ea.PASS, "n": 1, "p99_ms": 1.0}, 16.667)
+    assert "PROVISIONAL" in why, "拒绝理由里没告诉操作者这是暂定门限"

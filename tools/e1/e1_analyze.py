@@ -512,7 +512,23 @@ def summarize(deltas_ms, dropped=0):
     }
 
 
-def gate_verdict(summary, frame_ms):
+# 本判据的最小样本量（W-4，大脑 2026-08-29 批 A 行；**PROVISIONAL**）。
+#
+# **依据是本判据自己的，不借用他处**（D-473：一个 KPI 的算术依据套到另一个上会错）：
+# 本仓 percentile 取最近秩，**实测 n<100 时 p99 恒等于最大值**（n=1/5/20/50 各测过）。
+# 所以在本装置现实批量下，「p99 ≤ 1 帧」读出来其实是「**最大值** ≤ 1 帧」——
+# 它不会因为多采几条就变成一个稳定的尾分位。那么 N_MIN 要挡的就不是「分位不稳」
+# （那需要 n≥100，本装置到不了），而是**最大值背后只有一两个样本**：n=1 时
+# 「p99 ≤ 1 帧」退化成「这一次没超」，判 PASS 等于用一次观测替一个门做结论。
+#
+# 取 5：在「最大值至少代表 5 次独立观测」与「不把常规小批量全判成未执行」之间。
+# 5 这个数**没有本判据的敏感性分析背书**（那需要多窗实测的 n 分布），故标
+# PROVISIONAL——大脑要求实测两三窗后校正。它**不是**从 DEFAULT_MIN_SAMPLES
+# 借来的：那是战役层低置信地板，为中位数与 CV 推的，与「最大值 vs 1 帧」无关。
+GATE_MIN_N = 5          # PROVISIONAL（W-4/A 行）
+
+
+def gate_verdict(summary, frame_ms, min_n=GATE_MIN_N):
     """通用判据：一份分布的 p99 是否 ≤ 1 帧。被通道 A/C/C-framestats 复用。
 
     frame_ms 由实测刷新率换算得出，**不硬编码 33**（spec §3.1；D-312 形状）。
@@ -549,9 +565,20 @@ def gate_verdict(summary, frame_ms):
     p99 = summary.get("p99_ms")
     if p99 is None:
         return NOT_EXECUTED, "无 p99"
+    n = summary.get("n") or 0
+    dropped = summary.get("dropped") or 0
+    # B1（只报不拦）：判词自带分母——一个 PASS 旁边没有 n/dropped，读者无从
+    # 判断它值多少（§2.15「汇池出来的数要交代汇了谁」在判词层的应用）。
+    scale = "n=%d" % n + ("，另有 %d 条被丢弃" % dropped if dropped else "")
+    # A 行（fail-closed，D-511 同构）：n 不足时不给结论。本函数 docstring 自称
+    # 「信息不足一律 NOT_EXECUTED」，而 n 恰是它此前没查的那种信息不足。
+    if n < min_n:
+        return NOT_EXECUTED, ("样本量不足：%s < 最小 %d（本判据 PROVISIONAL 门限）"
+                              "——n<100 时 p99 恒等于最大值，n 太小则「p99 ≤ 1 帧」"
+                              "退化成「这一次没超」，不足以当结论" % (scale, min_n))
     if p99 <= frame_ms:
-        return PASS, "p99 %.3fms <= 1 帧 %.3fms" % (p99, frame_ms)
-    return FAIL, "p99 %.3fms > 1 帧 %.3fms" % (p99, frame_ms)
+        return PASS, "p99 %.3fms <= 1 帧 %.3fms（%s）" % (p99, frame_ms, scale)
+    return FAIL, "p99 %.3fms > 1 帧 %.3fms（%s）" % (p99, frame_ms, scale)
 
 
 def g2_true_meaning():
