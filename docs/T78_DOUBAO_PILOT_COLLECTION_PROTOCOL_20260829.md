@@ -33,6 +33,16 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 | **B** `screencap` ROI 帧差 | 现场量出豆包响应区 ROI（`x,y,w,h`）——`e234_collect.py --roi` **必填无默认值** | 交叉验证缺失；⚠ B 采样 ~2–3.5s/帧（E1 实测），**只作粗验、不能判 1 帧级** |
 | **D** PCAPdroid 免解密抓包 | 已授 VPN、只读方向字节 | F3/F4 上行诉求**失去证据源**（这是本批最强的一块） |
 
+> **🔵 锁屏下已预验的三条（2026-08-29 只读，开窗时不必重做，直接省窗内时间）**：
+> | 前置 | 实测 | 结论 |
+> |---|---|---|
+> | a11y 服务已启用 | `enabled_accessibility_services` = `com.aneb.probe/…AnebAccessibilityService`；`accessibility_enabled` = `1` | ✅ **已启用**（⚠「**已重绑**」仍须解锁后确认——重绑是解锁态动作） |
+> | 豆包版本 | `dumpsys package com.larus.nova` → `versionName=14.7.0` | ✅ **14.7.0 在位**（与方案记载一致；⚠ **正则是对 14.4.0 写的、已漂 3 版**，重验仍是开窗必做） |
+> | deviceidle 白名单 | `dumpsys deviceidle whitelist` → `user,com.aneb.probe,10306` | ✅ **探针在白名单**（豆包是被观察方，不需入白名单） |
+>
+> **仍须解锁后才能做的四条**：①a11y **重绑**；②**节点正则对 14.7.0 重验**（最大风险项）；
+> ③IME/systemui 豁免核实；④**ROI 现场量**（`--roi` 必填无默认值）。
+
 ### C. OEM 系统侧五条前置（`INSTRUMENTATION_SPEC` §5.3；任一不满足则数据不得入库）
 deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 诊断日志走 `Log.i` · **节点正则对 14.7.0 重验通过**。
 > 这五条的共同形状是「**失败时静默出错值或静默无数据而不报错**」（D-386）——所以必须**开窗前逐条核**，不能事后看数据像不像。
