@@ -1,6 +1,6 @@
 # ANEB 需求基线 v2.0
 
-> **版本**：v2.0（草案，待 PO 批复三大裁项后升 v2.1 定稿）· 2026-08-28 · 属主：v2 会话（SPEC-1）
+> **版本**：**v2.1**（草案；三大裁项待 PO 批复后升 v2.2 定稿）· 2026-08-29 · 属主：v2 会话（SPEC-1）
 > **地位**：本文取代 `SYSTEM_DEV_PLAN_v1.0.md`（2026-07-17）+ `PLAN_ALIGNMENT_2026-07-17.md` §7.5 失效字样台账的**补丁制**，成为**唯一现行需求源**。
 > **与 v1.0 的根本区别**：v1.0 自我声明「本文是 v1.0 基线，**不随决策改写**；增量以 `PLAN_ALIGNMENT_2026-07-17.md` 为准」（v1.0 头部引言块，搜该句定位——**本文不写死行号**，见 §5.5），于是每条决策变更只能靠另一份文档的台账追记，读者按字面读到的仍是原话——**本文可改写、带版本号、每次修订记修订行**（见 §5）。
 > **纪律**：每行现状带出处（文件+节号 / D 号 / 实测命令）；未能亲验的写「据 X」不冒充亲验（D-311）；**三大裁项一律留【PO-裁定占位】，本文不预写结论**（SPEC-1 任务书 §2 非目标）。
@@ -50,7 +50,7 @@
 | **Profile 1 · 基础网络**（`basic_network`） | 框架内**仅草图级**（`PROFILE_FRAMEWORK.md` **§4**「另两类测试的框架化草图」，其 §4.2 为 basic_network 分节）；E-01 线上 `basic_network@0.1.0` | 客户端三模式屏已上线；走 **ThresholdGrader 四档而非 AQS**，三模式不共权重表、**跨模式分数不可互比**（交付包 §一.1） | 随 quick run 附带；无独立战役语料 | 草图级规格与已上线实现之间无逐条对账 | 现行，不阻塞；若要对外宣称需补规格（非本轮） |
 | **Profile 2 · Token 类**（s1_chat / s2_coding_agent / s3_multimodal） | E-01 实跑 `s1_chat@0.2.1; s2_coding_agent@0.2.1; s3_multimodal@0.3.0`（D-481 实测）；框架文档另记 `token-profile@0.4.0`/`0.2.0`（三个版本号并存） | **全链就绪**：TTFT/ITL/卡顿/速率全 KPI 链；KPI 口径 `agent-qoe-kpi-v0.2`；**主赛道 AQS 出 v0.1 分**（真实语料 `aqs_version=aqs-v0.1` 73/73），`aqs-v0.2` 已实现但**冻结**（D-505）且需 continuity 源方计算 | **73 run / 489 场景**（单点位 SZ-PILOT-01、单运营商 ctcc、4 天窗口、**73/73 low_confidence**）；语料台账另记全库 110 run/624 场景（含非主线批次） | ①三处版本号并存无对账；②`aqs-v0.2` 冻结解冻条件=E-03 真实 API key（待人清单 #7） | 现行；解冻属裁项外的清单项 |
 | **Profile 2 · 吞吐 s4**（`s4_throughput`，U3/D3） | 规格草案 **v2**（2026-08-04，owner=v4，九项裁定 D-469）；三常量已由 D-499 **转正**（300ms / 100KB / 主导度阈值 15） | **客户端全就绪**（D-478 全链接线；D-514 修 `windowUnderrun` 假置信；D-544 `window_underrun` 进契约）；**服务端 s4 相位未部署到 E-01** | **真实 RF 语料 = 零**。仅 1 条 USB 隧道 run（D-479，`s4_throughput_run1.jsonl`），且「USB 隧道路径过快…不构成边界样本分布依据」；蜂窝窗 T49 BLOCKED（D-481）、真 WiFi T54 BLOCKED（D-490 本机防火墙） | **部署缺口**：`/api/v1/profiles` 至 D-547 实测仍是 4 个（无 s4），距请求单 08-04 已 ~14 天（真实历）；部署权归 Codex（D-35/D-37） | 待人清单 #5（催/限期 Codex）；不属三裁项 |
-| **Profile 3 · 第三方 App 观测**（portraits 画像） | 方法学 `PARAMS_FIT_METHODOLOGY.md`（D-62）+ 四态门控（D-348）；机器冻结在 `check_redline.RULED_STATUS` | **观察 only**：绝不 `performAction`、绝不代启动 App（D-385/D-49 红线）；适配器对画像门控的贡献是**七分之一格**（`INSTRUMENTATION_SPEC` §4.2） | 七字段 × 四 App 的 params 仍为 null/[GUESS]；`source_portrait = PENDING-CAPTURE` | `token_interval_ms_dist` / `think_pause_ms_dist` 挂 `PENDING-BY-CALIBER` **约六周**——需明文 token 时戳，本树红线（D-24 不解密不 MITM / D-61 免 root 实证不可得）下**永不可达成** | 🔴 **裁项 B**（论证由 SPEC-4 §4.2 供稿） |
+| **Profile 3 · 第三方 App 观测**（portraits 画像） | 方法学 `PARAMS_FIT_METHODOLOGY.md`（D-62）+ 四态门控（D-348）；机器冻结在 `check_redline.RULED_STATUS` | **观察 only**：绝不 `performAction`、绝不代启动 App（D-385/D-49 红线）；适配器对画像门控的贡献是**七分之一格**（`INSTRUMENTATION_SPEC` §4.2） | 七字段 × 四 App 的 params 仍为 null/[GUESS]；`source_portrait = PENDING-CAPTURE` | `token_interval_ms_dist` / `think_pause_ms_dist` 挂 `PENDING-BY-CALIBER` **约六周**——需明文 token 时戳，本树红线（D-24 不解密不 MITM / D-61 免 root 实证不可得）下**永不可达成**。**注（v2.1 订正）**：挡住画像翻门的**不是**这两格，而是另四个裸 `PENDING`（`request_size`/`session_duration`/`downlink_media`/`pop_ip`；`check_redline.py` 实测 `blocked by 4`） | 🔴 **裁项 B**（两字段的越线决定）；**翻门本身归采集执行**（裁项 A/C 的资源排序） |
 | **Profile 4 · 实时语音**（`voice_realtime`） | 规格 `PROFILE4_VOICE_LOOPBACK_SPEC.md`；M7 锚 1000ms 仍 **PROVISIONAL**（回核预案 `M7_ANCHOR_RECALIBRATION_PLAN.md`） | v1 paced-proxy 与 v2 server-sim 两口径共表（`caliber` 区分）；四表并列版本纪律（v0.1 两表 + `WEIGHTS_VOICE_V02`/`WEIGHTS_VOICE_SIM_V02`）；wire 侧 run 级 voice 摘要已接（D-562） | **回核级 n=30 达成**（跨 **3 种**网络条件，D-507 口径；B1(id5-9) 网络条件库内不可查、**分条件统计必须单列不可并入 WiFi**） | §7.6 五条差集**全部落在 Profile 4**（音频端点/C1C2 权重/Opus 码率/子场景未接/FRLOSS 自相矛盾）——见 §4 | 差集归 SPEC-4（v4）逐条裁定；M7 改锚待分布报告 |
 
 ---
@@ -69,9 +69,11 @@
 
 ### 裁项 B · M3 画像口径三选一
 
-- 选项：①`PENDING-BY-CALIBER` 正式放弃（改判 `N/A-BY-CALIBER`） / ②改 UI-proxy 口径纳入 / ③解禁受控采集。
-- **本文不做论证**：逐字段代价表由 **SPEC-4 §4.2「portraits 三态定案提案」**（v4）供稿——**已到货**（⚠ 引用时点该件为**未提交的在飞草稿**，v4 提交后本引用即固化；若内容有变以其提交版为准）：[`PORTRAITS_TRISTATE_PROPOSAL_20260828.md`](PORTRAITS_TRISTATE_PROPOSAL_20260828.md)（七字段 × 四 App 共 28 格现状 + 三选一代价，其 §1 三条事实修正尤须先读：①今天要裁的不是「没人管」而是「关不关那扇『将来也许』的门」；②免 root 解密是**实证不可得**非未试；③七参数服务的是 **Profile 2 仿真校准**，故「放弃」伤到的是 Profile 2 的宣称措辞、**Profile 3 核心宣称无伤**）。按 SPEC-1 §5 分工，本文与决策页**直接引用不重做论证**。
-- **基线侧影响**：决定 §2 表 Profile 3 行的「裁定归宿」与 M3 里程碑的验收判据是否可判。
+- **范围（v2.1 订正，据 v4 正式供稿）**：**仅两个字段** `token_interval_ms_dist` + `think_pause_ms_dist`（均 `PENDING-BY-CALIBER`）。其余五字段**不进本裁项**——`tool_loop_cadence` 已是 `N/A-BY-CALIBER` 终态（R19d 机器冻结），另四个是红线内的裸 `PENDING`（属采集执行问题，归裁项 A/C）。**别让读者以为要裁七个。**
+- **⚠ 前提认知（反直觉；v4 对抗核验揪出的假命题订正）**：**裁掉本项并不解锁画像翻门**——`check_redline.py` 实测挡门的是那四个裸 `PENDING`（`request_size` / `session_duration` / `downlink_media` / `pop_ip`），两个 `-BY-CALIBER` **本就不在阻塞集**。本项结的是**「越线与否的决定悬了六周」这笔治理债**，不是「差两格就完工」。
+- **选项由三改四**：A 正式放弃 / B 改 UI-proxy 纳入 / C 解禁受控采集 / **D 维持暂缓（须写可验证的触发条件）**——第四项是 v4 对抗核验按决策页自身框架补的（「暂缓也是一个决定，须带触发条件与不裁后果」）。
+- **本文不做论证**：逐字段代价书由 **SPEC-4 §4.2** 供稿，**正式件已入库**：[`spec/portraits/PORTRAITS_TRISTATE_PROPOSAL_20260829.md`](../spec/portraits/PORTRAITS_TRISTATE_PROPOSAL_20260829.md)（commit `96fb60d`，经三镜头对抗核验；其 **§5 是可直接粘贴进决策页的引用块**，§6 是裁后落地清单）。v4 技术推荐 **A**，但显式标注前提「仅在 UI-proxy 已够用、不追求流内 token 真实分布时成立；若 PO 追求该层真实数据，权衡轴转向 C」——收益侧交还 PO。
+- **基线侧影响**：决定 §2 表 Profile 3 行的「裁定归宿」；**但 M3 画像门能否翻，取决于那四个裸 `PENDING` 的采集，与本裁项无关**（此条为 v2.0 写错、v2.1 订正）。
 
 **🔴【PO-裁定占位 B】**：＿＿＿＿（裁定日期＿＿，D 号＿＿）
 
@@ -134,6 +136,8 @@
 | 版本 | 日期 | 修订内容 | 依据 | 修订人 |
 |---|---|---|---|---|
 | v2.0 | 2026-08-28 | 首版：产品定义/验收方占位/现状总表五列/三大裁项占位/偏差表（4+5+2 条）/版本纪律/附录 A 验收标准双列 | SPEC-1 任务书 §3；诊断报告 §2.1 | v2 会话 |
+| v2.0+ | 2026-08-29 | 对抗审查订正批（7 条真缺陷）：F-e 已由 D-406 裁定闭环、F-d 的 VC-2 已接入、M7 分布报告已产出、n≥15 已被 D-474 取代、`claim_scope` 三条并存非「恒为」、两处节号错、外场三行实为两行；新增 §5 第 6/7 条纪律 | 四镜头对抗审查（49 agents，各配独立证伪者） | v2 会话 |
+| **v2.1** | 2026-08-29 | **裁项 B 按 v4 正式供稿重写**：①引用路径改为已入库的 `spec/portraits/PORTRAITS_TRISTATE_PROPOSAL_20260829.md`（v2.0 引的是未提交的在飞草稿）；②范围收窄为**两个字段**（非七个）；③**订正假命题「裁 B 解锁翻门」**——实测挡门的是另四个裸 `PENDING`；④选项由三改四（补 D 维持暂缓带触发条件） | v4 供稿 `96fb60d`（三镜头对抗核验）+ 其铃报三条澄清 | v2 会话 |
 
 ---
 
