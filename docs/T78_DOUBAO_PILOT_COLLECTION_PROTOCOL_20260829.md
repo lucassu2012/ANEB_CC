@@ -40,6 +40,22 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 > | 豆包版本 | `dumpsys package com.larus.nova` → `versionName=14.7.0` | ✅ **14.7.0 在位**（与方案记载一致；⚠ **正则是对 14.4.0 写的、已漂 3 版**，重验仍是开窗必做） |
 > | deviceidle 白名单 | `dumpsys deviceidle whitelist` → `user,com.aneb.probe,10306` | ✅ **探针在白名单**（豆包是被观察方，不需入白名单） |
 >
+> **🔵 同批只读验掉的另四项（开窗资源前提，2026-08-29）**：
+> | 项 | 实测 | 结论 |
+> |---|---|---|
+> | **通道 D 的 PCAPdroid** | `pm list packages` → `com.emanuelef.remote_capture` | ✅ **已装**——F3/F4 上行诉求的**唯一证据源**在位 |
+> | 电量 / 温度 | `level=81`、`temperature=250`（25.0℃）、`status=4` | ✅ 跑 ≈2 小时够用 |
+> | 存储 | `/data` 可用 **208 GB**（14% 使用） | ✅ 60 轮产物 + 抓包绰绰有余 |
+> | 当前 IME | `default_input_method` = `com.baidu.input_huawei/.ImeService` | ✅ **豁免逻辑认得它**（见下） |
+>
+> **⚠ 由 IME 这项牵出「a11y 必须重绑」的真正理由（不是形式要求）**：
+> `AnebAccessibilityService` 的豁免取 `default_input_method` 再 `substringBefore('/')`
+> → `com.baidu.input_huawei`，与实测一致，**豁免会生效**；且代码注释就记着
+> 「真机实证：**百度输入法把 `com.larus.nova` 观察切成两段，`ttft_send_ms` 恒 null**」——
+> **正是我们要测的包**。**但 `imePkg` 只在 `onServiceConnected()` 读一次**：
+> 若 IME 在服务绑定之后被换过，豁免就指向旧值、切段问题复现。
+> **故 ①B 的「已重绑」不是走过场——它是让 IME 豁免重新取值的唯一途径。**
+
 > **仍须解锁后才能做的四条**：①a11y **重绑**；②**节点正则对 14.7.0 重验**（最大风险项）；
 > ③IME/systemui 豁免核实；④**ROI 现场量**（`--roi` 必填无默认值）。
 
