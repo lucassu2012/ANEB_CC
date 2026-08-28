@@ -79,7 +79,7 @@
 | 解冻条件 | 评分 v0.2 冻结 | 解除条件=E-03 真实 API key 语料（D-505 原则：不为仿真调参） |
 | App | ~~语音 lowConfidence 恒真 bug~~ **已修**（faa8b14）：采样时点等一帧周期后查真积压，真机对照 id9/10=1(旧) vs id11/12=0(修后)，区分力恢复 | 闭环 08-20 |
 | App | ~~设计文档前台 Service 分叉修正~~ **已完**：三处标注（2d9d48d）+承诺句按 D-502 改写为实况（KeepScreenOnPolicy+评审指针） | 闭环 08-20 |
-| App | `LiveMetric.render` 渲染接线 | D-69 已知剩余项，待设备窗验手感 |
+| App | `LiveMetric.render` ~~渲染接线~~（**接线已完成 08-22**：`LiveMetricStrip.kt` 渲染 render 四型全部并接入三屏，T77 批 5a/5b，大脑验收 PASS——本文件下方施工表同一事实；初版两行未对齐，08-29 订正） | 仅余**设备窗验手感**半项（D-69 尾巴），并入总计划 #9 UI 视觉证据链（拍图时四型一并验，0 额外成本） |
 | App | R8 未开启 | 前置=keep 规则+12 个 MigrationVxTest 全量（D-500②） |
 | App | ~~Compose 渲染层无自动化测试~~ **已落地** | **渲染层三条红线已进常设门禁**（`RenderRedlineTest` 9 条 + `StResultsRenderTest` 5 条，走 `testImplementation`+Robolectric 跑在 JVM、被 `verify_all` 全量单测门带上；D-526/527/529/538 + T48 §5.1 写了怎么写）。**app 单测全绿；实数以 `DECISION_LOG.md` 最新条目为准，本文不写死**（审计 H-3 修法建议原文——它每天都在动，本审计期间就从 765 变到 767；最近一次实测 110 套件/834，2026-08-20）。旧数 346/748/758 均已过期勿引 |
 | App | release 下 uiautomator 树为空+恢复栈单层 | T58c 两条登记级观察（不阻塞交付，自动化用 debug 包） |
