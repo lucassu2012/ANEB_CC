@@ -67,7 +67,7 @@ deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 
 
 **采集命令**（每格一次会话；参数照 `tools/e234/e234_collect.py`）：
 ```
-python tools/e234/e234_collect.py --serial <SN> --pkg com.larus.nova --roi <x,y,w,h> --allow-real-device --device-window DW-YYYYMMDD-NN --out evidence/doubao_pilot_<日期>/<条件>_<功能>_r<轮次>
+python tools/e234/e234_collect.py --serial <SN> --pkg com.larus.nova --roi <x,y,w,h> --allow-real-device --device-window DW-YYYYMMDD-NN --out evidence/doubao_wave0_<日期>/<条件>_<功能>_r<轮次>
 ```
 > 通道 D（PCAPdroid）与上述**并行**手动起停，其产物单独归档（脚本不管抓包）。
 
@@ -75,7 +75,8 @@ python tools/e234/e234_collect.py --serial <SN> --pkg com.larus.nova --roi <x,y,
 
 ## ③ 产物与判读入口
 
-**落点**：`evidence/doubao_pilot_<日期>/`
+**落点**：`evidence/doubao_wave0_<日期>/`
+> **目录名以 SPEC-2 任务书 §2.1 的验收判据为准**（原写 `doubao_pilot_`，2026-08-29 自查发现与任务书不一致——**验收时目录名对不上就是没达标**，已统一为 `doubao_wave0_`）。
 ```
 <条件>_<功能>_r<轮次>/     每格每轮一目录（脚本 --out）
   adapter.log            通道 A 事件流（TTFT/cadence/RCT 的原料）
@@ -117,7 +118,7 @@ README.md                  战役说明：格阵、执行顺序实况、每格�
 1. 停本次启动的一切应用/服务（含 PCAPdroid、a11y 观察）；
 2. 恢复本次改动的临时设置（网络条件切回原值、`stayon` 等）；
 3. 回华为桌面并**立即复验干净**（仅桌面可见但仍有后台/VPN/临时规则时，**不得称干净**）；
-4. 产物落 `evidence/doubao_pilot_<日期>/` 并写 README（格阵实况 + 每格时间戳 + 全部偏离）；
+4. 产物落 `evidence/doubao_wave0_<日期>/` 并写 README（格阵实况 + 每格时间戳 + 全部偏离）；
 5. 板面 T78 更新状态与证据路径，出 where-are-we 简报。
 
 ---
