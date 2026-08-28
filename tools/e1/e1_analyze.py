@@ -25,9 +25,10 @@
 
 ## 通道 A 现状（诚实缺席，不是 0）
 
-`AnebAccessibilityService` 今天只打两种日志：`ADAPTER_EVT`（**仅 click 事件**，且 DEBUG 门控）
-与 `ADAPTER_OBS`（**5 秒节流的聚合**：events / first_delta_ms / cadence_p50_ms）。
-**内容变化事件没有逐事件时戳**，因此 `t_event` 拿不到。
+`AnebAccessibilityService` 打两种日志：`ADAPTER_EVT`（DEBUG 门控；**〔订正 08-29〕已扩到
+click 与内容变化两类事件、均带 `t_boot_ns`**——`AnebAccessibilityService:194` 注释点名、
+`3d31512`/T27 补账；本段下方 §现状/提案是订正前旧态，以本句与文末 `parse_adapter_events`
+docstring 为准）与 `ADAPTER_OBS`（**5 秒节流的聚合**：events / first_delta_ms / cadence_p50_ms）。
 
 本脚本对此的处理：
 1. 若日志里存在带 `t_boot_ns=` 的 `ADAPTER_EVT` 行（=下述提案落地后的形态），照常判读；
