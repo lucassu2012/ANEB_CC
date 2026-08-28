@@ -86,6 +86,20 @@ python tools/e234/e234_collect.py --serial <SN> --pkg com.larus.nova --roi <x,y,
 README.md                  战役说明：格阵、执行顺序实况、每格时间戳、偏离记录
 ```
 
+**⚠ 战役标识：本批不用 `campaign_id`，而用目录名 + README（与 SPEC-2 §2.1 字面的差异，已核清）**
+
+SPEC-2 §2.1 的验收判据写「首批语料落库（**独立 `campaign_id`**）」——**该字段对本批不适用**，理由是机制层面的：
+- `campaign_id` 是 **ANEB probe 的 wire 语料字段**（`run.campaign.campaign_id`，见 `CAMPAIGN_LABELS_CONVENTION.md`），
+  缺失即归 `unlabeled` 桶；
+- 但**豆包先行批走观察通道**（A 无障碍 / B 帧差 / D 抓包），产物是 `adapter.log` / `screencap_index.jsonl` / pcap，
+  **不是 wire 语料**——`tools/e234/e234_collect.py` 全文无 `campaign`/`label` 参数，其 README 亦实测
+  「把 dry-run 的 `screencap_index.jsonl` 喂 `scripts/validate_results.py` → **exit 1，contract VIOLATIONS**」，
+  即这批产物**结构上就进不了 wire 语料池**，自然也没有那个字段可填。
+- **本批的战役标识因此落在两处**：**目录名** `evidence/doubao_wave0_<日期>/` 与 **README 首行**（写明批次、条件、格阵、时间窗）。
+  验收时以这两处认定「独立批次」，**不以 wire 的 `campaign_id` 认定**。
+- ⚠ **反过来的红线仍在**：本批产物**不得**被塞进 wire 语料池或与 ANEB 自有 run 混池——两者口径完全不同
+  （ui-proxy vs 网络层），混池即违 §③ 判读口径与铁律 3。
+
 **判读口径（R-10 与红线）**：
 - 所有 UI 侧指标恒标 **ui-proxy 口径，≠ 网络 ITL/TTFT**，`confidence ≤ LOW`（`INSTRUMENTATION_SPEC` §4.4：G-5 未 PASS 前恒 LOW）；
 - **N=5 是登记级下限**——产出**不给置信区间**，恒标 LOW/登记级（方案 §6.2）；
