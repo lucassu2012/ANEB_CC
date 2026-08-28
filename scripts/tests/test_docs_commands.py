@@ -1041,14 +1041,34 @@ _TABLE_DOCS = [os.path.join(SCRIPTS, "README.md")] + [
 _DELIM = re.compile(r"\|[-|: ]+\|")
 
 
+def _strip_quote(line):
+    """剥掉 markdown 引用块前缀（`> ` / `   > `，可嵌套）——**表格照样是表格**。
+
+    盲区实录（v2 交蓝本时点名，实测确认，2026-08-29）：本文件原来的
+    `_looks_like_row` 要求行首就是 `|`，于是**引用块内的表**（协议/提案类文档里
+    大量表格长这样）一行都没查过——仓内 61 行、4 个文件在盲区里，
+    扫出 1 处真错（`PORTRAITS_TRISTATE_PROPOSAL_20260828.md:56`，2 格 vs 表头 3 格）。
+    **「0 假阳性的检查器指错对象，照样一片假绿」**——这是 v2 自验 `check_tables.py`
+    时得出的同一教训（它的 PATHS 从没含 `BRAIN_TASKBOARD.md`）。
+    """
+    prev = None
+    while prev != line:
+        prev = line
+        line = re.sub(r"^\s*>\s?", "", line)
+    return line
+
+
 def _looks_like_row(line):
-    s = line.strip()
+    s = _strip_quote(line).strip()
     return s.startswith("|") and s.endswith("|") and len(s) > 1
 
 
 def _cells(line):
-    """A row's cells. Splits on unescaped pipes only -- an escaped one is text."""
-    return re.split(r"(?<!\\)\|", line.strip())[1:-1]
+    """A row's cells. Splits on unescaped pipes only -- an escaped one is text.
+
+    引用块前缀在这里也要剥（与 `_looks_like_row` 同一判据，否则新纳入的
+    `> | a | b |` 会把 `> ` 当成第一格的内容而算错格数）。"""
+    return re.split(r"(?<!\\)\|", _strip_quote(line).strip())[1:-1]
 
 
 def test_every_doc_table_row_survives_rendering():
@@ -1079,11 +1099,38 @@ def test_every_doc_table_row_survives_rendering():
             if in_fence:
                 continue
             if not _looks_like_row(line):
+                # **缺行尾竖线的行曾被整行跳过**（v2 蓝本 ① 点名的第三类，
+                # 实测真错一处：`PORTRAITS_TRISTATE_PROPOSAL_20260828.md:56`
+                # 表内一行只写到 `| A-3 … | PO …` 就断了）。跳过=表内一行
+                # 静默消失，而读者看到的是少一行的表——比格数不符更难发现。
+                # 判据：正在一张表里（width 已定）且行首是 `|`，就该有行尾 `|`。
+                # ⚠ **本判据已实现但暂缓启用**（2026-08-29）：实测咬出两处真错
+                # （`PORTRAITS_TRISTATE_PROPOSAL_20260828.md:56`、
+                # `M7_ANCHOR_RECALIBRATION_PLAN.md:74`，均为单元格内容折行导致
+                # 首有尾无），但**两处都属他人 lane 且修法涉及内容归属判断**
+                # （不是转义那种机械修复），故不由本 lane 代改；启用它会把红门
+                # 留给全树。已报属主，**修完即删下面这行 `TRAILING_PIPE_OFF`**。
+                TRAILING_PIPE_OFF = True
+                s = _strip_quote(line).strip()
+                if (not TRAILING_PIPE_OFF and width is not None
+                        and s.startswith("|") and not s.endswith("|")):
+                    orphans.append("%s:%d（行尾缺 `|`，该行不会渲染进表）"
+                                   % (os.path.basename(doc), i + 1))
                 width = None
                 continue
             if width is None:
-                nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+                # 同样要剥引用前缀：`> |---|---|` 是合法的分隔行，不剥就认不出
+                # 表头，整张引用块内的表会被逐行报成孤行（本次扩盲区时实测撞到）。
+                nxt = (_strip_quote(lines[i + 1]).strip()
+                       if i + 1 < len(lines) else "")
                 if not _DELIM.fullmatch(nxt):
+                    # **孤行检查只对非引用块行生效**（实测收窄）：本仓惯用
+                    # `> | 名 | 值 | 注 |` 把一行事实排成三栏，无表头也不打算
+                    # 渲染成表——引用块内实测 7 处正规表 vs **47 处这类单行**，
+                    # 一律判孤行会造 47 个假阳性，守卫会立刻失信。
+                    # 引用块内因此只查「有表头的表」的格数一致性。
+                    if line.lstrip().startswith(">"):
+                        continue
                     orphans.append(f"{os.path.basename(doc)}:{i + 1}")
                     continue
                 width = len(_cells(line))
