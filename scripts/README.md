@@ -408,7 +408,7 @@ KPI 契约**去凑一份「看起来像 AQS 语料其实不是」的东西（D-5
 **观察批判读页归档**：`evidence/doubao_wave0_<日期>/`
 （⚠ **不是 `doubao_pilot_`**——旧名，2026-08-29 按 SPEC-2 §2.1 验收判据统一为 `wave0`；
 本仓已有人照旧名写过一次，包括我）。子结构按 e234 惯例：每格每轮一目录
-（**每格一目录** `<条件>_<功能>/`，含 `adapter.log`／`screencap_index.jsonl`／`collect_notes.json`；
+（**每格一目录** `<条件>_<功能>/`——取值已定案（`de79afa`）：日期 `YYYYMMDD`、条件 `wifi`/`cell`、功能 `f1`..`f6`，**锚格 `wifi_f1_anchor/`**；含 `adapter.log`／`screencap_index.jsonl`／`collect_notes.json`；
 **轮次不建子目录**——靠 `mark_rtt.jsonl` 的 `t` 标记分轮，采集脚本本就设计成一格一次会话。
 ⚠ 本行初版写的 `<条件>_<功能>_r<轮次>/` 是错的，与采集侧定案矛盾，2026-08-29 随 `80dd18e` 同步），
 判读页与战役 README 落目录根。
@@ -416,7 +416,7 @@ KPI 契约**去凑一份「看起来像 AQS 语料其实不是」的东西（D-5
 **判读入口**（工具属主给可执行形态，参数以 `--help` 为准，不靠转述）：
 
 ```
-python tools/e234/e2_analyze.py --run-dir evidence/doubao_wave0_<日期>/<条件>_<功能> --pkg com.larus.nova --out-md <判读片段>.md
+python tools/e234/e2_analyze.py --run-dir evidence/doubao_wave0_20260829/wifi_f1 --pkg com.larus.nova --out-md wifi_f1.md
 ```
 
 每格跑一次（`--run-dir` 指到**格目录**，不是战役根；轮次在格内由 `t` 标记分），
