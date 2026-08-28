@@ -81,7 +81,7 @@ if ($go) {
 
 }
 
-if (Test-InScope 'spec' @('profiles-valid','portraits-redline','adapters-spec','adapters-spec-unit','portraits-redline-unit','portraits-schema','portraits-schema-unit')) {
+if (Test-InScope 'spec' @('profiles-valid','portraits-redline','adapters-spec','adapters-spec-unit','portraits-redline-unit','portraits-schema','portraits-schema-unit','spec-versions','spec-versions-unit')) {
 # --- profile validation ---
 $profileErrors = @()
 $profileFiles = Get-ChildItem (Join-Path $repo 'profiles') -Filter '*.json'
@@ -189,6 +189,59 @@ if ($py -and (Test-Path $redlineTest)) {
     if (-not (Test-Path $redlineTest)) { $missing += 'test_check_redline.py' }
     $log += Add-Result 'portraits-redline-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
+
+# --- AQS 版本冻结守卫 + 其自守卫（SPEC-4 4.1 / D-567；接门半由 SPEC-3 代做）---
+# check_versions.py exit: 0=weights 与 AQS_VERSIONS 登记表一致 / 非 0=有未登记或
+# 对不上的 version_id。
+#
+# **自守卫用 pytest 跑，而不是照 portraits 那样 `& $py <file>`**：那份姊妹文件
+# （test_check_redline.py）自带 `__main__` runner，直接执行会真跑；而这一份没有
+# ——**当脚本执行它，7 条测试一条都不跑、退出码恒 0**（实测：脚本跑零输出 RC=0，
+# pytest 跑 7 passed）。照抄形态就会造出一道永远绿的假门，而 gate-integrity 也
+# 抓不到（python 在、不抛 CommandNotFoundException）——D-532「从落地起没跑过却
+# 每次报 PASS」的同一形状。pytest 缺席时如实记 NOT_EXECUTED，不冒充 PASS。
+$versionsScript = Join-Path $repo 'spec\scoring\check_versions.py'
+if ($py -and (Test-Path $versionsScript)) {
+    $out = & $py $versionsScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- spec-versions (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'spec-versions' 'PASS' 'check_versions.py'
+    } else {
+        $log += Add-Result 'spec-versions' 'FAIL' 'version registry drift; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $versionsScript)) { $missing += 'spec/scoring/check_versions.py' }
+    $log += Add-Result 'spec-versions' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+$versionsTest = Join-Path $repo 'spec\scoring\test_check_versions.py'
+$hasPytest = $false
+if ($py) {
+    & $py -c "import pytest" 2>&1 | Out-Null
+    $hasPytest = ($LASTEXITCODE -eq 0)
+}
+if ($py -and $hasPytest -and (Test-Path $versionsTest)) {
+    $out = & $py -m pytest $versionsTest -q 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- spec-versions-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'spec-versions-unit' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'passed' } | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'spec-versions-unit' 'FAIL' 'reflex test(s) failed; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    elseif (-not $hasPytest) { $missing += 'pytest（该文件无自带 runner，脚本执行会零测试假绿）' }
+    if (-not (Test-Path $versionsTest)) { $missing += 'spec/scoring/test_check_versions.py' }
+    $log += Add-Result 'spec-versions-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 
 # --- Profile-3 portrait SHAPE gate (spine-3 #6): jsonschema validates the three-layer
 # document structure (params / params_fit_approx / observed_*), complementing check_redline

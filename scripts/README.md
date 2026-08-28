@@ -402,7 +402,8 @@ python tests/run_all.py          # 自包含 golden runner（无 pytest），exi
 接进 `verify_all.ps1` 门禁步 `campaign-analysis-unit`（PASS/FAIL/NOT_EXECUTED 三态）。
 
 **分层触发（SPEC-3 §3.2/T81，2026-08-28）**：`verify_all.ps1 -Scope server|app|scripts|spec|all`
-——**减频不减门**：19 门语义、门数、gate-integrity 一律未动，层外的门显名记
+——**减频不减门**：既有门的语义与 gate-integrity 一律未动（门数随后续接线增长，
+以链跑汇总行 `checks: N total` 为准，此处不写死），层外的门显名记
 **第四态 `SKIPPED_SCOPE`**（「本次没请它验」，与 NOT_EXECUTED 的「想验验不了」严格分开，
 两者都绝不折算 PASS）。**`-Scope all` 保留给收官/入册/交接点**，分层跑供日常改动自检。
 实测耗时：`spec` 2.7s / `server` 14.9s / `scripts` 200s / `all` 10 分钟以上。
