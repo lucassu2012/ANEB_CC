@@ -75,10 +75,20 @@ def corpus_real_runs(csv_path):
     txt = _read(csv_path)
     if txt is None:
         return UNKNOWN, "corpus ledger CSV not readable/absent"
-    for line in txt.splitlines():
-        parts = [c.strip().lstrip("﻿") for c in line.split(",")]
-        if len(parts) >= 3 and parts[0] == "total" and parts[1] == "real_runs":
-            return parts[2], "CORPUS_LEDGER.csv total,real_runs (D-565)"
+    # 用 csv 模块而不是裸 split(",")。**如实说清它防的是什么，以及为什么没有
+    # 守卫**：台账的 `cells` 列是多值串，将来若某值含逗号，裸 split 会把该行
+    # 劈错格——但本函数是**逐行找匹配**，劈错的那行 cells[1] 不等于
+    # "real_runs" 会被自然跳过，目标行照样读对，**错法因此不产生错误结果**。
+    # 我为它写过一条守卫，实测突变存活（裸 split 照样绿）——那是条假守卫，
+    # 已撤（§2.17 第 3 条：这句话错了谁会红？没人红就说明它什么也没钉；
+    # 「空气守卫不建」）。保留 csv 模块是**健壮性**：将来若改成按行号取值或
+    # 需要完整读表，裸 split 就会真的读错。本条由 §2.17 反扫自己的产出时抓到
+    # ——我 docstring 写「不自造口径」，而这里确实自造了一份 CSV 解析。
+    import csv as _csv
+    for row in _csv.reader(io.StringIO(txt)):
+        cells = [c.strip().lstrip("﻿") for c in row]
+        if len(cells) >= 3 and cells[0] == "total" and cells[1] == "real_runs":
+            return cells[2], "CORPUS_LEDGER.csv total,real_runs (D-565)"
     return UNKNOWN, "no total,real_runs row in ledger CSV"
 
 
