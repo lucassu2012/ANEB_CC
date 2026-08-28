@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))                   # scripts/tests/
 
 SCRIPTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(SCRIPTS)   # 仓根：tools/ 等 scripts/ 之外的脚本按它解析
 REPO = os.path.dirname(SCRIPTS)
 def _doc_files():
     """Every doc that could carry a runnable command, walked rather than listed.
@@ -533,6 +534,12 @@ def test_documented_scripts_exist():
     missing = []
     for doc, script, _flags in _commands():
         if os.path.exists(os.path.join(SCRIPTS, script)):
+            continue
+        # 仓内可执行脚本不止 scripts/ 下一处：tools/e1 与 tools/e234 两套采集装置
+        # 也被文档以「python tools/…」的仓根相对路径引用。此前只按 scripts/ 解析，
+        # 于是每一条 tools/ 命令都被拼成 scripts/tools/… 而误报缺失——门会对着
+        # **存在的**脚本喊不存在，比不查更糟（守卫说谎族，§2 红线）。
+        if os.path.exists(os.path.join(REPO_ROOT, script)):
             continue
         if doc in bannered and script in _RETIRED_SCRIPTS:
             continue
