@@ -268,3 +268,28 @@ def test_an_unreadable_board_is_not_reported_as_a_wrong_window_id():
     ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01", "")
     assert ok is False
     assert "实搜路径" in why and "不是「你写错了窗号」" in why
+
+
+def test_a_longer_window_id_does_not_authorise_a_shorter_one():
+    """**假放行**才是这道门的真风险（大脑 2026-08-29 裁定，v2 六案实证）：
+    纯子串匹配下 `DW-20260829-01` 会被板上的 `DW-20260829-011` 放行——
+    一个从没被授权过的窗号解锁真机（实测复现过）。故用词边界匹配。
+
+    边界不能只用 `\b`：窗 ID 自带连字符，`\b` 在 `-011` 处判为边界，
+    正好漏掉这一族。反例证伪：改回 `in` 子串匹配，本条即红。
+    """
+    ok, _ = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01",
+                            "| DW-20260829-011 | 某个更长的窗 |")
+    assert ok is False, "被更长的窗号假放行了"
+    # 后缀方向同理
+    ok, _ = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01",
+                            "| XDW-20260829-01 |")
+    assert ok is False
+
+
+def test_word_boundary_still_accepts_a_genuinely_listed_window():
+    """收紧不能把真授权也挡掉——行中、行首行尾两种位置都要放行。"""
+    for board in ("| DW-20260829-01 | 窗 |", "DW-20260829-01"):
+        ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True,
+                                  "DW-20260829-01", board)
+        assert ok is True, "真授权被挡：%s" % why

@@ -74,7 +74,12 @@ def device_gate(serial, model, allow_real_device, device_window, taskboard_text)
         return False, ("读不到任务板：无从核对 --device-window，拒绝在无授权凭据下连真机"
                        "（实搜路径 %s；文件不存在或为空——不是「你写错了窗号」，"
                        "先确认仓库路径与文件本身）" % TASKBOARD)
-    if device_window not in taskboard_text:
+    # **词边界匹配，不是纯子串**（大脑 2026-08-29 裁定，v2 六案实证）：真风险是
+    # **假放行**——`DW-20260829-01` 会被板上的 `DW-20260829-011` 放行（实测复现），
+    # 一个从没被授权过的窗号于是解锁真机。边界取「两侧不是字母/数字/连字符」，
+    # 因为窗 ID 自带连字符：只用  会在 `-011` 处判为边界而漏掉这一族。
+    if not re.search(r"(?<![0-9A-Za-z-])%s(?![0-9A-Za-z-])"
+                     % re.escape(device_window), taskboard_text):
         # **拒绝要带诊断**（7-5 案 A）：硬约束保留，但只报结论的拒绝在板面并发
         # 编辑/格式漂移时会变成**无线索假拒**——操作者站在设备旁边，分不清是
         # 自己写错了窗号，还是板上那行刚被别人改过。故把「我实际搜了什么」
