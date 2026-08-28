@@ -17,6 +17,15 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 - `adb devices` 为空 = 设备离线（USB 未连或关机），**比屏锁更前一步**；
 - `mDreamingLockscreen=true` = 真锁（PIN/图案），**swipe 不解**，须在场者物理解锁（D-481 同款）。
 
+> **🔴 实况（2026-08-29 本会话只读亲验，未唤醒未改状态）**：
+> `adb devices` → `8MY0221126002537 device`（**已在线**）、`ro.product.model` → `ELS-AN00`（确认 P40）；
+> `mAwake=false / mScreenOnFully=false / mDreamingLockscreen=true`（**屏灭且锁着**）；
+> `mCurrentFocus=NotificationShade` + `mFocusedApp=华为桌面`。
+> **⇒ E-1 已从两阶阻塞（离线＋锁屏）降为一阶（仅锁屏）**——一页清 #4 记的「`adb devices` 为空、
+> 完全离线」**已过期**，**PO 的到场动作从「连 USB ＋ 解锁」减为「解锁」一件**。
+> **`NotificationShade` 不是通知栏被拉下**：按 **D-393** 教训它是**屏灭锁屏的表征**，
+> 而 `mFocusedApp=华为桌面` 证明**除锁屏外设备是干净的**（无残留应用），符合开测前提。
+
 ### B. 观察通道三件（A/B/D）各自可用
 | 通道 | 核查动作 | 不满足的后果 |
 |---|---|---|
