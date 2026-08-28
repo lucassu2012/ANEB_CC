@@ -81,6 +81,8 @@
 
 
 
+| T82 | **〔PO 直派 2026-08-28〕SPEC-4《规格冻结与治理减负》**（任务书=`docs/SPEC4_TASKBRIEF_SPEC_GOVERNANCE_20260828.md`，分支 `claude/aneb-project-progress-analysis-x2wn7x`；背景诊断=同分支 `PROGRESS_DIAGNOSIS_AND_RESPEC_20260828.md`） | v4 | **DOING（08-28 认领；⚠ 树边界名单补丁在途（4.6）——v4 至今不在根 CLAUDE.md 会话名单，本单自带补丁提案）** | 可写 spec/+docs/ 提案+tools/；app/(v2)与 scripts/(v3) 只读；治理修订一律提案制，PO 批前现行纪律照旧；不新增守卫层级 | 六子任务：4.1 aqs 版本冻结清单（六支+M7 后四表一页总表+登记守卫）／**4.2 portraits 三态定案提案（先做，SPEC-1 裁项 B 在等，目标 D2 前交付）**——七字段×四 App 逐字段 CAPTURED/改口径/放弃，重点一次性裁掉 `token_interval_ms_dist`/`think_pause` 两个挂了六周的 PENDING-BY-CALIBER（D-24/D-61 红线下永不可达成）；本单不替 PO 下结论只把代价写透／4.3 PLAN_ALIGNMENT §7.6 差集五条裁定落地（含 FRLOSS 自相矛盾/C1/C2 缺权重）／4.4 治理减负制度化提案（六砍四保落成可批文本）／4.5 worktree 隔离迁移方案+演练 1 天／4.6 树边界名单补丁提案。工期 3–4 天+演练 1 天；收工=4.1–4.6 达验收（提案类以「已交 PO 待批」为收工态）+板面回执+where-are-we 首行三计数。 |
+
 设备注意（T1/T2 共用 P40）：照根 `CLAUDE.md` 实况流程；冷启动协议=每格丢弃预热轮（D-366）；关 WiFi 属临时设置须照原值恢复；logcat 实时落盘（环缓冲 256KiB 七分钟冲净）；无人值守遇驻留进程按「有活动服务=别人的会话，立即放弃」处理。
 
 ## 排队中（本周，待 T1–T3 收口后大脑排期）
