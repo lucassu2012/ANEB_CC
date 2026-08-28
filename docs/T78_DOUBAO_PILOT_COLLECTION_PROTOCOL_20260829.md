@@ -55,6 +55,9 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 > | **起始网络原值** | `wifi_on` → **1**；`mobile_data` → **1**；**但默认路由 `dev rmnet0`、活动网络 `MOBILE[NR] CONNECTED`**；WiFi **射频开着却未关联**——最后一次关联于 **08-27 00:11 被 AP 断开**（`locallyGenerated: false`），**已断两天** | 🔴 **见下「块 1 跑不跑得起来」——本条 2026-08-29 订正了我自己写错的一句** |
 > | **通道 D 的 PCAPdroid 版本** | `versionName=1.9.1`（`versionCode=91`，2026-07-18 装、**从未更新**） | ✅ 版本已知（**界面细节仍不预设**，见 §1.H） |
 > | **残留 VPN／隧道** | `dumpsys connectivity` → `VpnNetworkProvider:0`、活动网络标 `NOT_VPN`；`ip link` 的 `rmnet_tun*` 全 `DOWN`（基带隧道非 VPN） | ✅ **无残留 VPN/隧道**——根 `CLAUDE.md` 开测前提的这一条**已只读满足** |
+> | **a11y 实际绑定态** | `dumpsys accessibility` → `Bound services:{Service[label=ANEB Profile 3 观察打点（只读）…]}`，四类事件（`VIEW_CLICKED`／`VIEW_TEXT_CHANGED`／`WINDOW_STATE_CHANGED`／`WINDOW_CONTENT_CHANGED`）与设计一致 | ✅ **不只是「已启用」，是此刻真的绑着**（此前只验过 settings 开关） |
+> | **探针进程** | `pidof com.aneb.probe` → `22981`；`ETIME` → **`3-18:10:30`**（连续运行 3 天 18 小时，起于约 08-25 11:45） | ✅ **服务稳定、无崩溃重绑循环**——通道 A 健康的直接证据 |
+> | **已装构建** | `versionName=0.1.0-phase0`、`versionCode=1`、`lastUpdateTime=2026-08-20 11:17` | ⚠ **9 天前的构建**——见 §1.D「源码↔二进制」 |
 >
 > **🔴 块 1 就是 WiFi，而设备此刻不在 WiFi 上（2026-08-29 实测；本条推翻我自己前一版写的「两者都开＝WiFi 条件的起始态」）**
 > `wifi_on=1` **只说明射频开着，不等于已连上 AP**。实测默认路由走 `rmnet0`（蜂窝），
@@ -65,9 +68,6 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 > （对照没有了、锚格也没有了）。此时**不要临时改设计**，按 §4 记为前置未满足、不产出数据。
 > **⑤ 的「切回原值」也随之订正**：真原值是「**WiFi 射频开、未关联、流量走蜂窝**」——
 > 收窗时应**断开本次加入的 AP 并保持射频开**，**不是**「把 WiFi 开回来」（我前一版就是这么写的，错）。
-> | **a11y 实际绑定态** | `dumpsys accessibility` → `Bound services:{Service[label=ANEB Profile 3 观察打点（只读）…]}`，四类事件（`VIEW_CLICKED`／`VIEW_TEXT_CHANGED`／`WINDOW_STATE_CHANGED`／`WINDOW_CONTENT_CHANGED`）与设计一致 | ✅ **不只是「已启用」，是此刻真的绑着**（此前只验过 settings 开关） |
-> | **探针进程** | `pidof com.aneb.probe` → `22981`；`ETIME` → **`3-18:10:30`**（连续运行 3 天 18 小时，起于约 08-25 11:45） | ✅ **服务稳定、无崩溃重绑循环**——通道 A 健康的直接证据 |
-> | **已装构建** | `versionName=0.1.0-phase0`、`versionCode=1`、`lastUpdateTime=2026-08-20 11:17` | ⚠ **9 天前的构建**——见 §1.D「源码↔二进制」 |
 >
 > **⚠ 由这两项量出一个此前没人写的静默失败（2026-08-29 实测得出）**：
 > 屏幕超时 **10 分钟 < 会话上限 15 分钟**。今天安全**只因为 `stay_on_while_plugged_in=7` 且 USB 连着**——
