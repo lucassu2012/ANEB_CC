@@ -1298,3 +1298,43 @@ def test_cross_file_section_references_point_at_sections_that_exist():
     print("  xref: 豁免(目标不编号) %d，目标未解析 %d" % (exempt_unnumbered,
                                                         unresolved))
     assert not bad, "跨文件节号引用指向不存在的小节：\n  " + "\n  ".join(bad)
+
+
+_SAMEFILE_REF_RE = re.compile(r"见 §\s*(\d+(?:\.\d+)*)")
+
+
+def test_same_file_section_references_point_at_sections_that_exist():
+    """「见 §N」（无文件名 ⇒ 指本文）里的 §N 必须真的是本文的一个小节。
+
+    补的是跨文件那条守卫的**盲区**：它只查 `X.md §N`，而实际悬空引用出现在
+    同文件内（实例：基线里一条「见 §5.5」，该文件无 §5.5，`cd1e5c4` 修的）。
+
+    **两类必须排掉，否则全是假阳性**（都实测撞到过）：
+    ①紧跟在 `X.md` 之后的 —— 那是跨文件引用，另一条守卫的地盘；
+    ②**引号内「将来要写进别处的原话」** —— M3 增补有张「改哪/改成什么」表，
+      格子里写着要往 runbook 加的句子「…扩展轮见 §0.7」，指的是 **runbook** 的节，
+      不是本文的（v2 在跨文件版里踩过的同一类：把「计划新增的节」当成「引用现有节」）。
+      判据：该行提到了另一个 `.md` 文件名。
+    """
+    bad, exempt = [], 0
+    for doc in DOCS:
+        text = _slurp(doc)
+        secs = set(_NUMBERED_HEADING_RE.findall(text))
+        if not secs:
+            exempt += len(_SAMEFILE_REF_RE.findall(text))
+            continue
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            # 排除②：**行级判据够不到表级语境**——实测那句「…见 §0.7」所在的
+            # 表格行自己不含 .md，文件名写在同表的上一行（「改哪」列）。故看
+            # 前后各 3 行的窗口：窗口内提到别的 .md ⇒ 这段在谈别的文件。
+            window = "\n".join(lines[max(0, i - 3):i + 4])
+            if ".md" in window:
+                continue
+            for m in _SAMEFILE_REF_RE.finditer(line):
+                if m.group(1) not in secs:
+                    bad.append("%s 写「见 §%s」，但本文的编号小节只有 %s"
+                               % (os.path.basename(doc), m.group(1),
+                                  "、".join(sorted(secs)[:8])))
+    print("  same-file xref: 豁免(本文不编号) %d" % exempt)
+    assert not bad, "同文件节号引用悬空：\n  " + "\n  ".join(bad)
