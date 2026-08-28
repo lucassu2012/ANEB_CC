@@ -73,3 +73,26 @@ def test_token_dual_table_shares_one_version_id():
     txt = _real_weights()
     assert txt.count('version_id: "aqs-token-v0.1"') == 2   # MM + TXT 两张表各一行
     assert "aqs-token-v0.1" in weights_version_ids(txt)     # 去重后仅一个 id
+
+
+if __name__ == "__main__":
+    # Self-contained runner（照姊妹 spec/portraits/test_check_redline.py，D-569）：
+    # verify_all/CI 直接 `python <file>` 即可跑，无需 pytest（本仓 Python 3.14 env 无 pytest）。
+    # 关键：**必须打印跑了几条并按失败数非零退出**——否则 verify_all 照 portraits 形态
+    # 用 `& $py <file>` 直跑一个纯 pytest 文件会「零测试恒 RC=0」= 永远绿的假门
+    # （D-532 同形，gate-integrity 抓不到：python 在、不抛异常）。pytest 仍可正常收集 test_*。
+    tests = {n: f for n, f in sorted(globals().items())
+             if n.startswith("test_") and callable(f)}
+    failed = []
+    for name, fn in tests.items():
+        try:
+            fn()
+        except AssertionError as e:
+            failed.append((name, "assertion failed: %s" % e))
+        except Exception as e:  # noqa: BLE001 — 任何 harness 错误都当失败暴露
+            failed.append((name, "%s: %s" % (type(e).__name__, e)))
+    print("ran %d reflex tests: %d passed, %d failed"
+          % (len(tests), len(tests) - len(failed), len(failed)))
+    for name, why in failed:
+        print("  FAIL", name, "-", why)
+    sys.exit(1 if failed else 0)
