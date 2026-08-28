@@ -1240,3 +1240,61 @@ def test_run_level_reads_stay_inside_the_result_contract():
         "run-level fields read but absent from the contract's run.properties "
         f"(the D-340 shape — a column built on a field nobody produces): "
         f"{offenders}")
+
+
+# ── 跨文件节号引用：§N 真的存在于被引文件里吗（v2 提议，v3 落码）────────
+
+_XREF_RE = re.compile(
+    r"([A-Za-z0-9_./-]+\.md)`?\]?(?:\([^)]*\))?[ \u3000]*(?:`)?§ ?(\d+(?:\.\d+)*)")
+_NUMBERED_HEADING_RE = re.compile(r"^#{1,6}\s*(?:§\s*)?(\d+(?:\.\d+)*)", re.M)
+
+
+def _slurp(path):
+    with open(path, encoding="utf-8-sig", errors="replace") as fh:
+        return fh.read()
+
+
+def _resolve_doc(src_path, target):
+    """把引用里的相对/裸文件名解析到实际文件；解析不到返回 None。"""
+    import glob as _glob
+    for cand in (os.path.join(os.path.dirname(src_path), target),
+                 os.path.join(REPO_ROOT, "docs", target),
+                 os.path.join(REPO_ROOT, target)):
+        if os.path.exists(cand):
+            return cand
+    hits = _glob.glob(os.path.join(REPO_ROOT, "**", os.path.basename(target)),
+                      recursive=True)
+    return hits[0] if len(hits) == 1 else None
+
+
+def test_cross_file_section_references_point_at_sections_that_exist():
+    """`X.md §N` 里的 §N 必须真的是 X.md 的一个小节——「见 X 的 X 存不存在」
+    这条红线的节号版（v2 提议，同族于 test_documented_scripts_exist）。
+
+    实例：基线曾把 E-4 归宿指向 `TEST_MASTER_PLAN §3`，而 E1–E4 实际在 §4。
+
+    **量法比缺陷更容易错，这里踩过两次**：①文件名与 § 之间隔着别的词时粗匹配
+    会张冠李戴（故只认紧邻）；②目标文件的小节**根本不编号**时（如
+    `spec/README.md`），「§3」是「第 3 个小节」的序数写法，按数字比会把 14 处
+    正确引用全判成红——故这类目标显式豁免，并把豁免数打印出来（不静默跳过）。
+    """
+    bad, exempt_unnumbered, unresolved = [], 0, 0
+    for doc in DOCS:
+        text = _slurp(doc)
+        for m in _XREF_RE.finditer(text):
+            target, sec = m.group(1), m.group(2)
+            path = _resolve_doc(doc, target)
+            if path is None:
+                unresolved += 1          # 目标文件本身找不到：另一条守卫的地盘
+                continue
+            secs = set(_NUMBERED_HEADING_RE.findall(_slurp(path)))
+            if not secs:
+                exempt_unnumbered += 1
+                continue
+            if sec not in secs:
+                bad.append("%s 引 %s §%s，但该文件的编号小节只有 %s"
+                           % (os.path.basename(doc), target, sec,
+                              "、".join(sorted(secs)[:8])))
+    print("  xref: 豁免(目标不编号) %d，目标未解析 %d" % (exempt_unnumbered,
+                                                        unresolved))
+    assert not bad, "跨文件节号引用指向不存在的小节：\n  " + "\n  ".join(bad)
