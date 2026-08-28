@@ -225,3 +225,46 @@ def test_simulator_output_is_deterministic_for_a_given_seed():
     b = sim.build("e2_within_one_frame", seed=7)
     assert json.dumps(a["turns"]) == json.dumps(b["turns"])
     assert [e["lag_ms"] for e in a["events"]] == [e["lag_ms"] for e in b["events"]]
+
+
+# ── 拒绝要带诊断（7-5 案 A：硬约束保留，但假拒必须有线索）──────────
+
+def test_a_refused_window_says_what_it_actually_searched():
+    """只报「查无此项」的拒绝，在板面并发编辑/格式漂移时是**无线索假拒**——
+    操作者站在设备旁边，分不清是自己写错了窗号还是板上那行刚被人改过。
+    故拒绝里必须带：实搜的文件、其大小、匹配方式，以及板上现有窗 ID 供比对。
+
+    反例证伪：去掉诊断串，本条即红。
+    """
+    board = "…\n| DW-20260829-01 | 窗 |\n| DW-20260828-02 | 窗 |\n"
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-19990101-99", board)
+    assert ok is False
+    assert "BRAIN_TASKBOARD.md" in why            # 搜的是哪个文件
+    assert "字符" in why                           # 读到多大（空/半截一眼可见）
+    assert "子串精确匹配" in why                   # 用的什么判据
+    assert "DW-20260829-01" in why                 # 板上现有的，供比对
+
+
+def test_a_board_with_no_window_ids_at_all_says_the_format_drifted():
+    """一个窗 ID 都搜不到 ⇒ 多半是板面格式漂了，不是操作者写错——两种成因
+    的处置完全不同，不能用同一句话打发。"""
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01",
+                              "（这份板面没有任何窗 ID）")
+    assert ok is False
+    assert "一个窗 ID 都没搜到" in why and "格式漂" in why
+
+
+def test_the_hint_is_truncated_but_never_silently():
+    """板上窗 ID 有几十个，全列会淹掉关键信息；截断可以，**静默截断不行**。"""
+    board = "\n".join("| DW-202608%02d-01 |" % d for d in range(1, 21))
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-19990101-99", board)
+    assert ok is False
+    assert "DW-20260820-01" in why                 # 最近的在列（倒序取前 5）
+    assert "另有 15 个较早的未列" in why           # 没列的如实说出数量
+
+
+def test_an_unreadable_board_is_not_reported_as_a_wrong_window_id():
+    """读不到板 ⇒ 说清是路径/文件的问题，别让操作者去改一个没错的窗号。"""
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01", "")
+    assert ok is False
+    assert "实搜路径" in why and "不是「你写错了窗号」" in why

@@ -48,6 +48,9 @@ sys.path.insert(0, os.path.join(ec.REPO_ROOT, "tools", "e1"))
 import e1_collect as e1c        # noqa: E402
 
 TASKBOARD = os.path.join(ec.REPO_ROOT, "docs", "BRAIN_TASKBOARD.md")
+# 窗 ID 的板面写法（`DW-YYYYMMDD-NN`）。只用于**拒绝时的诊断提示**，不参与判定
+# ——判定仍是子串精确匹配（授权不能靠一个正则去猜）。
+_DW_RE = re.compile(r"DW-\d{8}-\d{2}")
 
 
 # ── 设备门 ────────────────────────────────────────────────────────────────
@@ -68,10 +71,27 @@ def device_gate(serial, model, allow_real_device, device_window, taskboard_text)
                        "但解除它要一次排窗授权：请给 --device-window <任务板上的窗 ID>"
                        % reason)
     if not taskboard_text:
-        return False, "读不到任务板：无从核对 --device-window，拒绝在无授权凭据下连真机"
+        return False, ("读不到任务板：无从核对 --device-window，拒绝在无授权凭据下连真机"
+                       "（实搜路径 %s；文件不存在或为空——不是「你写错了窗号」，"
+                       "先确认仓库路径与文件本身）" % TASKBOARD)
     if device_window not in taskboard_text:
+        # **拒绝要带诊断**（7-5 案 A）：硬约束保留，但只报结论的拒绝在板面并发
+        # 编辑/格式漂移时会变成**无线索假拒**——操作者站在设备旁边，分不清是
+        # 自己写错了窗号，还是板上那行刚被别人改过。故把「我实际搜了什么」
+        # 一并打印：文件、大小、匹配模式，以及板上现有的窗 ID 供比对。
+        seen = sorted(set(_DW_RE.findall(taskboard_text)), reverse=True)
+        if seen:
+            # 板上窗 ID 已有几十个，全列会把关键信息淹掉——取最近 5 个（ID 自带
+            # 日期，倒序即新近优先），并如实说明还有多少没列（不静默截断，2.4）。
+            shown = "、".join(seen[:5])
+            more = ("（另有 %d 个较早的未列）" % (len(seen) - 5)) if len(seen) > 5 else ""
+            hint = "板上最近的窗 ID：%s%s" % (shown, more)
+        else:
+            hint = "板上**一个窗 ID 都没搜到**——多半是板面格式漂了，不是你写错了"
         return False, ("--device-window %r 在 docs/BRAIN_TASKBOARD.md 里查无此项："
-                       "授权要存在于板上，不是存在于操作者记忆里" % device_window)
+                       "授权要存在于板上，不是存在于操作者记忆里"
+                       "｜实搜：%s（%d 字符），子串精确匹配；%s"
+                       % (device_window, TASKBOARD, len(taskboard_text), hint))
     return True, "型号在 denylist，但排窗授权 %s 已在任务板上核到" % device_window
 
 
