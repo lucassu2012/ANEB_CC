@@ -596,6 +596,13 @@ if ($isRed -or $isFinalGreen) {
     $mlines -join "`r`n" | Out-File -Encoding utf8 $manifestPath
     "log: $logPath  ($(if ($isRed) { '红门样本归档' } else { '收官全绿归档' }))"
     "manifest: $manifestPath ($($mlines.Count) files)"
+    # --- 徽章值（SPEC-4 4.4 砍④脚本侧）：只在**归档的那几次**产出，
+    # 因为徽章的新鲜度就是来源日志的新鲜度——分层跑不落 evidence，也就
+    # 不该去覆盖一份看起来像"刚测的"徽章。测不到的项由脚本写 unknown。
+    $badgeScript = Join-Path $repo 'scriptsadges.py'
+    if ($py -and (Test-Path $badgeScript)) {
+        & $py $badgeScript --log $logPath 2>&1 | Out-String | Write-Output
+    }
 } else {
     $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)
     $log -join "`r`n" | Out-File -Encoding utf8 $scratchLog

@@ -89,6 +89,14 @@ validity/score。空块=未检测（不计 0），缺 `attribution` 归 `unknown
 比例列按 3 位小数渲染——真实批化分可低至 0.007，1 位小数会显示成 `0`（读作"无批化"）。
 集成进综合报告 + 独立 CLI。
 
+### `badges.py` — 徽章值：文档引它、不抄数字（SPEC-4 §4.4 砍④脚本侧）
+链跑归档时顺带产 `evidence/phase0/badges.txt`（`gate_count` / `reflex_tests` /
+`corpus_real_runs`，各带 `_source` 说明取自哪一行）。**要治的毛病**：前台文档写死
+门数与测试数，而这些数每次提交都在变（本仓已出过「文档 15 门实际 19 门」「758 tests
+早已过期」）。**只写这次真测到的值**：测不到写 `unknown`，**不写 0、不沿用上次、不猜**
+——过期的徽章比没有徽章更危险；reflex 有红时印 `739/741` 并标注，不冒充全绿。
+只在**归档的那几次**产出（分层跑不落 evidence，自然也不覆盖徽章）。
+
 ### `corpus_ledger.py` — 语料台账：进展的单一事实源（SPEC-3 §3.1/T81）
 一条命令全量重算数据资产：evidence/ 全部 jsonl 逐文件试装载（内容判定非名单，
 D-273）→ `cc.load_records` 去重合并 → 真实/合成拆分（`is_synthetic` 单列绝不混入）
