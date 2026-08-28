@@ -8,18 +8,18 @@
 
 ## 一、wire 语料（真实测量，run_id 去重后）
 
-- **真实 run 总数：110**（场景 624；文件 39 份、原始行 3509、跨文件重复 2839 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
+- **真实 run 总数：111**（场景 627；文件 41 份、原始行 3511、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
 - 合成记录（`is_synthetic`）：**560 条，单列不计入上行**
-- 带 AQS 的 run：109；其中 low_confidence：99/109（91%）
+- 带 AQS 的 run：110；其中 low_confidence：100/110（91%）
 
 | 维度 | 分布（run 计） |
 |---|---|
-| 战役 | unlabeled×27、m3-expansion-wave0×20、t39-rehearsal-nr-20260803×16、m2-pilot-20260731×12、acceptance_20260820×10、m2-afternoonradio-20260801×4、m2-busyradio-20260801×4、m2-idlenight-20260801×4、m2-idleprobe-20260731×4、m2-pilot-forensic-20260731×4、warmup-transport-probe×4、radiowire-verify-20260801×1 |
-| 点位 | SZ-PILOT-01×57、unlabeled×27、PENDING-PO-01×16、home_indoor×10 |
-| 运营商 | ctcc×83、unknown×27 |
-| 时窗 | busy×43、idle×40、unknown×27 |
-| RAT（**场景**计——一 run 可跨 RAT，不折单值） | NR×268、no_radio_block×245、LTE×111 |
-| 场景有效性 | valid_low_confidence×586、valid×32、degraded×4、invalid×2 |
+| 战役 | unlabeled×28、m3-expansion-wave0×20、t39-rehearsal-nr-20260803×16、m2-pilot-20260731×12、acceptance_20260820×10、m2-afternoonradio-20260801×4、m2-busyradio-20260801×4、m2-idlenight-20260801×4、m2-idleprobe-20260731×4、m2-pilot-forensic-20260731×4、warmup-transport-probe×4、radiowire-verify-20260801×1 |
+| 点位 | SZ-PILOT-01×57、unlabeled×28、PENDING-PO-01×16、home_indoor×10（**PENDING-PO-01 是占位符不是点位**：真名待回填，不可当作一个真实站点计入覆盖） |
+| 运营商 | ctcc×83、unknown×28 |
+| 时窗 | busy×43、idle×40、unknown×28 |
+| RAT（**场景**计——一 run 可跨 RAT，不折单值） | NR×268、no_radio_block×248、LTE×111 |
+| 场景有效性 | valid_low_confidence×589、valid×32、degraded×4、invalid×2 |
 
 ## 二、设备侧 Room 库（与第一节**不可相加**——同 run 两面）
 
@@ -75,5 +75,7 @@
 | evidence/t39_report_chain_rehearsal_20260803/nr_0803_raw.jsonl | 19 | 19 |
 | evidence/t46_full_corpus_analysis_20260804/full_corpus_labelled.jsonl | 73 | 73 |
 | evidence/t47_s4throughput_devverify_20260804/s4_throughput_run1.jsonl | 1 | 1 |
+| server/data/results/20260713.jsonl | 1 | 1 |
+| server/data/results/20260804.jsonl | 1 | 1 |
 
 跳过（0 条契约记录，非语料）：`evidence/e1/20260801-150506/screencap_index.jsonl`、`evidence/e1/20260801-170127/screencap_index.jsonl`、`evidence/e1_realdevice_20260802/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802/screencap_index.jsonl`、`evidence/e1_realdevice_20260802_run2/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802_run2/screencap_index.jsonl`、`evidence/e234/20260802-163504/screencap_index.jsonl`、`evidence/e234/20260802-164148/screencap_index.jsonl`、`evidence/e234/20260802-172614/screencap_index.jsonl`、`evidence/e234/20260802-173031/screencap_index.jsonl`、`evidence/e234/20260803-154544-e1band/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-over/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-within/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-absent/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-present/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-overlap/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-separable/screencap_index.jsonl`、`evidence/phase1/calibration/clean_run1.jsonl`、`evidence/phase1/calibration/clean_run2.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run1.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run2.jsonl`、`evidence/phase1/calibration/nginx_run1.jsonl`、`evidence/phase1/calibration/nginx_run2.jsonl`、`evidence/phase1/calibration/proxied_run1.jsonl`、`evidence/phase1/calibration/proxied_run2.jsonl`、`evidence/phase3/e01_results/20260712.jsonl`

@@ -34,6 +34,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import campaign_common as cc          # noqa: E402
 import radio_rollup                   # noqa: E402
 
+# 语料根：两处都是**真实测量的落点**，不是两个数据面（2026-08-29 扩，见 discover）。
+DEFAULT_ROOTS = ("evidence", os.path.join("server", "data", "results"))
+
 MD_HEADER = (
     "# 语料台账（自动生成——勿手编）\n\n"
     "> 本文件由 `scripts/corpus_ledger.py` 全量重算生成，手改会在下次重算时丢失。\n"
@@ -43,14 +46,26 @@ MD_HEADER = (
     "> 合成=`cc.is_synthetic` 单列，RAT=场景级计数（一 run 可跨 RAT，不折单值）。\n")
 
 
-def discover(root):
-    """evidence/ 下全部 jsonl 逐文件试装载。返回 (语料文件表, 跳过表)。
+def discover(roots):
+    """给定根目录（单个字符串或多个）下全部 jsonl 逐文件试装载。
 
-    「哪些文件是语料」从内容判定（装出 ≥1 条带 run 的记录），不写名字黑名单
-    ——黑名单会漏会过期，枚举漏不掉（D-273）。"""
+    返回 (语料文件表, 跳过表)。「哪些文件是语料」从内容判定（装出 ≥1 条带 run
+    的记录），不写名字黑名单——黑名单会漏会过期，枚举漏不掉（D-273）。
+
+    **为什么是多根**（2026-08-29，v2 实证后扩）：初版只扫 `evidence/`，于是
+    服务端落盘 `server/data/results/` 里那条只存在于该处的真实 run 被无声排除
+    （实测 2 条中 1 条：`019f5b59…`，阶段 0 早期，非合成、status=completed）。
+    分量只有 1/110，但**一个自称「单一事实源」的台账不该有无声排除**——
+    要么收进来，要么把边界写在读者看得见的地方。这里选收进来：server 落盘是
+    同一批真实测量的**另一个落点**，不是另一个数据面。"""
+    if isinstance(roots, str):
+        roots = [roots]
     corpus, skipped = [], []
-    for path in sorted(glob.glob(os.path.join(root, "**", "*.jsonl"),
-                                 recursive=True)):
+    paths = []
+    for root in roots:
+        paths.extend(glob.glob(os.path.join(root, "**", "*.jsonl"),
+                               recursive=True))
+    for path in sorted(set(paths)):
         st = {}
         recs, _ = cc.load_records([path], dedupe=False, stats=st, quiet=True)
         n = sum(1 for r in recs if isinstance(cc.run_obj(r), dict)
@@ -152,7 +167,13 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs):
     lines.append("| 维度 | 分布（run 计） |\n|---|---|")
     for k, title in (("campaign_id", "战役"), ("point_id", "点位"),
                      ("carrier", "运营商"), ("time_band", "时窗")):
-        lines.append(f"| {title} | {n(bk['by'][k])} |")
+        cell = n(bk["by"][k])
+        if k == "point_id":
+            ph = [p for p in bk["by"][k] if str(p).startswith("PENDING-")]
+            if ph:
+                cell += ("（**%s 是占位符不是点位**：真名待回填，"
+                         "不可当作一个真实站点计入覆盖）" % "、".join(sorted(ph)))
+        lines.append(f"| {title} | {cell} |")
     lines.append(f"| RAT（**场景**计——一 run 可跨 RAT，不折单值） | {n(bk['rat'])} |")
     lines.append(f"| 场景有效性 | {n(bk['validity'])} |\n")
     lines.append("## 二、设备侧 Room 库（与第一节**不可相加**——同 run 两面）\n")
@@ -196,14 +217,17 @@ def render_csv_rows(real, synth, bk):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="ANEB 语料台账（进展的单一事实源）")
-    ap.add_argument("--root", default="evidence")
+    ap.add_argument("--root", action="append",
+                    help="语料根目录，可重复；默认 evidence + server/data/results")
     ap.add_argument("--md", default=os.path.join("docs", "CORPUS_LEDGER.md"))
     ap.add_argument("--csv", default=os.path.join("docs", "CORPUS_LEDGER.csv"))
     a = ap.parse_args(argv)
-    corpus, skipped = discover(a.root)
+    roots = a.root or DEFAULT_ROOTS
+    corpus, skipped = discover(roots)
     real, synth, st = summarize([p for p, _, _ in corpus])
     bk = buckets(real)
-    dbs = room_dbs(a.root)
+    # Room 库只在 evidence 侧（server 落盘没有），扫描根仍取第一个
+    dbs = room_dbs(roots[0])
     md = render_md(corpus, skipped, real, synth, st, bk, dbs)
     io.open(a.md, "w", encoding="utf-8", newline="").write(md)
     import csv as _csv

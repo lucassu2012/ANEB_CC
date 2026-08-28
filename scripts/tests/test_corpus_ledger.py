@@ -150,3 +150,53 @@ def test_an_unreadable_db_says_so_instead_of_rendering_three_dashes():
     assert len(rows) == 1 and "error" in rows[0]
     md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), rows)
     assert "读不了" in md
+
+
+# ---- 范围边界与占位符（2026-08-29，v2 实证后扩）----
+
+def test_the_ledger_scans_the_server_landing_dir_too():
+    """服务端落盘也是真实测量的**另一个落点**，不是另一个数据面——只扫
+    evidence 会把只存在于那里的 run 无声排除（实测过 1 条），而一个自称
+    「单一事实源」的台账不该有无声排除。
+
+    反例证伪：DEFAULT_ROOTS 收回单根，本条即红。
+    """
+    assert len(cl.DEFAULT_ROOTS) >= 2
+    assert any("server" in r for r in cl.DEFAULT_ROOTS)
+    import io as _io
+    import json as _json
+    import os as _os
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        a, b = _os.path.join(d, "ev"), _os.path.join(d, "srv")
+        _os.makedirs(a), _os.makedirs(b)
+        for root, rid in ((a, "in-evidence"), (b, "only-on-server")):
+            rec = make_record(aqs=80, started_ms=1783944000000,
+                              campaign={"campaign_id": "c", "tier": "metro",
+                                        "point_id": "P1", "carrier": "ctcc",
+                                        "time_band": "busy"},
+                              scenarios=[("s1_chat", {})], run_id=rid)
+            _io.open(_os.path.join(root, "x.jsonl"), "w",
+                     encoding="utf-8").write(_json.dumps(rec) + "\n")
+        corpus, _ = cl.discover([a, b])
+        real, _, _ = cl.summarize([p for p, _, _ in corpus])
+    assert {cc.run_obj(r)["run_id"] for r in real} == {"in-evidence",
+                                                       "only-on-server"}
+
+
+def test_a_placeholder_point_id_is_labelled_as_one():
+    """`PENDING-…` 是「真名待回填」的占位符，不是一个真实站点——当普通点位
+    计数会让读者把它读成覆盖里的一个站点（真实发生过一次跨会话对账考古）。
+
+    反例证伪：去掉渲染面的标注，本条即红。
+    """
+    recs = [make_record(aqs=80, started_ms=1783944000000,
+                        campaign={"campaign_id": "c", "tier": "metro",
+                                  "point_id": pid, "carrier": "ctcc",
+                                  "time_band": "busy"},
+                        scenarios=[("s1_chat", {})], run_id="r-%d" % i)
+            for i, pid in enumerate(["SZ-REAL-01", "PENDING-PO-01"])]
+    md = cl.render_md([("f.jsonl", 2, 2)], [], recs, [], {"lines": 2},
+                      cl.buckets(recs), [])
+    assert "PENDING-PO-01 是占位符不是点位" in md
+    assert "不可当作一个真实站点计入覆盖" in md
