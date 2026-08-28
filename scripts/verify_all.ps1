@@ -7,7 +7,16 @@
 #            NOTHING must never be indistinguishable from one that passed.
 
 # -Strict: treat NOT_EXECUTED as failure (default off; see summary block at the end).
-param([switch]$Strict)
+param(
+    # SPEC-3 §3.2（T81）：分层触发。all=全链（收官/入册/交接点专用）；其余只跑
+    # 该层的门，未跑的门以 SKIPPED_SCOPE 显名列出——绝不折算 PASS，也不冒充
+    # NOT_EXECUTED（那是「想验验不了」，这是「本次没请它验」）。
+    [ValidateSet('server','app','scripts','spec','all')][string]$Scope = 'all',
+    # -Strict 自 SPEC-3 §3.2 起为默认（NOT_EXECUTED 计败）；开关保留作兼容名。
+    # 要旧的宽松行为用 -Lenient 显式退出。
+    [switch]$Strict,
+    [switch]$Lenient)
+$Strict = -not $Lenient
 
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -22,10 +31,29 @@ function Add-Result([string]$check, [string]$state, [string]$detail) {
     "$state  $check  $detail"
 }
 
+function Test-InScope([string]$layer, [string[]]$gates) {
+    # 层外的门逐个显名记 SKIPPED_SCOPE（沉默的跳过=没有检查项，2.9）；
+    # 汇总与退出码都认得这个状态：不算 PASS、不算 FAIL、不触发 -Strict。
+    if ($Scope -eq 'all' -or $Scope -eq $layer) { return $true }
+    foreach ($g in $gates) {
+        $script:log += Add-Result $g 'SKIPPED_SCOPE' ('out of -Scope ' + $Scope)
+    }
+    return $false
+}
+
 $log = @()
 $log += "verify_all run at $ts"
 $log += "repo: $repo"
 
+
+# --- 共享工具链探测（python）：必须在任何 -Scope 层块之外 ---
+# SPEC-3 §3.2 施工自伤记录：初版把它留在 spec 层块内，`-Scope scripts` 跑时
+# 整块不执行 ⇒ $py 为空 ⇒ 本层两道门双双报「missing: python」——**实测当场
+# 咬出**（分层跑 2.1s 里 0 PASS）。共享探测与被圈的门不是一回事，外提。
+$py = $null
+foreach ($c in @('python', 'python3', 'py')) { try { $py = (Get-Command $c -ErrorAction Stop).Source; break } catch {} }
+
+if (Test-InScope 'server' @('server-vet','server-build','server-test')) {
 # --- locate go ---
 $goCandidates = @('C:\Program Files\Go\bin\go.exe', 'E:\tools\go\bin\go.exe')
 $go = $null
@@ -51,6 +79,9 @@ if ($go) {
     }
 }
 
+}
+
+if (Test-InScope 'spec' @('profiles-valid','portraits-redline','adapters-spec','adapters-spec-unit','portraits-redline-unit','portraits-schema','portraits-schema-unit')) {
 # --- profile validation ---
 $profileErrors = @()
 $profileFiles = Get-ChildItem (Join-Path $repo 'profiles') -Filter '*.json'
@@ -69,8 +100,6 @@ $log += Add-Result 'profiles-valid' $(if ($profileErrors.Count -eq 0) { 'PASS' }
 # --- Profile-3 portrait red-line guard (D-62): params gate intact, no caliber overclaim ---
 # check_redline.py exit: 0=all invariants hold (PASS) / 1=violation(s) (FAIL) / 2=env gap
 # (pyyaml missing or no yaml found) -> NOT_EXECUTED (honest, per this script's philosophy).
-$py = $null
-foreach ($c in @('python', 'python3', 'py')) { try { $py = (Get-Command $c -ErrorAction Stop).Source; break } catch {} }
 $redlineScript = Join-Path $repo 'spec\portraits\check_redline.py'
 if ($py -and (Test-Path $redlineScript)) {
     $out = & $py $redlineScript 2>&1 | Out-String
@@ -207,6 +236,9 @@ if ($py -and (Test-Path $schemaTest)) {
     $log += Add-Result 'portraits-schema-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+}
+
+if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit')) {
 # --- Campaign-level analysis & reporting layer SELF-TEST (D-87): golden reflex tests ---
 # Guards scripts/{campaign_common,attribution,campaign_report}.py — three-tier differential
 # attribution + point×time×carrier heat card + before/after comparison. Self-contained runner
@@ -258,6 +290,9 @@ if ($py -and (Test-Path $contractScript)) {
     $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+}
+
+if (Test-InScope 'spec' @('spec-scoring-unit','profiles-deep','voice-plan-parity')) {
 # --- Spec SCORING-PACK gate (D-102): the authoritative parity guard
 # (SpecScoringParityTest.kt) is Android-toolchain-gated, so in the usual no-Android
 # run the scoring YAMLs are ungated. This validates the invariants they declare:
@@ -339,6 +374,9 @@ if ($py -and (Test-Path $voicePlanScript)) {
     $log += Add-Result 'voice-plan-parity' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+}
+
+if (Test-InScope 'app' @('app-assembleDebug','app-parity-tests','app-unit-tests-full','app-release-signing')) {
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
@@ -436,77 +474,82 @@ if ($jdk -and $sdk -and $wrapperJar -and (Test-Path $signScript)) {
     $log += Add-Result 'app-release-signing' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
-# --- write log (utf8, never UTF-16) ---
-$log -join "`r`n" | Out-File -Encoding utf8 $logPath
-
-# --- regenerate sha256 manifest for evidence/phase0 (scripted, never manual) ---
-$manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
-$lines = @()
-Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.Name -ne 'sha256-manifest.txt' } | Sort-Object FullName | ForEach-Object {
-    $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
-    $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
-    $lines += "$h  $rel"
 }
-$lines -join "`r`n" | Out-File -Encoding utf8 $manifestPath
 
-# --- summary ---
-''
-'=== verify_all summary ==='
-$results | ForEach-Object { "{0,-14} {1}  {2}" -f $_.state, $_.check, $_.detail }
-"log: $logPath"
-"manifest: $manifestPath ($($lines.Count) files)"
-$failed = @($results | Where-Object { $_.state -eq 'FAIL' })
-$notRun = @($results | Where-Object { $_.state -eq 'NOT_EXECUTED' })
+
+# --- summary（先算清，再按归档策略落盘；SPEC-3 §3.2/T81）---
+$failed  = @($results | Where-Object { $_.state -eq 'FAIL' })
+$notRun  = @($results | Where-Object { $_.state -eq 'NOT_EXECUTED' })
+$skipped = @($results | Where-Object { $_.state -eq 'SKIPPED_SCOPE' })
+$sum = @()
+$sum += ''
+$sum += "=== verify_all summary (scope: $Scope) ==="
+$sum += ($results | ForEach-Object { "{0,-14} {1}  {2}" -f $_.state, $_.check, $_.detail })
+$sum += ("checks: {0} total / {1} FAIL / {2} NOT_EXECUTED / {3} SKIPPED_SCOPE" -f `
+    $results.Count, $failed.Count, $notRun.Count, $skipped.Count)
 
 # --- NOT_EXECUTED must be visible, not silently folded into a green run (T69, G-1) ---
-# The header contract is "exit 0 if no FAIL (NOT_EXECUTED allowed)". That is this repo's own
-# "cannot-check reported as no-problem" shape sitting on the OUTERMOST gate: on a box without
-# python every python gate degrades to NOT_EXECUTED and the chain still exits 0.
-# Default behaviour is deliberately UNCHANGED (flipping it would turn other sessions' runs red
-# without warning); instead the count is now always printed, and -Strict makes it decisive for
-# anyone who wants a real gate (CI, release checks).
-"checks: {0} total / {1} FAIL / {2} NOT_EXECUTED" -f $results.Count, $failed.Count, $notRun.Count
+# SPEC-3 §3.2（T81，2026-08-28）把 -Strict 翻为**默认开**：NOT_EXECUTED 不折算 PASS
+# 是本仓四态证据的核心语义（诊断 §2.3 保①），此前「不翻默认」的顾虑（惊扰他会话）
+# 由 PO 裁定解除；要旧行为用 -Lenient 显式退出。SKIPPED_SCOPE 与 NOT_EXECUTED 是
+# 两回事：前者=操作者主动圈定范围（本次没请它验），后者=想验而验不了。
 if ($notRun.Count -gt 0) {
-    "NOT_EXECUTED checks (these verified NOTHING):"
-    $notRun | ForEach-Object { "  - {0}  {1}" -f $_.check, $_.detail }
-    if (-not $Strict) { "  (exit code ignores these; re-run with -Strict to make them fail)" }
+    $sum += 'NOT_EXECUTED checks (these verified NOTHING):'
+    $sum += ($notRun | ForEach-Object { "  - {0}  {1}" -f $_.check, $_.detail })
+    if (-not $Strict) { $sum += '  (-Lenient 生效：exit code 忽略这些——它们仍一个都没验)' }
 }
-# --- guard for the guards: 有没有哪一步的命令**根本没启动过**（D-532）---
-# D-532 实例：全量单测门在错误的工作目录下调 `.\gradlew.bat`，命令不存在，PowerShell 抛
-# CommandNotFoundException —— 它**不设 `$LASTEXITCODE`**，于是 `if ($LASTEXITCODE -eq 0)`
-# 沿用上一条命令成功的 0，那道门**从落地起一次没跑过却每次报 PASS**。
-#
-# 逐个 call site 审过一遍（python/go 都先解析成绝对路径再 `& $path` 调，不可能命中；
-# gradle 三处都在 `app/` 内），当时是孤例。但**"今天逐个查过是安全的"不等于"这类问题
-# 不会再来"**——判据沿用上一条退出码这个毛病，是写法本身带的。故在最外层加一道只读
-# 自检：捕获的输出里若出现命令不存在的签名，**整链判红**，而不是靠人去日志里撞见它。
-# 中英双签名：本仓在中英文 Windows 上都跑过。
-# **量法本身被反例证伪过一次，这里写清楚为什么是现在这个写法**：初版扫 `$log` 找
-# "is not recognized" 字样 —— 植入突变实测**它一次没响**。原因：CommandNotFoundException
-# 是 PowerShell 的**语句级**错误，在管道启动之前就抛出，`2>&1 | Out-String` **捕不到**
-# （所以当初它打在控制台、而日志里那一步照样写着 PASS）。改为查 `$Error`：语句级错误
-# 会被记进这个自动变量。
-#
-# 排除探针自身的正常"未找到"：本脚本用 `Get-Command python/go/java -ErrorAction Stop`
-# 探测工具链，缺工具时**本就应该**抛 CommandNotFoundException 并降级 NOT_EXECUTED，
-# 那是设计行为不是缺陷。判别方式＝**目标名长得像一条路径**（含分隔符或带可执行扩展名），
-# 探针传的是裸名字（`python`/`go`/`java`），真正的幽灵调用传的是 `.\gradlew.bat` 这类。
-$ghosts = @($Error | Where-Object {
-    $_.CategoryInfo.Reason -eq 'CommandNotFoundException' -and
-    ($_.CategoryInfo.TargetName -match '[\\/]' -or $_.CategoryInfo.TargetName -match '\.(bat|cmd|exe|ps1)$')
-})
-if ($ghosts.Count -gt 0) {
-    ''
-    'FAIL  gate-integrity  某一步的命令根本没启动（命令不存在），其 PASS 不可信'
-    ($ghosts | ForEach-Object { '  找不到的命令: ' + $_.CategoryInfo.TargetName } | Select-Object -Unique)
-    '  为什么这会造出假绿: CommandNotFoundException 不设 $LASTEXITCODE,'
-    '  于是 "if ($LASTEXITCODE -eq 0) { PASS }" 会沿用上一条命令成功的 0（D-532 实例）。'
-    '  处置: 先修工作目录/命令路径再重跑；在此之前本次汇总里的 PASS 都不作数。'
-    exit 1
+if ($skipped.Count -gt 0) {
+    $sum += ("SKIPPED_SCOPE checks (out of -Scope {0}; 收官/入册前必须补跑 -Scope all):" -f $Scope)
+    $sum += ($skipped | ForEach-Object { "  - {0}" -f $_.check })
 }
 
+# --- guard for the guards（D-532）：判据语义原样保留 ---
+# 有没有哪一步的命令**根本没启动过**。CommandNotFoundException 不设 $LASTEXITCODE，
+# "if ($LASTEXITCODE -eq 0)" 会沿用上一条成功的 0——app 全量单测门曾因此从落地起
+# 一次没跑过却每次报 PASS。字符串签名初版被突变证伪（语句级错误在管道启动前
+# 抛出，2>&1 捕不到），故查 $Error；探针的裸名字探测（python/go/java）是设计行为，
+# 判别=目标名长得像路径或带 bat/cmd/exe 扩展。
+$ghosts = @($Error | Where-Object {
+    $_.CategoryInfo.Reason -eq 'CommandNotFoundException' -and
+    ($_.CategoryInfo.TargetName -match '[\\/]' -or $_.CategoryInfo.TargetName -match '\.(bat|cmd|exe)$')
+})
+if ($ghosts.Count -gt 0) {
+    $sum += ''
+    $sum += 'FAIL  gate-integrity  某一步的命令根本没启动（命令不存在），其 PASS 不可信'
+    $sum += ($ghosts | ForEach-Object { '  找不到的命令: ' + $_.CategoryInfo.TargetName } | Select-Object -Unique)
+    $sum += '  为什么这会造出假绿: CommandNotFoundException 不设 $LASTEXITCODE,'
+    $sum += '  于是 "if ($LASTEXITCODE -eq 0) { PASS }" 会沿用上一条命令成功的 0（D-532 实例）'
+    $sum += '  处置: 先修工作目录/命令路径再重跑；在此之前本次汇总里的 PASS 都不可信'
+}
+$log += $sum
+$sum | ForEach-Object { $_ }
+
+# --- 归档策略（SPEC-3 §3.2）：只归档「收官全绿」与「红门样本」——日常分层跑
+# 不落 evidence（诊断实测 274 份日志全入库是流程开销大头）。收官全绿 =
+# -Scope all 且 0 FAIL、0 NOT_EXECUTED、无幽灵；红门样本 = 任一 FAIL 或幽灵
+# （任意 scope——红的诊断价值要留档）。其余写到 TEMP，路径照样打印。
+$isRed = ($failed.Count -gt 0) -or ($ghosts.Count -gt 0)
+$isFinalGreen = ($Scope -eq 'all') -and (-not $isRed) -and ($notRun.Count -eq 0)
+if ($isRed -or $isFinalGreen) {
+    $log -join "`r`n" | Out-File -Encoding utf8 $logPath
+    # --- regenerate sha256 manifest for evidence/phase0 (scripted, never manual) ---
+    $manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
+    $mlines = @()
+    Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.Name -ne 'sha256-manifest.txt' } | Sort-Object FullName | ForEach-Object {
+        $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+        $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
+        $mlines += "$h  $rel"
+    }
+    $mlines -join "`r`n" | Out-File -Encoding utf8 $manifestPath
+    "log: $logPath  ($(if ($isRed) { '红门样本归档' } else { '收官全绿归档' }))"
+    "manifest: $manifestPath ($($mlines.Count) files)"
+} else {
+    $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)
+    $log -join "`r`n" | Out-File -Encoding utf8 $scratchLog
+    "log: $scratchLog  (未归档——分层/非收官跑不落 evidence，SPEC-3 §3.2)"
+}
+
+if ($ghosts.Count -gt 0) { exit 1 }
 if ($failed.Count -gt 0) { exit 1 }
 if ($Strict -and $notRun.Count -gt 0) { exit 1 }
 exit 0
-
-

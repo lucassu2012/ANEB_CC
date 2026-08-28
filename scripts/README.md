@@ -400,5 +400,15 @@ stdout。被上述战役级工具 import。
 python tests/run_all.py          # 自包含 golden runner（无 pytest），exit 0/1
 ```
 接进 `verify_all.ps1` 门禁步 `campaign-analysis-unit`（PASS/FAIL/NOT_EXECUTED 三态）。
+
+**分层触发（SPEC-3 §3.2/T81，2026-08-28）**：`verify_all.ps1 -Scope server|app|scripts|spec|all`
+——**减频不减门**：19 门语义、门数、gate-integrity 一律未动，层外的门显名记
+**第四态 `SKIPPED_SCOPE`**（「本次没请它验」，与 NOT_EXECUTED 的「想验验不了」严格分开，
+两者都绝不折算 PASS）。**`-Scope all` 保留给收官/入册/交接点**，分层跑供日常改动自检。
+实测耗时：`spec` 2.7s / `server` 14.9s / `scripts` 200s / `all` 10 分钟以上。
+**`-Strict` 现为默认**（NOT_EXECUTED 计败，四态核心语义）；要旧的宽松行为显式加 `-Lenient`。
+**归档策略**：只有「收官全绿」（`-Scope all` 且零 FAIL/零 NOT_EXECUTED）与「红门样本」
+（任一 FAIL 或幽灵命令，任意 scope）落 `evidence/phase0/` 并重生成 sha256 清单；
+日常分层跑写 `$env:TEMP` 并打印路径——不再每跑一次就往 evidence 里堆一份日志。
 golden 用例编码方法学不变量（已知延迟预算恢复、缺层降级、inversion 不清零、CV 已知值、
 分带边界等），守卫未来重构不弱化口径。
