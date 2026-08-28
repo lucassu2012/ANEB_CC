@@ -542,7 +542,10 @@ object TestModeProfiles {
             ),
             MetricSpec(
                 id = "FRLOSS", name = "帧丢失", unit = "ratio", group = MetricGroup.N,
-                definition = "TCP 重传掩盖真实丢帧——代理=期望−实收帧数（通常 0）；真丢帧需 UDP 媒体通道",
+                definition = "TCP 重传掩盖真实丢帧——代理=期望−实收帧数（通常 0）；真丢帧需 UDP 媒体通道。" +
+                    "⚠ target 为 PROVISIONAL（D-570）：本条 measurability=NOT_MEASURABLE、scored=false 不计分，" +
+                    "而 target 仍留着——它是 E-06 UDP 独立媒体端点落地后的质量目标（记回核义务，同 M7 末点锚形状），" +
+                    "不单独清空；最终清空与否随 F-b 语音族裁定连带处理",
                 direction = Direction.LOWER_BETTER,
                 target = QualityTarget(excellent = 0.0, good = 0.01, fair = 0.03),
                 measurability = Measurability.NOT_MEASURABLE, scored = false, anchorRef = null,
