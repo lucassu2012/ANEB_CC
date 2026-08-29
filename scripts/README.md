@@ -101,9 +101,12 @@ validity/score。空块=未检测（不计 0），缺 `attribution` 归 `unknown
 一条命令全量重算数据资产：evidence/ 全部 jsonl 逐文件试装载（内容判定非名单，
 D-273）→ `cc.load_records` 去重合并 → 真实/合成拆分（`is_synthetic` 单列绝不混入）
 → 按战役/点位/运营商/时窗（run 计）与 RAT/有效性（**场景**计——一 run 可跨 RAT
-不折单值）分桶，设备侧 Room 库单独一节**不可与 wire 语料相加**。产物
-`docs/CORPUS_LEDGER.md`（勿手编）+ 同名 CSV。**使用规则：任何「进展」声明必须
-引用台账总数与增量，不得手抄数字**。守卫钉住与 `campaign_report` 清点行的对拍。
+不折单值）分桶。**有两节不可与 wire 语料相加**：设备侧 Room 库（第二节，同 run
+两面）与观察通道采集（第四节，判据＝目录里有 `RUN_KIND.json`，其产物结构上进不了
+wire 池）。产物 `docs/CORPUS_LEDGER.md`（勿手编）+ 同名 CSV。**使用规则：任何
+「进展」声明必须引用台账总数与增量、不得手抄数字，且必须说清是哪条链**——
+完整表述以台账自己的 `MD_HEADER` 为准，此处不复述（重列＝造第二真相源）。
+守卫钉住与 `campaign_report` 清点行的对拍。
 
 ### `publish_check.py` — 发布前自检（D-124）
 把 runbook §5 的手工清单变成一条命令（外场收工时手工清单最容易被跳过）。
