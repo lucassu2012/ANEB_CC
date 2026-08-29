@@ -269,7 +269,7 @@ _NOT_A_REPORT_GATE = {
         "as `trend_metric_key`: retune the metric and the archived key moves "
         "with it, so the manifest cannot look unchanged",
     ("stability", "SCENARIO_JITTER_MARK"):
-        "the marker word printed in the 备注 column and named in the summary (D-378); "
+        "the marker word printed in the 备注 column and named in the summary (D-382); "
         "perturbing it changes what the flag is CALLED and leaves every numeral "
         "identical — the same class as GRADE_UNKNOWN_MARK. Which cells carry it "
         "is decided by scenario_side_kpis / network_side_kpis, both archived",
@@ -332,7 +332,7 @@ _GATE_KEY = {
     ("stability", "DEFAULT_TARGET_EFFECT_PCT"): "plan_target_effect_pct",
     ("stability", "DEFAULT_MAX_PLAN_ROWS"): "plan_max_ok_rows",
     ("campaign_common", "PLAN_POWER"): "plan_power",
-    # D-378: the discriminant that decides which over-gate cells the report
+    # D-382: the discriminant that decides which over-gate cells the report
     # tells the operator NOT to go re-measure, and which cells feed the
     # 建议复测数中位 the sample-size section prints.
     ("stability", "SCENARIO_SIDE_KPIS"): "scenario_side_kpis",

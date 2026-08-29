@@ -106,7 +106,7 @@ def network_side_verdict(records, group_by=None, cv_gate=None,
         # _annotate=False makes the recursion structurally impossible rather than
         # conditionally so. The first version relied on the two lists being
         # disjoint, and a perturbation putting one KPI on both blew the stack —
-        # an invariant nothing enforced, holding up a recursion guard (D-378).
+        # an invariant nothing enforced, holding up a recursion guard (D-382).
         for c in stability_cells(records, k, group_by, cv_gate, min_samples,
                                  _annotate=False):
             if c["cv_percent"] is None:
@@ -247,7 +247,7 @@ def render_markdown(cells, kpi_key, cv_gate=None, max_stable_rows=_UNSET):
     lines += [f"> **本表共 {total} 个单元**：✗超门 {n_unstable}，"
               f"CV 不可计算 {n_nocv}，其余稳定。摘要的「N/M 单元超 CV 门」"
               "即各 KPI 分表这两个数各自相加。", ""]
-    # The section-head banner half of the D-378 contract. Rendered for every
+    # The section-head banner half of the D-382 contract. Rendered for every
     # scenario-side KPI table whether or not anything was marked: a paragraph
     # that only appears when it fires never enters a golden, and its wording
     # then rots unwatched (D-318). It also names both KPI lists, which is what
@@ -475,7 +475,7 @@ def render_plan_markdown(rows, kpi_key, target_pct=None, max_ok_rows=_UNSET):
         lines.append(f"> **结论**：{len(rows)} 个单元离散度均不可估（n<2），"
                      "**无法核算采样量**——先补足复测再核算。")
     else:
-        # D-378 split the CRITERION; D-301's lesson is that the conclusion
+        # D-382 split the CRITERION; D-301's lesson is that the conclusion
         # sentence has to move with it, or the section keeps reporting the old
         # pooled number under a table that no longer means that. The measured
         # case: 「43/96 个单元…建议复测数中位 n≥78」 on t1_ttft_ms, where the 78 was

@@ -1524,3 +1524,82 @@ def test_every_path_literal_in_verify_all_resolves():
         "verify_all.ps1 里这些路径字面量指不到东西：%s\n"
         "——一条指不到脚本的门会静默跳过，而静默跳过与「跑过且通过」"
         "在输出上一模一样（D-532）。" % bad)
+
+
+# DECISION_LOG 开篇：「推翻旧决策时新增条目并**引用被推翻的 D-xx**」。
+# 引用要能解析——一个指向不存在裁定的 D 号，读者追不到、也无从知道自己追丢了。
+# 每条豁免都带**它为什么合法**：一份没有理由的冻结清单就是一堆无理由的赦免。
+_D_REF_EXEMPT = {
+    "D-1": "零填充写法：日志定义的是 `D-01`，同一条裁定",
+    "D-2": "同上，`D-02`",
+    "D-177": "**已知跳号**，且引用方自己写明「D-177 从未写入日志——号被跳过，D-364」",
+    "D-375": "**已知空号**，板面明记「6-6/6-7 至今零 D 号入册、两处引用空号 D-375」",
+    "D-564a": "D-564 的子项编号，见该条正文，非独立行",
+    "D-700": "worktree 隔离提案里**为未来裁定预留的示例号**（远超当前 D-583）",
+    "D-705": "同上",
+    "D-800": "同上",
+    "D-803": "同上",
+    "D-900": "同上",
+}
+
+_D_DEF = re.compile(r"^[|] (D-[0-9]+[a-z]?) [|]", re.M)
+_D_CITE = re.compile(r"D-([0-9]+)([a-z]?)")
+_D_SCAN_EXT = (".md", ".py", ".ps1", ".kt", ".go")
+
+
+def test_every_cited_decision_number_resolves():
+    """全仓引用的每个 `D-号` 都要在 DECISION_LOG 里找得到条目。
+
+    **实测抓到九处真悬空**（本条落地即修）：`campaign_report.py`/`stability.py`/
+    `test_provenance.py`/runbook 增补把 `D-382` 写成了转位号「三七八」——那条裁定
+    「`SCENARIO_INTRINSIC_JITTER` 三面落地」正是它们描述的判别量来源；同一个错号
+    顺着注释惯例扩散到四个文件。**这里刻意把错号写成中文而不是原样敲出来**：
+    描述一个悬空引用不该制造一个新的悬空引用（同「表格里写『竖线』二字」那条规矩）。
+    生产注释里一个指错的 D 号，读者会追到一条**根本不存在**的裁定上，
+    而「追不到」与「我搜错了」在体感上一模一样。
+
+    豁免清单每条自带理由（见 `_D_REF_EXEMPT`），且**只做加白不做兜底**：
+    新的悬空号一律红。
+    反例证伪：把任一 D 号改成不存在的号，本条即红。
+    """
+    log = open(os.path.join(REPO, "docs", "DECISION_LOG.md"),
+               encoding="utf-8", errors="replace").read()
+    defined = set(_D_DEF.findall(log))
+    assert len(defined) > 400, "定义集异常小（%d）——多半是量法坏了，不是日志空了" % len(defined)
+
+    cited = {}
+    for root, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "build")]
+        for f in files:
+            if not f.endswith(_D_SCAN_EXT):
+                continue
+            p = os.path.join(root, f)
+            try:
+                with open(p, encoding="utf-8", errors="replace") as fh:
+                    txt = fh.read()
+            except OSError:
+                continue
+            rel = os.path.relpath(p, REPO).replace(os.sep, "/")
+            for m in _D_CITE.finditer(txt):
+                cited.setdefault("D-" + m.group(1) + m.group(2), set()).add(rel)
+
+    dangling = sorted(set(cited) - defined - set(_D_REF_EXEMPT),
+                      key=lambda d: int(d[2:].rstrip("abcdefghij")))
+    assert not dangling, "\n".join(
+        ["以下 D 号被引用但 DECISION_LOG 里没有对应条目："]
+        + ["  %s ← %s" % (d, sorted(cited[d])[:4]) for d in dangling]
+        + ["若确属合法（跳号/预留号/子项），加进 _D_REF_EXEMPT 并写明理由。"])
+
+
+def test_decision_number_exemptions_are_still_needed():
+    """豁免会自己过期：某个号后来真被写进日志，就该从清单里删掉。
+
+    否则清单会掩盖「这个号现在有主了」，下一个读者仍以为它是空号。
+    反例证伪：把一个已定义的号加进 _D_REF_EXEMPT，本条即红。
+    """
+    log = open(os.path.join(REPO, "docs", "DECISION_LOG.md"),
+               encoding="utf-8", errors="replace").read()
+    defined = set(_D_DEF.findall(log))
+    stale = sorted(set(_D_REF_EXEMPT) & defined)
+    assert not stale, (
+        "以下号已在日志里有条目，请从 _D_REF_EXEMPT 删掉：%s" % stale)

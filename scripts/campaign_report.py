@@ -730,7 +730,7 @@ def render_summary_markdown(records, min_samples=cc.DEFAULT_MIN_SAMPLES,
         # The summary is the paragraph decision-makers actually read closely, and
         # 「N/M 单元超 CV 门」 pooled two kinds of noise into one count: the reader's
         # next action — go add field runs — is right for one kind and wasted on
-        # the other (D-372/D-378). The count is carried, not split into two
+        # the other (D-372/D-382). The count is carried, not split into two
         # bullets: M is still every cell over the gate, which is what the section
         # below shows, and a second bullet would put two denominators on the page.
         jit_note = (f"；**其中 {n_jitter} 个属场景内生抖动**"
@@ -2327,7 +2327,7 @@ def write_csv_tables(records, prefix, min_samples=cc.DEFAULT_MIN_SAMPLES,
                     # actions — measure more, or go fix what produced these
                     # numbers — and the bare blank says neither (D-197)
                     "cv_not_computable_reason", "implausible_values",
-                    # D-378. CSV has no banner above it to explain a word, so the
+                    # D-382. CSV has no banner above it to explain a word, so the
                     # fact gets a column of its own beside unstable /
                     # low_confidence (§2.3 of the addendum, D-141's reason). The
                     # reason column is the sibling of cv_not_computable_reason:
@@ -2790,7 +2790,7 @@ def effective_thresholds():
         "kpi_profile_exclusions": {k: list(v) for k, v
                                    in sorted(cc.KPI_PROFILE_EXCLUSIONS.items())},
         "stability_kpis": list(stability.DEFAULT_STABILITY_KPIS),
-        # The discriminant behind SCENARIO_INTRINSIC_JITTER (D-378): which KPIs
+        # The discriminant behind SCENARIO_INTRINSIC_JITTER (D-382): which KPIs
         # count as scenario-side, and which network-side KPIs are asked to
         # corroborate. Retuning either moves which cells the report tells the
         # operator NOT to go re-measure, and moves the 建议复测数中位 the
