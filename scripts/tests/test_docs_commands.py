@@ -1387,3 +1387,104 @@ def test_same_file_section_references_point_at_sections_that_exist():
                                   "、".join(sorted(secs)[:8])))
     print("  same-file xref: 豁免(本文不编号) %d" % exempt)
     assert not bad, "同文件节号引用悬空：\n  " + "\n  ".join(bad)
+
+
+# BASELINE §5 rule 6：「**行号也不写死**……引用他文一律给『节号 + 可搜索的锚
+# 文字』，**不给行号**」。此前无守卫（T82 §9.2 #10）。
+# **冻结现存 31 处、只能缩不能长**：它们多在 `DECISION_LOG.md` 这类**追加式历史
+# 账**里，那种条目是带时间戳的记述，改写等于篡改记录——所以这条规则**不能追溯**，
+# 只能拦新增。清偿一条（改成节号+锚文字）就把它从清单删掉，否则本守卫会红。
+_FROZEN_LINE_REFS = frozenset([
+    "docs/BRAIN_TASKBOARD.md -> INSTRUMENTATION_SPEC.md:447",
+    "docs/BRAIN_TASKBOARD.md -> tools/e234/README.md:109",
+    "docs/DECISION_LOG.md -> INSTRUMENTATION_SPEC.md:447",
+    "docs/DECISION_LOG.md -> JUDGMENT_v3.md:89",
+    "docs/DECISION_LOG.md -> M3_EXPANSION_ROUND_GUARD_DIFF.md:103",
+    "docs/DECISION_LOG.md -> PROFILE_FRAMEWORK.md:367",
+    "docs/DECISION_LOG.md -> docs/launchpad/README.md:34",
+    "docs/DECISION_LOG.md -> docs/launchpad/crosscut-device-unlock-udp-contend-runbook.md:49",
+    "docs/DECISION_LOG.md -> evidence/m3_expansion_rehearsal_20260801/README.md:192",
+    "docs/DECISION_LOG.md -> report_snapshot.md:202",
+    "docs/DECISION_LOG.md -> spec/adapters/INSTRUMENTATION_SPEC.md:447",
+    "docs/DELIVERY_PACKAGE_AUDIT_FINDINGS_20260820.md -> DECISION_LOG.md:506",
+    "docs/E01_DEPLOY_REQUEST_FOR_CODEX_20260804.md -> docs/launchpad/README.md:34",
+    "docs/E01_DEPLOY_REQUEST_FOR_CODEX_20260804.md -> docs/launchpad/crosscut-device-unlock-udp-contend-runbook.md:49",
+    "docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md -> M3_EXPANSION_ROUND_GUARD_DIFF.md:103",
+    "docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md -> evidence/m3_expansion_rehearsal_20260801/README.md:192",
+    "docs/M7_RECALIBRATION_INDEPENDENT_VERIFICATION_20260819.md -> T55_M7_SCORING_CHAIN_VERIFICATION_20260805.md:120",
+    "docs/PLAN_ALIGNMENT_2026-07-17.md -> RADIO_CONTEXT_WIRING_SPEC.md:37",
+    "docs/PROFILE4_VOICE_LOOPBACK_SPEC.md -> RADIO_CONTEXT_WIRING_SPEC.md:37",
+    "docs/PROFILE4_VOICE_LOOPBACK_SPEC.md -> RADIO_CONTEXT_WIRING_SPEC.md:63",
+    "docs/PROFILE4_VOICE_LOOPBACK_SPEC.md -> SYSTEM_DEV_PLAN_v1.0.md:50",
+    "docs/PROFILE4_VOICE_LOOPBACK_SPEC.md -> spec/README.md:60",
+    "docs/T14_CROSS_AUDIT_20260801.md -> DECISION_LOG.md:63",
+    "docs/T50_VOICE_FIRST_COLLECTION_PROTOCOL_20260804.md -> docs/BRAIN_TASKBOARD.md:60",
+    "docs/T50_VOICE_FIRST_COLLECTION_PROTOCOL_20260804.md -> docs/PROFILE4_VOICE_LOOPBACK_SPEC.md:33",
+    "docs/T50_VOICE_FIRST_COLLECTION_PROTOCOL_20260804.md -> docs/PROFILE4_VOICE_LOOPBACK_SPEC.md:471",
+    "docs/VOICE_ANALYSIS_LAYER_INVENTORY.md -> MEASUREMENT_CAMPAIGN_2026-07-17.md:30",
+    "docs/VOICE_ANALYSIS_LAYER_INVENTORY.md -> PROFILE4_VOICE_LOOPBACK_SPEC.md:19",
+    "evidence/e1_window_narrative_review_20260802.md -> JUDGMENT_v3.md:89",
+    "evidence/nr_timeline_20260802/T37_E2_COLLECTION_PROTOCOL_20260803.md -> "
+    "docs/launchpad/crosscut-device-unlock-udp-contend-runbook.md:261",
+])
+
+_LINE_REF = re.compile(r"([\w./\-]+\.md):(\d+)")
+
+
+def _all_line_refs():
+    """全仓 .md 的跨文件行号引用集合。
+
+    **按 `REPO` 绝对根走 `os.walk`，不用 cwd 相对 glob**：门跑
+    `run_all.py` 的工作目录是 `scripts/tests/`，pytest 是仓根——初版用了
+    `glob("**/*.md")`，两处会扫出完全不同的集合而各自「通过」。房子里既有
+    测试一律用 `REPO`，正是为此。
+    """
+    found = set()
+    for root, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        for f in files:
+            if not f.endswith(".md"):
+                continue
+            p = os.path.join(root, f)
+            norm = os.path.relpath(p, REPO).replace(os.sep, "/")
+            try:
+                with open(p, encoding="utf-8", errors="replace") as fh:
+                    txt = fh.read()
+            except OSError:
+                continue
+            for m in _LINE_REF.finditer(txt):
+                found.add("%s -> %s:%s" % (norm, m.group(1), m.group(2)))
+    return found
+
+
+def test_no_new_cross_file_line_number_references():
+    """BASELINE §5 rule 6：引他文给节号+锚文字，**不给行号**——行号会悄悄漂。
+
+    **只拦新增、不追溯**：现存 31 处多在追加式历史账里，改写等于篡改记录。
+    清单只能缩：清偿一条就删一条，否则下面那半会红。
+
+    **刻意不建「行号越界即报烂」那条检查**，理由是实测：31 处里唯一越界的
+    `DECISION_LOG.md -> PROFILE_FRAMEWORK.md:367` **不是烂指针**——那条 D 记录
+    记的是一次突变审计，它故意在该文件末尾植入一行、守卫报出 `:367`，还原后
+    文件回到 365 行。那是对工具当时输出的**忠实引用**。即该检查在本仓战绩为
+    **0 真阳性 / 1 假阳性**，而失信的守卫等于没有（§2.10 同族）。
+    反例证伪：在任一 .md 里新写一处 `FOO.md:123`，本条即红。
+    """
+    found = _all_line_refs()
+    new = sorted(found - _FROZEN_LINE_REFS)
+    assert not new, (
+        "新增了跨文件行号引用（BASELINE §5 rule 6 禁止）：%s\n"
+        "改成「节号 + 可搜索的锚文字」；行号会随他人编辑悄悄漂掉。" % new)
+
+
+def test_frozen_line_reference_exemptions_expire_when_paid_off():
+    """冻结清单**只能缩不能长**：清偿后那条要反过来推红，逼人删掉它。
+
+    否则清单会永远留着，把「已经改好的」和「还欠着的」混在一起，
+    而读者无从知道到底还欠几条（D-275 让豁免天然落选）。
+    反例证伪：把任一条改成节号+锚文字却不删清单条目，本条即红。
+    """
+    stale = sorted(_FROZEN_LINE_REFS - _all_line_refs())
+    assert not stale, (
+        "以下行号引用已不存在，请从 _FROZEN_LINE_REFS 删掉（豁免不得长留）：%s"
+        % stale)
