@@ -91,7 +91,7 @@ adb shell dumpsys window | findstr mDreamingLockscreen
 > | **充电常亮** | `settings get global stay_on_while_plugged_in` → **7**（AC\|USB\|无线 全开） | ✅ **USB 连着即充电，屏不会息**——但这是**既有状态**，不是本批设的 |
 > | **SIM** | `getprop gsm.sim.state` → **`LOADED,ABSENT`** | ✅ **卡槽 1 有卡且已加载**（卡槽 2 空，与待人清单 #3 记载一致）⇒ **蜂窝两块不会是死条件** |
 > | **运营商** | `gsm.operator.alpha`／`.numeric` → **中国电信 / 46011** | ✅ 单运营商 **ctcc**，与既有语料标注同源；**双运营商维度本批不做**（清单 #3 未解，如实标注） |
-> | **当前制式** | `getprop gsm.network.type` → **`NR_SA`**（5G 独立组网） | ⚠ **蜂窝条件今天是 NR 不是 LTE**——见 §②-A G-5「制式漂移」 |
+> | **当前制式** | `getprop gsm.network.type` → **`NR_SA,Unknown`**（08-29 按原样实跑的完整回值；**逗号分隔＝按 SIM 卡槽**，卡 1 为 **NR_SA**＝5G 独立组网、卡 2 无服务。**记录时逐字照抄整串、别只写 `NR_SA`**——截断会丢掉「是哪个卡槽在承载」，而那正是换卡/双卡切换时唯一能分辨的线索） | ⚠ **蜂窝条件今天是 NR 不是 LTE**——见 §②-A G-5「制式漂移」 |
 > | **起始网络原值** | `wifi_on` → **1**；`mobile_data` → **1**；**但默认路由 `dev rmnet0`、活动网络 `MOBILE[NR] CONNECTED`**；WiFi **射频开着却未关联**——最后一次关联于 **08-27 00:11 被 AP 断开**（`locallyGenerated: false`），**已断两天** | 🔴 **见下「块 1 跑不跑得起来」——本条 2026-08-29 订正了我自己写错的一句** |
 > | **通道 D 的 PCAPdroid 版本** | `versionName=1.9.1`（`versionCode=91`，2026-07-18 装、**从未更新**） | ✅ 版本已知（**界面细节仍不预设**，见 §1.H） |
 > | **残留 VPN／隧道** | `dumpsys connectivity` → `VpnNetworkProvider:0`、活动网络标 `NOT_VPN`；`ip link` 的 `rmnet_tun*` 全 `DOWN`（基带隧道非 VPN） | ✅ **无残留 VPN/隧道**——根 `CLAUDE.md` 开测前提的这一条**已只读满足** |
@@ -449,7 +449,7 @@ for name in ('roi_idle.raw', 'roi_busy.raw'):
 
 **G-5 制式漂移：锚格控得住时段，控不住制式（2026-08-29 窗外只读核出，本节此前完全没有）**
 
-窗外实测 `gsm.network.type = NR_SA`——**「蜂窝」这个条件今天是 5G 独立组网，不是 LTE**。
+窗外实测 `gsm.network.type = NR_SA,Unknown`（**完整回值；逗号分隔＝按 SIM 卡槽，承载在卡 1**）——**「蜂窝」这个条件今天是 5G 独立组网，不是 LTE**。
 但 **NR↔LTE 在一次批内是会漂的**（信号、负载、网络侧策略都能触发回落）。
 若块 2/3 中途发生回落，**「蜂窝」就不是一个条件而是两个**，而两者的 RTT／带宽量级差别
 足以盖过我们要测的功能差异。
