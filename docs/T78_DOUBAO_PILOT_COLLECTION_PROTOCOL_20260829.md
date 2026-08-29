@@ -760,7 +760,7 @@ SPEC-2 §2.1 的验收判据写「首批语料落库（**独立 `campaign_id`**�
    > 故**本批同样产不出**。这**不是本批的偏离，是一条写着覆盖战役包、而战役包从未执行过的规则**——
    > **已报大脑，属全仓治理项，不在本批顺手补**（补它要先有脚本，且要回填 23 个既有包才谈得上一致）。
    > **收窗时在 README 里点名这一条**，让缺失是**显式**的，不是看起来「大家都没有所以没问题」。
-5. 板面 T78 更新状态与证据路径，出 where-are-we 简报。
+5. 板面 T78 更新状态与证据路径，出 where-are-we 简报。**⚠ 进展怎么报，有一条现成的规矩，别自己发明**：[`CORPUS_LEDGER.md`](CORPUS_LEDGER.md) 是「进展单一事实源」（SPEC-3 §3.1），它**开头就点名了「豆包先行批」**并立着——**观察通道批次产出 `0` 条 wire run**（产物喂 `validate_results.py` 即 contract VIOLATIONS，**结构上进不了 wire 池**），**「把观察批写成『真实 run +N』正是本台账要拦的那种手抄」**。⇒ **正确说法是「观察通道采集目录 +13」（12 格＋锚格；台账第四节，判据＝目录里有 `RUN_KIND.json`，采集器自动写，你不用管），不是「真实 run +65」。** **65 是你跑的轮数，不是语料条数**——两者差着一整条链。
 6. **窗后待办（D-578 裁「窗前不修、窗后修」）**：以**一次 `spec/adapters/doubao.json` + `app/probe/src/main/assets/spec_adapters/doubao.json` 同提交**修两条已成误导的 note——
    ①`send_button.note` 的「待真机 `ADAPTER_EVT` 诊断反推回填」（**D-52 已跑过并证伪**：豆包自定义 View 零 `TYPE_VIEW_CLICKED`；四正则留 null＝**有意保留能力**给标准控件 App）；
    ②`package_note` 的「三条节点规则本就全 `PENDING-VALIDATION`（正则全 null）」（**对本文件为假**：`input_node`=`VALIDATED`、`response_node`=`VALIDATED-PARTIAL`，各带两条正则；该句只对 kimi/tongyi 成立，deepseek 亦部分假——顺带核 deepseek 那份）。
