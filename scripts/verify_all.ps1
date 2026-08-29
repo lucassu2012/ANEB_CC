@@ -291,7 +291,30 @@ if ($py -and (Test-Path $schemaTest)) {
 
 }
 
-if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules')) {
+if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh')) {
+# --- 语料台账新鲜度门（T82 §9.2 #12）：台账开篇写着「勿手编」，而此前没有任何
+# 东西核对它——手改能一直活到下次重算，期间那两面仍被当作单一事实源引用。
+# 本门只比不写：落盘的 md/CSV 必须与现算逐字节相同。不一致的两种成因（有人手改／
+# 语料变了没重算）后果相同：被引用的数字不再是当前语料算出来的，故都记 FAIL。
+$ledgerScript = Join-Path $repo 'scripts/corpus_ledger.py'
+if ($py -and (Test-Path $ledgerScript)) {
+    $out = & $py $ledgerScript --check 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- corpus-ledger-fresh (exit $code) ---"
+    $log += $out
+    $head = ($out -split "`n" | Where-Object { $_ -match 'corpus ledger check:' } | Select-Object -First 1)
+    if ($code -eq 0) {
+        $log += Add-Result 'corpus-ledger-fresh' 'PASS' $head
+    } else {
+        $log += Add-Result 'corpus-ledger-fresh' 'FAIL' $head
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $ledgerScript)) { $missing += 'scripts/corpus_ledger.py' }
+    $log += Add-Result 'corpus-ledger-fresh' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- evidence/ RULE gate (T82 §9.2 #4/#6/#7/#13/#14): evidence/README 立了六条规则而
 # 此前一条都没有守卫。接上五条 + 一条 README 蕴含项（列出的证据文件必须真在盘上）。
 # 四态判据从 README 解析，不再抄一份。exit: 0=干净 / 1=有违规或过期豁免 -> FAIL /

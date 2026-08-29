@@ -378,6 +378,8 @@ def main(argv=None):
                     help="语料根目录，可重复；默认 evidence + server/data/results")
     ap.add_argument("--md", default=os.path.join("docs", "CORPUS_LEDGER.md"))
     ap.add_argument("--csv", default=os.path.join("docs", "CORPUS_LEDGER.csv"))
+    ap.add_argument("--check", action="store_true",
+                    help="只比不写：落盘的两面与现算是否一致（exit 1=不一致）")
     a = ap.parse_args(argv)
     roots = a.root or DEFAULT_ROOTS
     corpus, skipped = discover(roots)
@@ -387,13 +389,42 @@ def main(argv=None):
     dbs = room_dbs(roots[0])
     obs = observation_runs(roots)
     md = render_md(corpus, skipped, real, synth, st, bk, dbs, obs)
-    io.open(a.md, "w", encoding="utf-8", newline="").write(md)
     import csv as _csv
-    with open(a.csv, "w", newline="", encoding="utf-8-sig") as f:
-        w = _csv.writer(f)
-        w.writerow(["face", "key", "count"])
-        for row in render_csv_rows(real, synth, bk, obs):
-            w.writerow(row)
+    import io as _io
+    _buf = _io.StringIO()
+    _w = _csv.writer(_buf, lineterminator="\r\n")
+    _w.writerow(["face", "key", "count"])
+    for row in render_csv_rows(real, synth, bk, obs):
+        _w.writerow(row)
+    csv_text = _buf.getvalue()
+
+    if a.check:
+        # 「勿手编」此前只是一句话——没有任何东西核对它，手改能活到下次重算
+        # （而下次重算可能在很久以后，期间这两面一直被当作单一事实源引用）。
+        # **只比不写**：落盘那份必须与现算逐字节相同。不一致有两种成因——有人
+        # 手改了，或语料变了而没重算——**两者都该红**，因为两者的后果一样：
+        # 被引用的数字不再是当前语料算出来的。
+        drift = []
+        for path, want, enc in ((a.md, md, "utf-8"),
+                                (a.csv, csv_text, "utf-8-sig")):
+            try:
+                got = io.open(path, encoding=enc, newline="").read()
+            except OSError as e:
+                drift.append("%s 读不了：%s" % (path, e))
+                continue
+            if got != want:
+                drift.append("%s 与现算不一致（落盘 %d 字符 / 现算 %d 字符）"
+                             % (path, len(got), len(want)))
+        print("corpus ledger check: %s" % ("DRIFT" if drift else "in sync"))
+        for d in drift:
+            print("  " + d)
+        if drift:
+            print("  处置：跑 `python scripts/corpus_ledger.py` 重算并提交，"
+                  "不要手改这两份文件。")
+        return 1 if drift else 0
+
+    io.open(a.md, "w", encoding="utf-8", newline="").write(md)
+    io.open(a.csv, "w", encoding="utf-8-sig", newline="").write(csv_text)
     broken_n = sum(1 for _, _, bad in skipped if bad)
     print(f"real_runs={len(real)} synthetic={len(synth)} "
           f"files={len(corpus)} skipped={len(skipped)}"

@@ -374,3 +374,36 @@ def test_the_placeholder_predicate_has_a_single_source():
     src = inspect.getsource(cl.render_md) + inspect.getsource(cl.render_csv_rows)
     assert 'startswith("PENDING-' not in src, \
         "占位符判据只许走 is_placeholder_point()，不得再内联一份"
+
+
+def test_a_hand_edit_to_the_ledger_is_detected_by_check_mode():
+    """台账开篇写着「勿手编」——`--check` 是那句话的执行面。
+
+    此前它只是一句话：手改能一直活到下次重算，而重算可能在很久以后，
+    期间那两面仍被当作单一事实源引用。判据是**逐字节相同**而不是长度或
+    某几个数——本条的反例把 `57 条` 改成 `58 条`，字符数一模一样。
+    反例证伪：把比对改成长度比较，本条即绿。
+
+    真树的判定归 `verify_all` 的 `corpus-ledger-fresh` 门；这里只证机制
+    （夹具/真树分工同 `check_evidence`：避免别的会话改语料时把本套件推红）。
+    """
+    import io as _io
+    import os as _os
+    import tempfile
+    recs = _pt_recs({"SZ-PILOT-01": 3})
+    with tempfile.TemporaryDirectory() as d:
+        root = _os.path.join(d, "evidence")
+        _os.makedirs(root)
+        _io.open(_os.path.join(root, "c.jsonl"), "w", encoding="utf-8").write(
+            "\n".join(__import__("json").dumps(r, ensure_ascii=False)
+                      for r in recs) + "\n")
+        md = _os.path.join(d, "L.md")
+        csv = _os.path.join(d, "L.csv")
+        args = ["--root", root, "--md", md, "--csv", csv]
+        assert cl.main(args) == 0                       # 生成
+        assert cl.main(args + ["--check"]) == 0         # 刚生成 → 同步
+        txt = _io.open(md, encoding="utf-8", newline="").read()
+        assert "3 条" in txt, "夹具没走到含数字的行，反例会测空气"
+        _io.open(md, "w", encoding="utf-8", newline="").write(
+            txt.replace("3 条", "9 条", 1))             # 手改，字符数不变
+        assert cl.main(args + ["--check"]) == 1, "手改必须被抓住"
