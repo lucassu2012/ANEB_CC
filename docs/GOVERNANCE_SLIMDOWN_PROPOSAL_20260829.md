@@ -150,7 +150,9 @@
 
 ### 9.2 系统审计批次（workflow `governance-debt-audit`，2026-08-29；14 条经 grep 实证的可机器化债）
 
-方法＝枚举五类规则源（evidence/README、CLAUDE.md、spec 红线、版本/评分、doc 一致性守卫）→ 每条候选**对抗验证**（实证 grep 确认真未守卫、真可机器化，默认非债除非有 grep 证据）→ 综合去重排序。v4 已**独立读源码复核** 4 条 HIGH，其中两条（★）触及本人 4.1 的 `check_versions.py`。**登记不落码**：修复归各 lane，随本提案排期待 PO；lane「PO 批前不擅自新增/改守卫」照旧。
+**资质声明（大脑 08-29 点名）：本审计对 v4 自己的交付物一视同仁**——4 条 HIGH 里 3 条恰在 v4 lane（#1/#3/#8，其中两条在本人 4.1 的 `check_versions.py`），已如实登记并**当场落码修复**（D-583）；下列 6 条诚实否定不 padding，同属可信度的一部分。
+
+方法＝枚举五类规则源（evidence/README、CLAUDE.md、spec 红线、版本/评分、doc 一致性守卫）→ 每条候选**对抗验证**（实证 grep 确认真未守卫、真可机器化，默认非债除非有 grep 证据）→ 综合去重排序。v4 已**独立读源码复核** 4 条 HIGH。**落码分工（大脑裁「堵守卫洞属 D-580 族日常纪律、非提案制」）**：v4-lane 的 **#1/#3/#8 已落码（D-583，各配 reflex 测试 GREEN+RED + 突变咬合，四门全绿：check_versions 11 / check_redline 41 自守卫 + 两 CLI exit 0）**；#2 归 v2、#4+9MED+1LOW 归 v3（有活违规三条优先）。
 
 | # | 债项 | 位置 | 严重·状态 | 修复归属 |
 |---|---|---|---|---|
@@ -169,7 +171,7 @@
 | 13 | evidence 日志 utf-8 编码无扫描 | `evidence/README:11` | MED·unenforced | scripts(v3) |
 | 14 | evidence 目录 `build` 命名禁区无守卫（latent） | `evidence/README:10` | LOW·unenforced | scripts(v3) |
 
-**★ 触及 v4 自己 4.1 的 `check_versions.py`——审计咬到本人交付物覆盖缺口，如实登记**（#3 改值不换 id 即绿、#8 只比 id 集不数表；均已读源码 L47-60 独立确认）。
+**★ 触及 v4 自己 4.1 的 `check_versions.py`——审计咬到本人交付物覆盖缺口，已落码修复（D-583）**：#3 改值不换 id 即绿 → 加 `table_value_hashes` + `_FROZEN_VALUE_HASHES` 金标冻结已发布权重值；#8 只比 id 集不数表 → 加表键层登记检查（8 表键须各在 §1 登记）；均读源码 L47-60 独立确认后落码，各配 GREEN+RED 测试与突变咬合。
 
 **四条 HIGH 实证摘要（v4 亲验）**：
 - **#4 有活违规、当前就该修**（非 latent）：`evidence/phase1/STATUS.json` 的 P1-C01..C04 均 `state=PASS` 而 `evidence_files=[]`（phase0/2 亦有），违 README 规则2，且无任何脚本读 `evidence_files`。

@@ -20,6 +20,9 @@ Invariants:
   R4  every fit field caliber in {direct, order-of-magnitude, ui-proxy, none}.
   R5  cross-layer: token_interval_ms_dist / think_pause_ms_dist caliber must be
       ui-proxy or none (never direct/order-of-magnitude) — UI/proxy != network ITL.
+  R5b ui-proxy caliber is field-restricted to token_interval_ms_dist only (§1 铁律3): every
+      other field with caliber=ui-proxy is a cross-layer overreach (think_pause/network-bytes/
+      session-duration are never sourced from the UI layer). Catches what R5 (direct/OoM only) misses.
   R6  caliber == none  => value starts with "PENDING".
   R7  keep_pending == false is allowed ONLY for caliber == direct.
   R8  keep_pending == false value must NOT start with "PENDING".
@@ -69,6 +72,10 @@ PARAM_FIELDS = ["request_size_bytes_dist", "token_interval_ms_dist", "think_paus
 CALIBERS = {"direct", "order-of-magnitude", "ui-proxy", "none"}
 CALIBER_NON_PENDING = {"direct", "order-of-magnitude", "ui-proxy"}  # R12: these must not be PENDING
 NETWORK_TIMING = {"token_interval_ms_dist", "think_pause_ms_dist"}  # must never be direct/OoM (cross-layer)
+# R5b (D-audit #1): ui-proxy caliber is field-restricted. PARAMS_FIT_METHODOLOGY §1 铁律3 (:41):
+# UI 呈现层「至多作 ui-proxy 填 token_interval_ms_dist … 绝不填 think_pause/网络字节」；session_duration
+# 亦禁「事件计数换算」(:52/:122)。故 ui-proxy 只对 token_interval 合法——任何其它字段标 ui-proxy = 跨层越界。
+UI_PROXY_ALLOWED = {"token_interval_ms_dist"}
 SOURCE_LAYERS = {"network", "ui", "none"}          # R18: provenance layer (api excluded: App portraits
 #   never source from the API-direct token layer — that's the ApiProbe gate, §6 口径 boundary).
 CONFIDENCE = {"LOW", "INCONCLUSIVE"}                # R18: matches observed-layer + methodology vocabulary
@@ -184,6 +191,13 @@ def check_portrait(app, d):
         if name in NETWORK_TIMING:
             bad(cal in {"ui-proxy", "none"}, "R5",
                 f"{name} caliber={cal} — network-timing field must be ui-proxy/none (cross-layer guard)")
+        # R5b (D-audit #1): ui-proxy is field-restricted — only token_interval may use it (§1 铁律3).
+        # Catches what R5 misses: think_pause=ui-proxy (UI 绝不填), and request_size/session_duration/
+        # downlink_media=ui-proxy (network/session fields never sourced from the UI layer).
+        if cal == "ui-proxy":
+            bad(name in UI_PROXY_ALLOWED, "R5b",
+                f"{name} caliber=ui-proxy — only token_interval_ms_dist may be ui-proxy "
+                f"(§1 铁律3: UI 层绝不填 think_pause/网络字节/会话时长)")
         # R6
         if cal == "none":
             bad(val.startswith("PENDING"), "R6", f"{name} caliber=none but value not PENDING: {val[:40]}")

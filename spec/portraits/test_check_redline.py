@@ -295,6 +295,36 @@ def test_R5_crosslayer_token_interval_direct_caught():
     assert _has(check_portrait("x", d), "R5")
 
 
+def test_R5b_think_pause_uiproxy_caught():
+    """think_pause=ui-proxy 过 R5（NETWORK_TIMING 允许 ui-proxy），但 R5b 必抓：
+    §1 铁律3——UI 层绝不填 think_pause。这正是 R5 漏、R5b 补的形状。"""
+    d = _valid_pending()
+    d["params_fit_approx"]["fields"]["think_pause_ms_dist"] = {
+        "value": "~50ms (UI approx)", "caliber": "ui-proxy", "keep_pending": True,
+        "source_layer": "ui", "confidence": "LOW", "note": "x"}
+    viol = check_portrait("x", d)
+    assert _has(viol, "R5b"), viol
+    assert not _has(viol, "R5:"), viol  # R5 放行 ui-proxy → 证明抓它的是 R5b 而非 R5（"R5:" 带冒号，不误配 "R5b:"）
+
+
+def test_R5b_request_size_uiproxy_caught():
+    """网络字节字段标 ui-proxy = 跨层越界（§1 铁律3：UI 绝不填网络字节）。"""
+    d = _valid_pending()
+    d["params_fit_approx"]["fields"]["request_size_bytes_dist"] = {
+        "value": "13KB (UI guess)", "caliber": "ui-proxy", "keep_pending": True,
+        "source_layer": "ui", "confidence": "LOW", "note": "x"}
+    assert _has(check_portrait("x", d), "R5b")
+
+
+def test_R5b_token_interval_uiproxy_allowed():
+    """GREEN：token_interval 是唯一允许 ui-proxy 的字段（doubao ~100ms 实况）——R5b 绝不误拒它。"""
+    d = _valid_pending()
+    d["params_fit_approx"]["fields"]["token_interval_ms_dist"] = {
+        "value": "~100ms (UI cadence, != network ITL)", "caliber": "ui-proxy", "keep_pending": True,
+        "source_layer": "ui", "confidence": "LOW", "note": "x"}
+    assert check_portrait("x", d) == []   # 完整合法：R5b 放行 token_interval 的 ui-proxy
+
+
 def test_R6_none_not_pending_caught():
     d = _valid_pending()
     d["params_fit_approx"]["fields"]["think_pause_ms_dist"]["value"] = "123ms"  # caliber none but not PENDING
