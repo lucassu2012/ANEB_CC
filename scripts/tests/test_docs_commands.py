@@ -1603,3 +1603,77 @@ def test_decision_number_exemptions_are_still_needed():
     stale = sorted(set(_D_REF_EXEMPT) & defined)
     assert not stale, (
         "以下号已在日志里有条目，请从 _D_REF_EXEMPT 删掉：%s" % stale)
+
+
+# spec/README 严格 loader 通则（D-397）自承的缺口，T82 §9.2 #5：
+# 「『仓内 spec loader 皆严格』这句话本身没有任何东西核对它——新增第三个严格
+# loader 时，上表不会自己长出一行。应有的形态：扫 app/**/*.kt 里 `= Json` 的
+# 默认实例，与上表对账（清单从产物导出而非手写，D-329）。」本条即那个形态。
+# **两侧都从产物导出**：一侧是源码里的实例，另一侧是 README 表格自己的行——
+# 我不在这里手抄一份 loader 清单，那样就又造了一个会漂的第三方真相源。
+_BARE_JSON = re.compile(r"=\s*Json\s*(?:$|[^\s{])", re.M)
+_ANY_JSON = re.compile(r"=\s*Json\b")
+_TABLE_KT = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*\.kt)(?::\d+)?`")
+
+
+def _main_kotlin_files():
+    out = []
+    for root, dirs, files in os.walk(os.path.join(REPO, "app")):
+        dirs[:] = [d for d in dirs if d not in ("build", ".gradle")]
+        if os.sep + "test" + os.sep in root + os.sep:
+            continue                        # 测试里的 Json 不是 loader
+        for f in files:
+            if f.endswith(".kt"):
+                out.append(os.path.join(root, f))
+    return sorted(out)
+
+
+def test_strict_json_loaders_reconcile_with_the_spec_readme_table():
+    """`app/` 主源里每个**严格**（裸 `Json`）实例都要在 spec/README 的表上，反之亦然。
+
+    严格实例＝未知键即抛＝**能发现 schema 漂移的那种 loader**；宽松实例
+    （`Json { ignoreUnknownKeys = true }`）解析的是网络载荷，宽松在那里站得住，
+    故不入表也不判违规——**判据是消费方，不是关键字**（同 D-276）。
+
+    两个方向都要查，且**反方向更危险**：有人把某个 loader 从裸 `Json` 改成宽松，
+    而表还写着「严格」——那时表不是缺一行，是**在说谎**。
+
+    实测（2026-08-29）：主源 9 个实例里裸的恰好 2 个（`AdapterSpec.kt`、
+    `TestModeProfileLoader.kt`），与表逐一对上；另 7 个宽松的均为 SSE/API/服务端
+    响应解析（含 `ProfileParser`——它读 `/api/v1/profiles` **响应**而非盘上 spec，
+    是另一个信任边界，**诚实的否定**）。
+    反例证伪：新增一个裸 `Json` 而不改表，或把表上某个改成宽松，本条即红。
+    """
+    readme = os.path.join(REPO, "spec", "README.md")
+    with open(readme, encoding="utf-8", errors="replace") as fh:
+        doc = fh.read()
+    table_files = set()
+    for line in doc.split("\n"):
+        if not line.lstrip().startswith("|") or "= Json" not in line:
+            continue
+        # **只取第一格（loader 列）**：初版按整行抓 .kt，把「证据强度」列里引的
+        # 测试文件（AdapterSpecTest.kt 等）也当成了 loader，守卫当场假红。
+        # 一行里出现的文件名不等于这一行在讲的那个文件。
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells:
+            table_files.update(_TABLE_KT.findall(cells[0]))
+    assert table_files, "spec/README 里没解析出 loader 表——判据缺失即报错，不放行"
+
+    strict, lenient = {}, {}
+    for p in _main_kotlin_files():
+        with open(p, encoding="utf-8", errors="replace") as fh:
+            txt = fh.read()
+        if not _ANY_JSON.search(txt):
+            continue
+        (strict if _BARE_JSON.search(txt) else lenient)[os.path.basename(p)] = p
+
+    missing = sorted(set(strict) - table_files)
+    assert not missing, (
+        "以下文件有**严格** `= Json` 实例却不在 spec/README 的 loader 表上：%s\n"
+        "——表漏一行，就等于「仓内 spec loader 皆严格」这句话少了一个受检对象。"
+        % missing)
+
+    no_longer_strict = sorted(f for f in table_files if f not in strict)
+    assert not no_longer_strict, (
+        "spec/README 的表把以下文件列为严格 loader，但它们主源里已无裸 `Json`：%s\n"
+        "——表不是缺一行，是**在说谎**：读者会以为未知键仍会被拒。" % no_longer_strict)
