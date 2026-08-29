@@ -52,6 +52,8 @@
 adb devices
 adb shell dumpsys window | findstr mDreamingLockscreen
 ```
+> **（这两条 2026-08-29 已在本机按原样实跑：`findstr` 形态在 PowerShell 下可用，`EXIT=0` 并返回 `mDreamingLockscreen=…` 那一行。⚠ 若你在 Git Bash 里跑，`findstr` 不存在，换 `grep`。）**
+
 - `adb devices` 为空 = 设备离线（USB 未连或关机），**比屏锁更前一步**；
 - `mDreamingLockscreen=true` = 真锁（PIN/图案），**swipe 不解**，须在场者物理解锁（D-481 同款）。
 
