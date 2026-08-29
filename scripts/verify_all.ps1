@@ -627,6 +627,10 @@ $sum | ForEach-Object { $_ }
 
 # --- 归档策略（SPEC-3 §3.2）：只归档「收官全绿」与「红门样本」——日常分层跑
 # 不落 evidence（诊断实测 274 份日志全入库是流程开销大头）。收官全绿 =
+# ⚠ 2026-08-29 起 `.gitignore` 忽略 `evidence/phase0/verify_all_*.log`
+#（T86/D-586）。脚本照常写盘，但**要把某次留成证据必须 `git add -f`**——
+# 普通 `git add` 会报错并退出 1（实测：点名该文件+提示 -f，非静默）。
+# 已跟踪的旧日志不受影响；被 STATUS.json/badges.txt 点名的那几份仍在库。
 # -Scope all 且 0 FAIL、0 NOT_EXECUTED、无幽灵；红门样本 = 任一 FAIL 或幽灵
 # （任意 scope——红的诊断价值要留档）。其余写到 TEMP，路径照样打印。
 $isRed = ($failed.Count -gt 0) -or ($ghosts.Count -gt 0)
