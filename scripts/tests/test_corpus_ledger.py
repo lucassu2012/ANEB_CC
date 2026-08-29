@@ -407,3 +407,35 @@ def test_a_hand_edit_to_the_ledger_is_detected_by_check_mode():
         _io.open(md, "w", encoding="utf-8", newline="").write(
             txt.replace("3 条", "9 条", 1))             # 手改，字符数不变
         assert cl.main(args + ["--check"]) == 1, "手改必须被抓住"
+
+
+def test_the_ledgers_claim_about_validate_results_is_actually_true():
+    """台账渲染面上那句**关于另一个工具行为**的断言，必须真的成立。
+
+    台账印给 PO 看的原话：观察通道产物「喂 `validate_results.py` 即 contract
+    VIOLATIONS，结构上进不了 wire 池」——那是**静态断言**（与本次数据无关，
+    只随代码变化而变假），却经渲染**递到读者面前**。
+    **一条被机器递送的注释就不再是注释，是数据**：`validate_results.py` 哪天
+    放宽了，台账会继续替它说这句话，而没有任何东西会红。
+
+    这条把散文升成受检断言。同族实例（同日）：`e2_analyze` 的 `gate_caveat`
+    把 W-4 之前的旧话「未设最小 n」经参数流进判读页，成了一条假免责。
+    反例证伪：让 validate_results 接受观察通道产物，本条即红。
+    """
+    import subprocess
+    import sys as _sys
+    import tempfile
+    import os as _os
+    import io as _io
+    with tempfile.TemporaryDirectory() as d:
+        p = _os.path.join(d, "screencap_index.jsonl")
+        _io.open(p, "w", encoding="utf-8").write(
+            '{"t_ms":1,"roi_mean":12.5}\n{"t_ms":2,"roi_mean":13.0}\n')
+        r = subprocess.run(
+            [_sys.executable,
+             _os.path.join(_os.path.dirname(_os.path.dirname(
+                 _os.path.abspath(__file__))), "validate_results.py"), p],
+            capture_output=True, text=True)
+    assert r.returncode != 0, (
+        "观察通道产物竟通过了 wire 契约校验——台账那句「结构上进不了 wire 池」"
+        "已不成立，两条链的隔离前提没了。stdout=%s" % r.stdout[:400])
