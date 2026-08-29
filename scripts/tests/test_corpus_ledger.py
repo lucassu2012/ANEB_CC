@@ -306,3 +306,71 @@ def test_an_unreadable_run_kind_marker_says_so_instead_of_vanishing():
     assert len(obs) == 1 and "error" in obs[0], "读不了的目录不得消失"
     md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), [], obs)
     assert "**读不了**" in md
+
+
+def _pt_recs(counts, started=1783944000000):
+    """按 {point_id: n} 造 run，其余战役字段固定，只让点位维度变化。"""
+    out = []
+    for pid, n in counts.items():
+        for i in range(n):
+            out.append(make_record(
+                started_ms=started,
+                campaign={"campaign_id": "c", "tier": "metro", "point_id": pid,
+                          "carrier": "ctcc", "time_band": "busy"},
+                scenarios=[("s1_chat", {})], run_id="%s-%d" % (pid, i)))
+    return out
+
+
+def test_the_single_point_figure_is_named_and_carries_its_point_id():
+    """「外场单点位有多少」必须是**有名字的行项**，且数字与点位 id 绑在一起。
+
+    此前只能让引用者从维度表四个桶里自己挑——**能自己挑就能挑错**，
+    2026-08-29 挑错的那次正好落在 PO 页头条（写 73，实为 57）。
+    id 与数字同行给，是为了数字被搬进别的文档后不失去「它是哪个点」。
+    反例证伪：只印数字不印 id，或不出这一行，本条即红。
+    """
+    recs = _pt_recs({"SZ-PILOT-01": 5, "home_indoor": 3})
+    bk = cl.buckets(recs)
+    assert cl.field_points(bk) == [("SZ-PILOT-01", 5)]
+    md = cl.render_md([("f.jsonl", 5, 5)], [], recs, [], {"lines": 5}, bk, [])
+    assert "**单点位最大样本：`SZ-PILOT-01` 5 条**" in md
+    rows = {(f, k): v for f, k, v in cl.render_csv_rows(recs, [], bk)}
+    assert rows[("field_point_max", "SZ-PILOT-01")] == 5, \
+        "机器面也要给具名行项——消费方同样不该自己去挑"
+
+
+def test_the_excluded_buckets_are_each_accounted_for_beside_the_figure():
+    """排除项要**逐条交代在同一行**——否则 57 就是个没有余数的孤数。
+
+    一个不交代分母余数的数，读者无从判断它是「全部」还是「其中一部分」。
+    反例证伪：把 `已排除` 段删掉，本条即红。
+    """
+    recs = _pt_recs({"SZ-PILOT-01": 5, "home_indoor": 3, "PENDING-PO-01": 2})
+    bk = cl.buckets(recs)
+    md = cl.render_md([("f.jsonl", 10, 10)], [], recs, [], {"lines": 10}, bk, [])
+    line = [l for l in md.split("\n") if "单点位最大样本" in l][0]
+    assert "`PENDING-PO-01` 2（占位符" in line
+    assert "`home_indoor` 3（非外场）" in line
+
+
+def test_a_placeholder_point_never_becomes_the_single_point_figure():
+    """占位符即使数量最多，也不得当成单点位样本——它不是一个真实站点。
+
+    反例证伪：把 is_placeholder_point 恒返回 False，本条即红。
+    """
+    recs = _pt_recs({"PENDING-PO-01": 9, "SZ-PILOT-01": 2})
+    bk = cl.buckets(recs)
+    assert cl.field_points(bk) == [("SZ-PILOT-01", 2)]
+
+
+def test_the_placeholder_predicate_has_a_single_source():
+    """占位符判据只能有一处实现——维度表标注与单点位行项**共用同一判断**。
+
+    两处各写一个 `startswith` 就是 §2.14 那种会各自漂的同名实现：改了一处、
+    另一处照旧，而两个面都不会吭声。
+    反例证伪：把 render_md 里那处改回内联 `startswith`，本条即红。
+    """
+    import inspect
+    src = inspect.getsource(cl.render_md) + inspect.getsource(cl.render_csv_rows)
+    assert 'startswith("PENDING-' not in src, \
+        "占位符判据只许走 is_placeholder_point()，不得再内联一份"

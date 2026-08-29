@@ -13,9 +13,11 @@
 
 - **真实 run 总数：111**（场景 627；文件 41 份、原始行 3511、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
 - 合成记录（`is_synthetic`）：**560 条，单列不计入上行**
-- 观察通道另有 **13 个采集目录**（第四节）——**不并入上行**：其产物结构上进不了 wire 池
+- 观察通道另有 **7 个真机采集目录**（dry-run 6 个单列不计入；第四节）——**不并入上行**：其产物结构上进不了 wire 池
 - 带 AQS **分数**的 run（`run.aqs.score` 非空）：110；其中 low_confidence：100/110（91%）｜顶层 `aqs_version` 版本戳共 111 条，其中 **1 条只有版本戳、没有分数**（两个量不可混用）
 
+- **单点位最大样本：`SZ-PILOT-01` 57 条**（其余具名外场点位：无）｜**已排除**：`PENDING-PO-01` 16（占位符，真名待回填，**不是第二个点位的证据**）；`home_indoor` 10（非外场）；无点位标签 28（不是一个点位）
+  > 引用「（外场）单点位有多少」**直接引本行**，不要自己从下方维度表里挑——能自己挑就能挑错。
 | 维度 | 分布（run 计） |
 |---|---|
 | 战役 | unlabeled×28、m3-expansion-wave0×20、t39-rehearsal-nr-20260803×16、m2-pilot-20260731×12、acceptance_20260820×10、m2-afternoonradio-20260801×4、m2-busyradio-20260801×4、m2-idlenight-20260801×4、m2-idleprobe-20260731×4、m2-pilot-forensic-20260731×4、warmup-transport-probe×4、radiowire-verify-20260801×1 |
@@ -95,11 +97,11 @@
 | evidence/e234/20260802-172614 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
 | evidence/e234/20260802-173031 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
 | evidence/e234/20260803-154544-e1band | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 10 |
-| evidence/e234_dryrun_20260802/dryrun-e2-over | DRY_RUN_SIMULATED | — | `—` | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e2-within | DRY_RUN_SIMULATED | — | `—` | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e3-absent | DRY_RUN_SIMULATED | — | `—` | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e3-present | DRY_RUN_SIMULATED | — | `—` | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e4-overlap | DRY_RUN_SIMULATED | — | `—` | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e4-separable | DRY_RUN_SIMULATED | — | `—` | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e2-over | DRY_RUN_SIMULATED | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e2-within | DRY_RUN_SIMULATED | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e3-absent | DRY_RUN_SIMULATED | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e3-present | DRY_RUN_SIMULATED | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e4-overlap | DRY_RUN_SIMULATED | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e4-separable | DRY_RUN_SIMULATED | — | — | 11 |
 
 > 这些目录**产出 0 条 wire run**——产物喂 `validate_results.py` 即 contract VIOLATIONS。列在这里是为了让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。判据＝目录里有 `RUN_KIND.json`（采集器自己写的标记，非文件名清单）；早于该标记的采集目录不在此表，仍落在第三节的通用桶里。

@@ -87,6 +87,41 @@ def discover(roots):
 
 OBS_MARKER = "RUN_KIND.json"
 
+# 无点位标签那一桶——它不是一个点位（D-332：无名桶要有名字，且不得混进有序
+# 集合）。**桶名走 `cc.UNLABELED` 不另写字面量**：我初版在这里自定义了一份，
+# 被既有守卫 `test_the_unlabeled_bucket_is_spelled_in_exactly_one_place` 当场
+# 逮住——改桶名时留下一份对不上的抄件，正是它钉的那件事（D-264 单一来源）。
+UNLABELED_POINT = cc.UNLABELED
+
+# **不是外场点位**的显式清单。手写清单会漏，所以它只做减法、且**逐条印在正文里**
+# ——读者看得见「按外场计入了哪些」，可审计胜过看不见的分类。
+# 默认新点位算外场（外场是常态）；反过来默认不算，会让新外场点位悄悄不进数，
+# 那个方向更糟。代价是新增室内点位需要有人来加这一行，而它印在正文里，看得见。
+NON_FIELD_POINT_IDS = ("home_indoor",)
+
+
+def is_placeholder_point(pid):
+    """占位符点位（真名待回填），不是一个真实站点。
+
+    抽成具名谓词是为了让「维度表的标注」与「单点位行项」**共用同一判断**——
+    两处各写一个 `startswith` 就是 §2.14 那种会各自漂的同名实现。
+    """
+    return str(pid).startswith("PENDING-")
+
+
+def field_points(bk):
+    """具名外场点位 → run 数，降序。排除占位符、无标签桶、已知非外场点位。
+
+    **为什么要有这个函数**：此前「外场单点位有多少」只能让读者自己从维度表
+    四个桶里挑一个——**能自己挑就能挑错**，而 2026-08-29 挑错的那次正好落在
+    PO 页头条（写 73，实为 57；73 是一次自造扫描的假象数）。给它一个有名字的
+    行项，引用者就不必挑。
+    """
+    out = [(p, c) for p, c in bk["by"]["point_id"].items()
+           if p != UNLABELED_POINT and not is_placeholder_point(p)
+           and p not in NON_FIELD_POINT_IDS]
+    return sorted(out, key=lambda kv: (-kv[1], str(kv[0])))
+
 
 def observation_runs(roots):
     """观察通道采集目录（判据＝目录里有 `RUN_KIND.json`，不是文件名清单）。
@@ -232,12 +267,35 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
                  f"其中 low_confidence：{lc}"
                  f"｜顶层 `aqs_version` 版本戳共 {bk['aqs_versioned']} 条，"
                  f"其中 **{_vonly} 条只有版本戳、没有分数**（两个量不可混用）\n")
+    # 单点位口径**给成有名字的行项**，别让引用者自己从维度表挑（挑得动就挑得错，
+    # 2026-08-29 PO 页头条写 73、实为 57 即此）。**数字与点位 id 绑在一起给**：
+    # 数字被搬进别的文档后，才不会失去「它是哪个点」这条信息。
+    fps = field_points(bk)
+    if fps:
+        pid, cnt = fps[0]
+        rest = "、".join("`%s` %d" % (p, c) for p, c in fps[1:]) or "无"
+        excl = []
+        ph = sorted(p for p in bk["by"]["point_id"] if is_placeholder_point(p))
+        for p in ph:
+            excl.append("`%s` %d（占位符，真名待回填，**不是第二个点位的证据**）"
+                        % (p, bk["by"]["point_id"][p]))
+        for p in NON_FIELD_POINT_IDS:
+            if p in bk["by"]["point_id"]:
+                excl.append("`%s` %d（非外场）" % (p, bk["by"]["point_id"][p]))
+        if UNLABELED_POINT in bk["by"]["point_id"]:
+            excl.append("无点位标签 %d（不是一个点位）"
+                        % bk["by"]["point_id"][UNLABELED_POINT])
+        lines.append(f"- **单点位最大样本：`{pid}` {cnt} 条**"
+                     f"（其余具名外场点位：{rest}）"
+                     f"｜**已排除**：{'；'.join(excl) or '无'}")
+        lines.append("  > 引用「（外场）单点位有多少」**直接引本行**，"
+                     "不要自己从下方维度表里挑——能自己挑就能挑错。")
     lines.append("| 维度 | 分布（run 计） |\n|---|---|")
     for k, title in (("campaign_id", "战役"), ("point_id", "点位"),
                      ("carrier", "运营商"), ("time_band", "时窗")):
         cell = n(bk["by"][k])
         if k == "point_id":
-            ph = [p for p in bk["by"][k] if str(p).startswith("PENDING-")]
+            ph = [p for p in bk["by"][k] if is_placeholder_point(p)]
             if ph:
                 cell += ("（**%s 是占位符不是点位**：真名待回填，"
                          "不可当作一个真实站点计入覆盖）" % "、".join(sorted(ph)))
@@ -307,6 +365,10 @@ def render_csv_rows(real, synth, bk, obs=()):
     _dev = sum(1 for r in obs if r.get("kind") == "DEVICE_REAL")
     rows.append(("observation", "device_real_dirs", _dev))
     rows.append(("observation", "dry_run_dirs", len(obs) - _dev))
+    # 机器面同样给具名行项：**机器消费方也不该自己去挑哪个是外场最大点**。
+    # key 用点位 id（不是 "max"），数字与身份于是一起进 CSV，搬不散。
+    for pid, cnt in field_points(bk)[:1]:
+        rows.append(("field_point_max", pid, cnt))
     return rows
 
 
