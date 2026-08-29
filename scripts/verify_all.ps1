@@ -624,9 +624,21 @@ if ($isRed -or $isFinalGreen) {
     # --- 徽章值（SPEC-4 4.4 砍④脚本侧）：只在**归档的那几次**产出，
     # 因为徽章的新鲜度就是来源日志的新鲜度——分层跑不落 evidence，也就
     # 不该去覆盖一份看起来像"刚测的"徽章。测不到的项由脚本写 unknown。
-    $badgeScript = Join-Path $repo 'scriptsadges.py'
+    # 路径用**正斜杠**：本行初版写作 scripts 反斜杠-b adges.py 那种形式，
+    # 而那个「反斜杠-b」在落盘时被吞成**一个真实退格符 0x08**（heredoc 转义坑）。
+    # grep 与编辑器都把它渲染没了，肉眼与工具都看不出异常——**这正是它能活下来的原因**。
+    # 后果：Test-Path 恒 False，而当时 if 又**没有 else**，于是这条接线自 3a1577a 起
+    # 一次都没跑过、也一次都没吭声，`badges.txt` 因此从不存在（D-532 的纯粹形态）。
+    # 正斜杠在 Windows 上照样解析，且对这一整类吞字免疫。
+    $badgeScript = Join-Path $repo 'scripts/badges.py'
     if ($py -and (Test-Path $badgeScript)) {
         & $py $badgeScript --log $logPath 2>&1 | Out-String | Write-Output
+    } else {
+        # 静默跳过正是上面那个 bug 能活这么久的原因；缺什么就说什么。
+        $bm = @()
+        if (-not $py) { $bm += 'python' }
+        if (-not (Test-Path $badgeScript)) { $bm += 'scripts/badges.py' }
+        "badges: NOT_EXECUTED (missing: $($bm -join ', ')) —— 徽章未刷新"
     }
 } else {
     $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)

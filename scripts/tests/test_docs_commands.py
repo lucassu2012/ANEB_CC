@@ -1488,3 +1488,39 @@ def test_frozen_line_reference_exemptions_expire_when_paid_off():
     assert not stale, (
         "以下行号引用已不存在，请从 _FROZEN_LINE_REFS 删掉（豁免不得长留）：%s"
         % stale)
+
+
+def test_every_path_literal_in_verify_all_resolves():
+    """`verify_all.ps1` 里每个仓相对路径字面量都必须真指得到东西。
+
+    **这条是被一个活了很久的真 bug 逼出来的**：`$badgeScript = Join-Path $repo
+    'scripts…badges.py'` 里的「反斜杠-b」在落盘时被吞成**一个真实退格符 0x08**
+    （heredoc 转义坑），于是 `Test-Path` 恒 False；而当时那个 `if` **没有 else**，
+    这条接线自 `3a1577a` 起**一次都没跑过、也一次都没吭声**，`badges.txt`
+    因此从不存在。更毒的是 **grep 与编辑器都把退格符渲染没了**——肉眼、
+    `grep 'badges'`、Read 全都看不出异常，所以它躲过了所有人工复核。
+
+    机器查得到，人查不到：这正是该有守卫的那类。顺带禁掉整类不可见控制字符。
+    反例证伪：把任一路径字面量改成不存在的名字，本条即红。
+    """
+    p = os.path.join(REPO, "scripts", "verify_all.ps1")
+    with open(p, encoding="utf-8", newline="") as fh:
+        src = fh.read()
+    ctrl = sorted(set(hex(ord(c)) for c in src
+                      if ord(c) < 32 and c not in "\n\r\t"))
+    assert not ctrl, (
+        "verify_all.ps1 含不可见控制字符 %s——它们在 grep/编辑器里看不见，"
+        "却能把路径字面量悄悄改掉（0x08 实例见本条 docstring）" % ctrl)
+
+    bad = []
+    for lit in re.findall(r"Join-Path \$repo '([^']+)'", src):
+        rel = lit.replace("\\", os.sep).replace("/", os.sep)
+        target = os.path.join(REPO, rel)
+        if "*" in rel:                      # glob：查它的父目录在不在
+            target = os.path.dirname(target)
+        if not os.path.exists(target):
+            bad.append(lit)
+    assert not bad, (
+        "verify_all.ps1 里这些路径字面量指不到东西：%s\n"
+        "——一条指不到脚本的门会静默跳过，而静默跳过与「跑过且通过」"
+        "在输出上一模一样（D-532）。" % bad)
