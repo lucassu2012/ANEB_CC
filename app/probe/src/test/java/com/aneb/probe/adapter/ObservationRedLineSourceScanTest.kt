@@ -217,6 +217,97 @@ class ObservationRedLineSourceScanTest {
         )
     }
 
+    // ───────────────────────────────────────────────────────────────────────
+    // 文本红线的三处承重结构（T83 补，同族不同条：上面管「不许操作」，这里管「不许留内容」）
+    //
+    // **为什么也只能扫源码**：这三处的运行时行为要测，得把 `truncateForLog` 之类改成
+    // `internal`——那是**改生产代码**。而 T78 的开窗前置里有一条源码↔二进制核查依赖
+    // 「`app/probe/.../adapter/` 自安装日起零提交」（装机是 2026-08-20 那份构建）。
+    // **动一次可见性就把那条核查作废了**，代价远大于收益。故结构扫描，窗后再谈行为测试。
+    //
+    // **为什么值得钉**：`ADAPTER_EVT` 那行带 `desc=`（contentDescription，即内容），
+    // 唯一的两道限制是 ①`BuildConfig.DEBUG` 门 ②`truncateForLog` 的长度上限。
+    // 而**装机构建实测 `pkgFlags=[ DEBUGGABLE … ]`**，①在窗内不起作用 ⇒ **②是唯一还在
+    // 承重的那道**，而它此前零测试。一次「顺手去掉截断看看完整标签」的编辑不会被任何门拦住。
+    // ───────────────────────────────────────────────────────────────────────
+
+    private fun serviceSource(): String =
+        File(mainSourceRoot(), "com/aneb/probe/adapter/AnebAccessibilityService.kt").readText()
+
+    @Test
+    fun `the release gate on the content-bearing log line is still there`() {
+        val src = stripCommentsAndStrings(serviceSource())
+        assertTrue(
+            "`if (!BuildConfig.DEBUG) return` 不见了——release 构建会开始输出带 desc= 的事件行",
+            src.contains("if (!BuildConfig.DEBUG) return"),
+        )
+    }
+
+    @Test
+    fun `contentDescription never reaches the log without truncation`() {
+        val src = stripCommentsAndStrings(serviceSource())
+        assertTrue(
+            "contentDescription 没有经过 truncateForLog——长度上限是内容进 evidence 的唯一闸门",
+            src.contains("contentDescription?.let(::truncateForLog)"),
+        )
+        // 反向：不许出现绕开截断的直取形态。
+        assertTrue(
+            "出现了绕开截断的 contentDescription 直取形态",
+            !src.contains("contentDescription.toString()") &&
+                !src.contains("contentDescription!!.toString()"),
+        )
+    }
+
+    @Test
+    fun `the desc truncation bound stays small`() {
+        val src = serviceSource()
+        val m = Regex("EVT_LOG_DESC_MAX\\s*=\\s*(\\d+)").find(src)
+        assertTrue("找不到 EVT_LOG_DESC_MAX 的赋值——本测试 fail-closed", m != null)
+        val bound = m!!.groupValues[1].toInt()
+        assertTrue(
+            "EVT_LOG_DESC_MAX=$bound 超过上限 $DESC_MAX_ALLOWED——" +
+                "这个数直接决定单条事件最多能把多少内容写进 adapter.log（进而进 evidence/）",
+            bound in 1..DESC_MAX_ALLOWED,
+        )
+    }
+
+    /**
+     * 上面三条结构断言的**反例**：证明它们会红，而不是「原理上会红」。
+     *
+     * **突变只在内存里做，不落盘**——因为改 `app/probe/.../adapter/` 的文件会打破 T78
+     * 开窗前置依赖的「该目录自安装日起零提交」，而**共享工作树里一个未还原的突变曾经
+     * 真的发生过**。内存突变没有这个风险，也不需要 try/finally 去还原。
+     */
+    @Test
+    fun `each structural assertion is proven to fail on a mutated source`() {
+        val real = serviceSource()
+
+        val noGate = stripCommentsAndStrings(real.replace("if (!BuildConfig.DEBUG) return", ""))
+        assertTrue(
+            "去掉 release 门之后，第一条断言仍然成立——它没在守任何东西",
+            !noGate.contains("if (!BuildConfig.DEBUG) return"),
+        )
+
+        val noTrunc = stripCommentsAndStrings(
+            real.replace("contentDescription?.let(::truncateForLog)", "contentDescription.toString()"),
+        )
+        assertTrue(
+            "把截断换成直取之后，第二条断言仍然成立——它没在守任何东西",
+            !noTrunc.contains("contentDescription?.let(::truncateForLog)") &&
+                noTrunc.contains("contentDescription.toString()"),
+        )
+
+        val loosened = real.replace(
+            Regex("EVT_LOG_DESC_MAX\\s*=\\s*\\d+"),
+            "EVT_LOG_DESC_MAX = ${DESC_MAX_ALLOWED + 1}",
+        )
+        val bound = Regex("EVT_LOG_DESC_MAX\\s*=\\s*(\\d+)").find(loosened)!!.groupValues[1].toInt()
+        assertTrue(
+            "把上限放宽到 $bound 之后，第三条断言仍然成立——它没在守任何东西",
+            bound !in 1..DESC_MAX_ALLOWED,
+        )
+    }
+
     private companion object {
         /**
          * `performGlobalAction` 一并纳入：板面派件写的是「performAction／getSource」，
@@ -250,5 +341,12 @@ class ObservationRedLineSourceScanTest {
          * 这是「验自造工具的第二层」：第一层证明它**能抓**，这一层证明它**看了该看的**。
          */
         private val MUST_SCAN = listOf("AnebAccessibilityService.kt", "AdapterSpec.kt")
+
+        /**
+         * `EVT_LOG_DESC_MAX` 的容许上限。现值 40；这里留了余量但不宽——**它是单条事件
+         * 能写进 `adapter.log` 的内容字数上限**，而 `adapter.log` 会进 `evidence/`。
+         * 放宽这个数是**产品决定**，该走裁定，不该是某次编辑的顺手改动，故设门槛而非等值断言。
+         */
+        private const val DESC_MAX_ALLOWED = 64
     }
 }
