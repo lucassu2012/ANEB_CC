@@ -147,3 +147,35 @@
   - **⚠ 本条自身＝互核链的完整演示（砍⑤③ 的活证据）**：v2 拉板发现 → 大脑转递 → v4 实证订正（"全仓无脚本"→"仅 phase0"）→ v2 反向核出 v4 一处（"25=23+2 新增"实为口径差异）+ 补第三形态债-1b。**四手每手都逮到真东西、全在进 PO 材料之前**——这正是砍⑤③"不能机器化那半只能靠互相核"最完整的一个实例：没有哪一手多余，而错若不被逐手核掉就会进 PO 材料。
 
 - **通用惯例｜门控注释须自带解除条件（v3 08-29 供，防「关着的守卫」变永久债）**：任何被**关闭/降级**的守卫（如 v3 的 `TRAILING_PIPE_OFF`），其门控注释**必须写清"剩余依赖的确切位置 + 解除条件"**——否则下个人只看到一个**不知为何关着的开关**，最省事的选择是永远不动它，于是关闭态变永久债（同 debt-1 的"写着却没执行"形状）。此惯例应随 debt-1 的覆盖守卫（修法⑥）一并成文。
+
+### 9.2 系统审计批次（workflow `governance-debt-audit`，2026-08-29；14 条经 grep 实证的可机器化债）
+
+方法＝枚举五类规则源（evidence/README、CLAUDE.md、spec 红线、版本/评分、doc 一致性守卫）→ 每条候选**对抗验证**（实证 grep 确认真未守卫、真可机器化，默认非债除非有 grep 证据）→ 综合去重排序。v4 已**独立读源码复核** 4 条 HIGH，其中两条（★）触及本人 4.1 的 `check_versions.py`。**登记不落码**：修复归各 lane，随本提案排期待 PO；lane「PO 批前不擅自新增/改守卫」照旧。
+
+| # | 债项 | 位置 | 严重·状态 | 修复归属 |
+|---|---|---|---|---|
+| 1 | check_redline 三字段 caliber 欠锁（think_pause/request_size/session_duration 容许 ui-proxy，违铁律3方法学） | `check_redline.py:67-71` | HIGH·partial | spec/portraits(v4) |
+| 2 | 无障碍「观察-only / 无 getSource」红线仅 KDoc、无自动守卫 | `spec/adapters/README:38,47` | HIGH·partial | app/probe(v2) |
+| 3★ | 已发布权重/锚点**原地改**无基线-diff（改值不换 version_id 即绿） | `check_versions.py`+`spec/README:43` | HIGH·partial | spec/scoring |
+| 4 | 「PASS 必须有证据」无守卫，且**有活违规**（evidence_files 空） | `evidence/README:8` | HIGH·unenforced | scripts(v3) |
+| 5 | 严格 `=Json` loader 对账表无守卫（README 自承缺口） | `spec/README:48-54` | MED·unenforced | v2+v3 |
+| 6 | STATUS.json 四态枚举+必填字段无校验 | `evidence/README:7,27` | MED·unenforced | scripts(v3) |
+| 7 | evidence 目录命名+日期包 README 存在性无守卫，**有活违规** | `evidence/README:14-23` | MED·unenforced | scripts(v3) |
+| 8★ | 同 version_id 下**新增权重表**不必登记 VERSIONS §1（守卫只比 id 集、不数表） | `check_versions.py:47-60` | MED·partial | spec/scoring(v4) |
+| 9 | 前台文档写死门数/测试数无对账（＝砍④，有活违规） | `BASELINE §5`+砍④ | MED·unenforced | v3(badges) |
+| 10 | 跨 `.md` 行号引用无守卫，**有活违规** | `BASELINE §5 rule6` | MED·unenforced | v3 |
+| 11 | 跨文件 `D-号` 引用无解析守卫 | `DECISION_LOG:3` | MED·unenforced | v3 |
+| 12 | CORPUS_LEDGER「勿手编」无重算-diff、生成器未接链 | `CORPUS_LEDGER header` | MED·partial | v3 |
+| 13 | evidence 日志 utf-8 编码无扫描 | `evidence/README:11` | MED·unenforced | scripts(v3) |
+| 14 | evidence 目录 `build` 命名禁区无守卫（latent） | `evidence/README:10` | LOW·unenforced | scripts(v3) |
+
+**★ 触及 v4 自己 4.1 的 `check_versions.py`——审计咬到本人交付物覆盖缺口，如实登记**（#3 改值不换 id 即绿、#8 只比 id 集不数表；均已读源码 L47-60 独立确认）。
+
+**四条 HIGH 实证摘要（v4 亲验）**：
+- **#4 有活违规、当前就该修**（非 latent）：`evidence/phase1/STATUS.json` 的 P1-C01..C04 均 `state=PASS` 而 `evidence_files=[]`（phase0/2 亦有），违 README 规则2，且无任何脚本读 `evidence_files`。
+- **#1/#3 latent 但危险**：现全合规，守卫却留口子——#1 think_pause 可标 ui-proxy 蒙混；#3 改权重值不换版本号即过（历史分数可复现性的地基）。
+- **#2 归 v2 lane**：无障碍红线（D-49 无 performAction / D-57 无 getSource）只在 KDoc，无 grep 守卫；未来一次编辑加进 performAction 会过所有门。
+
+**诚实否定（审计排除、非债）**：版本**登记**方向已双向守卫（check_versions ✓）；画像字段**删除/改名**已守（R10/R19a ✓）；R-10「无事件→null 绝不折 0」已由 ObsStats*Test 守 ✓；evidence/README 规则6「成功主路径优先」判为**不可机器化**（语义，不 padding 为假债）✓。
+
+**方法留痕**：本批 workflow 10 agents（枚举→对抗验证→综合，每条 grep 实证、默认非债除非有证据）——这是 §9「能机器化却未成守卫」框架的系统化执行；**它对 v4 自己的交付物也一视同仁**（咬出 #3/#8）。全 14 条经 v4 复核关键项后登记，供 PO 一并排期。
