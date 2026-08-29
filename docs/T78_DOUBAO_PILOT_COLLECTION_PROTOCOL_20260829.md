@@ -161,9 +161,9 @@ deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 
 
 | # | 事实 | 出处 |
 |---|---|---|
-| 1 | **运行时只编译 `class_name` 正则**，`view_id_regex` 存而不评估（取 `getSource` 跨进程开销，R-16／D-49 偏离 2） | `AnebAccessibilityService.kt:58`（注释）与 `:65/:69/:72`（三处 `toRegexSafe()` 全是 `classNameRegex`）；`AdapterSpec.kt:198` |
+| 1 | **运行时只编译 `class_name` 正则**，`view_id_regex` 存而不评估（取 `getSource` 跨进程开销，R-16／D-49 偏离 2） | `AnebAccessibilityService.kt` 里搜 `view_id_regex` 那条注释，以及三处 `toRegexSafe(` 全是 `classNameRegex`）；`AdapterSpec.kt` 里搜 `viewIdRegex` 的声明处 |
 | 2 | 被评估的两条都是**框架类名**，不含 App 版本特征：input＝`android\.widget\.EditText`，response＝`android\.widget\.TextView\|androidx\.recyclerview\.widget\.RecyclerView`。**唯二含 `com.larus.nova:id/…` 的是 view_id，恰好不评估** | `spec/adapters/doubao.json` |
-| 3 | **本批核心量不依赖任何正则**：`ttft_ui_ms` 来自 **v3 簇分割**，D-52 逐字「**纯时戳结构法，不依赖任何锚点事件**」；response 侧 `ruleMatch()` 只做**标注计数、非闸门**（漂了掉 `rule_matched` 计数，不丢数据） | D-52；`AnebAccessibilityService.kt:41`、`:77-87` |
+| 3 | **本批核心量不依赖任何正则**：`ttft_ui_ms` 来自 **v3 簇分割**，D-52 逐字「**纯时戳结构法，不依赖任何锚点事件**」；response 侧 `ruleMatch()` 只做**标注计数、非闸门**（漂了掉 `rule_matched` 计数，不丢数据） | D-52；`AnebAccessibilityService.kt` 里搜 `ruleMatch`（文件头注释＋其实现段） |
 
 > **⚠ 先答一个此前没人问的问题：上面三条实据是我读源码得出的，而设备上跑的是 `2026-08-20 11:17` 装的二进制——它们是同一份吗？**（2026-08-29 核过，答案是**是**）
 >
@@ -191,7 +191,7 @@ deviceidle 白名单已加 · IME/systemui 已豁免 · a11y 服务已重绑 · 
 > **那个基线不能当尺子**，三条理由逐条有据：
 > ①**版本未知**：spec 写死基线测于 **2026-07-18**，而 `evidence/adapter_versions_20260802/README.md` 逐列记 doubao `firstInstallTime=2026-07-17 23:49:18`、`lastUpdateTime=2026-07-30 09:42:59`、「相对 07-18：更新晚 12 天」⇒ **07-18 测的是 07-17 装上的构建，14.4.0 是 07-30 之后才有的**。即它测于一个**从未被记录的 pre-14.4.0 构建**（D-405 拒绝回填 `validated_against_version` 正为此）。
 > ②**n=1**：那是一次单轮问答的一条 `ADAPTER_OBS`。
-> ③**语义是会话内累计**（`ObsStats.kt:132/180` 不重置），与本批「每格一次会话跑 5 轮」的合计口径不同层。
+> ③**语义是会话内累计**（`ObsStats.kt` 里搜 `eventCount` 与 `ruleMatchedCount`——**两者只在声明处与 `++` 处出现，全文没有任何置零，即全程不重置**），与本批「每格一次会话跑 5 轮」的合计口径不同层。
 >
 > **改用批内基线**：**块 1 第一格（F1/WiFi）就是 14.7.0 上的 `rule_matched` 实测**，直接作本批基线；末尾锚格同格重跑，还能给出批内稳定性。
 > **D-50 的 26/28 降格为历史参考**，引用时必须带「未知 pre-14.4.0 构建 · n=1 · 会话内累计」三项限定，**不作任何判据**。
@@ -545,13 +545,13 @@ README.md                  战役说明：格阵、执行顺序实况、每格�
 ```
 
 > **⚠ 通道 B 的时间分辨率＝400ms，判读前必须知道（2026-08-29 补——`--screencap-period-ms` 全文只出现过一次，还是在一句「不会报错」里，从没交代过它的后果）**
-> `--screencap-period-ms` **默认 400**（`e234_collect.py:393`，本批不覆盖它）⇒ **`screencap_index.jsonl` 的首帧变化时刻带 ±400ms 量化底噪**。
+> `--screencap-period-ms` **默认 400**（`e234_collect.py` 里搜 `--screencap-period-ms` 看它的 `default=`；本批不覆盖它）⇒ **`screencap_index.jsonl` 的首帧变化时刻带 ±400ms 量化底噪**。
 > **主量不受影响**——TTFT/cadence/RCT 的原料是**通道 A**（`adapter.log`，事件级 `t_boot_ns`）。
 > **但交叉印证会受影响**：拿通道 A 的 TTFT 去比通道 B 的首变时刻，**400ms 以内的差全是量化，不是发现**（锚定 TTFT ≈2.0s，400ms 就是它的 20%）。
 > 本文已给 `mark_rtt.jsonl` 记「**每条标记的不确定度上界**」——**通道 B 的这一项是同类量，此前哪儿都没记**，故补在这里。
 >
-> **⚠ 同一问下去，主量（通道 A）也有一项没记（2026-08-29 补）**：`adapter.log` 的 `t_boot_ns` 取的是 **`onAccessibilityEvent` 入口**的 `SystemClock.elapsedRealtimeNanos()`（`AnebAccessibilityService.kt:164`、`:195` 注释明写），**不是 `event.eventTime`**。
-> **这不是缺陷**——`eventTime` 走 `uptimeMillis`，与本批 KPI 同轴的单调钟不同源，换算反而引入新误差（选型见该文件 `:43`）。
+> **⚠ 同一问下去，主量（通道 A）也有一项没记（2026-08-29 补）**：`adapter.log` 的 `t_boot_ns` 取的是 **`onAccessibilityEvent` 入口**的 `SystemClock.elapsedRealtimeNanos()`（`AnebAccessibilityService.kt` 里搜 `SystemClock.elapsedRealtimeNanos()` 与紧随其后那句「传 `now`——即本次 onAccessibilityEvent **入口**算的那个」注释；**不写行号，见 `REQUIREMENTS_BASELINE_v2.0.md` §5 第 6 条**），**不是 `event.eventTime`**。
+> **这不是缺陷**——`eventTime` 走 `uptimeMillis`，与本批 KPI 同轴的单调钟不同源，换算反而引入新误差（选型理由在该文件头部注释，搜「单调钟（与 KPI 事件同轴）」）。
 > **但后果要写给读者**：`t_boot_ns` 与「界面真正变化的那一刻」之间隔着**无障碍回调的派发延迟**，**本批未测其量级，不给数字**。它**单向为正**（只会让 TTFT 偏大，不会偏小）。
 > ⇒ **判读时的实际含义**：**本批比的是条件差（WiFi vs 蜂窝），恒定的系统性偏置在做差时抵消**——**所以结论应落在「差」上，而不是绝对 TTFT**。
 > **真正不抵消的情形只有一种**：**派发延迟本身在两个条件下不同**（例如某条件下设备负载更高）。**若某格的绝对 TTFT 异常大，先怀疑这个，别直接归因于网络。**
@@ -699,7 +699,7 @@ SPEC-2 §2.1 的验收判据写「首批语料落库（**独立 `campaign_id`**�
 
 **规则：补跑前，先把作废的格目录改名 `<格名>_VOID<k>/`（`k`＝该格第几次作废，从 1 起），补跑写进干净的新 `<格名>/`。作废目录留着不删。**
 
-**为什么必须改名（判据全在 HEAD 源码，可复跑）**：`e234_collect.py` 对同一 `--out` 目录**静默复用**（`e234_common.py:297` `makedirs(exist_ok=True)`；`assert_isolation` 只查 dry-run 标记、**不查目录是否已用过**），且**四个产物开法不一致**——`mark_rtt.jsonl` 是**追加**（`:228` `"a"`），而 `adapter.log`／`screencap_index.jsonl`／`collect_notes.json` 是**覆盖**（`:279 "wb"`／`:359 "w"`／`:380 "w"`），`self.n` 每进程**从 0 重起**（`:227`）。直接补进同一目录撞三个坑：
+**为什么必须改名（判据全在 HEAD 源码，可复跑）**：`e234_collect.py` 对同一 `--out` 目录**静默复用**（`e234_common.py` 里搜 `exist_ok=True`；`assert_isolation` 只查 dry-run 标记、**不查目录是否已用过**），且**四个产物开法不一致**——`mark_rtt.jsonl` 是**追加**（`:228` `"a"`），而 `adapter.log`／`screencap_index.jsonl`／`collect_notes.json` 是**覆盖**（`:279 "wb"`／`:359 "w"`／`:380 "w"`），`self.n` 每进程**从 0 重起**（`:227`）。直接补进同一目录撞三个坑：
 
 1. **t 判据不收敛**：判据是「`t` 数 ≠ 5 ⇒ 作废」（上方 §④ 表）。漏按得 3 个 `t` → 作废 → 正确补 5 个 → 文件里合计 **8**（追加）→ 仍 ≠5 → **又该作废** → 再补 → 13。**每补一次离 5 更远**，而操作者现场执行的正是「立刻数 `t` 是不是 5」这一步。
 2. **marker 与通道数据不可对齐**：marker 追加（描述「作废＋补跑」两轮），`adapter.log` 覆盖（只剩「补跑」一轮）；8 个 `t` 配 5 轮的 `adapter.log`，判读侧按 `t` 切轮次就是**切在空气上**，且**没有一处会报错**。`self.n` 重置还使同文件内 `n` 重复，任何以 `n` 为键的消费方直接碰撞。
@@ -726,7 +726,7 @@ SPEC-2 §2.1 的验收判据写「首批语料落库（**独立 `campaign_id`**�
    > 它是**既有残留**，即「加/撤成对」这条纪律**已经失效过一次**的现存实例，
    > 交由属主决定何时清。**别默默撤掉，也别默默当它是本批加的。**
 3. 回华为桌面并**立即复验干净**（仅桌面可见但仍有后台/VPN/临时规则时，**不得称干净**）；
-4. 产物落 `evidence/doubao_wave0_<日期>/` 并写 README。**落完立刻跑一次 `python scripts/check_evidence.py`（秒级，有违规 exit 1）**——📌 **它是决定这套目录合不合规的那道守卫，而它是 08-29 才落的新守卫**：`doubao_wave0_<YYYYMMDD>` 会被它判为**日期包**（`DATE_PKG_RE = _(20\d{6})(?:_|$)`，2026-08-29 按本批实际落点名验过命中），**日期包必须自带 `README.md`**；它还会读 `evidence/` 下**每个 `*.log` 并要求 UTF-8 可解**（`adapter.log` 是原始 logcat 字节；仓内既有的都过得了，**但若你这份不过，如实记录、不要重新编码去「修」它——那会毁掉原始证据**）。**当场跑掉，别留给下一个人**：他看到红也不知道那窗发生过什么，而你知道。**（窗后有人跑 `verify_all` 时它也会跑一次，`--root evidence` 全树扫，`verify_all.ps1:301`。⚠ 逐条对过：**能咬到本包的只有上面两条**——`STATUS.json` 那三条检查（schema／PASS 有证据／`evidence_files` 存在）**本包不产 `STATUS.json`，全部不适用**；`sha256-manifest.txt` 那条**守卫根本不查**（生成器只覆盖 `phase0`，23 个日期包 0 个有，见本节前文）。**所以窗后 `verify_all` 若因本包变红，只可能是「缺 README」或「某个 `.log` 不是 UTF-8」——先看这两处。**）
+4. 产物落 `evidence/doubao_wave0_<日期>/` 并写 README。**落完立刻跑一次 `python scripts/check_evidence.py`（秒级，有违规 exit 1）**——📌 **它是决定这套目录合不合规的那道守卫，而它是 08-29 才落的新守卫**：`doubao_wave0_<YYYYMMDD>` 会被它判为**日期包**（`DATE_PKG_RE = _(20\d{6})(?:_|$)`，2026-08-29 按本批实际落点名验过命中），**日期包必须自带 `README.md`**；它还会读 `evidence/` 下**每个 `*.log` 并要求 UTF-8 可解**（`adapter.log` 是原始 logcat 字节；仓内既有的都过得了，**但若你这份不过，如实记录、不要重新编码去「修」它——那会毁掉原始证据**）。**当场跑掉，别留给下一个人**：他看到红也不知道那窗发生过什么，而你知道。**（窗后有人跑 `verify_all` 时它也会跑一次，`--root evidence` 全树扫；在 `scripts/verify_all.ps1` 里搜 `check_evidence` 或它的 `evidence-rules` 结果名。⚠ 逐条对过：**能咬到本包的只有上面两条**——`STATUS.json` 那三条检查（schema／PASS 有证据／`evidence_files` 存在）**本包不产 `STATUS.json`，全部不适用**；`sha256-manifest.txt` 那条**守卫根本不查**（生成器只覆盖 `phase0`，23 个日期包 0 个有，见本节前文）。**所以窗后 `verify_all` 若因本包变红，只可能是「缺 README」或「某个 `.log` 不是 UTF-8」——先看这两处。**）
    > **README 必填清单（2026-08-29 汇总——此前这些要求散在 6 个节里，照本条原文「格阵实况+每格时间戳+全部偏离」写会漏掉大半）**：
    >
    > | # | 必填项 | 出处 | 漏了会怎样 |
@@ -750,7 +750,7 @@ SPEC-2 §2.1 的验收判据写「首批语料落库（**独立 `campaign_id`**�
    > 该 README 规则 3 要求 `sha256-manifest.txt` **由脚本生成、禁止手动维护**，
    > 且 2026-07-31 那节明写「清单脚本化…**对两者一视同仁**」（阶段证据与战役证据包）。
    > **实况（2026-08-29 实查）**：`phase0/1/2/3` **四个阶段目录全都有** manifest，
-   > 而 **23 个战役/日期包里 0 个有**；**生成器存在但只覆盖 `phase0`**（`scripts/verify_all.ps1:588-596`，其文件头第 3 行自述 scope＝`evidence/phase0`）——
+   > 而 **23 个战役/日期包里 0 个有**；**生成器存在但只覆盖 `phase0`**（`scripts/verify_all.ps1` 里搜 `sha256-manifest`；其文件头注释也自述 scope＝`evidence/phase0`）——
    > **⚠ 此句 2026-08-29 经 v4 订正**：我原写「全仓没有生成脚本」**不准确**，正确说法是**脚本只覆盖 phase0**；
    > 而 `phase1/2/3` 虽有 manifest，**来源未核**（若系手工则本身违规）。
    > **⚠ 同批我反向订正一处**：转述里说「战役包实为 25 个、你数 23 后期间新增 2」——**不是新增，是两种口径**：
