@@ -41,7 +41,10 @@ MD_HEADER = (
     "# 语料台账（自动生成——勿手编）\n\n"
     "> 本文件由 `scripts/corpus_ledger.py` 全量重算生成，手改会在下次重算时丢失。\n"
     "> **使用规则**：任何「进展」声明必须引用本台账的总数与增量（例：\n"
-    "> 「真实 run 73 → 103（+30，豆包首批）」），不得各自手抄数字（SPEC-3 §3.1）。\n"
+    "> 「真实 run 73 → 103（+30，SZ-PILOT-01 扩展轮）」），不得各自手抄数字（SPEC-3 §3.1）。\n"
+    "> ⚠ **增量必须说清是哪条链**：观察通道批次（豆包先行批等）产出 **0 条 wire run**\n"
+    "> ——其产物喂 `validate_results.py` 即 contract VIOLATIONS，结构上进不了 wire 池，\n"
+    "> 见第四节。把观察批写成「真实 run +N」正是本台账要拦的那种手抄。\n"
     "> 判据：装载/去重=`cc.load_records`（run_id 首见保留、body 冲突单记），\n"
     "> 合成=`cc.is_synthetic` 单列，RAT=场景级计数（一 run 可跨 RAT，不折单值）。\n")
 
@@ -80,6 +83,51 @@ def discover(roots):
             # 渲染面据此分开措辞。
             skipped.append((path, st.get("lines", 0), bad))
     return corpus, skipped
+
+
+OBS_MARKER = "RUN_KIND.json"
+
+
+def observation_runs(roots):
+    """观察通道采集目录（判据＝目录里有 `RUN_KIND.json`，不是文件名清单）。
+
+    **为什么必须单列、又必须出现**：两条链口径完全不同——观察通道产物
+    （`adapter.log`／`screencap_index.jsonl`／`mark_rtt.jsonl`…）喂
+    `validate_results.py` 会 exit 1（contract VIOLATIONS），结构上进不了 wire 池，
+    所以**绝不能相加**；但也**不能因此当它不存在**：一整个设备窗跑完，
+    自称「进展单一事实源」的台账若一个数都不动，那是台账失职。此前它们只以
+    `screencap_index.jsonl` 的身份落进「跳过（非语料）」那个桶——真实测量数据
+    与 README/配置挤在同一句措辞下（D-332 无名桶、D-326 同名不同义）。
+
+    **判据取自既有写者**（`e234_collect` 经 `e234_common.write_run_kind` 落盘），
+    不猜文件名——文件名清单会漏（D-273），而标记是采集器自己写的。
+    **不跨 lane import**：`scripts/` 无导入 `tools/` 的先例，故此处直读该 JSON，
+    只取 `kind`/`experiments`/`pkg`；读不了就如实记 `error`，不静默丢（D-330）。
+    **边界**：早于该标记的采集目录（如 `evidence/e1/20260801-*`）没有它，仍落在
+    通用桶里——**宁可少认不误认**；这条边界写在这里，而不是留给读者猜。
+    """
+    import json as _json
+    runs = []
+    for root in roots:
+        for p in sorted(glob.glob(os.path.join(root, "**", OBS_MARKER),
+                                  recursive=True)):
+            d = os.path.dirname(p)
+            row = {"path": d.replace(os.sep, "/")}
+            try:
+                with io.open(p, encoding="utf-8") as fh:
+                    meta = _json.load(fh)
+                row["kind"] = meta.get("kind") or "?"
+                row["experiments"] = ",".join(meta.get("experiments") or []) or "—"
+                row["pkg"] = meta.get("pkg") or "—"
+            except (OSError, ValueError) as e:
+                row["error"] = type(e).__name__
+            try:
+                row["files"] = sum(1 for f in os.listdir(d)
+                                   if os.path.isfile(os.path.join(d, f)))
+            except OSError:
+                row["files"] = 0
+            runs.append(row)
+    return runs
 
 
 def summarize(paths):
@@ -153,7 +201,7 @@ def room_dbs(root):
     return out
 
 
-def render_md(corpus, skipped, real, synth, st, bk, dbs):
+def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
     n = lambda c: "、".join(f"{k}×{v}" for k, v in cc.ranked(c)) or "—"
     lines = [MD_HEADER]
     lines.append("## 一、wire 语料（真实测量，run_id 去重后）\n")
@@ -163,6 +211,16 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs):
                  f"body 冲突 {len(st.get('conflicts') or [])} 条单记、"
                  f"坏行 {st.get('malformed', 0)}、无 run_id {st.get('no_run_id', 0)}）")
     lines.append(f"- 合成记录（`is_synthetic`）：**{len(synth)} 条，单列不计入上行**")
+    # 警告要印在会被误加的那个数**旁边**，不能只印在第四节里（D-330／D-339：
+    # 门说了而摘要没说，等于读者最先看的那一行仍然缺信息）。
+    if obs:
+        # 真机与 dry-run **不能合成一个数**——这与本节把 `is_synthetic` 单列是
+        # 同一个角色（D-341：刚写完的修复要立刻当被审对象再问一遍同类。初版
+        # 印「13 个采集目录」，其中 6 个是 dry-run，正是本台账要拦的那种合并）。
+        real_dirs = sum(1 for r in obs if r.get("kind") == "DEVICE_REAL")
+        lines.append(f"- 观察通道另有 **{real_dirs} 个真机采集目录**"
+                     f"（dry-run {len(obs) - real_dirs} 个单列不计入；第四节）——"
+                     f"**不并入上行**：其产物结构上进不了 wire 池")
     lc = (f"{bk['low_conf']}/{bk['aqs_runs']}"
           f"（{bk['low_conf'] / bk['aqs_runs'] * 100:.0f}%）"
           if bk["aqs_runs"] else "0/0（无带分 run，无从判断）")
@@ -207,11 +265,29 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs):
         lines.append("\n⚠ **装载失败（坏行/读不了，不等于「不是语料」）**：" +
                      "、".join(f"`{p.replace(os.sep, '/')}`（{bad} 处）"
                                for p, bad in broken))
+    lines.append("\n## 四、观察通道采集（与第一节**不可相加**——两条链口径不同）\n")
+    if not obs:
+        lines.append(f"（本次扫描未发现带 `{OBS_MARKER}` 标记的采集目录。）")
+    else:
+        lines.append("| 目录 | kind | 实验 | 包名 | 文件数 |\n|---|---|---|---|---|")
+        for r in obs:
+            if "error" in r:
+                lines.append(f"| {r['path']} | **读不了**（{r['error']}） | — | — |"
+                             f" {r['files']} |")
+            else:
+                pkg = f"`{r['pkg']}`" if r["pkg"] != "—" else "—"
+                lines.append(f"| {r['path']} | {r['kind']} | {r['experiments']} |"
+                             f" {pkg} | {r['files']} |")
+        lines.append(f"\n> 这些目录**产出 0 条 wire run**——产物喂 "
+                     f"`validate_results.py` 即 contract VIOLATIONS。列在这里是为了"
+                     f"让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。"
+                     f"判据＝目录里有 `{OBS_MARKER}`（采集器自己写的标记，非文件名清单）；"
+                     f"早于该标记的采集目录不在此表，仍落在第三节的通用桶里。")
     lines.append("")
     return "\n".join(lines)
 
 
-def render_csv_rows(real, synth, bk):
+def render_csv_rows(real, synth, bk, obs=()):
     rows = [("total", "real_runs", len(real)),
             ("total", "synthetic_records", len(synth)),
             ("total", "scenarios", bk["scn_total"]),
@@ -223,6 +299,14 @@ def render_csv_rows(real, synth, bk):
     rows += [("rat_scenarios", key, cnt) for key, cnt in cc.ranked(bk["rat"])]
     rows += [("validity_scenarios", key, cnt)
              for key, cnt in cc.ranked(bk["validity"])]
+    # 机器面与 md 面同批加（D-303：只改一面等于让两面无声分叉）。face 用
+    # `observation` 而非 `total`，因为 `total` 那族是可以互相印证的 wire 量，
+    # 而它恰恰**不属于**那族——面名本身就是「别相加」的第一道提示。
+    # 刻意**不出**一个合计行：真机与 dry-run 相加没有任何用途，而一个印好的
+    # 合计数就是邀请别人去用它（第一节把合成单列，是同一条理由）。
+    _dev = sum(1 for r in obs if r.get("kind") == "DEVICE_REAL")
+    rows.append(("observation", "device_real_dirs", _dev))
+    rows.append(("observation", "dry_run_dirs", len(obs) - _dev))
     return rows
 
 
@@ -239,19 +323,20 @@ def main(argv=None):
     bk = buckets(real)
     # Room 库只在 evidence 侧（server 落盘没有），扫描根仍取第一个
     dbs = room_dbs(roots[0])
-    md = render_md(corpus, skipped, real, synth, st, bk, dbs)
+    obs = observation_runs(roots)
+    md = render_md(corpus, skipped, real, synth, st, bk, dbs, obs)
     io.open(a.md, "w", encoding="utf-8", newline="").write(md)
     import csv as _csv
     with open(a.csv, "w", newline="", encoding="utf-8-sig") as f:
         w = _csv.writer(f)
         w.writerow(["face", "key", "count"])
-        for row in render_csv_rows(real, synth, bk):
+        for row in render_csv_rows(real, synth, bk, obs):
             w.writerow(row)
-    broken_n = sum(1 for _, _, bad in skipped if bad)
     broken_n = sum(1 for _, _, bad in skipped if bad)
     print(f"real_runs={len(real)} synthetic={len(synth)} "
           f"files={len(corpus)} skipped={len(skipped)}"
-          + (f" (其中装载失败 {broken_n})" if broken_n else ""))
+          + (f" (其中装载失败 {broken_n})" if broken_n else "")
+          + f" obs_dirs={len(obs)}")
     print(f"written: {a.md}, {a.csv}")
     return 0
 

@@ -2,7 +2,10 @@
 
 > 本文件由 `scripts/corpus_ledger.py` 全量重算生成，手改会在下次重算时丢失。
 > **使用规则**：任何「进展」声明必须引用本台账的总数与增量（例：
-> 「真实 run 73 → 103（+30，豆包首批）」），不得各自手抄数字（SPEC-3 §3.1）。
+> 「真实 run 73 → 103（+30，SZ-PILOT-01 扩展轮）」），不得各自手抄数字（SPEC-3 §3.1）。
+> ⚠ **增量必须说清是哪条链**：观察通道批次（豆包先行批等）产出 **0 条 wire run**
+> ——其产物喂 `validate_results.py` 即 contract VIOLATIONS，结构上进不了 wire 池，
+> 见第四节。把观察批写成「真实 run +N」正是本台账要拦的那种手抄。
 > 判据：装载/去重=`cc.load_records`（run_id 首见保留、body 冲突单记），
 > 合成=`cc.is_synthetic` 单列，RAT=场景级计数（一 run 可跨 RAT，不折单值）。
 
@@ -10,6 +13,7 @@
 
 - **真实 run 总数：111**（场景 627；文件 41 份、原始行 3511、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
 - 合成记录（`is_synthetic`）：**560 条，单列不计入上行**
+- 观察通道另有 **13 个采集目录**（第四节）——**不并入上行**：其产物结构上进不了 wire 池
 - 带 AQS **分数**的 run（`run.aqs.score` 非空）：110；其中 low_confidence：100/110（91%）｜顶层 `aqs_version` 版本戳共 111 条，其中 **1 条只有版本戳、没有分数**（两个量不可混用）
 
 | 维度 | 分布（run 计） |
@@ -79,3 +83,23 @@
 | server/data/results/20260804.jsonl | 1 | 1 |
 
 跳过（0 条契约记录，非语料）：`evidence/e1/20260801-150506/screencap_index.jsonl`、`evidence/e1/20260801-170127/screencap_index.jsonl`、`evidence/e1_realdevice_20260802/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802/screencap_index.jsonl`、`evidence/e1_realdevice_20260802_run2/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802_run2/screencap_index.jsonl`、`evidence/e234/20260802-163504/screencap_index.jsonl`、`evidence/e234/20260802-164148/screencap_index.jsonl`、`evidence/e234/20260802-172614/screencap_index.jsonl`、`evidence/e234/20260802-173031/screencap_index.jsonl`、`evidence/e234/20260803-154544-e1band/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-over/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-within/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-absent/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-present/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-overlap/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-separable/screencap_index.jsonl`、`evidence/phase1/calibration/clean_run1.jsonl`、`evidence/phase1/calibration/clean_run2.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run1.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run2.jsonl`、`evidence/phase1/calibration/nginx_run1.jsonl`、`evidence/phase1/calibration/nginx_run2.jsonl`、`evidence/phase1/calibration/proxied_run1.jsonl`、`evidence/phase1/calibration/proxied_run2.jsonl`、`evidence/phase3/e01_results/20260712.jsonl`
+
+## 四、观察通道采集（与第一节**不可相加**——两条链口径不同）
+
+| 目录 | kind | 实验 | 包名 | 文件数 |
+|---|---|---|---|---|
+| evidence/e1_realdevice_20260802 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
+| evidence/e1_realdevice_20260802_run2 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
+| evidence/e234/20260802-163504 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
+| evidence/e234/20260802-164148 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 10 |
+| evidence/e234/20260802-172614 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
+| evidence/e234/20260802-173031 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
+| evidence/e234/20260803-154544-e1band | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 10 |
+| evidence/e234_dryrun_20260802/dryrun-e2-over | DRY_RUN_SIMULATED | — | `—` | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e2-within | DRY_RUN_SIMULATED | — | `—` | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e3-absent | DRY_RUN_SIMULATED | — | `—` | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e3-present | DRY_RUN_SIMULATED | — | `—` | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e4-overlap | DRY_RUN_SIMULATED | — | `—` | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e4-separable | DRY_RUN_SIMULATED | — | `—` | 11 |
+
+> 这些目录**产出 0 条 wire run**——产物喂 `validate_results.py` 即 contract VIOLATIONS。列在这里是为了让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。判据＝目录里有 `RUN_KIND.json`（采集器自己写的标记，非文件名清单）；早于该标记的采集目录不在此表，仍落在第三节的通用桶里。

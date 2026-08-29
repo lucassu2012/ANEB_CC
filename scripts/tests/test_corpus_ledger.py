@@ -227,3 +227,82 @@ def test_the_two_aqs_calibers_are_never_conflated():
     assert "`run.aqs.score` 非空）：1" in md
     assert "版本戳共 2 条" in md
     assert "1 条只有版本戳、没有分数" in md
+
+
+def _obs_dir(root, name, kind, pkg="com.x", experiments=("E2",)):
+    """造一个观察通道采集目录：判据是 RUN_KIND.json，不是文件名。"""
+    import io as _io
+    import json as _json
+    import os as _os
+    d = _os.path.join(root, name)
+    _os.makedirs(d)
+    _io.open(_os.path.join(d, "RUN_KIND.json"), "w", encoding="utf-8").write(
+        _json.dumps({"kind": kind, "pkg": pkg,
+                     "experiments": list(experiments)}))
+    # 观察通道的真实产物：它是 .jsonl，但装不出契约记录
+    _io.open(_os.path.join(d, "screencap_index.jsonl"), "w",
+             encoding="utf-8").write('{"t_ms":1,"roi_mean":12.5}\n')
+    return d
+
+
+def test_an_observation_run_is_counted_but_never_merged_into_real_runs():
+    """一整个设备窗跑完，台账必须动一个数——但**不能是 real_runs**。
+
+    此前观察通道产物只以 `screencap_index.jsonl` 的身份落进「跳过（非语料）」，
+    与 README/配置挤在同一句措辞下：于是「进展单一事实源」在一个设备窗之后
+    一个数都不动（D-332 无名桶）。同时它绝不可并入 wire 池——两条链口径不同。
+    反例证伪：把 obs 计入 real_runs，或第四节不说「不可相加」，本条即红。
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _obs_dir(d, "cell_f1", "DEVICE_REAL")
+        obs = cl.observation_runs([d])
+        corpus, skipped = cl.discover(d)
+    assert len(obs) == 1 and obs[0]["kind"] == "DEVICE_REAL"
+    assert obs[0]["pkg"] == "com.x" and obs[0]["experiments"] == "E2"
+    assert corpus == [], "观察通道产物不得被当成 wire 语料装进来"
+    md = cl.render_md([], skipped, [], [], {"lines": 1}, cl.buckets([]), [], obs)
+    assert "不可相加" in md and "0 条 wire run" in md
+    assert "**1 个真机采集目录**" in md, "第一节必须在会被误加的那个数旁边示警"
+
+
+def test_dry_run_observation_dirs_are_listed_but_never_counted_as_real():
+    """dry-run 目录与真机目录**不能合成一个数**——同 `is_synthetic` 单列。
+
+    这条钉的是我自己踩过的坑：初版印「13 个采集目录」，其中 6 个是 dry-run。
+    修好一层就地再问一遍同类（D-341），否则新桶重犯旧桶的病。
+    反例证伪：头条数或 CSV 出一个把两者相加的合计，本条即红。
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _obs_dir(d, "real_cell", "DEVICE_REAL")
+        _obs_dir(d, "sim_cell", "DRY_RUN_SIMULATED")
+        obs = cl.observation_runs([d])
+    assert len(obs) == 2
+    md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), [], obs)
+    assert "**1 个真机采集目录**" in md and "dry-run 1 个单列不计入" in md
+    rows = {(f, k): v for f, k, v in cl.render_csv_rows([], [], cl.buckets([]), obs)}
+    assert rows[("observation", "device_real_dirs")] == 1
+    assert rows[("observation", "dry_run_dirs")] == 1
+    assert not any(k == "run_dirs" for f, k in rows), \
+        "不得出合计行——印好的合计数就是邀请别人去相加"
+
+
+def test_an_unreadable_run_kind_marker_says_so_instead_of_vanishing():
+    """标记读不了要**说出来**，不能静默从表里消失（D-330）。
+
+    「查不了」与「不存在」在渲染面必须长得不一样，否则一个坏掉的采集目录
+    会被读成「本次窗没跑这一格」，而两者的处置完全相反。
+    反例证伪：解析失败时 continue 掉该目录，本条即红。
+    """
+    import io as _io
+    import os as _os
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _obs_dir(d, "broken", "DEVICE_REAL")
+        _io.open(_os.path.join(d, "broken", "RUN_KIND.json"), "w",
+                 encoding="utf-8").write("{not json")
+        obs = cl.observation_runs([d])
+    assert len(obs) == 1 and "error" in obs[0], "读不了的目录不得消失"
+    md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), [], obs)
+    assert "**读不了**" in md
