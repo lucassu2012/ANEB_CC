@@ -296,13 +296,17 @@ adb logcat -d -v time -s "E4MARK:I"
 > **越界 ROI 才返回 `None`**（同批实测确认），那一种与本情形可区分。
 
 ```python
-# 存成 roi_check.py 再跑（注意：别用 python -c，PS 内联多行/含引号会吞字）
+# 存成 roi_check.py，**在仓根**跑（`sys.path` 那行按仓根相对路径写）
+# 注意：别用 python -c —— PS 内联多行/含引号会吞字
+# 本片段 2026-08-29 已按原样实跑验证：import 通、无栈回溯；两个 .raw 与 screencap 同源
 import sys
 sys.path.insert(0, 'tools/e1')
 import e1_collect as e1
 x, y, w, h = 0, 0, 0, 0                      # <- 填你量到的 ROI
+assert w > 0 and h > 0, '先把 x,y,w,h 换成你量到的 ROI（宽高必须为正）——否则下面只会打印 None'
 for name in ('roi_idle.raw', 'roi_busy.raw'):
-    print(name, e1.roi_mean_from_raw(open(name, 'rb').read(), x, y, w, h))
+    v = e1.roi_mean_from_raw(open(name, 'rb').read(), x, y, w, h)
+    print(name, v if v is not None else 'None ← ROI 与画面无交集（越界），不是「框在静态区」')
 ```
 
 > **本节不给候选矩形**：响应区位置是「这台设备这个 App 这一版」的一次实测，
