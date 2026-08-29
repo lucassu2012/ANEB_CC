@@ -112,9 +112,16 @@ def analyze(run_dir, pkg):
     res["channel_a_vs_c"] = ec.summarize([abs(d) for d in signed], dropped=dropped)
     v, why = ec.ea.gate_verdict(res["channel_a_vs_c"], frame_ms)
     res["verdict"] = (v, why)
-    # T14 待裁 C-2：`gate_verdict` 既不看 dropped 也不设最小 n（实测 n=1/dropped=9 -> PASS）。
-    # 门限定在哪属口径决定，不由本脚本发明；能做的是把两个数**印在判定旁边**。
-    res["gate_caveat"] = ("该判定未看 dropped、未设最小 n（T14 待裁 C-2）；"
+    # T14 待裁 C-2 的**一半已解**（2026-08-29 订正，原注释写于 W-4 之前）：
+    # `gate_verdict` **现在设了最小 n**（`e1_analyze.GATE_MIN_N`，W-4/A 行），
+    # n < 5 直接返回 NOT_EXECUTED——本脚本经 `ec.ea.gate_verdict` 调它，
+    # 所以**这道门对本脚本生效**。⚠ 该事实在 `tools/e234/` 里 grep `GATE_MIN_N`
+    # 或 `min_n` **一个都搜不到**（跨模块经别名调用，名字不出现在本目录）——
+    # 2026-08-29 已有人据此零命中判「e234 侧无 n 门限」，与实测相反。
+    # 仍未解的那一半：**dropped 依旧不参与判定**（只被印出来）。
+    # 门限定在哪属口径决定，不由本脚本发明；能做的是把数**印在判定旁边**。
+    res["gate_caveat"] = ("该判定**已设**最小 n（e1_analyze.GATE_MIN_N，n 不足即 "
+                          "NOT_EXECUTED），但**不看 dropped**（T14 C-2 余半）；"
                           "本次 n=%s dropped=%s" % (res["channel_a_vs_c"].get("n"), dropped))
     return res
 
