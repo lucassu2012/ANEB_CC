@@ -3,7 +3,11 @@
 > **给谁**：PO，每周一读，一页读完。
 > **不是什么**：不是决策台账（`DECISION_LOG.md` 那 560+ 条是工程记账，PO 不必读）；
 > 不是任务板。本页只回答三个业务问题，其余一概不进。
-> **数字从哪来**：全部引 `docs/CORPUS_LEDGER.md`（`python scripts/corpus_ledger.py` 重算），
+> **数字从哪来**：语料类数字引 `docs/CORPUS_LEDGER.md`（`python scripts/corpus_ledger.py` 重算）；
+> **门数与测试数引 `evidence/phase0/badges.txt` 的键**（`gate_count` / `reflex_tests`），
+> 由收官全绿链跑自动产出、每次覆盖，**不要手敲「N 道门」「M 条测试」**——手敲的会过期
+> （治理减负砍④）。该文件里 `unknown` 表示**本次没测到**，既不是 0 也不是沿用上次；
+> 每个值旁的 `*_source` 说明它读的是哪一份日志——**引用前先确认那就是你要引的那次链跑**。
 > **不手抄**——SPEC-3 §3.1 使用规则：进展声明必须引台账总数与增量。
 > **用法**：复制本模板到 `docs/BIZ_PROGRESS_VIEW_<YYYYMMDD>.md`，填三节，删掉本引言块。
 
