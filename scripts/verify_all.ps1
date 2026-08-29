@@ -291,7 +291,32 @@ if ($py -and (Test-Path $schemaTest)) {
 
 }
 
-if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit')) {
+if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules')) {
+# --- evidence/ RULE gate (T82 §9.2 #4/#6/#7/#13/#14): evidence/README 立了六条规则而
+# 此前一条都没有守卫。接上五条 + 一条 README 蕴含项（列出的证据文件必须真在盘上）。
+# 四态判据从 README 解析，不再抄一份。exit: 0=干净 / 1=有违规或过期豁免 -> FAIL /
+# 2=判据缺失（README 解析不出规则 1）-> NOT_EXECUTED，**不冒充 PASS**（D-511/D-532）。
+$evidenceGuard = Join-Path $repo 'scripts\check_evidence.py'
+if ($py -and (Test-Path $evidenceGuard)) {
+    $out = & $py $evidenceGuard --root (Join-Path $repo 'evidence') 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- evidence-rules (exit $code) ---"
+    $log += $out
+    $head = ($out -split "`n" | Where-Object { $_ -match 'evidence guard:' } | Select-Object -First 1)
+    if ($code -eq 0) {
+        $log += Add-Result 'evidence-rules' 'PASS' $head
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'evidence-rules' 'NOT_EXECUTED' 'evidence/README 解析不出规则 1；判据缺失不放行'
+    } else {
+        $log += Add-Result 'evidence-rules' 'FAIL' $head
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $evidenceGuard)) { $missing += 'scripts/check_evidence.py' }
+    $log += Add-Result 'evidence-rules' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- Campaign-level analysis & reporting layer SELF-TEST (D-87): golden reflex tests ---
 # Guards scripts/{campaign_common,attribution,campaign_report}.py — three-tier differential
 # attribution + point×time×carrier heat card + before/after comparison. Self-contained runner
