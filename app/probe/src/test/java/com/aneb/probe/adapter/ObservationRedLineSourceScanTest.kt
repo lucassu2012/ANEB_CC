@@ -183,14 +183,30 @@ class ObservationRedLineSourceScanTest {
     }
 
     @Test
+    fun `the kotlin property form event-dot-source is caught too, not just getSource`() {
+        // 这条是本守卫最容易漏的形状：Java 的 `getSource()` 在 Kotlin 里写作 `.source`。
+        // 只搜 `getSource` 的扫描器对下面这段一无所知——而红线自述的原话恰恰点名了它。
+        val fixture = """
+            package x
+            class Y {
+                fun z(event: Any) {
+                    val node = event.source
+                }
+            }
+        """.trimIndent()
+        val hits = scanForbidden(fixture)
+        assertTrue("Kotlin 属性形态 event.source 没被咬住：$hits", hits.any { it.endsWith("event.source") })
+    }
+
+    @Test
     fun `a comment or a string that merely names the api is not a violation`() {
         // 这正是红线自述那句注释、以及 AdapterSpec 解释「view_id_regex 存而不评估」
         // 两处注释的形状。它们必须放行，否则下一个人修 KDoc 就会被误红。
         val fixture = """
             package x
-            /** 本服务绝不调用 performAction / performGlobalAction。 */
+            /** 本服务绝不调用 performAction / performGlobalAction，也绝不取 event.source。 */
             class Y {
-                // view_id_regex 需 getSource（跨进程），故存而不评估
+                // view_id_regex 需 AccessibilityNodeInfo（getSource 跨进程），故存而不评估
                 val note = "performAction 只出现在这句字符串里"
             }
         """.trimIndent()
@@ -208,7 +224,23 @@ class ObservationRedLineSourceScanTest {
          * performGlobalAction」——**以源码自述的那句为准更严，且当前实测同样为零**，
          * 故纳入不会带来假红。
          */
-        private val FORBIDDEN = listOf("performGlobalAction", "performAction", "getSource")
+        private val FORBIDDEN = listOf(
+            // —— 替用户操作（红线：观察 only）
+            "performGlobalAction",
+            "performAction",
+            // —— 取节点的四条入口。**只禁 `getSource` 是不够的**：Java 的 `getSource()`
+            // 在 Kotlin 里按属性访问写作 `event.source`，一条 `val n = event.source`
+            // 会完全绕过只搜 `getSource` 的扫描器——而**红线自述那句原话正是「绝不取
+            // event.source」**，即文档早就点名了这个形态，是扫描器没跟上。
+            // 其余两条是取节点的另外两个标准 API；类型名本身也纳入，因为任何用法都得提它。
+            // 四者在当前生产源码里的出现**全部落在注释中**（实测：`event.source` 6、
+            // `AccessibilityNodeInfo` 3、另两个各 0），剥注释后为零，故纳入不带来假红。
+            "event.source",
+            "rootInActiveWindow",
+            "findAccessibilityNodeInfos",
+            "AccessibilityNodeInfo",
+            "getSource",
+        )
 
         /** 当前 `app/probe` 主源集远多于此；这个下限只用来区分「没有违规」与「没扫到」。 */
         private const val MIN_FILES_SCANNED = 10
