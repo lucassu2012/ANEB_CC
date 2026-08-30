@@ -322,14 +322,19 @@ python tools/e234/e234_collect.py --serial <SN> --pkg com.larus.nova --roi 100,8
 
 **🔴 ①-bis 读 logcat 必须用「先开流、再动作」，不能「动作完再 dump」（2026-08-30 实跑教训）**：本机 `logcat -g` 实测 **main 环形缓冲仅 256 KiB、已用 250 KiB**——**几乎满**。当轮我按「打日志 → 等 40 秒 → `adb logcat -d`」取数，**连自己刚写的 `E4MARK` 都读不回来**，一度据此以为通道 A 全死；改成**先起 `adb logcat -v time -s AnebProbe:I E4MARK:I` 流、再动作**，同一分钟内拿到 **`ADAPTER_EVT` 65 行、`ADAPTER_OBS` 2 行**。⇒ **40 秒就足以让一行被挤掉。采集器本身用的正是流式 `popen`，不受影响；受影响的是「事后 dump」这种排查手法。****排查通道 A 时别用 `-d`。**
 
-**② 标记链路往返（2026-08-29 已实测通过，开窗时不必重做）**
+**② 标记链路往返 —— 🔴 2026-08-30 订正:标签是 `AnebE4MARK`，不是 `E4MARK`**
+> **昨夜那次「往返通过」是假绿**：我发送端与读取端**用了同一个错标签**，**自洽地错着**——它证明的是「`E4MARK` 这个标签能往返」，**不是「采集器会抓到我的标记」**。
+> **真相**：采集器发标记用 `-t es.MARK_TAG` ＝ **`AnebE4MARK`**，其 logcat 过滤也是 `AnebE4MARK:I`；**`E4MARK` 只是载荷前缀**（判读侧 `_MARK_RE = E4MARK\s+(?P<kv>kind=\S.*)$` 解析的是载荷）。**我把载荷前缀当成了标签。**
+> **代价已经付过一次**：2026-08-30 首格 `wifi_f1` 五轮标记**全被过滤掉**，通道 A／B／C 数据俱在而**轮界全失**，按 §④-A′ 作废为 `wifi_f1_VOID1`。**⇒ 冒烟自检必须用采集器真正用的那个标签，否则它只会证明你自己的假设自洽。**
 
-②的 🔴 段把「按 `t`/`s`/`a`/`q`」立成了硬要求——但**那些按键是靠 `adb shell log -p i -t E4MARK` 写进 logcat 的**，
+**② 标记链路往返（用 `AnebE4MARK` 重验，2026-08-30 通过）**
+
+②的 🔴 段把「按 `t`/`s`/`a`/`q`」立成了硬要求——但**那些按键是靠 `adb shell log -p i -t AnebE4MARK` 写进 logcat 的**，
 而 **D-52 逐字记着「EMUI 默认丢弃 `Log.d`」**，`ADAPTER_EVT` 当年因此恒不可见。
 **所以先得问：`log -p i` 在这台 EMUI 上活得下来吗？** 已实测：
 
 ```
-adb shell log -p i -t E4MARK "E4MARK kind=turn_start n=999 SELFTEST_20260829"
+adb shell log -p i -t AnebE4MARK "E4MARK kind=turn_start n=999 SELFTEST_20260829"
 adb logcat -d -v time -s "E4MARK:I"
 ```
 
@@ -433,7 +438,7 @@ for name in ('roi_idle.raw', 'roi_busy.raw'):
 
 | 硬要求 | 它靠什么成立 | 状态 |
 |---|---|---|
-| 按 `t`/`s`/`a`/`q` 分轮 | `adb shell log -p i -t E4MARK` 在这台 EMUI 上不被丢弃 | ✅ **实测通过**（§1.E-bis ②；**项目里恰有它失败过的先例**——D-52 的 `Log.d` 被 EMUI 丢弃） |
+| 按 `t`/`s`/`a`/`q` 分轮 | `adb shell log -p i -t AnebE4MARK` 在这台 EMUI 上不被丢弃 | ✅ **实测通过**（§1.E-bis ②；**项目里恰有它失败过的先例**——D-52 的 `Log.d` 被 EMUI 丢弃） |
 | `--session-seconds 900` | 屏幕全程亮着 | ✅ 实测 `stay_on_while_plugged_in=7` ＋ USB 连着；⚠ **`screen_off_timeout=600000` 小于 900s，USB 一断即失效**（§1.B） |
 | `--out evidence/doubao_wave0_…` | 过得了 `assert_isolation_before_write(KIND_DEVICE)`（它在**设备门之后**跑，不过就是「过了门才死」） | ✅ **正反例各一实测**：本批路径与锚格路径均 PASS；把 `dryrun` 塞进路径**确被拒** ⇒ 这道检查**能失败**、不是摆设（`DRY_RUN_DIR_TOKEN='dryrun'`） |
 | ROI 两帧自检 | `roi_mean_from_raw` 解析得了本机 `screencap` | ✅ 实测（16 字节头、`w=1200 h=2640`、越界返 `None`）；⚠ **屏灭时均值 `0.0`**（§1.G） |
