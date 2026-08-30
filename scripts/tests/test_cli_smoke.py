@@ -62,10 +62,14 @@ def test_a_mistyped_output_path_does_not_answer_with_a_traceback():
     widened so argparse does not wrap the help text out of reach.
     """
     env = dict(os.environ, COLUMNS="200", PYTHONIOENCODING="utf-8")
+    # ⚠ `errors=` 不是可选项：`encoding=` 只钉「用哪个 codec」，默认 errors='strict'
+    # 遇到非法字节仍会**在 `_readerthread` 线程里抛而被吞掉**，`run()` 照常返回、
+    # stdout 变 None（2026-08-31 实证：子进程吐 b'ok--end' ⇒ rc=0, stdout=None）。
+    # 本文件第 36 行那个 helper 早就两件齐全，只有这一处漏了——由采集侧核出。
     helptext = subprocess.run(
         [sys.executable, os.path.join(SCRIPTS, "campaign_report.py"), "--help"],
-        capture_output=True, text=True, encoding="utf-8", cwd=SCRIPTS,
-        env=env).stdout
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=SCRIPTS, env=env).stdout
     # argparse puts the help on the NEXT line whenever the invocation is longer
     # than max_help_position — `--provenance PROVENANCE` is — so continuation
     # lines have to be folded back into their flag before looking for "write".

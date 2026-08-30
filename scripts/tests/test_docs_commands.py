@@ -1892,6 +1892,60 @@ def test_strict_json_loaders_reconcile_with_the_spec_readme_table():
         "——表不是缺一行，是**在说谎**：读者会以为未知键仍会被拒。" % no_longer_strict)
 
 
+# --- 下面这条守卫的判定逻辑抽成函数，是为了让它的每个分支都能被**合成源码**证明 ---
+# ⚠ 抽出来的直接原因：突变审计在仓内扫描形态下判了两条分支 SURVIVED
+# （「退回只查 encoding=」「不认裸导入」）——**不是守卫弱，是方法固有**：
+# 仓一旦全合规，「拿掉检查」与「存在违规」只能联合观测，单独拿掉检查测不出来。
+# 抽成函数后就能喂合成源码，把两条分支各自钉住。
+# （本仓规矩：为某判断写了一条分支 ≠ 那分支在承重。）
+def _text_mode_subprocess_offenders(source, label):
+    """返回 source 里「文本模式抓子进程输出却没钉住解码」的调用清单。
+
+    判据两件都要：`encoding=` ＋ 非 strict 的 `errors=`。理由见调用方 docstring。
+    认两种调用形态：`subprocess.run(...)` 与 `from subprocess import run` 后的裸 `run(...)`。
+    """
+    import ast
+    CAPTURING = ("run", "check_output", "Popen")
+    TEXT_KEYS = ("text", "universal_newlines")
+    try:
+        tree = ast.parse(source, filename=label)
+    except SyntaxError:
+        return [], 0
+    aliased = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+            aliased |= {a.asname or a.name for a in node.names if a.name in CAPTURING}
+    offenders, seen_calls = [], 0
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        attr_form = (isinstance(fn, ast.Attribute) and fn.attr in CAPTURING
+                     and isinstance(fn.value, ast.Name) and fn.value.id == "subprocess")
+        bare_form = isinstance(fn, ast.Name) and fn.id in aliased
+        if not (attr_form or bare_form):
+            continue
+        called = fn.attr if attr_form else fn.id
+        kw = {k.arg: k.value for k in node.keywords if k.arg}
+        if not any(k in kw for k in TEXT_KEYS):
+            continue              # 字节模式安全：bytes 不会解码失败
+        seen_calls += 1
+        missing = []
+        if "encoding" not in kw:
+            missing.append("encoding=")
+        err = kw.get("errors")
+        if err is None:
+            missing.append("errors=")
+        elif isinstance(err, ast.Constant) and err.value == "strict":
+            # 只查「有没有 errors=」的话，一行 errors="strict" 就能哄过守卫
+            missing.append('errors= 不许是 "strict"')
+        if missing:
+            offenders.append("%s:%d %s（缺 %s）"
+                             % (label, node.lineno, called, "、".join(missing)))
+    return offenders, seen_calls
+
+
+
 def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
     """凡以文本模式抓子进程输出，必须**显式给 `encoding=`**，否则 stdout 会静默变 None。
 
@@ -1903,9 +1957,18 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
     Git Bash 下两侧同为 cp936 所以不炸——**同一份代码换个壳结论不同，而门跑的是
     PowerShell 那个壳**（同族＝本仓那条「我跑的对象与别人要用的对象是不是同一个」）。
 
-    ⚠ 为什么判据是 `encoding=` 而不是 `errors=`：`errors="replace"` 只能保证
-    读线程不抛（stdout 不会变 None），**但不保证解得对**——编码不一致时它会安静地
-    交回一串乱码，让「输出里应含某句中文」的断言**假红**。两者要一起给：
+    ⚠ **判据是「两件都要」，不是二选一**（本条首版写成了二选一，已订正）：
+    · `errors=` 非 strict ⇒ **永不变 None**（安全性）——但**不保证解得对**，
+      编码不一致时它安静交回乱码，让「输出里应含某句中文」的断言**假红**；
+    · `encoding=` 正确 ⇒ **解得对**（正确性）——但默认 `errors='strict'`，
+      遇非法字节**照样在读线程里抛而被吞掉**，stdout 照样变 None。
+    判决性实验（2026-08-31）：子进程吐 `b'ok-\x80-end'`，
+    `encoding='utf-8'` 无 `errors=` ⇒ **rc=0, stdout=None**；加 `errors='replace'`
+    ⇒ `'ok-\ufffd-end'`。
+    ⚠ 首版的错法值得记：我的理由（「`errors=` 不保证解得对」）**本身没错**，
+    错在**从「A 不充分」推出了「A 不必要」**——在二元判断上把关于 A 的偏结论
+    直接搬去决定 B（与本仓「排除候选 A ≠ 证成候选 B」同族）。
+    缺口由采集侧核出：`test_cli_smoke.py` 有一处只给了 `encoding=`。两者要一起给：
     `encoding=` 钉父侧解码、`errors=` 兜底、子侧再用 `PYTHONIOENCODING` 钉编码。
     范本＝ `test_cli_smoke.py`，它早就是三件齐全的。
 
@@ -1919,10 +1982,10 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
 
     用 AST 而不是正则：这些调用跨多行，正则会漏掉换行处的关键字。
     """
-    import ast
-
-    TEXT_KEYS = ("text", "universal_newlines")
-    CAPTURING = ("run", "check_output", "Popen")
+    # ⚠ 判据（哪些调用算数、缺什么算违规）**只有一份**，在
+    # `_text_mode_subprocess_offenders` 里。抽取时这里残留过一份 TEXT_KEYS/CAPTURING
+    # 副本，已删——**同一个事实写在两处，必有一处先漂，而漂的那处不会报错**：
+    # 后来人改这里的副本会以为改了判据，其实一点作用都没有。本函数只管「扫哪些文件」。
     SKIP_DIRS = {".git", "__pycache__", "node_modules", "build", ".gradle",
                  ".idea", "venv", ".venv", ".pytest_cache"}
     offenders, scanned, seen = [], 0, set()
@@ -1933,28 +1996,11 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
                 continue
             path = os.path.join(root, name)
             seen.add(os.path.relpath(path, REPO).replace(chr(92), "/"))
-            with open(path, encoding="utf-8", errors="replace") as fh:
-                try:
-                    tree = ast.parse(fh.read(), filename=path)
-                except SyntaxError:
-                    continue
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                fn = node.func
-                if not (isinstance(fn, ast.Attribute) and fn.attr in CAPTURING
-                        and isinstance(fn.value, ast.Name)
-                        and fn.value.id == "subprocess"):
-                    continue
-                kw = {k.arg for k in node.keywords if k.arg}
-                wants_text = any(k in kw for k in TEXT_KEYS)
-                if not wants_text:
-                    continue          # 字节模式安全：bytes 不会解码失败
-                scanned += 1
-                if "encoding" not in kw:
-                    offenders.append("%s:%d subprocess.%s"
-                                     % (os.path.relpath(path, REPO).replace("\\", "/"),
-                                        node.lineno, fn.attr))
+            found, n = _text_mode_subprocess_offenders(
+                open(path, encoding="utf-8", errors="replace").read(),
+                os.path.relpath(path, REPO).replace(chr(92), "/"))
+            offenders.extend(found)
+            scanned += n
     # 完整性互证：索引侧枚举出的每一个 .py，文件系统侧都必须走到过。
     # ⚠ 两条腿必须**不共享机制**才算互证：`git ls-files`（读索引）vs `os.walk`
     # （读文件系统）。换了切法也换了读法，才不会「同一缺陷喂出两个假独立方法」。
@@ -1983,3 +2029,51 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
         "（子进程若是 **Python**，再给 env `PYTHONIOENCODING=utf-8` 钉子侧；子进程是 "
         "adb 之类**非 Python 二进制**时这一件不起作用——别照抄配方，按场景给）。"
         "\n本条扫描面＝整个仓（跳过 %s）。" % (offenders, sorted(SKIP_DIRS)))
+
+
+def test_the_decoding_criterion_bites_on_every_shape_it_claims_to_cover():
+    """拿**合成源码**逐条钉住上面那个判据的每一个分支。
+
+    ⚠ 为什么需要它：仓内扫描形态下，突变审计判了两条分支 SURVIVED
+    （「退回只查 `encoding=`」「不认裸导入形态」）——**不是守卫弱，是方法固有**：
+    仓一旦全合规，「拿掉检查」与「存在违规」**只能联合观测**，单独拿掉检查测不出来。
+    而本仓的规矩是：**为某判断写了一条分支 ≠ 那分支在承重**，等价突变只有把判定
+    逻辑抽出来喂合成输入才答得了。本条即那个答案。
+
+    ⚠ 正例与反例都放着，两头钉住：只有反例时，把判据收紧到「什么都算违规」
+    照样全绿；只有正例时，把判据放松到「什么都不算」也照样全绿。
+    """
+    def offenders(src):
+        return _text_mode_subprocess_offenders(src, "synthetic.py")[0]
+
+    # ① 裸 text=True：两件都缺
+    bad = offenders("import subprocess\nsubprocess.run(['x'], capture_output=True, text=True)\n")
+    assert len(bad) == 1 and "encoding=" in bad[0] and "errors=" in bad[0], bad
+
+    # ② 只给 encoding=：仍违规（strict 下非法字节照样让 stdout 变 None）
+    bad = offenders("import subprocess\n"
+                    "subprocess.run(['x'], text=True, encoding='utf-8')\n")
+    assert len(bad) == 1 and "errors=" in bad[0] and "encoding=" not in bad[0], bad
+
+    # ③ errors='strict' 不许拿来哄守卫
+    bad = offenders("import subprocess\n"
+                    "subprocess.run(['x'], text=True, encoding='utf-8', errors='strict')\n")
+    assert len(bad) == 1 and "strict" in bad[0], bad
+
+    # ④ **裸导入形态**：`from subprocess import run` 后直接 run(...)
+    #    ——加它时全仓零命中，本例是它唯一的承重证明
+    bad = offenders("from subprocess import run\nrun(['x'], text=True)\n")
+    assert len(bad) == 1 and "run" in bad[0], bad
+    #    别名也要认
+    bad = offenders("from subprocess import run as r\nr(['x'], text=True)\n")
+    assert len(bad) == 1, bad
+
+    # ⑤ 正例一：两件齐全 ⇒ 放行
+    assert offenders("import subprocess\nsubprocess.run(['x'], text=True, "
+                     "encoding='utf-8', errors='replace')\n") == []
+    # ⑥ 正例二：**字节模式** ⇒ 放行（bytes 不会解码失败，不该被判违规）
+    assert offenders("import subprocess\n"
+                     "subprocess.run(['x'], capture_output=True)\n") == []
+    # ⑦ 正例三：同名但**不是** subprocess 的函数 ⇒ 不该被误伤
+    assert offenders("import shutil\nshutil.run(['x'], text=True)\n") == []
+    assert offenders("def run(*a, **k): pass\nrun(['x'], text=True)\n") == []
