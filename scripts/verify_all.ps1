@@ -326,7 +326,22 @@ if ($py -and (Test-Path $ledgerScript)) {
         $log += Add-Result 'corpus-ledger-fresh' 'PASS' $head
     } elseif ($code -eq 2) {
         # 「没比成」不冒充「比过了、不一致」——判词点对成因，处置才会对
-        $log += Add-Result 'corpus-ledger-fresh' 'NOT_EXECUTED' $head
+        # ⚠ **判词不许落空**（2026-08-30 实测）：$head 只捞含 `corpus ledger check:`
+        # 的那一行，而后加的「缺根拒算」分支只写了 stderr、没打这行标记
+        # ⇒ 摘要面只剩「corpus-ledger-fresh  NOT_EXECUTED」、**一个字的成因都没有**，
+        # 读者分不出「缺根/环境不对」和「别的没比成」——而那条路径的设计定位
+        # 恰恰是**响亮拒算**。响亮丢在摘要面上就等于没响。
+        # 生产者侧已补标记；这里再兜一层，让**将来任何忘了打标记的 RC=2 分支**
+        # 也响得出来——判词落空是静默的，静默正是本仓最贵的那类缺陷。
+        $why = $head
+        if (-not $why) {
+            $why = (($out -split "`n") | Where-Object { $_.Trim() } | Select-Object -First 1)
+            # ⚠ PS 5.1 对原生命令用 `2>&1` 会把 stderr 行包成 ErrorRecord 并加
+            # "python.exe : " 这样的前缀（实测），剥掉再当判词，别把噪声当成因。
+            if ($why) { $why = ($why -replace '^\S+\.exe\s*:\s*', '').Trim() }
+        }
+        if (-not $why) { $why = '退出码 2（没比成），但脚本一句话都没打——见本日志 corpus-ledger-fresh 段' }
+        $log += Add-Result 'corpus-ledger-fresh' 'NOT_EXECUTED' $why
     } else {
         $log += Add-Result 'corpus-ledger-fresh' 'FAIL' $head
     }
