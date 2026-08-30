@@ -499,7 +499,11 @@ def test_expansion_cli_writes_five_artifacts_and_the_prefix_rule_holds():
                "-o", prefix, "--expansion", "--points", "3", "--carriers", "cmcc",
                "--counted-repeats", "3", "--forensic-points", "1",
                "--forensic-runs", "2", "--seed", "4242"]
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+        # 钉住两侧编码：只给 errors= 不给 encoding= 时父侧退回 locale（cp936），
+        # 子侧在 PowerShell 下按 utf-8 写 ⇒ 下面那句中文断言会糊成乱码假红。
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace",
+                           env=dict(os.environ, PYTHONIOENCODING="utf-8"))
         assert r.returncode == 0, r.stderr[:600]
         written = sorted(os.listdir(d))
         assert written == ["expansion_counted.jsonl", "expansion_counted_forensic.jsonl",
@@ -509,7 +513,8 @@ def test_expansion_cli_writes_five_artifacts_and_the_prefix_rule_holds():
         assert sc.WARMUP_AUTHORITY in r.stdout        # 台账的出处印在操作者眼前
 
         bad = subprocess.run(cmd + ["--repeats", "5"], capture_output=True,
-                             text=True, errors="replace")
+                             text=True, encoding="utf-8", errors="replace",
+                             env=dict(os.environ, PYTHONIOENCODING="utf-8"))
         assert bad.returncode == 2, bad.stdout[:400]
         assert "--repeats" in bad.stderr, bad.stderr[:400]
 

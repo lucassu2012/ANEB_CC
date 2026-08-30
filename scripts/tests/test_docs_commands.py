@@ -1890,3 +1890,71 @@ def test_strict_json_loaders_reconcile_with_the_spec_readme_table():
     assert not no_longer_strict, (
         "spec/README 的表把以下文件列为严格 loader，但它们主源里已无裸 `Json`：%s\n"
         "——表不是缺一行，是**在说谎**：读者会以为未知键仍会被拒。" % no_longer_strict)
+
+
+def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
+    """凡以文本模式抓子进程输出，必须**显式给 `encoding=`**，否则 stdout 会静默变 None。
+
+    实测根因（2026-08-31，一条真红逼出来的）：PowerShell 下
+    `sys.stdout.encoding = utf-8` 而 `locale.getencoding() = cp936`
+    ⇒ 子进程按 UTF-8 写、父进程 `subprocess.run(text=True)` 按 GBK 解
+    ⇒ `UnicodeDecodeError` 抛在 `subprocess._readerthread` **线程里被吞掉**，
+    `run()` **正常返回**、`stdout` 与 `stderr` **双双是 None**，调用方一个错都收不到。
+    Git Bash 下两侧同为 cp936 所以不炸——**同一份代码换个壳结论不同，而门跑的是
+    PowerShell 那个壳**（同族＝本仓那条「我跑的对象与别人要用的对象是不是同一个」）。
+
+    ⚠ 为什么判据是 `encoding=` 而不是 `errors=`：`errors="replace"` 只能保证
+    读线程不抛（stdout 不会变 None），**但不保证解得对**——编码不一致时它会安静地
+    交回一串乱码，让「输出里应含某句中文」的断言**假红**。两者要一起给：
+    `encoding=` 钉父侧解码、`errors=` 兜底、子侧再用 `PYTHONIOENCODING` 钉编码。
+    范本＝ `test_cli_smoke.py`，它早就是三件齐全的。
+
+    ⚠ **本条的扫描面只有 `scripts/`**（本 lane）。已知**面外还有一处**：
+    `tools/e234/drive_cell.py` 的 `sh()` 是裸 `text=True` 且直接 `.stdout`，
+    它是采集侧 lane 的生产工具（adb 输出可含非 ASCII），已另行告知属主。
+    **别把本条的绿读成「全仓没有第二处」**——它只证明 scripts/ 干净。
+
+    用 AST 而不是正则：这些调用跨多行，正则会漏掉换行处的关键字。
+    """
+    import ast
+
+    TEXT_KEYS = ("text", "universal_newlines")
+    CAPTURING = ("run", "check_output", "Popen")
+    offenders, scanned = [], 0
+    for root, _dirs, files in os.walk(SCRIPTS):
+        if "__pycache__" in root:
+            continue
+        for name in sorted(files):
+            if not name.endswith(".py"):
+                continue
+            path = os.path.join(root, name)
+            with open(path, encoding="utf-8") as fh:
+                try:
+                    tree = ast.parse(fh.read(), filename=path)
+                except SyntaxError:
+                    continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                fn = node.func
+                if not (isinstance(fn, ast.Attribute) and fn.attr in CAPTURING
+                        and isinstance(fn.value, ast.Name)
+                        and fn.value.id == "subprocess"):
+                    continue
+                kw = {k.arg for k in node.keywords if k.arg}
+                wants_text = any(k in kw for k in TEXT_KEYS)
+                if not wants_text:
+                    continue          # 字节模式安全：bytes 不会解码失败
+                scanned += 1
+                if "encoding" not in kw:
+                    offenders.append("%s:%d subprocess.%s"
+                                     % (os.path.relpath(path, REPO).replace("\\", "/"),
+                                        node.lineno, fn.attr))
+    assert scanned >= 5, (
+        "只扫到 %d 处文本模式的子进程调用——扫描八成坏了，而一条什么都没查到的"
+        "守卫会因为错误的理由变绿" % scanned)
+    assert not offenders, (
+        "这些调用用文本模式抓输出却没钉 encoding= ⇒ 编码不一致时 stdout 会"
+        "**静默变成 None**（异常被 _readerthread 吞掉，run() 照常返回）：%s\n"
+        "修法照 test_cli_smoke.py：encoding=\"utf-8\", errors=\"replace\"，"
+        "并在子进程 env 里给 PYTHONIOENCODING=utf-8。" % offenders)

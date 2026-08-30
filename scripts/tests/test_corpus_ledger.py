@@ -502,7 +502,11 @@ def test_the_ledgers_claim_about_validate_results_is_actually_true():
             [_sys.executable,
              _os.path.join(_os.path.dirname(_os.path.dirname(
                  _os.path.abspath(__file__))), "validate_results.py"), p],
-            capture_output=True, text=True)
+            # 同上：裸 text=True 会让 stdout 静默变 None。这一处**平时碰不到**
+            # （stdout 只在下面断言失败时才被取），所以它会在**最需要判词的那一刻**
+            # 以 TypeError 冒充失败原因——比直接红更难查。
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env=dict(_os.environ, PYTHONIOENCODING="utf-8"))
     assert r.returncode != 0, (
         "观察通道产物竟通过了 wire 契约校验——台账那句「结构上进不了 wire 池」"
         "已不成立，两条链的隔离前提没了。stdout=%s" % r.stdout[:400])
@@ -537,10 +541,19 @@ def test_the_refusal_prints_a_summary_marker_the_gate_can_actually_find():
     repo = _o.path.dirname(_o.path.dirname(_o.path.abspath(cl.__file__)))
     with tempfile.TemporaryDirectory(prefix="dryrun_ledger_") as tmp:
         absent = _o.path.join(tmp, "definitely_not_here")
+        # ⚠ 编码必须**两侧都钉死**，否则 stdout 会**静默变成 None**（2026-08-31 实测）：
+        # PowerShell 下 `sys.stdout.encoding=utf-8` 而 `locale.getencoding()=cp936`
+        # ⇒ 子进程按 UTF-8 写、父进程按 GBK 解 ⇒ UnicodeDecodeError 抛在
+        # `subprocess._readerthread` **线程里被吞掉**，`run()` 正常返回、
+        # `stdout`/`stderr` 双双是 None，**调用方一个错都收不到**。
+        # Git Bash 下两侧同为 cp936 所以不炸——**同一份代码换个壳结论不同**。
+        # 三件缺一不可：`encoding=` 钉父侧解码、`PYTHONIOENCODING` 钉子侧编码、
+        # `errors=` 保证读线程永不抛（范本＝ test_cli_smoke.py，它早就是对的）。
         r = subprocess.run(
             [_s.executable, _o.path.join(repo, "scripts", "corpus_ledger.py"),
              "--check", "--root", absent],
-            capture_output=True, text=True, cwd=repo)
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=repo, env=dict(_o.environ, PYTHONIOENCODING="utf-8"))
     assert r.returncode == 2, (
         "缺根时退出码应为 2（没比成），实得 %r；stderr=%s"
         % (r.returncode, r.stderr[:300]))
