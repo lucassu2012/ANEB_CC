@@ -79,7 +79,7 @@ def test_identical_rings_count_as_observed_silence_not_a_hole():
     res = _run([a, list(a), a + later])
     assert res["pair_states"]["identical"] == 1, res["pair_states"]
     assert res["pair_states"]["disjoint"] == 0, res["pair_states"]
-    assert res["verifiable_silences"] == 1, res
+    assert res["observed_gaps"] == 1, res
     assert res["unjudgeable_gaps"] == 0, res
 
 
@@ -94,7 +94,7 @@ def test_disjoint_boundary_gap_is_unjudgeable_not_silence():
     res = _run([a, b])
     assert res["pair_states"]["disjoint"] == 1, res["pair_states"]
     assert res["unjudgeable_gaps"] == 1, res
-    assert res["verifiable_silences"] == 0, res
+    assert res["observed_gaps"] == 0, res
 
 
 def test_lone_carriage_return_between_dumps_does_not_inflate_dump_count():
@@ -117,7 +117,7 @@ def test_pending_frames_are_dropped_not_treated_as_time_zero():
     real = _burst(5000000000, 4)
     res = _run([[0, 0] + real])
     assert res["frames_deduped"] == len(real), res
-    assert res["verifiable_silences"] == 0, res
+    assert res["observed_gaps"] == 0, res
 
 
 # ── 2. NOT_APPLICABLE 与 CANNOT_TELL 不可互代（本模块存在的第二理由）────────
@@ -131,12 +131,12 @@ def test_continuous_render_with_zero_holes_is_NOT_APPLICABLE():
     b = _burst(a[10], 30)
     res = _run([a, b])
     assert res["pair_states"]["disjoint"] == 0, res["pair_states"]
-    assert res["verifiable_silences"] == 0, res
+    assert res["observed_gaps"] == 0, res
     assert res["verdict"][0] == ep.NOT_APPLICABLE, res["verdict"]
 
 
 def test_holey_record_with_no_silence_is_CANNOT_TELL_not_NOT_APPLICABLE():
-    """同样「零可核静默」，但记录有丢帧边界 ⇒ 只能说**没看见**，不能说**不静默**。
+    """同样「零已观测间隔」，但记录有丢帧边界 ⇒ 只能说**没看见**，不能说**不静默**。
 
     把它写成 `NOT_APPLICABLE`，会让人取消一个本来可行的测量。
     **这两条（本条与上一条）成对存在，删掉任一条，另一条的区分力就消失了。**
@@ -146,7 +146,7 @@ def test_holey_record_with_no_silence_is_CANNOT_TELL_not_NOT_APPLICABLE():
     b = _burst(a[-1] + gap_ns * 4, 30)
     res = _run([a, b])
     assert res["pair_states"]["disjoint"] >= 1, res["pair_states"]
-    assert res["verifiable_silences"] == 0, res
+    assert res["observed_gaps"] == 0, res
     assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
     assert res["verdict"][0] != ep.NOT_APPLICABLE
 
@@ -163,14 +163,14 @@ def test_empty_sf_latency_is_CANNOT_TELL_not_NOT_APPLICABLE():
 
 
 def test_majority_unjudgeable_blocks_a_green():
-    """不可判间隔多于可核静默 ⇒ 不许 PASS：C 侧的次簇有一半以上可能是洞。"""
+    """不可判间隔多于已观测间隔 ⇒ 不许 PASS：C 侧的次簇有一半以上可能是洞。"""
     gap_ns = ec.cluster_gap_nanos()
     a = _burst(1000000000, 4) + _burst(1000000000 + FRAME_NS * 4 + gap_ns * 3, 4)
     dumps = [a]
     for k in range(3):
         dumps.append(_burst(a[-1] + gap_ns * 10 * (k + 1), 4))
     res = _run(dumps)
-    assert res["unjudgeable_gaps"] > res["verifiable_silences"], res
+    assert res["unjudgeable_gaps"] > res["observed_gaps"], res
     assert res["verdict"][0] != ep.WORTH_RUNNING, res["verdict"]
 
 
@@ -180,7 +180,7 @@ def test_channel_b_full_motion_blocks_a_green():
     """B 的**每一对**相邻采样都在动 ⇒ 反驳 C 的静默 ⇒ fail-closed，不许绿。"""
     gap_ns = ec.cluster_gap_nanos()
     frames, t = [], 1000000000
-    for _ in range(ep.MIN_VERIFIABLE_SILENCES + 2):
+    for _ in range(ep.MIN_OBSERVED_GAPS + 2):
         frames += _burst(t, 3)
         t = frames[-1] + gap_ns * 3
     b = [(i * 1500000000, 0.0 if i % 2 else 200.0) for i in range(20)]
@@ -213,11 +213,11 @@ def test_channel_a_absent_blocks_a_green_fail_closed():
     """
     gap_ns = ec.cluster_gap_nanos()
     frames, t = [], 1000000000
-    for _ in range(ep.MIN_VERIFIABLE_SILENCES + 3):
+    for _ in range(ep.MIN_OBSERVED_GAPS + 3):
         frames += _burst(t, 3)
         t = frames[-1] + gap_ns * 3
     res = _run([frames])          # 临时目录里没有 adapter.log
-    assert res["verifiable_silences"] >= ep.MIN_VERIFIABLE_SILENCES, res
+    assert res["observed_gaps"] >= ep.MIN_OBSERVED_GAPS, res
     assert res["channel_a"]["status"] != ec.PASS, res["channel_a"]
     assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
     assert "A 侧" in res["verdict"][1], res["verdict"]
@@ -255,7 +255,7 @@ def test_channel_a_shortfall_names_A_as_the_bottleneck():
     """A 侧可用轮数不足时，理由必须点名**瓶颈在 A 不在 C**。
 
     否则读者会去改采样周期——那治的是 C 侧，对 A 侧一点用都没有。
-    实测形状：`cell_f1` C 侧 10 次可核静默、A 侧只有 3/8 轮。
+    实测形状：`cell_f1` C 侧 10 次已观测间隔、A 侧只有 3/8 轮。
     """
     v = ep._verdict({"identical": 0, "overlap": 5, "disjoint": 1},
                     [500.0] * 10, [500.0] * 2,
@@ -277,11 +277,11 @@ def test_channel_a_sufficient_lets_it_through():
 # ── 4. 门限与尺子的来源（别写死）──────────────────────────────────────────
 
 def test_min_verifiable_tracks_gate_min_n():
-    """可核静默下界必须**跟着** `e1_analyze.GATE_MIN_N` 走，不许另取一个数。
+    """已观测间隔下界必须**跟着** `e1_analyze.GATE_MIN_N` 走，不许另取一个数。
 
     它不是新门限，是 e2 自己那道门的算术下界；两者分叉时判读会静默地宽于门。
     """
-    assert ep.MIN_VERIFIABLE_SILENCES == ec.ea.GATE_MIN_N
+    assert ep.MIN_OBSERVED_GAPS == ec.ea.GATE_MIN_N
 
 
 def test_cluster_gap_comes_from_device_source():

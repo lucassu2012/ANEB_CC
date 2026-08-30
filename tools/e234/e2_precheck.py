@@ -43,7 +43,7 @@ DeepSeek 型「思考期播放生成动画」栈：持续 CONTENT、无 >gap 静
 
 ## 三态判定（三者互不代偿；**判词刻意不与产线四态共用 token**，理由见下方常量处）
 
-- **`WORTH_RUNNING`**：C 侧可核静默 ≥ `MIN_VERIFIABLE_SILENCES`、不可判数不多于可核数，
+- **`WORTH_RUNNING`**：C 侧已观测间隔 ≥ `MIN_OBSERVED_GAPS`、不可判数不多于可核数，
   **且 A 侧可用轮数也够** ⇒ 值得开 e2。
 - **`NOT_APPLICABLE`**：**全程连续覆盖（零 disjoint）且一次 ≥gap 静默都没有** ⇒
   App 真的不静默，e2 对该 App/场景**结构性不适用**，加轮数不解。
@@ -81,8 +81,8 @@ B_FLIP_THRESHOLD = 8.0
 # **这不是一个新门限，是 e2 自己那道门的算术下界**（故不需要独立的敏感性分析背书）：
 # `e1_analyze.GATE_MIN_N` = 5 表示 e2 的 `|t_A-t_C|` 判定在 n<5 时直接 NOT_EXECUTED；
 # 而**每一个 n 都要求该轮 C 侧切得出次簇**，即至少一次 ≥gap 的静默。
-# ⇒ 少于 5 次可核静默时，e2 连自己的门都到不了。取值随 GATE_MIN_N 走，不写死。
-MIN_VERIFIABLE_SILENCES = ec.ea.GATE_MIN_N
+# ⇒ 少于 5 次已观测间隔时，e2 连自己的门都到不了。取值随 GATE_MIN_N 走，不写死。
+MIN_OBSERVED_GAPS = ec.ea.GATE_MIN_N
 
 # ── 本工具的判词**刻意不与产线四态共用 token**（v2 2026-08-30 核出，D-326 形状）──
 #
@@ -193,8 +193,22 @@ def classify_pairs(dumps):
     return counts, runs
 
 
-def silence_census(dumps, runs, gap_ns):
-    """数 ≥gap 的间隔，分成**可核**（落在同一连续段内）与**不可判**（跨越断点）。"""
+def gap_census(dumps, runs, gap_ns):
+    """数 ≥gap 的间隔，分成**已观测**（落在同一连续段内）与**不可判**（跨越断点）。
+
+    ⚠ **本函数与 `observed_gaps` 这个键，2026-08-30 由「可核静默 / silence」改名而来**（D-617②）。
+    改名的理由不是措辞偏好，是**旧名断言了它没有证明的东西**：
+    它证明的只有「**这个间隔从头到尾都在观测之下，期间没有帧到达**」，
+    **不证明「这是一次思考停顿」**。
+
+    **触发改名的实测**：`cell_f1b` 的 C 侧最大间隔逐轮复现
+    （1591.3 / 1608.1 / 1591.5 / 1607.6 / 1574.8 / 1590.9 ms，位置 120/126 五轮相同），
+    这簇值**占了本键计数的一半**（`cell_f1b` 6/12、`wifi_f5` 6/14）。
+    ⚠ 但**不要因此认为它们是伪影**——我逐条核过：它们**全部落在单个 dump 的帧跨度之内**，
+    是**真实观测到的间隔**。对抗核查由此推出的「逐轮复现 ⇒ 采集排期产物」**不成立**：
+    **驱动器是脚本化的，每轮做同样的事，本来就会产生复现的真实行为——复现本身不区分真伪。**
+    ⇒ 成立的那半是：**这簇间隔的语义未定**。旧名把「未定」读成了「思考静默」。
+    """
     frames = sorted(set(t for d in dumps for t in d))
     verifiable, unjudgeable = [], []
     for i in range(1, len(frames)):
@@ -204,7 +218,7 @@ def silence_census(dumps, runs, gap_ns):
         inside = any(lo <= frames[i - 1] and frames[i] <= hi for lo, hi in runs)
         (verifiable if inside else unjudgeable).append(g / ec.NS_PER_MS)
     return {"frames_deduped": len(frames),
-            "verifiable_silences": verifiable,
+            "observed_gaps": verifiable,
             "unjudgeable_gaps": unjudgeable}
 
 
@@ -239,7 +253,7 @@ def channel_a_anchors(run_dir, pkg, gap_ns):
 
     **判据原文是「思考期**两条通道**须同时静默」，所以只查 C 侧是不够的。**
     本函数补上 A 侧——它是 2026-08-30 首版漏掉的一半：首版只答了「装置看得见静默吗」
-    与「C 侧静不静」，于是对 `wifi_f1_anchor` 给出 `PASS`（C 侧 11 次可核静默），
+    与「C 侧静不静」，于是对 `wifi_f1_anchor` 给出 `PASS`（C 侧 11 次已观测间隔），
     而 `e2_analyze` 实跑 `NOT_EXECUTED`：**6 轮里 3 轮栽在 A 侧**（该轮不足两簇）。
     ⇒ **一个只查一半的前置断言，会把「值得开 e2」说得比事实更满。**
 
@@ -268,20 +282,20 @@ def _verdict(counts, ver, unj, b, a=None):
     # 先杀假阳性：两条通道互相矛盾时不许给绿（D-511 fail-closed）。
     if b.get("status") == ec.PASS and b.get("motion_rate") == 1.0 and ver:
         return (CANNOT_TELL,
-                "两通道矛盾：C 报 %d 次可核静默，而 B 的**每一对**相邻采样都在动"
+                "两通道矛盾：C 报 %d 次已观测间隔，而 B 的**每一对**相邻采样都在动"
                 "（ROI 全程无一刻静止）⇒ 先查通道 C 的图层是不是选错了" % len(ver))
     if counts["disjoint"] == 0 and not ver:
         return (NOT_APPLICABLE,
                 "全程连续覆盖（零丢帧边界）且一次 >=gap 静默都没有 ⇒ "
                 "该 App/场景**结构性不适用** e2：C 侧永远切不出次簇，加轮数不解")
-    if len(ver) < MIN_VERIFIABLE_SILENCES:
+    if len(ver) < MIN_OBSERVED_GAPS:
         return (CANNOT_TELL,
-                "可核静默仅 %d 次 < %d（e2 自己那道门的算术下界）；"
+                "已观测间隔仅 %d 次 < %d（e2 自己那道门的算术下界）；"
                 "另有 %d 个间隔跨越丢帧边界、不可判 ⇒ 先修采集排期再谈适用性"
-                % (len(ver), MIN_VERIFIABLE_SILENCES, len(unj)))
+                % (len(ver), MIN_OBSERVED_GAPS, len(unj)))
     if len(unj) > len(ver):
         return (CANNOT_TELL,
-                "记录太碎：不可判间隔 %d > 可核静默 %d ⇒ "
+                "记录太碎：不可判间隔 %d > 已观测间隔 %d ⇒ "
                 "C 侧的次簇有一半以上可能是 dump 排期的洞，不是思考静默"
                 % (len(unj), len(ver)))
     # A 侧：`|t_A-t_C|` 每一个样本都要**两侧同时**切得出次簇，所以 A 侧可用轮数
@@ -293,18 +307,18 @@ def _verdict(counts, ver, unj, b, a=None):
     # 一个没有 adapter.log 的目录照样能拿到 PASS，而 PASS 的措辞是「值得开 e2」。
     if not a or a.get("status") != ec.PASS:
         return (CANNOT_TELL,
-                "C 侧够了（可核静默 %d 次），**但 A 侧查不了**（%s）⇒ "
+                "C 侧够了（已观测间隔 %d 次），**但 A 侧查不了**（%s）⇒ "
                 "判据要两条通道同时静默，只验一半不给绿"
                 % (len(ver), (a or {}).get("reason", "无 channel_a 结果")))
-    if a.get("turns") and a["turns_with_anchor"] < MIN_VERIFIABLE_SILENCES:
+    if a.get("turns") and a["turns_with_anchor"] < MIN_OBSERVED_GAPS:
         return (CANNOT_TELL,
-                "C 侧够了（可核静默 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇** "
+                "C 侧够了（已观测间隔 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇** "
                 "< %d ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解"
                 % (len(ver), a["turns_with_anchor"], a["turns"],
-                   MIN_VERIFIABLE_SILENCES))
+                   MIN_OBSERVED_GAPS))
     return (WORTH_RUNNING,
-            "可核静默 %d 次（>=%d）、不可判间隔 %d 不占多数，A 侧 %s 轮可用 ⇒ 值得开 e2"
-            % (len(ver), MIN_VERIFIABLE_SILENCES, len(unj),
+            "已观测间隔 %d 次（>=%d）、不可判间隔 %d 不占多数，A 侧 %s 轮可用 ⇒ 值得开 e2"
+            % (len(ver), MIN_OBSERVED_GAPS, len(unj),
                (a or {}).get("turns_with_anchor", "?")))
 
 
@@ -314,7 +328,7 @@ def precheck(run_dir, pkg=None):
     res = {"tool": "e2_precheck", "run_dir": run_dir, "run_kind": run_kind,
            "dry_run": run_kind == ec.KIND_DRY_RUN,
            "cluster_gap_ms": gap_ns / ec.NS_PER_MS,
-           "min_verifiable_silences": MIN_VERIFIABLE_SILENCES,
+           "min_observed_gaps": MIN_OBSERVED_GAPS,
            "criterion": ("T81 §7-2：思考期两条通道须同时静默"
                          "（先判记录连不连，再判 App 静不静）")}
 
@@ -328,12 +342,12 @@ def precheck(run_dir, pkg=None):
     counts, runs = classify_pairs(dumps)
     res["pair_states"] = counts
     res["covered_runs"] = len(runs)
-    cen = silence_census(dumps, runs, gap_ns)
-    ver, unj = cen["verifiable_silences"], cen["unjudgeable_gaps"]
+    cen = gap_census(dumps, runs, gap_ns)
+    ver, unj = cen["observed_gaps"], cen["unjudgeable_gaps"]
     res["frames_deduped"] = cen["frames_deduped"]
-    res["verifiable_silences"] = len(ver)
+    res["observed_gaps"] = len(ver)
     res["unjudgeable_gaps"] = len(unj)
-    res["verifiable_silence_ms"] = ec.ea.summarize(ver)
+    res["observed_gap_ms"] = ec.ea.summarize(ver)
     res["unjudgeable_gap_ms"] = ec.ea.summarize(unj)
 
     # ── dump 周期该设多少：**用第一性原理算，再用实测校**（两条独立的路） ──
@@ -394,11 +408,11 @@ def render_line(res):
         return "e2_precheck %s: %s - %s" % (os.path.basename(res["run_dir"]), v, why)
     ps, a = res["pair_states"], res.get("channel_a") or {}
     return ("e2_precheck %s: %s - %s | dump=%d(同=%d 叠=%d 断=%d) "
-            "C侧可核静默=%d 不可判=%d | A侧可用轮=%s/%s | B动率=%s "
+            "C侧已观测间隔=%d 不可判=%d | A侧可用轮=%s/%s | B动率=%s "
             "建议 --framestats-period-s=%s"
             % (os.path.basename(res["run_dir"]), v, why, res["dumps"],
                ps["identical"], ps["overlap"], ps["disjoint"],
-               res["verifiable_silences"], res["unjudgeable_gaps"],
+               res["observed_gaps"], res["unjudgeable_gaps"],
                a.get("turns_with_anchor", "?"), a.get("turns", "?"),
                _f(res["channel_b"].get("motion_rate"), 3),
                res["recommended_framestats_period_s"]))

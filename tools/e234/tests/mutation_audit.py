@@ -245,9 +245,9 @@ def m14():
         ver = [(frames[i] - frames[i - 1]) / ec.NS_PER_MS
                for i in range(1, len(frames))
                if frames[i] - frames[i - 1] > gap_ns]
-        return {"frames_deduped": len(frames), "verifiable_silences": ver,
+        return {"frames_deduped": len(frames), "observed_gaps": ver,
                 "unjudgeable_gaps": []}
-    return _mut(ep, "silence_census", patched)
+    return _mut(ep, "gap_census", patched)
 
 
 @mutation("M15 NOT_APPLICABLE 与 CANNOT_TELL 合并（「没看见」写成「不静默」）", "CAUGHT")
@@ -280,7 +280,7 @@ def m16():
 @mutation("M17 可核静默下界脱离 GATE_MIN_N（自取一个更松的数）", "CAUGHT")
 def m17():
     import e2_precheck as ep
-    return _mut(ep, "MIN_VERIFIABLE_SILENCES", 1)
+    return _mut(ep, "MIN_OBSERVED_GAPS", 1)
 
 
 @mutation("M18 A 侧不足不再拦（只查 C 侧就给绿）", "CAUGHT")
