@@ -1,0 +1,6 @@
+{"round": 1, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.035, "quiet_intended_s": 20.0, "quiet_actual_s": 20.046, "prep_before_send_s": 9.373, "round_total_s": 74.576}
+{"round": 2, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.035, "quiet_intended_s": 20.0, "quiet_actual_s": 20.033, "prep_before_send_s": 9.551, "round_total_s": 74.751}
+{"round": 3, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.027, "quiet_intended_s": 20.0, "quiet_actual_s": 20.036, "prep_before_send_s": 9.312, "round_total_s": 74.451}
+{"round": 4, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.044, "quiet_intended_s": 20.0, "quiet_actual_s": 20.018, "prep_before_send_s": 9.305, "round_total_s": 74.475}
+{"round": 5, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.015, "quiet_intended_s": 20.0, "quiet_actual_s": 20.022, "prep_before_send_s": 9.181, "round_total_s": 74.477}
+{"round": 6, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.033, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 9.349, "round_total_s": 74.5}
