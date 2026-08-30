@@ -203,6 +203,77 @@ def test_channel_b_quiet_is_not_evidence_of_silence():
     assert res["verdict"][0] == ec.FAIL, res["verdict"]
 
 
+# ── 3b. 通道 A 侧：判据要的是**两条通道同时**静默，只查 C 是只验了一半 ──────
+
+def test_channel_a_absent_blocks_a_green_fail_closed():
+    """A 侧查不了 ⇒ 不许 PASS。**「没查」与「查过没问题」绝不可同判。**
+
+    初版把 A 缺席写成「跳过该检查」，于是一个连 `adapter.log` 都没有的目录
+    照样拿到 `PASS`，而 PASS 的措辞是「值得开 e2」。
+    """
+    gap_ns = ec.cluster_gap_nanos()
+    frames, t = [], 1000000000
+    for _ in range(ep.MIN_VERIFIABLE_SILENCES + 3):
+        frames += _burst(t, 3)
+        t = frames[-1] + gap_ns * 3
+    res = _run([frames])          # 临时目录里没有 adapter.log
+    assert res["verifiable_silences"] >= ep.MIN_VERIFIABLE_SILENCES, res
+    assert res["channel_a"]["status"] != ec.PASS, res["channel_a"]
+    assert res["verdict"][0] == ec.NOT_EXECUTED, res["verdict"]
+    assert "A 侧" in res["verdict"][1], res["verdict"]
+
+
+def test_channel_a_actually_runs_on_a_whole_session():
+    """A 侧那条路**要被真正走一遍**，不能只测判定分支。
+
+    **本条是突变审计逼出来的**：M18（「A 侧永远报够」）第一次实测 **SURVIVED**——
+    因为我的临时目录没有 `RUN_KIND.json`，`pkg` 取不到，`channel_a_anchors`
+    **一次都没被调用**；另两条 A 侧测试又是直接调 `_verdict`。
+    ⇒ **三条测试围着一条从没被执行的代码路径打转，而它们全绿。**
+    用 `sim_session` 造一整场会话（它同时写 adapter.log 与 RUN_KIND.json），把那条路走通。
+    """
+    import sim_session as sim
+    # 目录名必须带 `dryrun`：写盘前的隔离断言（D-270）会拒绝把模拟语料落进
+    # 一个看起来像真实采集的目录。**第一次写这条测试时就被它拦下了**——
+    # 那道门是活的，不是摆设。
+    d = tempfile.mkdtemp(prefix="dryrun_e2pre_")
+    try:
+        sim.write(d, "e2_within_one_frame")
+        # 显式给 pkg：模拟器写的 `RUN_KIND.json` **不含 `pkg`**（真实采集器写），
+        # 所以这里不能靠那条默认路径——**默认值在模拟语料上取不到，是模拟器的边界，
+        # 不是本工具的缺陷**；真实格已核过有该字段。
+        res = ep.precheck(d, sim.SIM_PKG)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    a = res["channel_a"]
+    assert a["status"] == ec.PASS, a
+    assert a["turns"] == sim.SCENARIOS["e2_within_one_frame"]["turns"], a
+    assert 0 <= a["turns_with_anchor"] <= a["turns"], a
+
+
+def test_channel_a_shortfall_names_A_as_the_bottleneck():
+    """A 侧可用轮数不足时，理由必须点名**瓶颈在 A 不在 C**。
+
+    否则读者会去改采样周期——那治的是 C 侧，对 A 侧一点用都没有。
+    实测形状：`cell_f1` C 侧 10 次可核静默、A 侧只有 3/8 轮。
+    """
+    v = ep._verdict({"identical": 0, "overlap": 5, "disjoint": 1},
+                    [500.0] * 10, [500.0] * 2,
+                    {"status": ec.PASS, "motion_rate": 0.1},
+                    {"status": ec.PASS, "turns": 8, "turns_with_anchor": 3})
+    assert v[0] == ec.NOT_EXECUTED, v
+    assert "A 侧" in v[1] and "瓶颈在 A 不在 C" in v[1], v
+
+
+def test_channel_a_sufficient_lets_it_through():
+    """A 侧够了就不该拦——否则这道新检查会把本来可跑的格也判掉。"""
+    v = ep._verdict({"identical": 0, "overlap": 5, "disjoint": 1},
+                    [500.0] * 10, [500.0] * 2,
+                    {"status": ec.PASS, "motion_rate": 0.1},
+                    {"status": ec.PASS, "turns": 5, "turns_with_anchor": 5})
+    assert v[0] == ec.PASS, v
+
+
 # ── 4. 门限与尺子的来源（别写死）──────────────────────────────────────────
 
 def test_min_verifiable_tracks_gate_min_n():

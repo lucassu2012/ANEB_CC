@@ -49,6 +49,19 @@ TESTS = _load(["test_e234_common", "test_e234_collect", "test_e2_analyze",
                "test_e1_analyze", "test_e1_collect_guard"])
 
 
+def _say(text):
+    """经 `ec.say` 输出 —— **报告通道自己不许死在报告上**（D-265）。
+
+    实测：本文件原用裸 `print`，把输出重定向到文件时 stdout 编码退回 GBK，
+    而 M11 的名字里有 `↔`（U+2194，GBK 里没有）⇒ **整个审计在打印第 11 行时崩掉**，
+    前 10 条结果已印、后 8 条与「还原后复跑」永远没印出来，退出码 1。
+    **看起来像审计失败，其实审计早就跑完了。** 交互式跑时不复现（那次我带了
+    `PYTHONIOENCODING=utf-8`）——**同一份代码在两种跑法下结论不同**，
+    而门禁用的是不带环境变量的那种。
+    """
+    ec.say(text + "\n")
+
+
 def run_all():
     failed = set()
     for name, fn in TESTS:
@@ -241,7 +254,10 @@ def m14():
 def m15():
     import e2_precheck as ep
 
-    def patched(counts, ver, unj, b):
+    # ⚠ 签名必须跟着 `_verdict` 走（现为 5 参，含 A 侧）：桩子签名对不上时，
+    # 每个用到它的测试都会 TypeError ⇒ 报 CAUGHT，**但那是崩的不是被抓的**。
+    # **一个因签名不符而崩出来的 CAUGHT，与真的被守卫咬住长得一模一样。**
+    def patched(counts, ver, unj, b, a=None):
         if not ver:
             return (ec.FAIL, "无静默")
         return (ec.PASS, "有静默")
@@ -267,13 +283,25 @@ def m17():
     return _mut(ep, "MIN_VERIFIABLE_SILENCES", 1)
 
 
+@mutation("M18 A 侧不足不再拦（只查 C 侧就给绿）", "CAUGHT")
+def m18():
+    import e2_precheck as ep
+    real = ep.channel_a_anchors
+
+    def patched(run_dir, pkg, gap_ns):
+        r = real(run_dir, pkg, gap_ns)
+        # 坏实现：A 侧永远报「够」⇒ 判据只验了一半却给绿。
+        return dict(r, status=ec.PASS, turns=99, turns_with_anchor=99)
+    return _mut(ep, "channel_a_anchors", patched)
+
+
 def main():
     base = run_all()
-    print("基线：%d 条测试，失败 %d 条" % (len(TESTS), len(base)))
+    _say("基线：%d 条测试，失败 %d 条" % (len(TESTS), len(base)))
     if base:
         for n in sorted(base):
-            print("  基线失败：%s" % n)
-        print("基线不绿，突变审计的红与绿都不是你以为的那个意思（D-394）。")
+            _say("  基线失败：%s" % n)
+        _say("基线不绿，突变审计的红与绿都不是你以为的那个意思（D-394）。")
         return 1
     rows = []
     for name, predicted, apply_fn in MUTATIONS:
@@ -284,15 +312,15 @@ def main():
             undo()
         verdict = "CAUGHT" if failed else "SURVIVED"
         rows.append((name, predicted, verdict, sorted(failed)))
-    print("")
+    _say("")
     for name, predicted, verdict, failed in rows:
         mark = "" if verdict == predicted else "  ⚠ 预测=%s" % predicted
         sole = "（**单点守卫**）" if len(failed) == 1 else ""
-        print("%-46s %-9s %d 条承重%s%s" % (name, verdict, len(failed), sole, mark))
+        _say("%-46s %-9s %d 条承重%s%s" % (name, verdict, len(failed), sole, mark))
         for f in failed:
-            print("      %s" % f)
+            _say("      %s" % f)
     after = run_all()
-    print("\n还原后复跑：失败 %d 条（应为 0）" % len(after))
+    _say("\n还原后复跑：失败 %d 条（应为 0）" % len(after))
     return 0 if not after else 1
 
 

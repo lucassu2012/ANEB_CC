@@ -43,10 +43,17 @@ DeepSeek 型「思考期播放生成动画」栈：持续 CONTENT、无 >gap 静
 
 ## 三态判定（PASS / FAIL / NOT_EXECUTED 三者互不代偿）
 
-- **PASS**：可核静默 ≥ `MIN_VERIFIABLE_SILENCES` 且不可判数不多于可核数 ⇒ 值得开 e2。
+- **PASS**：C 侧可核静默 ≥ `MIN_VERIFIABLE_SILENCES`、不可判数不多于可核数，
+  **且 A 侧可用轮数也够** ⇒ 值得开 e2。
 - **FAIL**：**全程连续覆盖（零 disjoint）且一次 ≥gap 静默都没有** ⇒ App 真的不静默，
   e2 对该 App/场景**结构性不适用**，加轮数不解（第三类 NOT_EXECUTED 的成因）。
-- **NOT_EXECUTED**：装置判不了 —— 无帧 / 记录太碎 / 两通道互相矛盾。
+- **NOT_EXECUTED**：装置判不了 —— 无帧 / 记录太碎 / 两通道互相矛盾 / **A 侧不足或查不了**。
+
+⚠ **A 侧是首版漏掉的一半**：判据原文写的是「**两条通道**须同时静默」，而首版只做了
+C 侧（＋B 作反驳）。结果对首窗五格中的两格给出 `PASS`，而 `e2_analyze` 实跑
+`NOT_EXECUTED`——它们栽在 A 侧（3/8、4/6 轮）。**`|t_A−t_C|` 的每个样本都要两侧
+同时切得出次簇，所以 A 侧可用轮数是 n 的另一个上界。**
+**瓶颈在哪决定修法**：C 侧不足或记录碎 ⇒ 改采集周期有救；**A 侧不足改周期毫无用处**。
 
 **FAIL 与 NOT_EXECUTED 绝不可混**：前者是「App 不静默」，后者是「我们没看见」。
 把后者写成前者，会让人取消一个本来可行的测量；反过来会让人再烧一格。
@@ -61,6 +68,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
 import e234_common as ec    # noqa: E402
+import e234_session as es   # noqa: E402
 
 PENDING_NS = (1 << 63) - 1
 
@@ -209,7 +217,36 @@ def channel_b_motion(samples, threshold=B_FLIP_THRESHOLD):
             "threshold": threshold}
 
 
-def _verdict(counts, ver, unj, b):
+def channel_a_anchors(run_dir, pkg, gap_ns):
+    """通道 A 侧：有几轮切得出 A2（次簇首事件）。
+
+    **判据原文是「思考期**两条通道**须同时静默」，所以只查 C 侧是不够的。**
+    本函数补上 A 侧——它是 2026-08-30 首版漏掉的一半：首版只答了「装置看得见静默吗」
+    与「C 侧静不静」，于是对 `wifi_f1_anchor` 给出 `PASS`（C 侧 11 次可核静默），
+    而 `e2_analyze` 实跑 `NOT_EXECUTED`：**6 轮里 3 轮栽在 A 侧**（该轮不足两簇）。
+    ⇒ **一个只查一半的前置断言，会把「值得开 e2」说得比事实更满。**
+
+    **复用 `e2_analyze` 用的同一批函数**（`es.content_events` / `es.segment_turns` /
+    `ec.v3_anchors`），不另写一份：口径分叉时不会报错，只会让前置与实跑各说各话（D-315）。
+    """
+    lines = ec.read_lines(run_dir, "adapter.log")
+    if not lines:
+        return {"status": ec.NOT_EXECUTED, "reason": "无 adapter.log", "turns": 0,
+                "turns_with_anchor": 0}
+    evts, _dropped_pkg, _dropped_dim = es.content_events(lines, pkg)
+    fit = ec.fit_wall_to_boot(lines)
+    marks = es.parse_marks(lines, fit)
+    turns, method = es.segment_turns(evts, marks)
+    with_anchor = 0
+    for t in turns:
+        _a0p, a2, _cl = ec.v3_anchors([e["t_boot_ns"] for e in t["events"]], gap_ns)
+        if a2 is not None:
+            with_anchor += 1
+    return {"status": ec.PASS, "turn_method": method, "turns": len(turns),
+            "turns_with_anchor": with_anchor, "events_used": len(evts)}
+
+
+def _verdict(counts, ver, unj, b, a=None):
     """三态判定。**FAIL 与 NOT_EXECUTED 的区分是本模块存在的理由，别合并。**"""
     # 先杀假阳性：两条通道互相矛盾时不许给绿（D-511 fail-closed）。
     if b.get("status") == ec.PASS and b.get("motion_rate") == 1.0 and ver:
@@ -230,12 +267,31 @@ def _verdict(counts, ver, unj, b):
                 "记录太碎：不可判间隔 %d > 可核静默 %d ⇒ "
                 "C 侧的次簇有一半以上可能是 dump 排期的洞，不是思考静默"
                 % (len(unj), len(ver)))
+    # A 侧：`|t_A-t_C|` 每一个样本都要**两侧同时**切得出次簇，所以 A 侧可用轮数
+    # 是 n 的另一个上界。只报 C 侧会把「值得开」说得比事实满（首版即如此，见
+    # `channel_a_anchors` 的说明）。
+    # A 侧查不了就不许给绿（fail-closed，D-511）：判据要的是**两条通道同时**静默，
+    # A 侧缺席时我们只验了一半。**「没查」与「查过没问题」绝不可同判**——
+    # 这一支是补 A 侧时顺手堵的：初版把 A 缺席写成「跳过该检查」，于是
+    # 一个没有 adapter.log 的目录照样能拿到 PASS，而 PASS 的措辞是「值得开 e2」。
+    if not a or a.get("status") != ec.PASS:
+        return (ec.NOT_EXECUTED,
+                "C 侧够了（可核静默 %d 次），**但 A 侧查不了**（%s）⇒ "
+                "判据要两条通道同时静默，只验一半不给绿"
+                % (len(ver), (a or {}).get("reason", "无 channel_a 结果")))
+    if a.get("turns") and a["turns_with_anchor"] < MIN_VERIFIABLE_SILENCES:
+        return (ec.NOT_EXECUTED,
+                "C 侧够了（可核静默 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇** "
+                "< %d ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解"
+                % (len(ver), a["turns_with_anchor"], a["turns"],
+                   MIN_VERIFIABLE_SILENCES))
     return (ec.PASS,
-            "可核静默 %d 次（>=%d）且不可判间隔 %d 不占多数 ⇒ 值得开 e2"
-            % (len(ver), MIN_VERIFIABLE_SILENCES, len(unj)))
+            "可核静默 %d 次（>=%d）、不可判间隔 %d 不占多数，A 侧 %s 轮可用 ⇒ 值得开 e2"
+            % (len(ver), MIN_VERIFIABLE_SILENCES, len(unj),
+               (a or {}).get("turns_with_anchor", "?")))
 
 
-def precheck(run_dir):
+def precheck(run_dir, pkg=None):
     run_kind = ec.read_run_kind(run_dir).get("kind")
     gap_ns = ec.cluster_gap_nanos()
     res = {"tool": "e2_precheck", "run_dir": run_dir, "run_kind": run_kind,
@@ -295,7 +351,16 @@ def precheck(run_dir):
         ec.read_jsonl(run_dir, "screencap_index.jsonl")))
     res["channel_b"] = b
 
-    res["verdict"] = _verdict(counts, ver, unj, b)
+    # 目标包默认从 `RUN_KIND.json` 取（采集侧写的那份），不要求调用方再报一次 ——
+    # 同一个事实被人手抄第二遍就会有抄错的那一天。
+    pkg = pkg or ec.read_run_kind(run_dir).get("pkg")
+    res["pkg"] = pkg
+    res["channel_a"] = (channel_a_anchors(run_dir, pkg, gap_ns) if pkg else
+                        {"status": ec.NOT_EXECUTED,
+                         "reason": "RUN_KIND.json 无 pkg，且未经 --pkg 指定",
+                         "turns": 0, "turns_with_anchor": 0})
+
+    res["verdict"] = _verdict(counts, ver, unj, b, res["channel_a"])
     return res
 
 
@@ -310,12 +375,14 @@ def render_line(res):
     v, why = res["verdict"]
     if "pair_states" not in res:
         return "e2_precheck %s: %s - %s" % (os.path.basename(res["run_dir"]), v, why)
-    ps = res["pair_states"]
+    ps, a = res["pair_states"], res.get("channel_a") or {}
     return ("e2_precheck %s: %s - %s | dump=%d(同=%d 叠=%d 断=%d) "
-            "可核静默=%d 不可判=%d B动率=%s 建议 --framestats-period-s=%s"
+            "C侧可核静默=%d 不可判=%d | A侧可用轮=%s/%s | B动率=%s "
+            "建议 --framestats-period-s=%s"
             % (os.path.basename(res["run_dir"]), v, why, res["dumps"],
                ps["identical"], ps["overlap"], ps["disjoint"],
                res["verifiable_silences"], res["unjudgeable_gaps"],
+               a.get("turns_with_anchor", "?"), a.get("turns", "?"),
                _f(res["channel_b"].get("motion_rate"), 3),
                res["recommended_framestats_period_s"]))
 
@@ -325,6 +392,8 @@ def main(argv=None):
         description="E2 适用性前置断言：开跑前判「这一格值不值得开 e2」")
     ap.add_argument("--run-dir", required=True, action="append",
                     help="已有的观察通道 run 目录；可重复给多个")
+    ap.add_argument("--pkg", default=None,
+                    help="目标包；默认从该格 RUN_KIND.json 的 pkg 取")
     ap.add_argument("--json-out", default=None)
     args = ap.parse_args(argv)
 
@@ -340,7 +409,7 @@ def main(argv=None):
         if not os.path.isdir(run_dir):
             ec.say("run-dir 不存在: %s\n" % run_dir, sys.stderr)
             return 2
-        r = precheck(run_dir)
+        r = precheck(run_dir, args.pkg)
         results.append(r)
         ec.say(render_line(r) + "\n")
         if r["verdict"][0] != ec.PASS:
