@@ -291,7 +291,11 @@ if ($py -and (Test-Path $schemaTest)) {
 
 }
 
-if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh')) {
+# ⚠ 这张名单必须与本块内**实际 Add-Result 的门名**逐一对齐：漏登记的门在层外
+# 既不跑、也不记 SKIPPED_SCOPE，而是**从汇总里彻底消失**——正是 `Test-InScope`
+# 自己注释里写的「沉默的跳过＝没有检查项」。`obs-tools-*` 两道 2026-08-30 补登。
+# （它们测的是 `tools/`，归 'scripts' 层是因为那是分析 lane 的层，不是路径前缀。）
+if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh','obs-tools-e1-unit','obs-tools-e234-unit')) {
 # --- 语料台账新鲜度门（T82 §9.2 #12）：台账开篇写着「勿手编」，而此前没有任何
 # 东西核对它——手改能一直活到下次重算，期间那两面仍被当作单一事实源引用。
 # 本门只比不写：落盘的 md/CSV 必须与现算逐字节相同。不一致的两种成因（有人手改／
@@ -362,6 +366,49 @@ if ($py -and (Test-Path $campaignTest)) {
     if (-not $py) { $missing += 'python' }
     if (-not (Test-Path $campaignTest)) { $missing += 'scripts/tests/run_all.py' }
     $log += Add-Result 'campaign-analysis-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+# --- Observation-channel analysis tools SELF-TEST (T81 §7-2, 2026-08-30) ---
+# Guards tools/e1/* and tools/e234/* — the E1..E4 collectors/analyzers plus the new
+# e2_precheck applicability assertion. Self-contained runners (no pytest).
+# exit: 0=all reflex pass / 1=a reflex failed -> FAIL / 5=zero collected -> FAIL.
+#
+# **为什么现在才接进来**：这两只跑器自 2026-08-02 就存在，`tools/e1/tests/run_tests.py`
+# 的 docstring 逐字写着三态退出码「以便直接接进 `scripts/verify_all.ps1`」——
+# **而它们从未被接进来**（2026-08-30 全仓核：只有 docs 与两份 README 提到它们，
+# 本文件零引用）。于是 180+ 条守卫观察通道分析工具的反例，**只在有人手动想起时才跑**。
+#
+# 这不是 D-532 那种「门没跑却报 PASS」，是更安静的一种：**门是绿的、也是真绿的，
+# 只是不在清单上** —— `gate_count` 从来没把它们数进去，所以谁也不会发现少了什么。
+# ⇒ **「写好了一道门」与「那道门在门禁清单上」是两件事**，后者要单独去核；
+# 而**自称「已备好接入」的东西最容易被当成已接入**——那句话本身读起来就像完成态。
+#
+# 5 也判 FAIL：零收集意味着枚举坏了或目录空了，那时「全绿」是假的（D-275/D-364）。
+foreach ($obsSuite in @(
+    @{ Name = 'obs-tools-e1-unit';   Dir = 'tools/e1/tests' },
+    @{ Name = 'obs-tools-e234-unit'; Dir = 'tools/e234/tests' })) {
+    $obsDir = Join-Path $repo $obsSuite.Dir
+    $obsRunner = Join-Path $obsDir 'run_tests.py'
+    if ($py -and (Test-Path $obsRunner)) {
+        Push-Location $obsDir
+        $out = & $py $obsRunner 2>&1 | Out-String
+        $code = $LASTEXITCODE
+        Pop-Location
+        $log += ("--- " + $obsSuite.Name + " (exit $code) ---")
+        $log += $out
+        if ($code -eq 0) {
+            $log += Add-Result $obsSuite.Name 'PASS' (($out -split "`n" | Where-Object { $_ -match 'reflex:' } | Select-Object -First 1).Trim())
+        } elseif ($code -eq 5) {
+            $log += Add-Result $obsSuite.Name 'FAIL' 'zero tests collected (enumeration broken or dir empty)'
+        } else {
+            $log += Add-Result $obsSuite.Name 'FAIL' 'reflex test(s) failed; see log'
+        }
+    } else {
+        $missing = @()
+        if (-not $py) { $missing += 'python' }
+        if (-not (Test-Path $obsRunner)) { $missing += ($obsSuite.Dir + '/run_tests.py') }
+        $log += Add-Result $obsSuite.Name 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+    }
 }
 
 # --- Result JSONL INPUT CONTRACT gate (D-97): validate the committed corpus against

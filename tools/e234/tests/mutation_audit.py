@@ -40,9 +40,13 @@ def _load(modnames):
     return out
 
 
+# ⚠ **这是一张手写清单**，而 `run_tests.py` 那边是**从磁盘枚举**的 —— 两者会分叉：
+# 新增一个 `test_*.py` 会自动进反例跑器，**却不会自动进突变审计**。
+# 分叉时没有任何报错，症状只是「这份守卫从没被突变考过」，而它在反例跑器里照样报绿。
+# 加测试文件时**必须同时加到这里**；`test_e2_precheck` 即 2026-08-30 新增的一条。
 TESTS = _load(["test_e234_common", "test_e234_collect", "test_e2_analyze",
-               "test_e3_analyze", "test_e4_analyze", "test_e1_analyze",
-               "test_e1_collect_guard"])
+               "test_e2_precheck", "test_e3_analyze", "test_e4_analyze",
+               "test_e1_analyze", "test_e1_collect_guard"])
 
 
 def run_all():
@@ -187,6 +191,80 @@ def m12():
                 r = dict(r, verdict=e4.SEPARABLE, gap_lo_ms=mi, gap_hi_ms=mp)
         return r
     return _mut(e4, "separation", patched)
+
+
+# ── e2_precheck（2026-08-30 新增）─────────────────────────────────────────
+# 这五条对着的是同一件事的五个侧面：**「记录里的一个洞」与「App 的一次静默」
+# 在去重后的帧序列里长得一模一样**。每一条都把「把后者读成前者」的一种走法堵上。
+
+@mutation("M13 disjoint 不再断段（丢帧的洞被并进连续段）", "CAUGHT")
+def m13():
+    import e2_precheck as ep
+    real = ep.classify_pairs
+
+    def patched(dumps):
+        counts, _runs = real(dumps)
+        # 坏实现：不管断没断，全场当成一整段连续观测 ⇒ 洞被读成静默。
+        frames = sorted(set(t for d in dumps for t in d))
+        return counts, ([(frames[0], frames[-1])] if frames else [])
+    return _mut(ep, "classify_pairs", patched)
+
+
+# ── 一条**等价突变**的记录（D-325：预测与实测不一致时，写下来的是实测）──────
+#
+# 初版 M13 是「把 `identical` 也当断点」，预测 CAUGHT，**实测 SURVIVED**。
+# 追下去发现它是**等价突变**，不是守卫漏了：`classify_pairs` 里 `identical` 与
+# `overlap` 走的是**同一个分支**（都只延长 `hi`），只有 `disjoint` 断段；而一对
+# identical 的两次 dump **跨度完全相同**，所以「在这里断一刀」不改变任何区间的覆盖性。
+#
+# ⇒ **`identical` 这一支是诊断计数，不是承重逻辑**（承重的是 `disjoint`）。
+# 这条留在这里，是因为它纠正了一个我差点写进文档的错误印象：
+# **「我为某个判断写了一条分支」不等于「那个判断在承重」** —— 分支存在感很强，
+# 而它是否改变输出，只有突变审计答得出。改 M13 去打真正承重的那一支后即 CAUGHT。
+
+
+@mutation("M14 丢帧边界不再拦（跨洞间隔算成静默）", "CAUGHT")
+def m14():
+    import e2_precheck as ep
+
+    def patched(dumps, runs, gap_ns):
+        frames = sorted(set(t for d in dumps for t in d))
+        ver = [(frames[i] - frames[i - 1]) / ec.NS_PER_MS
+               for i in range(1, len(frames))
+               if frames[i] - frames[i - 1] > gap_ns]
+        return {"frames_deduped": len(frames), "verifiable_silences": ver,
+                "unjudgeable_gaps": []}
+    return _mut(ep, "silence_census", patched)
+
+
+@mutation("M15 FAIL 与 NOT_EXECUTED 合并（「没看见」写成「不静默」）", "CAUGHT")
+def m15():
+    import e2_precheck as ep
+
+    def patched(counts, ver, unj, b):
+        if not ver:
+            return (ec.FAIL, "无静默")
+        return (ec.PASS, "有静默")
+    return _mut(ep, "_verdict", patched)
+
+
+@mutation("M16 通道 B 的反驳被摘掉（两通道矛盾照给绿）", "CAUGHT")
+def m16():
+    import e2_precheck as ep
+    real = ep.channel_b_motion
+
+    def patched(samples, threshold=ep.B_FLIP_THRESHOLD):
+        r = real(samples, threshold)
+        if r.get("status") == ec.PASS:
+            r = dict(r, motion_rate=0.0)      # 永远不反驳
+        return r
+    return _mut(ep, "channel_b_motion", patched)
+
+
+@mutation("M17 可核静默下界脱离 GATE_MIN_N（自取一个更松的数）", "CAUGHT")
+def m17():
+    import e2_precheck as ep
+    return _mut(ep, "MIN_VERIFIABLE_SILENCES", 1)
 
 
 def main():
