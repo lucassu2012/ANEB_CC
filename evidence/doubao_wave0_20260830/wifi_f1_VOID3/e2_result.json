@@ -1,0 +1,107 @@
+{
+  "experiment": "E2",
+  "run_dir": "evidence/doubao_wave0_20260830/wifi_f1",
+  "pkg": "com.larus.nova",
+  "dry_run": false,
+  "run_kind": "DEVICE_REAL",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E2 / §3.4 G-3",
+  "events_used": 594,
+  "events_other_pkg": 8,
+  "events_bad_dimension": 0,
+  "wall_to_boot": {
+    "status": "PASS",
+    "offset_ns": -20656830968655907,
+    "n": 602,
+    "residual_ms_p50": 0.263025,
+    "residual_ms_max": 5.243222
+  },
+  "clock_pin": {
+    "status": "PASS",
+    "offset_ns": 84664573137866,
+    "drift_ns": 1042,
+    "frame_ms": 16.667,
+    "pre_n": 5,
+    "post_n": 5,
+    "pre_spread_ns": 2083,
+    "post_spread_ns": 1563
+  },
+  "turn_method": "operator-marks",
+  "turns_total": 5,
+  "frames_total": 787,
+  "frames_duplicate_dropped": 4515,
+  "frame_ms": 16.666666,
+  "channel_b": {
+    "status": "PASS",
+    "n": 599,
+    "period_ms_p50": 1500.4264,
+    "period_ms_p90": 1500.7691,
+    "period_ms_p99": 1522.645,
+    "period_ms_min": 1500.0488,
+    "period_ms_max": 2550.3594,
+    "transitions_detected": 14
+  },
+  "per_turn": [
+    {
+      "turn": 0,
+      "a_clusters": 5,
+      "c_clusters": 2,
+      "frames": 127,
+      "delta_ms": -8281.648436
+    },
+    {
+      "turn": 1,
+      "a_clusters": 2,
+      "c_clusters": 2,
+      "frames": 127,
+      "delta_ms": -4302.946875
+    },
+    {
+      "turn": 2,
+      "a_clusters": 2,
+      "c_clusters": 2,
+      "frames": 127,
+      "delta_ms": -4680.885416
+    },
+    {
+      "turn": 3,
+      "a_clusters": 2,
+      "c_clusters": 1,
+      "frames": 126
+    },
+    {
+      "turn": 4,
+      "a_clusters": 2,
+      "c_clusters": 2,
+      "frames": 233,
+      "delta_ms": -4052.620312
+    }
+  ],
+  "drop_reasons": {
+    "通道 C 该轮不足两簇（帧序列未分出思考静默）": 1
+  },
+  "signed": {
+    "status": "PASS",
+    "n": 4,
+    "dropped": 1,
+    "p50_ms": -4680.885416,
+    "p90_ms": -4052.620312,
+    "p99_ms": -4052.620312,
+    "min_ms": -8281.648436,
+    "max_ms": -4052.620312
+  },
+  "channel_a_vs_c": {
+    "status": "PASS",
+    "n": 4,
+    "dropped": 1,
+    "p50_ms": 4302.946875,
+    "p90_ms": 8281.648436,
+    "p99_ms": 8281.648436,
+    "min_ms": 4052.620312,
+    "max_ms": 8281.648436
+  },
+  "verdict": [
+    "NOT_EXECUTED",
+    "样本量不足：n=4，另有 1 条被丢弃 < 最小 5（本判据 PROVISIONAL 门限）——n<100 时 p99 恒等于最大值，n 太小则「p99 ≤ 1 帧」退化成「这一次没超」，不足以当结论"
+  ],
+  "gate_caveat": "该判定**已设**最小 n（e1_analyze.GATE_MIN_N，n 不足即 NOT_EXECUTED），但**不看 dropped**（T14 C-2 余半）；本次 n=4 dropped=1"
+}

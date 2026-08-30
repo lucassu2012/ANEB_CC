@@ -1,0 +1,86 @@
+Exception in thread Thread-17 (_dump_channel_c):
+device: serial=8MY0221126002537 model=ELS-AN00 -> ALLOW (型号在 denylist，但排窗授权 DW-20260830-01 已在任务板上核到)
+Traceback (most recent call last):
+  File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Python314\Lib\threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\C Project\ANEB\tools\e234\e234_collect.py", line 336, in _dump_channel_c
+    _append(sf_path, adb.text("shell", "dumpsys", "SurfaceFlinger",
+                     ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                              "--latency", layer))
+                              ^^^^^^^^^^^^^^^^^^^
+  File "E:\C Project\ANEB\tools\e1\e1_collect.py", line 131, in text
+    p = subprocess.run(self._argv(args), capture_output=True,
+                       timeout=kw.get("timeout", 30))
+  File "C:\Python314\Lib\subprocess.py", line 554, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1552, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+PermissionError: [WinError 5] 拒绝访问。
+Traceback (most recent call last):
+  File "E:\C Project\ANEB\tools\e234\e234_collect.py", line 447, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "E:\C Project\ANEB\tools\e234\e234_collect.py", line 437, in main
+    notes = collect(adb, out, args.pkg, roi, args.screencap_period_ms,
+                    args.session_seconds, args.pin_flips, args.pin_interval_ms,
+                    not args.no_marks, args.device_window, args.framestats_period_s,
+                    args.pin_through_session)
+  File "E:\C Project\ANEB\tools\e234\e234_collect.py", line 306, in collect
+    notes["screencap_samples"] = _sample_roi(
+                                 ~~~~~~~~~~~^
+        adb, idx_path, roi, screencap_period_ms, session_seconds,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        stop_flag=(lambda: marker.stop) if marker else (lambda: False))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\C Project\ANEB\tools\e234\e234_collect.py", line 363, in _sample_roi
+    buf = adb.raw("exec-out", "screencap", timeout=20)
+  File "E:\C Project\ANEB\tools\e1\e1_collect.py", line 136, in raw
+    p = subprocess.run(self._argv(args), capture_output=True,
+                       timeout=kw.get("timeout", 30))
+  File "C:\Python314\Lib\subprocess.py", line 554, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1552, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+PermissionError: [WinError 5] 拒绝访问。

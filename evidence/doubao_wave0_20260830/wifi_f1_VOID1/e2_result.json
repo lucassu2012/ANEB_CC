@@ -1,0 +1,78 @@
+{
+  "experiment": "E2",
+  "run_dir": "evidence/doubao_wave0_20260830/wifi_f1",
+  "pkg": "com.larus.nova",
+  "dry_run": false,
+  "run_kind": "DEVICE_REAL",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E2 / §3.4 G-3",
+  "events_used": 601,
+  "events_other_pkg": 8,
+  "events_bad_dimension": 0,
+  "wall_to_boot": {
+    "status": "PASS",
+    "offset_ns": -20656830968668572,
+    "n": 609,
+    "residual_ms_p50": 0.260934,
+    "residual_ms_max": 2.369267
+  },
+  "clock_pin": {
+    "status": "PASS",
+    "offset_ns": 84664573137866,
+    "drift_ns": -2084,
+    "frame_ms": 16.667,
+    "pre_n": 5,
+    "post_n": 5,
+    "pre_spread_ns": 1041,
+    "post_spread_ns": 4687
+  },
+  "turn_method": "whole-run",
+  "turns_total": 1,
+  "frames_total": 837,
+  "frames_duplicate_dropped": 739,
+  "frame_ms": 16.666666,
+  "channel_b": {
+    "status": "PASS",
+    "n": 199,
+    "period_ms_p50": 1500.3935,
+    "period_ms_p90": 1503.005,
+    "period_ms_p99": 2018.3413,
+    "period_ms_min": 1500.05,
+    "period_ms_max": 2041.1024,
+    "transitions_detected": 14
+  },
+  "per_turn": [
+    {
+      "turn": 0,
+      "a_clusters": 21,
+      "c_clusters": 17,
+      "frames": 792,
+      "delta_ms": -4597.493749
+    }
+  ],
+  "drop_reasons": {},
+  "signed": {
+    "status": "PASS",
+    "n": 1,
+    "dropped": 0,
+    "p50_ms": -4597.493749,
+    "p90_ms": -4597.493749,
+    "p99_ms": -4597.493749,
+    "min_ms": -4597.493749,
+    "max_ms": -4597.493749
+  },
+  "channel_a_vs_c": {
+    "status": "PASS",
+    "n": 1,
+    "dropped": 0,
+    "p50_ms": 4597.493749,
+    "p90_ms": 4597.493749,
+    "p99_ms": 4597.493749,
+    "min_ms": 4597.493749,
+    "max_ms": 4597.493749
+  },
+  "verdict": [
+    "NOT_EXECUTED",
+    "样本量不足：n=1 < 最小 5（本判据 PROVISIONAL 门限）——n<100 时 p99 恒等于最大值，n 太小则「p99 ≤ 1 帧」退化成「这一次没超」，不足以当结论"
+  ],
+  "gate_caveat": "该判定**已设**最小 n（e1_analyze.GATE_MIN_N，n 不足即 NOT_EXECUTED），但**不看 dropped**（T14 C-2 余半）；本次 n=1 dropped=0"
+}

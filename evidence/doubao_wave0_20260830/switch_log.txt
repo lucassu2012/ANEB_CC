@@ -1,0 +1,1 @@
+2026-08-30 11:05:34  切换 1: WiFi -> 蜂窝 (svc wifi disable);切后 gsm.network.type=NR_SA,Unknown
