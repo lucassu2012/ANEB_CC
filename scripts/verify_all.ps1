@@ -22,7 +22,14 @@ $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 $evidenceDir = Join-Path $repo 'evidence\phase0'
 New-Item -ItemType Directory -Force $evidenceDir | Out-Null
-$ts = Get-Date -Format 'yyyyMMdd-HHmmss'
+# ⚠ 时间戳带 **PID**（T89，承 D-612④）：原先只有秒级 `yyyyMMdd-HHmmss`，**无进程区分**
+# ⇒ 两个 verify_all 在同一秒启动会**共用同一个 $logPath 互相覆盖**，且不报错。
+# 本树是共享工作树、同刻常有多个会话在跑门，这不是理论风险。
+# 形状仍匹配 `.gitignore` 的 `verify_all_*.log` 与 `badges.py:latest_log` 的 glob；
+# 时间戳是**定宽前缀**，故按名排序在跨时间戳时仍正确。
+# ⚠ 同秒内两条日志的先后由 PID **字符串**比较决定（"9999" > "10000"）——**那是任意的**；
+# 但 verify_all 总是显式把 $logPath 传给 badges.py，`latest_log` 只是手工调用时的兜底。
+$ts = (Get-Date -Format 'yyyyMMdd-HHmmss') + "-$PID"
 $logPath = Join-Path $evidenceDir "verify_all_$ts.log"
 $results = @()
 
@@ -734,14 +741,67 @@ if ($isRed -or $isFinalGreen) {
     # 而 badges.txt 是本块里最后一个被写的文件。**无条件执行**，不得并进上面的
     # `if ($py -and ...)` 分支——徽章没刷新时清单照样要记录当时的真实现态。
     $manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
+    $evRel = $evidenceDir.Substring($repo.Length + 1) -replace '\\', '/'
+
+    # T89(b)：先整批取出「未跟踪且被 .gitignore 忽略」的文件，**一次 git 调用**，
+    # 别每个文件跑一次 check-ignore（清单三百多条，那是三百多次进程）。
+    # 为什么要排除：这些绝大多数是 verify_all_*.log 运行日志，只在本机存在
+    # ⇒ 留着会让**清单内容变成「本 checkout 跑过多少次」的函数**，
+    # 每跑一次就多一行**别的 checkout 无从复核**的行。清单的用处正是让别人能核。
+    # ⚠ 判据是 check-ignore 语义（未跟踪 **且** 被忽略），**不是**「未跟踪」——
+    # 刚产生、马上要入库的证据文件是未跟踪但不被忽略的，它必须进清单。
+    # ⚠ 已跟踪的 verify_all_*.log（在 .gitignore 那条规则之前入过库的）**照收**：
+    # 别的 checkout 确实有它们、核得动，排除它们才是丢信息。
+    $ignoredSet = @{}
+    $gitOk = $false
+    # ⚠ **失败必须朝「不排除」那侧倒**：git 缺失时 `& git` 不会自己把 $LASTEXITCODE
+    # 置非零，它会**留着上一条命令的值**——若那个值恰好是 0，就会走进「已排除」分支、
+    # 拿一个空集合当结果，然后**宣称排除过**。（同族即本文件 §673 记的 D-532。）
+    # 所以先探 git 是否存在，再把 $LASTEXITCODE 预置成哨兵 99：git 真跑过才会被覆盖。
+    # ⚠⚠ 必须写 `$global:` —— 首跑实测（2026-08-30）：裸写 `$LASTEXITCODE = 99`
+    # 会在**脚本作用域**新建一个局部变量把全局那个遮住，而 `& git` 写的是全局那个
+    # ⇒ 读回来永远是 99、`$gitOk` 永远 false、**排除功能整个静默失效**。
+    # 三个独立脚本一次只变一个量测过：局部赋值读 99／`$global:` 读 0／不预置读 0。
+    # 它当时没变成假绿，只因为哨兵朝安全侧倒 + stdout 会明说「未能排除」——
+    # **那句话是唯一的告警**，所以下面那行 $mnote 不许省。
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $global:LASTEXITCODE = 99
+        $ign = & git -C $repo ls-files --others --ignored --exclude-standard -- $evRel 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $gitOk = $true
+            foreach ($ip in $ign) { if ($ip) { $ignoredSet[$ip.Trim()] = $true } }
+        }
+    }
+
     $mlines = @()
-    Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.Name -ne 'sha256-manifest.txt' } | Sort-Object FullName | ForEach-Object {
-        $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+    $skipped = 0
+    # T89(c)：过滤清单自身用**全路径**比较，不用 `.Name`。
+    # 原先写 `$_.Name -ne 'sha256-manifest.txt'` 而这里带 `-Recurse`
+    # ⇒ 任何子目录里的同名文件也会被静默排除，且不报错。
+    Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.FullName -ne $manifestPath } | Sort-Object FullName | ForEach-Object {
         $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
+        if ($gitOk -and $ignoredSet.ContainsKey("$evRel/$rel")) { $skipped++; return }
+        $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
         $mlines += "$h  $rel"
     }
-    $mlines -join "`r`n" | Out-File -Encoding utf8 $manifestPath
-    "manifest: $manifestPath ($($mlines.Count) files)"
+
+    # T89(a)：让清单**自述**它是什么。此前它没有表头，读者只能从文件名猜，
+    # 于是哈希对不上时第一反应是「内容被改了」，而最常见的真因是行尾形态不同。
+    # ⚠ 表头里**不写条数**——写了就每跑一次变一次，正好抵消上面消 churn 的目的；
+    # 条数走 stdout / 本次 verify_all 日志。
+    $mhdr = @(
+        '# evidence/phase0 的 SHA256 清单 —— 由 scripts/verify_all.ps1（-Scope all）自动重算，勿手编。',
+        '# 【这是本机 checkout 的形态快照，不是仓库内容的规范哈希】：文件落到磁盘的字节',
+        '# 受本机 core.autocrlf 与 .gitattributes 影响，换一台机器 checkout 出来的行尾可能不同。',
+        '# ⇒ 哈希对不上时**先核行尾形态，再怀疑内容被改**。（全仓行尾策略单列待裁，试点期禁动。）',
+        '# 已排除两类：①清单自身；②本 checkout 中被 .gitignore 忽略的未跟踪文件',
+        '#   （绝大多数是 verify_all_*.log 运行日志，只在本机存在、别处无从复核）。',
+        '# ⚠ 因此本清单**不含当次运行日志**；当次日志路径见 badges.txt 与本次 verify_all 输出。',
+        '# 行格式：<sha256 小写><两个空格><相对 evidence/phase0 的路径，斜杠分隔>；`#` 开头为注释。'
+    )
+    ($mhdr + $mlines) -join "`r`n" | Out-File -Encoding utf8 $manifestPath
+    $mnote = if ($gitOk) { "，已排除 gitignored $skipped 条" } else { '；⚠ git 不可用，未能排除 gitignored' }
+    "manifest: $manifestPath ($($mlines.Count) files$mnote)"
 } else {
     $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)
     $log -join "`r`n" | Out-File -Encoding utf8 $scratchLog

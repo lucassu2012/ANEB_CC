@@ -758,6 +758,28 @@ def test_the_shipped_grid_config_is_one_the_tool_accepts():
 
 _TIER_CLAIM_MARKS = ("三级差分", "三层级", "三级归因")
 _TIER_REALITY_MARKS = ("D-48", "单实例", "单层级")
+# ⚠ 第二道判据（2026-08-30 收紧）：光有 `_TIER_CLAIM_MARKS` 不算「在讲部署三级」。
+# 那三个词都能在**与部署无关**的意义上出现——最常见的是「**三级归因链**」
+# （讲因果层级：观察→机制→结论），它含子串 `三级归因`，于是被判成在描述
+# 同城/区域/中心三级部署，然后被要求贴一条与它毫不相干的 D-48 说明。
+# 故再要求文中出现**部署层级本身的名字**。取值经实测标定：
+#   · 原判据命中 15 份，加本条后 13 份；掉出的两份**本来就带着现实标记**
+#     ⇒ 没有丢掉任何一份违规文档，纯削误报。
+#   · 四个历史真阳（D-283/289/292/293）全部仍在命中集内。
+#   · 再收一格（去掉 `metro`）会掉到 11 份，误杀两份**真的**在讲部署层级的
+#     spec —— 故 `metro` 必须留。`core`/`regional` 是通用英文词，实测去掉
+#     一份不少，所以不收进来（宁可判据窄，也别让通用词把门变松）。
+_TIER_DEPLOYMENT_MARKS = ("同城", "metro", "三级部署", "镜像端")
+
+
+def _claims_three_deployment_tiers(text):
+    """这份文本是不是在把**三级部署分解**当成现行设计来讲。
+
+    抽成函数是为了让下面那条**误报反例**能调**同一段代码** —— 反例要证的是
+    生产判据本身放过了它，另写一份等价规则去对答案什么也证明不了。
+    """
+    return (any(m in text for m in _TIER_CLAIM_MARKS)
+            and any(m in text for m in _TIER_DEPLOYMENT_MARKS))
 
 
 def test_every_doc_asserting_three_tiers_also_carries_the_deployment_it_has():
@@ -785,7 +807,7 @@ def test_every_doc_asserting_three_tiers_also_carries_the_deployment_it_has():
             path = os.path.join(root, name)
             with open(path, encoding="utf-8-sig") as fh:
                 text = fh.read()
-            if not any(m in text for m in _TIER_CLAIM_MARKS):
+            if not _claims_three_deployment_tiers(text):
                 continue
             claiming += 1
             if not any(m in text for m in _TIER_REALITY_MARKS):
@@ -797,7 +819,47 @@ def test_every_doc_asserting_three_tiers_also_carries_the_deployment_it_has():
     assert not offenders, (
         "these docs describe the three-tier decomposition and never say what is "
         "deployed: %s — add the D-48 delta (a pointer is enough; the baseline "
-        "plan keeps its own wording and carries one at the top)" % offenders)
+        "plan keeps its own wording and carries one at the top). "
+        "⚠ 若你这份文档里的「三级」根本不是**部署**三级（最常见的是"
+        "「三级归因链」＝观察→机制→结论那种因果层级），那这是误报：判据要求"
+        "同时出现部署层级名 %s 才算数，去看看是不是文中别处恰好提到了它们；"
+        "别为了过门贴一条与本文无关的 D-48 说明。"
+        % (offenders, list(_TIER_DEPLOYMENT_MARKS)))
+
+
+def test_a_three_level_causal_chain_is_not_a_three_tier_deployment_claim():
+    """误报反例：讲「三级归因链」的文档**不该**被要求交代部署形态。
+
+    这条门原判据只看 `三级差分/三层级/三级归因` 三个词出不出现，于是任何
+    「**三级归因链**」（观察→机制→结论那种因果层级）都会被判成在描述
+    同城/区域/中心三级部署 —— 作者要么删掉一个正确的说法，要么贴一条
+    与本文无关的 D-48 说明。**两种都是让门去污染它本该保护的东西。**
+
+    ⚠ 本条调的是生产判据 `_claims_three_deployment_tiers` 本身，不是另写
+    一份等价规则去对答案：后者只能证明我把规则抄对了两遍。
+
+    正例一起放着，是为了防**反方向的坏修法**——把判据收到什么都不认，
+    这条反例照样绿。一红一绿两头钉住，判据才动不了。
+    """
+    false_positive = (
+        "本页给出**三级归因链**：观察 → 机制 → 结论。"
+        "三层级的因果推理不可跳级，跳一级就会把「排除候选 A」读成「证成候选 B」。")
+    assert not _claims_three_deployment_tiers(false_positive), (
+        "「三级归因链」被当成了部署三级声明 ⇒ 门会逼作者贴无关的 D-48 说明")
+
+    true_positive = (
+        "部署：同城/区域/中心三级各一实例（镜像同一份），三级差分即归因输入。")
+    assert _claims_three_deployment_tiers(true_positive), (
+        "判据收得太紧：连点名同城/区域/中心镜像端的文本都不认了，"
+        "这道门就再也拦不住 D-283 那类提案")
+
+    # 第三例钉住 `metro`：实测把它从判据里拿掉，命中集会从 13 掉到 11，
+    # 掉出的两份是**真的**在讲部署层级、只是全程用英文 tier 值的 spec
+    # （`tier: metro / regional / core`）。它们逃出门去不会有任何报错。
+    english_only = (
+        '"tier": "metro" —— 服务层级取值，三级差分归因的输入字段。')
+    assert _claims_three_deployment_tiers(english_only), (
+        "只用英文 tier 值（metro）的部署 spec 不再被门认出 ⇒ 它们会静默逃逸")
 
 
 def test_every_tool_is_mentioned_in_the_readme():
@@ -1487,6 +1549,125 @@ def test_the_manifest_is_generated_after_the_badges_it_describes():
     # 说明清单不在任一分支内部——徽章没刷新时清单照样要记录真实现态。
     assert badge_else < manifest_write, (
         "清单似乎被并进了徽章的 if 分支 ⇒ 徽章未执行时清单不会刷新（D-612）")
+
+
+def _verify_all_text():
+    with open(os.path.join(REPO, "scripts", "verify_all.ps1"),
+              encoding="utf-8") as fh:
+        return fh.read()
+
+
+def _verify_all_code():
+    """verify_all.ps1 去掉整行注释后的**代码行列表** —— 「有没有在用」问代码，别问全文。
+
+    ⚠ 这个辅助函数是被一次**真误报**逼出来的（2026-08-30，T89）：下面那条
+    「不许再按文件名排除自身」的守卫第一次就咬中了 verify_all.ps1 里
+    **解释旧写法为什么错的那句注释**。判据落在「文本里提到 X」而不是
+    「代码里在用 X」，就会让**记录一个缺陷的行为本身**变成那个缺陷的证据。
+
+    只剥整行注释（首个非空字符是 `#`）——不处理 `<# #>` 块注释，也不处理
+    字符串内部的 `#`。对本文件的用法够了；若哪天要更严，得上真解析器。
+    """
+    return [line for line in _verify_all_text().splitlines()
+            if not line.lstrip().startswith("#")]
+
+
+def test_the_manifest_excludes_itself_by_path_and_not_by_file_name():
+    """清单排除自身必须按**全路径**，不能按 `.Name`。
+
+    实测反例（2026-08-30，T89，合成夹具跑过、非推断）：那一句带着 `-Recurse`，
+    于是 `$_.Name -ne 'sha256-manifest.txt'` 会把**任何子目录里的同名文件**
+    一并静默排除。同一夹具上旧写法收 4 条、新写法收 5 条，
+    差的正是 `sub/sha256-manifest.txt` —— **不报错、不留痕**。
+    """
+    # ⚠ 用 **去注释后**的代码判，否则解释旧写法的那句注释会自己咬自己（见 _verify_all_code）
+    code = _verify_all_code()
+    assert not any("$_.Name -ne 'sha256-manifest.txt'" in ln for ln in code), (
+        "清单又改回按文件名排除自身了 ⇒ 子目录同名文件会被静默漏收（T89）")
+    assert any("$_.FullName -ne $manifestPath" in ln for ln in code), (
+        "找不到按全路径排除清单自身的锚 `$_.FullName -ne $manifestPath`")
+
+
+def test_the_manifest_excludes_ignored_files_and_fails_to_the_safe_side():
+    """清单排除 gitignored 文件时，git 判不出来必须朝**不排除**那侧倒。
+
+    背景（T89(b)）：清单 314 条里 297 条是 verify_all 自己的运行日志，
+    其中 20 条未跟踪、只在本机存在 ⇒ 留着会让**清单内容变成「本机跑过多少次」的函数**。
+    判据必须是 check-ignore 语义（未跟踪 **且** 被忽略）：只用「未跟踪」会连
+    刚产生、马上要入库的证据文件一起丢掉。
+
+    ⚠ 本条真正守的是**失败方向**：`& git` 在 git 缺失时**不会**把 $LASTEXITCODE
+    置非零，它留着上一条命令的值；若那值恰好是 0，代码会拿一个空集合走进
+    「已排除」分支并**宣称排除过**。故须有 `Get-Command git` 前置探测
+    ＋ 哨兵预置。实测：对一个非仓库目录跑，gitOk=False（朝不排除倒）。
+    """
+    text = _verify_all_text()
+    assert "ls-files --others --ignored --exclude-standard" in text, (
+        "清单不再用 check-ignore 语义筛 gitignored 文件（T89(b)）")
+    assert "Get-Command git -ErrorAction SilentlyContinue" in text, (
+        "少了 git 存在性前置探测 ⇒ git 缺失时会拿空集合冒充『已排除』（T89(b)）")
+    assert "$global:LASTEXITCODE = 99" in text, (
+        "少了 $LASTEXITCODE 哨兵预置 ⇒ 会误读上一条命令的退出码（T89(b)）")
+    # ⚠ 必须是 `$global:`。首跑实测：裸写会在脚本作用域新建局部变量遮住全局，
+    # 而 `& git` 写的是全局那个 ⇒ 读回来永远是哨兵值、排除功能**整个静默失效**。
+    assert not any(ln.strip() == "$LASTEXITCODE = 99" for ln in _verify_all_code()), (
+        "哨兵写成了局部 `$LASTEXITCODE = 99` ⇒ 它遮住 `& git` 写的全局变量，"
+        "gitOk 永远 false、gitignored 排除整条路静默失效（T89(b) 首跑实测）")
+
+
+def test_the_manifest_declares_what_it_is_without_writing_a_count_into_itself():
+    """清单必须自述「本机 checkout 形态快照」，且表头里**不许写条数**。
+
+    自述是为了改掉一个错误的第一反应：哈希对不上时先怀疑内容被改，
+    而最常见的真因是**行尾形态**（本机 core.autocrlf/.gitattributes 决定）。
+
+    ⚠ 表头写条数会**每跑一次变一次**，正好抵消掉排除 gitignored 是为了消 churn
+    这件事本身 —— 条数走 stdout，不进文件。（本仓旧教训：索引里别写计数。）
+    """
+    text = _verify_all_text()
+    start = text.find("$mhdr = @(")
+    assert start > 0, "找不到清单表头锚 `$mhdr = @(`"
+    end = text.find(")", text.find("行格式：", start))
+    header = text[start:end]
+    assert "本机 checkout 形态快照" in header or "本机 checkout 的形态快照" in header, (
+        "清单表头不再自述它是本机 checkout 形态快照（T89(a)）")
+    for token in ("$skipped", "$mlines.Count", "$($mlines"):
+        assert token not in header, (
+            "清单表头里出现计数变量 %s ⇒ 清单会每跑一次变一次（T89(a)）" % token)
+
+
+def test_the_run_log_name_carries_the_pid_and_still_sorts_by_time():
+    """运行日志名必须带 PID，且带了之后仍要按时间排得对。
+
+    成因（T89(d)）：`$ts` 原本只有秒级 `yyyyMMdd-HHmmss`，**无进程区分**
+    ⇒ 同一秒起跑的两个 verify_all **共用同一个 $logPath 互相覆盖**，且不报错。
+    本树是共享工作树、同刻常有多个会话在跑门，这不是理论风险。
+
+    ⚠ 改名会牵动两个下游，本条把它们都算一遍（不是断言，是真跑）：
+    ①`.gitignore` 的 `verify_all_*.log`；②`badges.py:latest_log` 取
+    `sorted(glob(...))[-1]` ＝ **字典序**。时间戳是定宽前缀，故跨时间戳仍正确；
+    同秒内先后由 PID 字符串决定（"9999" > "10000"）——**那是任意的**，
+    但 verify_all 总是显式把 $logPath 传给 badges.py，latest_log 只是手工兜底。
+    """
+    import fnmatch
+    text = _verify_all_text()
+    assert "$PID" in text, "运行日志名不再带 PID ⇒ 同秒并发会互相覆盖（T89(d)）"
+    assert "Get-Date -Format 'yyyyMMdd-HHmmss'" in text, (
+        "时间戳格式变了；`latest_log` 的字典序排序依赖它是**定宽前缀**（T89(d)）")
+    # 下游①：新名字仍要落进 .gitignore 的模式
+    newname = "verify_all_20260830-235959-12345.log"
+    assert fnmatch.fnmatch(newname, "verify_all_*.log"), (
+        "带 PID 的日志名不再匹配 .gitignore 的 verify_all_*.log")
+    with open(os.path.join(REPO, ".gitignore"), encoding="utf-8") as fh:
+        assert "evidence/phase0/verify_all_*.log" in fh.read(), (
+            ".gitignore 里那条 verify_all_*.log 规则不见了（T89(d) 依赖它）")
+    # 下游②：跨时间戳的字典序必须仍等于时间序，即使 PID 位数不同
+    names = [
+        "verify_all_20260830-235959-99999.log",   # 早，PID 大
+        "verify_all_20260831-000000-1.log",       # 晚，PID 小
+    ]
+    assert sorted(names)[-1] == names[1], (
+        "带 PID 后按名排序不再等于按时间排序 ⇒ badges.py:latest_log 会取错日志")
 
 
 def test_no_new_cross_file_line_number_references():
