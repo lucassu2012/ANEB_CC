@@ -15,6 +15,7 @@
 
 - 开工前必读 [docs/BRAIN_TASKBOARD.md](docs/BRAIN_TASKBOARD.md)，认领任务并置 DOING；收工更新状态与证据路径。
 - git 先行：动手前 `git status` + 分支确认；各执行会话不得同时改同一模块，撞上即停、报大脑。
+- **共享分支禁 rebase（D-614，2026-08-30）**：集成分支上禁 `git pull --rebase`、`git rebase`、对已共享提交 `--amend`——同步只许 `fetch`＋fast-forward 或 merge。合并提交是协作痕迹不是噪音；线性化别人的合并＝改写共享历史，且被替换的哈希会让既有锚悬空。推送前先 `fetch` 核远端位置。
 - **提交纪律（O-5 通则，2026-08-02）**：共享工作树的 index 不是私有的——「只 add 自己的路径」不足以自保，**必须用 `git commit <pathspec>` 绕过索引**，并在提交后以 `git show --stat` 复核只含自己的文件。两个边角（O-7 实证）：**A** pathspec 对未跟踪文件无效——新建文件先 `git add <单个路径>` 后立即提交，压窗口到最小；**B** pathspec 防不住同一文件内他人的未提交编辑——提交高共享度文件（本文件/任务板/DECISION_LOG）前先 `git diff --cached -- <file>` **逐行**确认只有自己的改动（`show --stat` 只见文件级），发现他人行时要么等、要么在提交说明里点名搭车内容并事后告知属主。
 - 既有开发纪律不变：决策入册 `docs/DECISION_LOG.md`、四态证据、发布门、每步先报环节、做完简报 where-are-we。本文件不复制那些纪律，以决策日志与其点名的文档为准。
 
