@@ -5,7 +5,7 @@
     "display_name": "豆包",
     "app_id": "doubao-android",
     "package": "com.larus.nova",
-    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list 与前台窗口实况均为 com.larus.nova，对话页 Activity=com.larus.bmhome.chat.ChatActivity；ADAPTER_OBS 日志 pkg 字段实测命中（mode=doubao）。〔2026-08-02 过渡标注〕上面那句 07-18 核实之后该 App 已更新过：机上实测 versionName=14.4.0（versionCode=14040001），lastUpdateTime=2026-07-30 09:42:59，晚于核实日 12 天，故上述界面观察不保证仍成立。未回填 validated_against_version：本次只测到「现在装的是哪个版本」，不是「规格是对着哪个版本验的」，拿前者填后者会凭空造出一份不存在的验证记录；缺席=「不知道对哪个版本验过」，是合法且诚实的状态。三条节点规则本就全 PENDING-VALIDATION（正则全 null、宿主走 generic 兜底、规则不作打点闸门），今天没有任何打点依赖这些可能过期的特征，故只标注不停用。再验证并入 E1 真机设备窗。证据 evidence/adapter_versions_20260802/",
+    "package_note": "[KNOWN] 2026-07-18 P40 装机核实：pm list 与前台窗口实况均为 com.larus.nova，对话页 Activity=com.larus.bmhome.chat.ChatActivity；ADAPTER_OBS 日志 pkg 字段实测命中（mode=doubao）。〔2026-08-02 过渡标注〕上面那句 07-18 核实之后该 App 已更新过：机上实测 versionName=14.4.0（versionCode=14040001），lastUpdateTime=2026-07-30 09:42:59，晚于核实日 12 天，故上述界面观察不保证仍成立。未回填 validated_against_version：本次只测到「现在装的是哪个版本」，不是「规格是对着哪个版本验的」，拿前者填后者会凭空造出一份不存在的验证记录；缺席=「不知道对哪个版本验过」，是合法且诚实的状态。〔2026-08-30 订正，D-579〕上一句原写「三条节点规则本就全 PENDING-VALIDATION（正则全 null）」——**对本份为假，且两个分句都假**：doubao 的 input_node=VALIDATED、response_node=VALIDATED-PARTIAL，四条正则非 null（两个 view_id_regex + 两个 class_name_regex），只有 send_button 是 PENDING 且全 null。该句对 kimi/tongyi 为真、对 doubao 与 deepseek 为假——**同一句话在同类文件间搬家，会从真变假**。「只标注不停用」这个结论仍然成立，但真理由是运行时口径而不是规则状态：①运行时只编译并评估 class_name_regex 这个框架类名，view_id_regex 存而不评估（跨进程 getSource 开销，D-49 偏离 2 / R-16）；②核心量 ttft_ui_ms 走 v3 簇分割，不经任何正则。⇒ 界面特征即使过期，也不改变打点。（D-405 自语：经不起查的理由比没有理由更糟。）再验证并入 E1 真机设备窗。证据 evidence/adapter_versions_20260802/",
     "status": "VALIDATED-OBSERVED",
     "launch_hint": "由用户手动启动豆包并进入对话页；宿主为观察模式 only——绝不代启动 App、绝不 performAction/注入任何操作（动真实账号是用户红线）",
     "input_node": {
@@ -28,7 +28,7 @@
       "text_regex": null,
       "content_desc_regex": null,
       "status": "PENDING-VALIDATION",
-      "note": "[GUESS] send-anchor v2 点击锚点（TYPE_VIEW_CLICKED）：发送按钮特征待真机 ADAPTER_EVT 诊断日志（cls=/desc= 字段）反推回填。豆包 View 系（D-51：发送后容器重建不发 TEXT_CHANGED，v1 input-clear 失效），预期发送按钮 className/content_desc 可由 DEBUG 日志观测。四正则暂全 null → sendButtonMatch 不武装（R-10 不猜测、诚实缺席）；view_id_regex 运行时不评估（getSource 跨进程，R-16），仅留存备回填"
+      "note": "[RULED-OUT] send-anchor v2 点击锚点（TYPE_VIEW_CLICKED）：**这不是待办，是已证伪的路**。〔2026-08-30 订正，D-578〕原文写「待真机 ADAPTER_EVT 诊断日志（cls=/desc= 字段）反推回填」，而该诊断 **D-52 已经跑过并证伪**——豆包自定义 View 零 CLICKED 事件，反推回填这条路走不通。照原文去开一个真机窗做这件事，是白烧窗内时间。豆包 View 系（D-51：发送后容器重建不发 TEXT_CHANGED，v1 input-clear 失效），原文曾预期「发送按钮 className/content_desc 可由 DEBUG 日志观测」，同为 D-52 所证伪（零 CLICKED ⇒ 没有可观测的点击事件）。四正则全 null → sendButtonMatch 不武装（R-10 不猜测、诚实缺席）。**这四个 null 是有意保留的能力、不是缺口**：字段留在 schema 里，是给标准控件的 App 用的（它们会发 CLICKED），豆包用不上而已；view_id_regex 运行时不评估（getSource 跨进程，R-16），仅留存备回填"
     },
     "observe_events": ["TYPE_WINDOW_CONTENT_CHANGED", "TYPE_VIEW_TEXT_CHANGED"],
     "kpi_mapping": {
