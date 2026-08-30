@@ -42,7 +42,7 @@ params:
 params_capture_status:
   request_size_bytes_dist:
     status: PENDING
-    reason: "需 per-direction 上行字节隔离 + 完整流式响应体 + ≥30 turns/≥5 sessions×≥2 网络（蓝图 §5 C2）"
+    reason: "需 per-direction 上行字节隔离 + 完整流式响应体 + ≥30 turns/≥5 sessions×≥2 网络（蓝图 §5 C2）。**候替代维度语料喂格（D-595）**：通道 D 免解密读方向字节可脱『上下行混算』那层聚合，但 per-request 边界免解密下不可得——只能给窗口级／会话级上行量，不是 per-request 分布，喂格时须显式声明该限定；本条不翻门、不改判定。⚠ kimi 不同：其加密聚合连方向切分都不可得，已按 D-595 转 N/A-BY-CALIBER 终态"
   token_interval_ms_dist:
     status: PENDING-BY-CALIBER
     reason: "明文 token 时间戳仅 root mitm 可得（D-61 免 root 已证不可得），越 D-24 红线故不采；UI cadence 是 ui-proxy≠网络 ITL，禁跨层回填"
@@ -53,14 +53,14 @@ params_capture_status:
     status: N/A-BY-CALIBER
     reason: "四者皆消费聊天 App，无工具编排——本方法学口径上永不可得（非“尚未采”）"
   session_duration_s_dist:
-    status: PENDING
-    reason: "需 a11y 会话开始/结束埋点（非 per-turn 换算），代码未落地（蓝图 §5 C6）"
+    status: N/A-BY-CALIBER
+    reason: "终态（D-595）：会话边界是 App 内事件，本方法学观察面（网络＋UI）不产生该语义；唯一近路『per-turn／UI 事件计数换算』被方法学明文禁止（PARAMS_FIT_METHODOLOGY §PENDING gaps/判据 2）。替代维度（多 App×多网络形态）改的是网络条件与 App 覆盖面，与该语义正交——加多少采集都不会长出会话起止事件。同 tool_loop_cadence 形状"
   downlink_media_bytes_dist:
     status: PENDING
-    reason: "需真媒体场景 + 端点级字节隔离；禁文本下行冒充媒体（R15 永久红线）"
+    reason: "需真媒体场景 + 端点级字节隔离；禁文本下行冒充媒体（R15 永久红线）。**候替代维度语料喂格（D-595）**：多 App×多网络形态室内维度可给『端点级』字节（真媒体场景由操作者构造＋通道 D 免解密读方向字节），但那是端点级不是内容级——喂格时须显式声明该限定，不得当满格；本条不翻门、不改判定"
   pop_ip_list:
     status: PENDING
-    reason: "fit 段已有直采 IP，但 params 门要求跨 ≥2 网络条件的稳定 POP 集合与证据回链复核（蓝图 §1.2/§5 C1）"
+    reason: "fit 段已有直采 IP，但 params 门要求跨 ≥2 网络条件的稳定 POP 集合与证据回链复核（蓝图 §1.2/§5 C1）。**候替代维度语料喂格（D-595）**：本格是四格中最对口的一个——DNS 本就明文可得（D-61）、不依赖解密，而『多网络形态』正是该门要求的跨 ≥2 网络条件；本条不翻门、不改判定"
 
 # -- params_fit_approx (D-62; methodology: PARAMS_FIT_METHODOLOGY.md) --
 # WARN: approximate / non-simulation-grade; does NOT unlock params gate

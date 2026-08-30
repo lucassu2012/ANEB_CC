@@ -8,7 +8,7 @@ no device, no PO dependency. Run:  python -m pytest spec/portraits/test_check_re
 Guards the guard: if a future refactor weakens an invariant, its RED test fails.
 """
 from check_redline import (check_portrait, check_cross_file, gate_state, portrait_mode,
-                           PARAM_FIELDS, RULED_STATUS,
+                           PARAM_FIELDS, RULED_STATUS, RULED_STATUS_BY_APP,
                            DIST_MIN_N, DIST_MIN_SESSIONS, DIST_MIN_NETWORKS)
 
 
@@ -415,6 +415,51 @@ def test_R18_uiproxy_requires_ui_source_layer():
         {"value": "~100ms (UI cadence)", "caliber": "ui-proxy",
          "source_layer": "network", "confidence": "LOW", "note": "x"})
     assert _has(check_portrait("x", d), "R18")
+
+
+# ── D-595（C 裁定落地）：两条终态 —— session_duration 全 App／kimi 的 request_size 单 App ──
+
+def test_R19d_session_duration_promoted_caught():
+    """RED：D-595 把 session_duration 冻结为 N/A-BY-CALIBER 终态——会话边界是 App 内事件，
+    本方法学观察面不产生该语义，且唯一近路（per-turn／UI 事件计数换算）被方法学明文禁止。
+    把它降回 plain PENDING＝悄悄重开一个"加采集也长不出来"的格，R19d 必抓。"""
+    d = _valid_pending()
+    d["params_capture_status"]["session_duration_s_dist"] = {"status": "PENDING", "reason": "x"}
+    assert _has(check_portrait("x", d), "R19d")
+
+
+def test_R19f_kimi_request_size_promoted_caught():
+    """RED：kimi 的 request_size 是**单 App** 终态（自有 IM 长连加密后聚合，免解密下不可切分
+    per-request）。降回 PENDING → R19f 必抓。app 名参与判据——这正是 R19d 表达不了的那一半。"""
+    d = _valid_pending()
+    d["params_capture_status"]["request_size_bytes_dist"] = {"status": "PENDING", "reason": "x"}
+    assert _has(check_portrait("kimi", d), "R19f")
+
+
+def test_R19f_does_not_reach_the_other_three_apps():
+    """GREEN，且是本轮最要紧的一条：doubao/deepseek/tongyi 的 request_size 仍是**可喂格**的
+    PENDING（方向字节免解密可得）。R19f 若误伤它们，等于把三家一并冻死——与可行性评估相反，
+    而这种过度触及不会报错、只会静默多冻三格。"""
+    d = _valid_pending()
+    d["params_capture_status"]["request_size_bytes_dist"] = {"status": "PENDING", "reason": "x"}
+    for app in ("doubao", "deepseek", "tongyi", "x"):
+        assert not _has(check_portrait(app, d), "R19f"), app
+
+
+def test_R19f_key_stays_app_scoped_not_field_scoped():
+    """两张冻结表的分工守在这里：per-App 条目若被误并进全局 RULED_STATUS，四家会一起冻结
+    （RULED_STATUS 只按字段名索引，表达不了"这家不能、那家能"）。"""
+    assert "request_size_bytes_dist" not in RULED_STATUS
+    assert RULED_STATUS_BY_APP[("kimi", "request_size_bytes_dist")] == "N/A-BY-CALIBER"
+
+
+def test_session_duration_no_longer_blocks_the_flip():
+    """GREEN：终态后 session_duration 退出 gate_state 阻塞集（同 tool_loop_cadence 形状）。
+    这是 D-595 ① 唯一的可观察后果——若 status 改了而门没跟着改，等于白改。"""
+    ready, blockers = gate_state("x", _valid_pending())
+    assert not ready
+    assert "session_duration_s_dist" not in blockers
+    assert set(blockers) == {"request_size_bytes_dist", "downlink_media_bytes_dist", "pop_ip_list"}
 
 
 if __name__ == "__main__":

@@ -53,9 +53,15 @@ Invariants:
          with no status behind it;
       d. the by-caliber rulings are frozen: token_interval / think_pause = PENDING-BY-CALIBER
          (needs root mitm, outside D-24's red line), tool_loop_cadence = N/A-BY-CALIBER (consumer
-         chat apps orchestrate no tools — this methodology can never capture it);
+         chat apps orchestrate no tools — this methodology can never capture it), and D-595 adds
+         session_duration_s_dist = N/A-BY-CALIBER (session boundaries are App-internal events; the
+         indoor network dimension is orthogonal to them, and the UI-count shortcut is banned);
       e. no half-flip: once source_portrait leaves PENDING-CAPTURE it must match a traceable
-         capture id AND no field may still read plain PENDING.
+         capture id AND no field may still read plain PENDING;
+      f. per-App terminal rulings (R19f, D-595): a field unreachable for ONE app only — kimi's
+         request_size (encrypted aggregation, unsplittable without decryption) — is frozen per
+         (app, field), because RULED_STATUS keys on field name alone and would otherwise freeze
+         all four portraits while three of them can still be fed.
   Mode: source_portrait == "PENDING-CAPTURE" => PENDING mode (R1 all-null applies); anything else
       => CAPTURED mode, where R1 is replaced by R19c per-field consistency. Without this, a
       legitimate flip would be judged FAIL by R1/R2 and the gate could never open honestly.
@@ -102,6 +108,20 @@ RULED_STATUS = {
     "token_interval_ms_dist": "PENDING-BY-CALIBER",
     "think_pause_ms_dist": "PENDING-BY-CALIBER",
     "tool_loop_cadence": "N/A-BY-CALIBER",
+    # D-595 (C ruling landing): session duration is a SEMANTIC gap, not a precision gap — the
+    # indoor "multi-App x multi-network" dimension changes network conditions and App coverage;
+    # it does not produce session-boundary events. The methodology already bans the only shortcut
+    # (per-turn / UI-event-count conversion), and these are third-party chat apps we cannot
+    # instrument. Same shape as tool_loop_cadence, hence terminal rather than deferred.
+    "session_duration_s_dist": "N/A-BY-CALIBER",
+}
+# R19f — PER-APP terminal rulings (D-595). A field can be unreachable for ONE app while still
+# reachable for the others, and RULED_STATUS above cannot express that: it keys on field name only,
+# so putting request_size there would wrongly freeze all four portraits. kimi's request_size is
+# aggregated under encryption and cannot be split per-request without decryption (red line
+# D-24/D-61); doubao/deepseek/tongyi can still be fed direction-bytes by the indoor dimension.
+RULED_STATUS_BY_APP = {
+    ("kimi", "request_size_bytes_dist"): "N/A-BY-CALIBER",
 }
 # R19e — a flipped source_portrait must name a traceable capture, e.g. kimi-app-capture-2026-08-15.
 CAPTURE_ID = re.compile(r"^[a-z0-9_]+-app-capture-\d{4}-\d{2}-\d{2}$")
@@ -340,7 +360,14 @@ def _check_capture_status(app, d, params, mode):
         ruled = RULED_STATUS.get(name)
         if ruled is not None:
             bad(status == ruled, "R19d",
-                f"{name} status={status} but the 2026-07-31 ruling fixes it at {ruled}")
+                f"{name} status={status} but a frozen ruling fixes it at {ruled}")
+        # R19f — per-App terminal ruling (D-595); only fires where a field is unreachable for
+        # THIS app while remaining reachable for the others.
+        ruled_app = RULED_STATUS_BY_APP.get((app, name))
+        if ruled_app is not None:
+            bad(status == ruled_app, "R19f",
+                f"{name} status={status} but the D-595 per-App ruling fixes it at {ruled_app} "
+                f"for {app}")
         # R19e — no half-flip
         if mode == "CAPTURED":
             bad(status != "PENDING", "R19e",

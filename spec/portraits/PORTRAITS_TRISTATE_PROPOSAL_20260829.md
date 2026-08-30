@@ -145,8 +145,8 @@
 | 字段 | 定案 | 说明 |
 |---|---|---|
 | `tool_loop_cadence` | **已终态 `N/A-BY-CALIBER`（2026-07-31 PO 已裁，R19d 冻结）** | 四 App 皆消费型对话无工具编排，本方法学口径永不可得；无需 PO 再动，本提案仅确认 |
-| `request_size_bytes_dist` | 保持 `PENDING`（红线内采集任务，**阻塞翻门**） | 需 ≥30 turns 多会话 per-direction 字节隔离；HTTP/2 复用是障碍 |
-| `session_duration_s_dist` | 保持 `PENDING`（红线内采集任务，**阻塞翻门**） | 需 a11y 会话开始/结束埋点，代码未落地 |
+| `request_size_bytes_dist` | **kimi 已终态 `N/A-BY-CALIBER`（`D-597` 落地，承 `D-595` ⑤；R19f 冻结）；doubao／deepseek／tongyi 仍 `PENDING`（阻塞翻门）** | 原文「需 ≥30 turns 多会话 per-direction 字节隔离；HTTP/2 复用是障碍」对另三家仍成立，且已候替代维度喂格（通道 D 方向字节免解密可得，**但只到窗口级／会话级上行量，不是 per-request 分布**）。kimi＝加密后聚合不可切分 per-request，**免解密下命题不存在**；**前提＝维持 `D-24`／`D-61`**，若 PO 授权越线该终态失效 |
+| `session_duration_s_dist` | **已终态 `N/A-BY-CALIBER`（`D-597` 落地，承 `D-595` ⑤；四 App 全体，R19d 冻结）** | 原写「需 a11y 会话开始/结束埋点，代码未落地」——C 裁定后该埋点不再有落地路径，且**缺语义来源与网络维度正交**：会话边界是 App 内事件，替代维度改的是网络条件与 App 覆盖面，加多少采集都不会长出会话起止事件；唯一近路（per-turn／UI 事件计数换算）被方法学明文禁止。同 `tool_loop_cadence` 形状 |
 | `downlink_media_bytes_dist` | 保持 `PENDING`（红线内采集任务，**阻塞翻门**） | 需真媒体场景 + 端点级字节隔离（禁文本下行冒充媒体，R15） |
 | `pop_ip_list` | 保持 `PENDING`（红线内，最接近 CAPTURED，**阻塞翻门**） | 三 App 已有 direct 观测；翻 CAPTURED 只差「跨 ≥2 网络稳定 POP 集合 + 证据回链复核」 |
 
@@ -169,6 +169,15 @@
    > ②**逐格定 `N/A-BY-CALIBER` 终态**（承认该口径永不可得，同 `tool_loop_cadence` 先例）／
    > ③**保持 `PENDING` 但显式登记「无采集路径」**（诚实但不解锁，须配自失效复验条件，否则又是静默悬置）。
    > **本提案不替 PO 选**；但**「等外场」这条路已被裁掉，继续把它当默认预期即是过期认知**。
+
+   > **▷ 该终态决定已于 2026-08-30 作出并落地（`D-595` ⑤ 定案 → `D-597` 施工）**——上面三支被这样分掉：
+   > **②（终态）**＝`session_duration`〔四 App〕＋ kimi 的 `request_size`；**①（改用替代维度采）**＝`pop_ip_list`
+   > ＋ `downlink_media_bytes` ＋ 另三家的 `request_size`，已在四份 YAML 的 `reason` 里标「候替代维度语料喂格」
+   > 并各写明限定；**③ 未被采用**。
+   > **⚠ 上文第 1 条那个「阻塞计数=4」是 2026-08-29 的实测值，按 D-379「不回填」保留原文**——
+   > **落地后的现值（2026-08-30 `check_redline` 实跑）：kimi＝2、doubao／deepseek／tongyi＝3**。
+   > 结论不变：`source_portrait` 仍翻不了门（剩余格仍是 plain-`PENDING`），变的只是**剩几格、以及那几格现在有一条
+   > 可走的采集路径**。**别把「少了一格」读成「离翻门近了一步」**——终态是承认采不到，不是采到了。
    > （原文「裁项 C（外场暂停解除）」的措辞亦按终态订正为「外场线处置」——**解除与终止是相反的两件事**。）
 
 ---
@@ -203,6 +212,13 @@
 - **选 C**：新增受控采集授权文档（参照 `docs/AUTHORIZED_TOKEN_CAPTURE_SPEC_2026-07-18.md` 先例）+ root 可行性干跑。
 - **选 D**：零代码，仅在 DECISION_LOG 记一条「暂缓 + 触发条件」。
 - **A/B/C 共同**：改动过 portraits-redline 守卫层；入一个 D 号（口径定案）。
+
+> **▷ §6 第一条那个「复用 `N/A-BY-CALIBER` 则无需动 schema」的预测已被两次落地实测证实**
+> （`D-583`／`D-597`）：两批共改了六处 `status`，`validate_schema.py` **零改动、每次 RC=0**。
+> 但 `D-597` 撞出该清单**没预见的一种形状**：**冻结值有「按字段」与「按 App×字段」两类**——
+> kimi 的 `request_size` 若照本清单塞进 `RULED_STATUS`，会**连坐冻结四份画像**（那张表只按字段名索引），
+> 故新增了 `RULED_STATUS_BY_APP` 与规则 `R19f`。**教训：这份清单默认「一个字段一个定案」，
+> 而四 App 共用一套字段名时该默认不成立。**
 
 ---
 
