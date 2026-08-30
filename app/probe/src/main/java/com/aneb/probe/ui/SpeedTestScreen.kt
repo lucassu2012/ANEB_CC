@@ -149,12 +149,7 @@ fun SpeedTestScreen(
         isPing -> sample?.rttMs?.let { "%.0f".format(it) } ?: "—"
         else -> mainVal?.let { "%.1f".format(it) } ?: "—" // 无测量值显 —（R-10，不显活的 0.0）
     }
-    val unit = when {
-        isPing -> "ms 时延"
-        isDone -> if (peakDown > 0f) "Mbps 下行峰值" else "Mbps 上行峰值"
-        isDownload -> "Mbps 下行"
-        else -> "Mbps 上行"
-    }
+    val unit = speedGaugeUnit(phase, peakDown, running)
     val phaseLabel = when (phase) {
         SpeedRunner.Phase.Ping -> "时延 · 抖动测速中"
         SpeedRunner.Phase.Download -> "下行速率测速中（随网络波动）"
@@ -800,6 +795,31 @@ private fun fmt(v: Double?, pattern: String): String = v?.let { pattern.format(i
  * basic_network 面 source→字段映射（LiveMetricStrip 取值器；批 5b）。
  * 完备性由 SpeedLiveSourceMappingTest 钉住；未知 source 返回 null（组件渲染为缺测）。
  */
+/**
+ * 仪表单位文案（抽出 Composable 便于单测；D-610 ② 轻件）。
+ *
+ * **旧写法用 `else -> "Mbps 上行"` 兜底，于是 `phase == null` 的空闲态落进「上行」**——
+ * 仪表读作「— Mbps 上行」，像是有一次上行测量正待出数，而实际上**什么都还没开始**。
+ * 同一屏的 `phaseLabel` 当时已显式处理了 `null`（「点击开始网络基本性能测速」）⇒
+ * **相邻两层一诚实一撒谎，而撒谎的那层是大字**。与 D-608 的 TTFT 回退同族：
+ * R-10 说的「未测不折 0」，在文案层等价于「**未开始不冒充某一相**」。
+ *
+ * **刻意用 `when (phase)` 穷举而不用 `else`**：`SpeedRunner.Phase` 是封闭枚举，穷举后
+ * 编译器会强制为每个相位给出文案——**将来新增一个相位不会再静默落进「上行」**。
+ * 这消掉的是**缺陷类**，不只是本次这一个实例。
+ */
+internal fun speedGaugeUnit(
+    phase: SpeedRunner.Phase?,
+    peakDownMbps: Float,
+    running: Boolean,
+): String = when (phase) {
+    null -> if (running) "准备中" else "尚未开始"
+    SpeedRunner.Phase.Ping -> "ms 时延"
+    SpeedRunner.Phase.Download -> "Mbps 下行"
+    SpeedRunner.Phase.Upload -> "Mbps 上行"
+    SpeedRunner.Phase.Done -> if (peakDownMbps > 0f) "Mbps 下行峰值" else "Mbps 上行峰值"
+}
+
 internal fun speedLiveValue(sample: SpeedRunner.Sample?, source: String): Double? {
     if (sample == null) return null
     return when (source) {
