@@ -6,7 +6,7 @@
 #   （绝大多数是 verify_all_*.log 运行日志，只在本机存在、别处无从复核）。
 # ⚠ 因此本清单**不含当次运行日志**；当次日志路径见 badges.txt 与本次 verify_all 输出。
 # 行格式：<sha256 小写><两个空格><相对 evidence/phase0 的路径，斜杠分隔>；`#` 开头为注释。
-6829216644ef913de9de3141aa9aacd049a9a1bf6be538151d50eb45f666a18b  badges.txt
+1c75354b03b30242f2c210194c3ad9b5c143e9fc11ac0d63c3074e6f397e0eed  badges.txt
 7767b8fe7cacaf3928a040789034c8baeee09e94bb9fb00c679ef25dac54d898  build_attempt1.log
 6913edce60d0216222e42123acbb19c584e635932b118a3a07d62dfab16d36a0  build_attempt2.log
 a0807f077baaf71a960f660e974066ec2cc6b861aee6acf43dfa083b8c8a0522  build_attempt3.log
@@ -300,3 +300,5 @@ db89960879bd82392aafe766162aab61bbf1249b7ec455f83d91e67c360f6bef  verify_all_202
 e4d6437aa5fa57d6ab625d1285acc271e9e9229ca10ed540eedad386784544f0  verify_all_20260829-104203.log
 07dc65e75a5ae33e987bed4afeb4b5cdeff346e3efd463eda3e323a60d8a08eb  verify_all_20260829-214430.log
 6dd2cca2c821f53a784fc5d99610d4fe4ae53f2c57a7d6f8948bc1488703c6b9  verify_all_20260830-175357.log
+5fe120f84048927ed6c6673e9dfe53002796c5e9e35bb42c554cfde5317e101a  verify_all_20260830-232221-26204.log
+d5ae6d2237ac7806fec9dfce8002b2cc1355e1ffc7062b5dc01e561502323ba7  verify_all_20260830-234628-23648.log

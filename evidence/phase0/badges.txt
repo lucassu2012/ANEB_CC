@@ -1,13 +1,13 @@
 # 徽章值（自动生成——勿手编；每次链跑覆盖）
 # 引用规则：前台文档**引本文件的键**，不要把数字抄进正文（抄的会过期）。
 # unknown = 本次没测到，**不是 0，也不是沿用上次**——过期的徽章比没有更危险。
-# 来源日志：verify_all_20260830-232221-26204.log
+# 来源日志：verify_all_20260831-012003-6552.log
 # 注意：值的新鲜度=来源日志的新鲜度。徽章不知道「今天」，只知道它读了哪一份；
 #       引用前请确认该日志就是你要引的那次链跑（分层跑不落 evidence，见 §3.2）。
 
 gate_count=25
-gate_count_source=verify_all log verify_all_20260830-232221-26204.log
-reflex_tests=984
-reflex_tests_source=reflex lines (all green): campaign-analysis 796 + e1 82 + e234 106
+gate_count_source=verify_all log verify_all_20260831-012003-6552.log
+reflex_tests=987
+reflex_tests_source=reflex lines (all green): campaign-analysis 799 + e1 82 + e234 106
 corpus_real_runs=111
 corpus_real_runs_source=CORPUS_LEDGER.csv total,real_runs (D-565)
