@@ -72,3 +72,32 @@
 我一度当成缺陷；查 `HomeScreen.kt:663` 后确认 `homeNetworkLabel(run)` 取的是**上一次 TestRun 的 transport**，
 **代码正确**。⚠ **但那张卡没有任何时间标记、位置就在「开始」按钮正下方，读起来像在描述即将开始的这次测试**——
 **读错的是我，当天读了一整天这个仓的人。**
+
+---
+
+## 7. 🔴 收窗时我把仪器关掉了（如实记，且它拦住下一个窗）
+
+**收窗执行 `am force-stop com.aneb.probe` 之后**：
+
+    enabled_accessibility_services = null
+    accessibility_enabled          = 0
+    dumpsys accessibility → Bound:{} Enabled:{} Crashed:{{com.aneb.probe/...AnebAccessibilityService}}
+
+**而它在此之前是好的**（同包 `01_post_install.txt` / `02_service_functional.txt`）：
+装机后 16:20:34 绑定在，16:21 **功能验证通过**——实跑出 15 条 `ADAPTER_EVT`。
+
+⇒ **安卓把「被强停的无障碍服务」记为崩溃并整体禁用；`force-stop` 什么都不报。**
+⚠ **不宣称观察到真崩溃**——`Crashed` 是安卓对强停的标签，两者在此分不开；**但因果时序明确**。
+
+**根因在协议本身**：根 `CLAUDE.md` 的收窗流程写「停掉本次启动的一切应用/服务」。
+对**豆包**执行它整天无害（豆包不提供无障碍服务）；**对自家探针执行同一条，就把通道 A 关了。**
+⇒ **又一次「为守规矩而新增的那个步骤，自己越了另一条线」，而且这条是静默的。**
+已把例外写进 `T78_DOUBAO_PILOT_COLLECTION_PROTOCOL_20260829.md` §⑤ 第 1 条。
+
+**⛔ 当前状态：设备没有通道 A。** 恢复要写 `settings secure`（安全设置），**本会话不代做**。
+需要人来办：设备上「设置 → 辅助功能 → 已下载的服务 → ANEB Probe → 开启」，
+**或**由人执行 `settings put secure enabled_accessibility_services ...` ＋ `accessibility_enabled 1`。
+**恢复后必须功能验证**（开一次被测 App 看有没有 `ADAPTER_EVT`）——**别只看 `settings` 读回来了**。
+
+**⇒ 在有人恢复之前，别开任何需要通道 A 的窗**（T78 型采集、E1 真机窗、T88 装机后的验证）——**开了就是空跑。**
+**⇒ 给 T88 的提醒**：**装机本身不破坏绑定**（本窗实证：装完还在）；**破坏它的是 `force-stop`**。
