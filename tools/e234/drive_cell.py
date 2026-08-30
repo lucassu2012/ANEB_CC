@@ -46,7 +46,23 @@ STOP_ISSUING_AT_S = 1200        # 超过这个点不再起新轮，留尾巴给�
 
 
 def sh(*args):
-    return subprocess.run(["adb", "shell", *args], capture_output=True, text=True).stdout
+    """跑一条 `adb shell`，返回 stdout。
+
+    🔴 `encoding=` 与 `errors=` 缺一不可（v3 报，2026-08-31 实测复现）：
+    裸 `text=True` 时父侧按 `locale.getencoding()` 解（本机 PowerShell 下＝`cp936`），
+    而设备吐的是 UTF-8 ⇒ `UnicodeDecodeError` **抛在 `subprocess._readerthread` 线程里被吞掉**，
+    `run()` **正常返回、`returncode=0`、而 `stdout` 是 `None`**——调用方收不到任何错误。
+    随后 `focus_ok()` 的 `PKG in sh(...)` 就是 `PKG in None` ⇒ **TypeError，跑到一半炸，该格作废**。
+
+    ⚠ 复现要构造：`dumpsys window` 的输出**恰好全是合法 GBK 时不炸**——我第一次测就是阴性的。
+    构造法：`adb shell echo 测试中文abc` ⇒ 裸 `text=True` 回 `None`，本行的写法回 `'测试中文abc'`。
+    ⇒ **「我没复现」不等于「它不会发生」，要去构造触发条件。**
+
+    ⚠ 不带 `PYTHONIOENCODING`：v3 给的三件套里那一件是为 **Python 子进程**准备的，
+    而 `adb` 是 C++ 二进制，对它无效。**照抄整套会带进一个在此处没有作用的项。**
+    """
+    return subprocess.run(["adb", "shell", *args], capture_output=True,
+                          text=True, encoding="utf-8", errors="replace").stdout
 
 
 def focus_ok():
