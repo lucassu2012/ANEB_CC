@@ -1,5 +1,6 @@
 package com.aneb.probe.ui
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.hasAnyAncestor
@@ -112,6 +113,62 @@ class RenderRedlineTest {
         // 没有这条，"渲染树里没有 0"可以靠"什么都不渲染"作弊通过。
         compose.setContent { AnebTheme { KpiLine(row(value = 150.0, grade = "good")) } }
         compose.onNodeWithText("150", substring = true).assertIsDisplayed()
+    }
+
+    // ---- 红线二之二：**默认面**的低置信警示不得比专业面弱（D-610 ③）----
+    // 缺陷原状：专业面有 ⚠ 徽章＋ConfidenceChip＋逐项原因，而**默认的简洁面**只在结论
+    // 正文句尾挂一个括号「（本次证据不完整，分数仅供参考）」——同字号同色，而括号本身
+    // 就是「这句次要」的排版信号。**简洁面恰是非专业读者会看的那一面。**
+    // 这一条非渲染树不可测：纯函数层看得见文案常量，却看不见**哪一面把它显示出来**——
+    // 与本文件开篇那个 `?: 0` 同理，两边各自都能「绿」。
+
+    private fun lowConfRun(lowConfidence: Boolean) = TestRun(
+        runId = "r-lowconf",
+        startedAtEpochMs = 1_000L,
+        serverBase = "http://test",
+        mode = "quick",
+        scenarioOrder = "s1",
+        transport = "auto",
+        kpiSet = "agent-qoe-kpi-v0.1",
+        aqsVersion = "aqs-v0.1",
+        profileVersions = "{}",
+        schemaVersion = "1",
+        profileSource = "server",
+        appVersionName = null,
+        appVersionCode = null,
+        guardMetadata = null,
+        aqsScore = 72.0,
+        aqsLowConfidence = lowConfidence,
+        aqsVetoApplied = false,
+        aqsNotComputableReason = null,
+        status = "completed",
+        reportStatus = null,
+    )
+
+    @Composable
+    private fun ResultScreenDefaultFace(run: TestRun) = ResultScreen(
+        run = run,
+        scenarios = emptyList(),
+        reportJson = null,
+        exportStatus = null,
+        onExportJson = {},
+        onExportCsv = {},
+        onBack = {},
+    )
+
+    @Test
+    fun `低置信 run 在默认的简洁面就带出警示徽章（不是只有专业面才有）`() {
+        // 不切视图：ResultScreen 默认 viewMode = Simple，测的正是缺陷所在的那一面。
+        compose.setContent { AnebTheme { ResultScreenDefaultFace(lowConfRun(true)) } }
+        compose.onNodeWithText(lowConfBadgeText, substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `非低置信 run 的简洁面不得凭空出现该警示`() {
+        // 没有这条，上一条可以靠「无条件常显徽章」作弊通过——那会把每一次结果都染成可疑。
+        compose.setContent { AnebTheme { ResultScreenDefaultFace(lowConfRun(false)) } }
+        val marks = compose.onAllNodesWithText(lowConfBadgeText, substring = true).fetchSemanticsNodes()
+        assertEquals("未标低置信的 run 不该出现低置信警示徽章", 0, marks.size)
     }
 
     // ---- 红线二：低置信必须在渲染树里显式带标 ----
