@@ -1909,10 +1909,13 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
     `encoding=` 钉父侧解码、`errors=` 兜底、子侧再用 `PYTHONIOENCODING` 钉编码。
     范本＝ `test_cli_smoke.py`，它早就是三件齐全的。
 
-    ⚠ **本条的扫描面只有 `scripts/`**（本 lane）。已知**面外还有一处**：
-    `tools/e234/drive_cell.py` 的 `sh()` 是裸 `text=True` 且直接 `.stdout`，
-    它是采集侧 lane 的生产工具（adb 输出可含非 ASCII），已另行告知属主。
-    **别把本条的绿读成「全仓没有第二处」**——它只证明 scripts/ 干净。
+    ⚠ **扫描面＝整个仓**。演变值得记：首版只扫 `scripts/`，docstring 里自己写着
+    「别把它的绿读成全仓干净」——而**一道扫描面小于它所声称保护的范围的守卫，
+    它的绿本身就是一条误导**（这半句由采集侧指出，成立）。第二版改成扫
+    `scripts/` ＋ `tools/` 并「逐根断言各根都有货」，**突变审计当场判它 SURVIVED**：
+    那条断言遍历的正是 `_ROOTS` 自己 ⇒ **把一个根拿掉，同时也拿掉了对它的检查**，
+    守卫悄悄变窄而照样绿——**要防的形状，长在防它的那条守卫里**。
+    故本版直接扫全仓，那个问题从构造上消失；完整性改由下面的索引×文件系统互证守。
 
     用 AST 而不是正则：这些调用跨多行，正则会漏掉换行处的关键字。
     """
@@ -1920,15 +1923,17 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
 
     TEXT_KEYS = ("text", "universal_newlines")
     CAPTURING = ("run", "check_output", "Popen")
-    offenders, scanned = [], 0
-    for root, _dirs, files in os.walk(SCRIPTS):
-        if "__pycache__" in root:
-            continue
+    SKIP_DIRS = {".git", "__pycache__", "node_modules", "build", ".gradle",
+                 ".idea", "venv", ".venv", ".pytest_cache"}
+    offenders, scanned, seen = [], 0, set()
+    for root, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
         for name in sorted(files):
             if not name.endswith(".py"):
                 continue
             path = os.path.join(root, name)
-            with open(path, encoding="utf-8") as fh:
+            seen.add(os.path.relpath(path, REPO).replace(chr(92), "/"))
+            with open(path, encoding="utf-8", errors="replace") as fh:
                 try:
                     tree = ast.parse(fh.read(), filename=path)
                 except SyntaxError:
@@ -1950,6 +1955,24 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
                     offenders.append("%s:%d subprocess.%s"
                                      % (os.path.relpath(path, REPO).replace("\\", "/"),
                                         node.lineno, fn.attr))
+    # 完整性互证：索引侧枚举出的每一个 .py，文件系统侧都必须走到过。
+    # ⚠ 两条腿必须**不共享机制**才算互证：`git ls-files`（读索引）vs `os.walk`
+    # （读文件系统）。换了切法也换了读法，才不会「同一缺陷喂出两个假独立方法」。
+    # ⚠ 读 git 输出用**字节模式**——这条守卫自己不能踩它要防的那个坑。
+    import subprocess
+    listed = subprocess.run(["git", "ls-files", "*.py"],
+                            capture_output=True, cwd=REPO)
+    tracked = {ln for ln in listed.stdout.decode("utf-8", errors="replace")
+               .replace(chr(13), "").split(chr(10)) if ln.strip()}
+    tracked = {t for t in tracked
+               if not any(("/" + d + "/") in ("/" + t) for d in SKIP_DIRS)}
+    assert listed.returncode == 0 and tracked, (
+        "`git ls-files '*.py'` 没给出东西——互证的另一条腿断了；此时本条的绿"
+        "只说明遍历侧没报错，**不说明它走全了**")
+    missed = sorted(tracked - seen)
+    assert not missed, (
+        "这些 .py 在 git 索引里、却没被遍历到（%d 个，前 5：%s）⇒ "
+        "**遍历面被收窄了而守卫照样绿**，那正是本条要防的形状" % (len(missed), missed[:5]))
     assert scanned >= 5, (
         "只扫到 %d 处文本模式的子进程调用——扫描八成坏了，而一条什么都没查到的"
         "守卫会因为错误的理由变绿" % scanned)
@@ -1957,4 +1980,6 @@ def test_no_captured_subprocess_leaves_its_decoding_to_the_locale():
         "这些调用用文本模式抓输出却没钉 encoding= ⇒ 编码不一致时 stdout 会"
         "**静默变成 None**（异常被 _readerthread 吞掉，run() 照常返回）：%s\n"
         "修法照 test_cli_smoke.py：encoding=\"utf-8\", errors=\"replace\"，"
-        "并在子进程 env 里给 PYTHONIOENCODING=utf-8。" % offenders)
+        "（子进程若是 **Python**，再给 env `PYTHONIOENCODING=utf-8` 钉子侧；子进程是 "
+        "adb 之类**非 Python 二进制**时这一件不起作用——别照抄配方，按场景给）。"
+        "\n本条扫描面＝整个仓（跳过 %s）。" % (offenders, sorted(SKIP_DIRS)))
