@@ -33,6 +33,6 @@ validity_scenarios,valid_low_confidence,589
 validity_scenarios,valid,32
 validity_scenarios,degraded,4
 validity_scenarios,invalid,2
-observation,device_real_dirs,7
+observation,device_real_dirs,16
 observation,dry_run_dirs,6
 field_point_max,SZ-PILOT-01,57
