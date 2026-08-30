@@ -427,6 +427,33 @@ def test_a_missing_ledger_is_cannot_compare_not_drift():
     assert rc == 2, "文件不在时必须是「没比成」(2)，不能冒充漂移(1)，rc=%s" % rc
 
 
+def test_the_program_refuses_to_compute_when_a_root_is_missing():
+    """**生产路径必须真的走那条检查**——不是「函数存在」，是「main 会拒算」。
+
+    ⚠ 本条补的是我自己的一个洞：首版**只定义了 `missing_roots()` 却没人调用**，
+    而下面那条测试只测函数本身 ⇒ **函数在、测试绿、生产路径一次都没走过它**。
+    正是本仓「**写好了一道门 ≠ 那道门在门禁清单上**」，也是「测试围着一条
+    没被执行的代码路径打转」的同一形状。
+
+    判据：缺根时 `main()` 返回 **2（拒算）**，且**不写出任何台账文件**——
+    少一个根＝少一批语料，而算出来的数**看起来完全正常**。
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        good = os.path.join(d, "ev")
+        os.makedirs(good)
+        gone = os.path.join(d, "not_here")
+        md = os.path.join(d, "L.md")
+        csv = os.path.join(d, "L.csv")
+        rc = cl.main(["--root", good, "--root", gone, "--md", md, "--csv", csv])
+        assert rc == 2, "缺根必须拒算(2)，实得 %s" % rc
+        assert not os.path.exists(md), "拒算时不得写出台账 md"
+        assert not os.path.exists(csv), "拒算时不得写出台账 csv"
+        # 对照：根都在时照常算得出来（证明拒算不是把功能整个关掉）
+        rc2 = cl.main(["--root", good, "--md", md, "--csv", csv])
+        assert rc2 == 0 and os.path.exists(md), "根都在时应正常产出，rc=%s" % rc2
+
+
 def test_a_configured_root_that_does_not_exist_is_detectable():
     """**「根不在」与「根里没语料」结果同形**——必须有一条判据把前者认出来。
 

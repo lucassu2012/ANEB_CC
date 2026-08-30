@@ -401,6 +401,21 @@ def main(argv=None):
                     help="只比不写：落盘的两面与现算是否一致（exit 1=不一致）")
     a = ap.parse_args(argv)
     roots = a.root or DEFAULT_ROOTS
+    # **前提检查排在「算」之前**：根不存在时算出来的是一个**更小但看起来正常**的数，
+    # 而这个数正是台账、正是「进展」声明的单一事实源 ⇒ 宁可拒算，不可静默少算。
+    # ⚠ 本检查 2026-08-30 首版**只定义了 `missing_roots()` 却没人调用**——
+    # 函数在、测试也绿（那条测试只测函数本身），而生产路径一次都没走过它。
+    # 正是本仓那条「**写好了一道门 ≠ 那道门在门禁清单上**」，这次是我自己犯的。
+    gone = missing_roots(roots)
+    if gone:
+        sys.stderr.write(
+            "拒算：扫描根不存在 —— %s\n"
+            "  这多半意味着你在一个全新的 git worktree 里（`server/data/` 被 .gitignore 挡、"
+            "零受跟踪文件，故任何新 worktree 里它都不存在）。\n"
+            "  **别把这里算出的数当台账**：少一个根＝少一批语料，而结果看起来完全正常。\n"
+            "  处置：回主树跑；或用 --root 显式声明你真正想扫的范围。\n"
+            % ", ".join(gone))
+        return 2
     corpus, skipped = discover(roots)
     real, synth, st = summarize([p for p, _, _ in corpus])
     bk = buckets(real)
