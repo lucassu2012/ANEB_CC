@@ -120,9 +120,9 @@ def test_pending_frames_are_dropped_not_treated_as_time_zero():
     assert res["verifiable_silences"] == 0, res
 
 
-# ── 2. FAIL 与 NOT_EXECUTED 不可互代（本模块存在的第二理由）─────────────────
+# ── 2. NOT_APPLICABLE 与 CANNOT_TELL 不可互代（本模块存在的第二理由）────────
 
-def test_continuous_render_with_zero_holes_is_FAIL():
+def test_continuous_render_with_zero_holes_is_NOT_APPLICABLE():
     """全程连续覆盖、一次 ≥gap 静默都没有 ⇒ App 真的不静默 ⇒ **结构性不适用**。
 
     这是 DeepSeek 型「思考期播放动画」栈的形状：加轮数不解。
@@ -132,13 +132,13 @@ def test_continuous_render_with_zero_holes_is_FAIL():
     res = _run([a, b])
     assert res["pair_states"]["disjoint"] == 0, res["pair_states"]
     assert res["verifiable_silences"] == 0, res
-    assert res["verdict"][0] == ec.FAIL, res["verdict"]
+    assert res["verdict"][0] == ep.NOT_APPLICABLE, res["verdict"]
 
 
-def test_holey_record_with_no_silence_is_NOT_EXECUTED_not_FAIL():
+def test_holey_record_with_no_silence_is_CANNOT_TELL_not_NOT_APPLICABLE():
     """同样「零可核静默」，但记录有丢帧边界 ⇒ 只能说**没看见**，不能说**不静默**。
 
-    把它写成 FAIL，会让人取消一个本来可行的测量。
+    把它写成 `NOT_APPLICABLE`，会让人取消一个本来可行的测量。
     **这两条（本条与上一条）成对存在，删掉任一条，另一条的区分力就消失了。**
     """
     gap_ns = ec.cluster_gap_nanos()
@@ -147,18 +147,18 @@ def test_holey_record_with_no_silence_is_NOT_EXECUTED_not_FAIL():
     res = _run([a, b])
     assert res["pair_states"]["disjoint"] >= 1, res["pair_states"]
     assert res["verifiable_silences"] == 0, res
-    assert res["verdict"][0] == ec.NOT_EXECUTED, res["verdict"]
-    assert res["verdict"][0] != ec.FAIL
+    assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
+    assert res["verdict"][0] != ep.NOT_APPLICABLE
 
 
-def test_empty_sf_latency_is_NOT_EXECUTED_not_FAIL():
+def test_empty_sf_latency_is_CANNOT_TELL_not_NOT_APPLICABLE():
     """通道 C 没有记录 ⇒ 装置没工作，不是 App 不静默。"""
     d = tempfile.mkdtemp(prefix="e2pre_")
     try:
         res = ep.precheck(d)
     finally:
         shutil.rmtree(d, ignore_errors=True)
-    assert res["verdict"][0] == ec.NOT_EXECUTED, res["verdict"]
+    assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
     assert res["dumps"] == 0, res
 
 
@@ -171,7 +171,7 @@ def test_majority_unjudgeable_blocks_a_green():
         dumps.append(_burst(a[-1] + gap_ns * 10 * (k + 1), 4))
     res = _run(dumps)
     assert res["unjudgeable_gaps"] > res["verifiable_silences"], res
-    assert res["verdict"][0] != ec.PASS, res["verdict"]
+    assert res["verdict"][0] != ep.WORTH_RUNNING, res["verdict"]
 
 
 # ── 3. 通道 B 只许朝一个方向用 ──────────────────────────────────────────────
@@ -186,21 +186,21 @@ def test_channel_b_full_motion_blocks_a_green():
     b = [(i * 1500000000, 0.0 if i % 2 else 200.0) for i in range(20)]
     res = _run([frames], b_samples=b)
     assert res["channel_b"]["motion_rate"] == 1.0, res["channel_b"]
-    assert res["verdict"][0] == ec.NOT_EXECUTED, res["verdict"]
+    assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
     assert "矛盾" in res["verdict"][1], res["verdict"]
 
 
 def test_channel_b_quiet_is_not_evidence_of_silence():
     """B 安静**什么都不能说**：它的采样周期是秒级，动画时标是十几毫秒。
 
-    若有人把「B 安静」反用成「静默的证据」，本条会红 —— 连续渲染仍须判 FAIL。
+    若有人把「B 安静」反用成「静默的证据」，本条会红 —— 连续渲染仍须判 `NOT_APPLICABLE`。
     """
     a = _burst(1000000000, 30)
     b = _burst(a[10], 30)
     quiet = [(i * 1500000000, 100.0) for i in range(20)]
     res = _run([a, b], b_samples=quiet)
     assert res["channel_b"]["motion_rate"] == 0.0, res["channel_b"]
-    assert res["verdict"][0] == ec.FAIL, res["verdict"]
+    assert res["verdict"][0] == ep.NOT_APPLICABLE, res["verdict"]
 
 
 # ── 3b. 通道 A 侧：判据要的是**两条通道同时**静默，只查 C 是只验了一半 ──────
@@ -209,7 +209,7 @@ def test_channel_a_absent_blocks_a_green_fail_closed():
     """A 侧查不了 ⇒ 不许 PASS。**「没查」与「查过没问题」绝不可同判。**
 
     初版把 A 缺席写成「跳过该检查」，于是一个连 `adapter.log` 都没有的目录
-    照样拿到 `PASS`，而 PASS 的措辞是「值得开 e2」。
+    照样拿到绿判词，而那个判词的措辞是「值得开 e2」。
     """
     gap_ns = ec.cluster_gap_nanos()
     frames, t = [], 1000000000
@@ -219,7 +219,7 @@ def test_channel_a_absent_blocks_a_green_fail_closed():
     res = _run([frames])          # 临时目录里没有 adapter.log
     assert res["verifiable_silences"] >= ep.MIN_VERIFIABLE_SILENCES, res
     assert res["channel_a"]["status"] != ec.PASS, res["channel_a"]
-    assert res["verdict"][0] == ec.NOT_EXECUTED, res["verdict"]
+    assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
     assert "A 侧" in res["verdict"][1], res["verdict"]
 
 
@@ -261,7 +261,7 @@ def test_channel_a_shortfall_names_A_as_the_bottleneck():
                     [500.0] * 10, [500.0] * 2,
                     {"status": ec.PASS, "motion_rate": 0.1},
                     {"status": ec.PASS, "turns": 8, "turns_with_anchor": 3})
-    assert v[0] == ec.NOT_EXECUTED, v
+    assert v[0] == ep.CANNOT_TELL, v
     assert "A 侧" in v[1] and "瓶颈在 A 不在 C" in v[1], v
 
 
@@ -271,7 +271,7 @@ def test_channel_a_sufficient_lets_it_through():
                     [500.0] * 10, [500.0] * 2,
                     {"status": ec.PASS, "motion_rate": 0.1},
                     {"status": ec.PASS, "turns": 5, "turns_with_anchor": 5})
-    assert v[0] == ec.PASS, v
+    assert v[0] == ep.WORTH_RUNNING, v
 
 
 # ── 4. 门限与尺子的来源（别写死）──────────────────────────────────────────

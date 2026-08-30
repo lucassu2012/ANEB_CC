@@ -250,7 +250,7 @@ def m14():
     return _mut(ep, "silence_census", patched)
 
 
-@mutation("M15 FAIL 与 NOT_EXECUTED 合并（「没看见」写成「不静默」）", "CAUGHT")
+@mutation("M15 NOT_APPLICABLE 与 CANNOT_TELL 合并（「没看见」写成「不静默」）", "CAUGHT")
 def m15():
     import e2_precheck as ep
 
@@ -259,8 +259,8 @@ def m15():
     # **一个因签名不符而崩出来的 CAUGHT，与真的被守卫咬住长得一模一样。**
     def patched(counts, ver, unj, b, a=None):
         if not ver:
-            return (ec.FAIL, "无静默")
-        return (ec.PASS, "有静默")
+            return (ep.NOT_APPLICABLE, "无静默")
+        return (ep.WORTH_RUNNING, "有静默")
     return _mut(ep, "_verdict", patched)
 
 

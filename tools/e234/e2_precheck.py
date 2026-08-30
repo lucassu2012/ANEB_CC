@@ -41,13 +41,13 @@ DeepSeek 型「思考期播放生成动画」栈：持续 CONTENT、无 >gap 静
 但**它是诊断量，不是判据**。写在这里是因为我差点把它当成安全关键写进文档：
 **「我为某个判断写了一条分支」不等于「那个判断在承重」。**
 
-## 三态判定（PASS / FAIL / NOT_EXECUTED 三者互不代偿）
+## 三态判定（三者互不代偿；**判词刻意不与产线四态共用 token**，理由见下方常量处）
 
-- **PASS**：C 侧可核静默 ≥ `MIN_VERIFIABLE_SILENCES`、不可判数不多于可核数，
+- **`WORTH_RUNNING`**：C 侧可核静默 ≥ `MIN_VERIFIABLE_SILENCES`、不可判数不多于可核数，
   **且 A 侧可用轮数也够** ⇒ 值得开 e2。
-- **FAIL**：**全程连续覆盖（零 disjoint）且一次 ≥gap 静默都没有** ⇒ App 真的不静默，
-  e2 对该 App/场景**结构性不适用**，加轮数不解（第三类 NOT_EXECUTED 的成因）。
-- **NOT_EXECUTED**：装置判不了 —— 无帧 / 记录太碎 / 两通道互相矛盾 / **A 侧不足或查不了**。
+- **`NOT_APPLICABLE`**：**全程连续覆盖（零 disjoint）且一次 ≥gap 静默都没有** ⇒
+  App 真的不静默，e2 对该 App/场景**结构性不适用**，加轮数不解。
+- **`CANNOT_TELL`**：装置判不了 —— 无帧 / 记录太碎 / 两通道互相矛盾 / **A 侧不足或查不了**。
 
 ⚠ **A 侧是首版漏掉的一半**：判据原文写的是「**两条通道**须同时静默」，而首版只做了
 C 侧（＋B 作反驳）。结果对首窗五格中的两格给出 `PASS`，而 `e2_analyze` 实跑
@@ -55,9 +55,9 @@ C 侧（＋B 作反驳）。结果对首窗五格中的两格给出 `PASS`，而
 同时切得出次簇，所以 A 侧可用轮数是 n 的另一个上界。**
 **瓶颈在哪决定修法**：C 侧不足或记录碎 ⇒ 改采集周期有救；**A 侧不足改周期毫无用处**。
 
-**FAIL 与 NOT_EXECUTED 绝不可混**：前者是「App 不静默」，后者是「我们没看见」。
+**`NOT_APPLICABLE` 与 `CANNOT_TELL` 绝不可混**：前者是「App 不静默」，后者是「我们没看见」。
 把后者写成前者，会让人取消一个本来可行的测量；反过来会让人再烧一格。
-故 **FAIL 要求零 disjoint**（全程连续才敢说「从未」），不设任何自造时长门限。
+故 **`NOT_APPLICABLE` 要求零 disjoint**（全程连续才敢说「从未」），不设任何自造时长门限。
 """
 import argparse
 import json
@@ -83,6 +83,23 @@ B_FLIP_THRESHOLD = 8.0
 # 而**每一个 n 都要求该轮 C 侧切得出次簇**，即至少一次 ≥gap 的静默。
 # ⇒ 少于 5 次可核静默时，e2 连自己的门都到不了。取值随 GATE_MIN_N 走，不写死。
 MIN_VERIFIABLE_SILENCES = ec.ea.GATE_MIN_N
+
+# ── 本工具的判词**刻意不与产线四态共用 token**（v2 2026-08-30 核出，D-326 形状）──
+#
+# 初版直接用了 `PASS/FAIL/NOT_EXECUTED`，于是 `NOT_EXECUTED` 在同一份判读页里有了两个意思：
+# 本工具的＝「**C 侧的次簇多半是 dump 洞，别信这个数**」；`e2_analyze` 的＝「**样本不够，没算**」。
+# **后果当场发生**：我写下「首窗五格全部 NOT_EXECUTED」，读起来是「e2 从没出过判词」，
+# **而 `cell_f2` 出过**（FAIL，n=6 dropped=0）——**而且那正是我自己先前称作
+# 「本批第一格让 e2 真正跑起来的」那一格**。**新工具悄悄盖掉了我自己先前正确的实测，两边都不报错。**
+#
+# ⇒ 三个判词换成本工具专用的动词短语：它们回答的是「**要不要跑**」，
+# 而四态回答的是「**跑了没有 / 跑出什么**」——**本来就是两个问题，不该共用词。**
+# ⚠ 但**子测量仍用四态**（`channel_a["status"]` / `channel_b["status"]`）：
+# 那一层问的确实是「这次测量执行了吗」，正是四态的本义。同一份 JSON 里两套词各司其职，
+# 别把它们统一——统一才是这次事故的成因。
+WORTH_RUNNING = "WORTH_RUNNING"      # 值得开 e2
+NOT_APPLICABLE = "NOT_APPLICABLE"    # 该 App/场景结构性不适用，加轮数不解
+CANNOT_TELL = "CANNOT_TELL"          # 装置判不了：记录太碎 / 两通道矛盾 / A 侧查不了
 
 
 def split_dumps(text):
@@ -250,20 +267,20 @@ def _verdict(counts, ver, unj, b, a=None):
     """三态判定。**FAIL 与 NOT_EXECUTED 的区分是本模块存在的理由，别合并。**"""
     # 先杀假阳性：两条通道互相矛盾时不许给绿（D-511 fail-closed）。
     if b.get("status") == ec.PASS and b.get("motion_rate") == 1.0 and ver:
-        return (ec.NOT_EXECUTED,
+        return (CANNOT_TELL,
                 "两通道矛盾：C 报 %d 次可核静默，而 B 的**每一对**相邻采样都在动"
                 "（ROI 全程无一刻静止）⇒ 先查通道 C 的图层是不是选错了" % len(ver))
     if counts["disjoint"] == 0 and not ver:
-        return (ec.FAIL,
+        return (NOT_APPLICABLE,
                 "全程连续覆盖（零丢帧边界）且一次 >=gap 静默都没有 ⇒ "
                 "该 App/场景**结构性不适用** e2：C 侧永远切不出次簇，加轮数不解")
     if len(ver) < MIN_VERIFIABLE_SILENCES:
-        return (ec.NOT_EXECUTED,
+        return (CANNOT_TELL,
                 "可核静默仅 %d 次 < %d（e2 自己那道门的算术下界）；"
                 "另有 %d 个间隔跨越丢帧边界、不可判 ⇒ 先修采集排期再谈适用性"
                 % (len(ver), MIN_VERIFIABLE_SILENCES, len(unj)))
     if len(unj) > len(ver):
-        return (ec.NOT_EXECUTED,
+        return (CANNOT_TELL,
                 "记录太碎：不可判间隔 %d > 可核静默 %d ⇒ "
                 "C 侧的次簇有一半以上可能是 dump 排期的洞，不是思考静默"
                 % (len(unj), len(ver)))
@@ -275,17 +292,17 @@ def _verdict(counts, ver, unj, b, a=None):
     # 这一支是补 A 侧时顺手堵的：初版把 A 缺席写成「跳过该检查」，于是
     # 一个没有 adapter.log 的目录照样能拿到 PASS，而 PASS 的措辞是「值得开 e2」。
     if not a or a.get("status") != ec.PASS:
-        return (ec.NOT_EXECUTED,
+        return (CANNOT_TELL,
                 "C 侧够了（可核静默 %d 次），**但 A 侧查不了**（%s）⇒ "
                 "判据要两条通道同时静默，只验一半不给绿"
                 % (len(ver), (a or {}).get("reason", "无 channel_a 结果")))
     if a.get("turns") and a["turns_with_anchor"] < MIN_VERIFIABLE_SILENCES:
-        return (ec.NOT_EXECUTED,
+        return (CANNOT_TELL,
                 "C 侧够了（可核静默 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇** "
                 "< %d ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解"
                 % (len(ver), a["turns_with_anchor"], a["turns"],
                    MIN_VERIFIABLE_SILENCES))
-    return (ec.PASS,
+    return (WORTH_RUNNING,
             "可核静默 %d 次（>=%d）、不可判间隔 %d 不占多数，A 侧 %s 轮可用 ⇒ 值得开 e2"
             % (len(ver), MIN_VERIFIABLE_SILENCES, len(unj),
                (a or {}).get("turns_with_anchor", "?")))
@@ -304,7 +321,7 @@ def precheck(run_dir, pkg=None):
     dumps = split_dumps(ec.read_text(run_dir, "sf_latency.txt"))
     res["dumps"] = len(dumps)
     if not dumps:
-        res["verdict"] = (ec.NOT_EXECUTED,
+        res["verdict"] = (CANNOT_TELL,
                           "通道 C 无帧记录（sf_latency.txt 缺失或全为待定帧）")
         return res
 
@@ -412,7 +429,7 @@ def main(argv=None):
         r = precheck(run_dir, args.pkg)
         results.append(r)
         ec.say(render_line(r) + "\n")
-        if r["verdict"][0] != ec.PASS:
+        if r["verdict"][0] != WORTH_RUNNING:
             bad = True
 
     if args.json_out:

@@ -60,7 +60,7 @@
 
 | # | 前置 | 怎么验（可执行） | 不绿怎么办 |
 |---|---|---|---|
-| 1 | e2 类命题：该 App/场景**装置看得见静默** | `python tools/e234/e2_precheck.py --run-dir <已有的同类格>` | `FAIL`＝结构性不适用，**删掉该命题**；`NOT_EXECUTED`＝先修采集排期（多为 dump 周期），**别当成不适用** |
+| 1 | e2 类命题：该 App/场景**装置看得见静默** | `python tools/e234/e2_precheck.py --run-dir <已有的同类格>` | `NOT_APPLICABLE`＝结构性不适用，**删掉该命题**；`CANNOT_TELL`＝先修采集排期（多为 dump 周期）或补 A 侧轮数，**别当成不适用**；`WORTH_RUNNING`＝可排。⚠ 这三个词**不是**四态判词，别与 `e2_analyze` 的 `NOT_EXECUTED` 混读 |
 | 2 | 通道 C 图层找得到 | 跑后核 `collect_notes.json` 的 `sf_status` | 为 `NOT_EXECUTED` ⇒ 该格 C 侧全空，e2 每轮都会被丢 |
 | 3 | 采集周期与环缓冲匹配 | 读 `e2_precheck` 印出的「建议 --framestats-period-s」 | 现值大于建议值 ⇒ 期间的帧**永远丢了**，而丢帧与静默在序列里不可区分 |
 | 4 | 改任一采集参数前，**列出还有谁在用同一条通道** | 人工核：通道 B 的 `screencap` 与通道 C 的 dump 走**同一条 adb** | 未核就改 ⇒ 争用把另一条通道压垮，且不报错 |
