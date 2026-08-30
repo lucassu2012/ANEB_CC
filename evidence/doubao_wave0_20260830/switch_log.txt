@@ -1,3 +1,4 @@
 2026-08-30 11:05:34  切换 1: WiFi -> 蜂窝 (svc wifi disable);切后 gsm.network.type=NR_SA,Unknown
 2026-08-30 12:33:25 切换 2: 蜂窝 → WiFi（收窗恢复开窗前状态；网络已保存，未输入任何凭据）
 2026-08-30 14:55:10 切换 3: WiFi → 蜂窝（DW-20260830-02，为 cell_f5）；切后 gsm.network.type=NR_SA,Unknown
+2026-08-30 15:39:16 切换 4: 蜂窝 → WiFi（DW-20260830-02，为 wifi_f6，本窗最后一格）
