@@ -13,7 +13,7 @@
 
 - **真实 run 总数：111**（场景 627；文件 41 份、原始行 3511、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
 - 合成记录（`is_synthetic`）：**560 条，单列不计入上行**
-- 观察通道另有 **16 个真机采集目录**（dry-run 6 个单列不计入；第四节）——**不并入上行**：其产物结构上进不了 wire 池
+- 观察通道另有 **21 个真机采集目录**（dry-run 6 个单列不计入；第四节）——**不并入上行**：其产物结构上进不了 wire 池
 - 带 AQS **分数**的 run（`run.aqs.score` 非空）：110；其中 low_confidence：100/110（91%）｜顶层 `aqs_version` 版本戳共 111 条，其中 **1 条只有版本戳、没有分数**（两个量不可混用）
 
 - **单点位最大样本：`SZ-PILOT-01` 57 条**（其余具名外场点位：无）｜**已排除**：`PENDING-PO-01` 16（占位符，真名待回填，**不是第二个点位的证据**）；`home_indoor` 10（非外场）；无点位标签 28（不是一个点位）
@@ -84,7 +84,7 @@
 | server/data/results/20260713.jsonl | 1 | 1 |
 | server/data/results/20260804.jsonl | 1 | 1 |
 
-跳过（0 条契约记录，非语料）：`evidence/doubao_wave0_20260830/cell_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f1b/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID3/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f2/screencap_index.jsonl`、`evidence/e1/20260801-150506/screencap_index.jsonl`、`evidence/e1/20260801-170127/screencap_index.jsonl`、`evidence/e1_realdevice_20260802/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802/screencap_index.jsonl`、`evidence/e1_realdevice_20260802_run2/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802_run2/screencap_index.jsonl`、`evidence/e234/20260802-163504/screencap_index.jsonl`、`evidence/e234/20260802-164148/screencap_index.jsonl`、`evidence/e234/20260802-172614/screencap_index.jsonl`、`evidence/e234/20260802-173031/screencap_index.jsonl`、`evidence/e234/20260803-154544-e1band/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-over/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-within/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-absent/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-present/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-overlap/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-separable/screencap_index.jsonl`、`evidence/phase1/calibration/clean_run1.jsonl`、`evidence/phase1/calibration/clean_run2.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run1.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run2.jsonl`、`evidence/phase1/calibration/nginx_run1.jsonl`、`evidence/phase1/calibration/nginx_run2.jsonl`、`evidence/phase1/calibration/proxied_run1.jsonl`、`evidence/phase1/calibration/proxied_run2.jsonl`、`evidence/phase3/e01_results/20260712.jsonl`
+跳过（0 条契约记录，非语料）：`evidence/doubao_wave0_20260830/cell_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f1b/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f5/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f5_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/cell_f6/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f6_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID3/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_anchor/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f2/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f5/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f5_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/wifi_f6/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f6_driver_timing.jsonl`、`evidence/e1/20260801-150506/screencap_index.jsonl`、`evidence/e1/20260801-170127/screencap_index.jsonl`、`evidence/e1_realdevice_20260802/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802/screencap_index.jsonl`、`evidence/e1_realdevice_20260802_run2/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802_run2/screencap_index.jsonl`、`evidence/e234/20260802-163504/screencap_index.jsonl`、`evidence/e234/20260802-164148/screencap_index.jsonl`、`evidence/e234/20260802-172614/screencap_index.jsonl`、`evidence/e234/20260802-173031/screencap_index.jsonl`、`evidence/e234/20260803-154544-e1band/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-over/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-within/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-absent/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-present/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-overlap/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-separable/screencap_index.jsonl`、`evidence/phase1/calibration/clean_run1.jsonl`、`evidence/phase1/calibration/clean_run2.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run1.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run2.jsonl`、`evidence/phase1/calibration/nginx_run1.jsonl`、`evidence/phase1/calibration/nginx_run2.jsonl`、`evidence/phase1/calibration/proxied_run1.jsonl`、`evidence/phase1/calibration/proxied_run2.jsonl`、`evidence/phase3/e01_results/20260712.jsonl`
 
 ⚠ **装载失败（坏行/读不了，不等于「不是语料」）**：`evidence/doubao_wave0_20260830/wifi_f1_VOID2/screencap_index.jsonl`（1 处）
 
@@ -96,11 +96,16 @@
 | evidence/doubao_wave0_20260830/cell_f1b | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/cell_f2 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/cell_f2_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 6 |
+| evidence/doubao_wave0_20260830/cell_f5 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/cell_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/wifi_f1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/wifi_f1_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/wifi_f1_VOID2 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 8 |
 | evidence/doubao_wave0_20260830/wifi_f1_VOID3 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f1_anchor | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/wifi_f2 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f5 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/e1_realdevice_20260802 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
 | evidence/e1_realdevice_20260802_run2 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
 | evidence/e234/20260802-163504 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
