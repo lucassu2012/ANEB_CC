@@ -1,0 +1,8 @@
+{
+  "device_window": "DW-20260830-01",
+  "pkg": "com.larus.nova",
+  "stim_pre": "evidence/doubao_wave0_20260830/cell_f1b\\stim_pre.log",
+  "layer": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2099",
+  "screencap_samples": 280,
+  "stim_post": "evidence/doubao_wave0_20260830/cell_f1b\\stim_post.log"
+}
