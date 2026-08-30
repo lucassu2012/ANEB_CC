@@ -36,6 +36,52 @@ def _write(d, name, text):
     return p
 
 
+_MULTI_SUITE_LOG = """verify_all run at 20260830-161222
+PASS           campaign-analysis-unit  campaign-analysis reflex: 785/785 passed
+campaign-analysis reflex: 785/785 passed
+PASS           obs-tools-e1-unit  e1 reflex: 82/82 passed
+e1 reflex: 82/82 passed
+PASS           obs-tools-e234-unit  e234 reflex: 106/106 passed
+e234 reflex: 106/106 passed
+checks: 25 total / 0 FAIL / 0 NOT_EXECUTED / 0 SKIPPED_SCOPE
+"""
+
+
+def test_reflex_tests_sums_every_suite_on_the_gate_not_just_the_first():
+    """门上有几套反例跑器，徽章就要数几套——**键名叫 `reflex_tests`，不叫「某一套」**。
+
+    实测成因（2026-08-30）：`obs-tools-e1-unit` / `obs-tools-e234-unit` 两道门接进来后，
+    门上跑 785＋82＋106＝973 条，而徽章仍报 **785**（旧实现只正则 campaign 那一套）
+    ⇒ **周报模板拿它当「本仓有多少条反例」用，少报 188 且不报错**。
+    ⚠ 旧实现在**单套**日志上与新实现同值，所以既有四条测试**全绿**——
+    **这条必须用多套日志，否则它守不住任何东西**（同族：测试围着一条没被执行的路径打转）。
+
+    同时钉住**同一套在日志里出现多次**（跑器原始输出 + Add-Result 汇总行）不得重复计数。
+    """
+    with tempfile.TemporaryDirectory() as d:
+        log = _write(d, "verify_all_20260830-161222.log", _MULTI_SUITE_LOG)
+        csv = _write(d, "CORPUS_LEDGER.csv", _LEDGER_CSV)
+        rows = badges.build(log, csv)
+    by = {k: (v, s) for k, v, s in rows}
+    assert by["reflex_tests"][0] == "973", by["reflex_tests"]
+    src = by["reflex_tests"][1]
+    for suite in ("campaign-analysis 785", "e1 82", "e234 106"):
+        assert suite in src, src          # 来源自述：数字不必读者猜它涵盖谁
+
+
+def test_one_red_suite_among_several_is_not_hidden_by_the_sum():
+    """多套里只要有一套不全绿，**求和不得把它抹平**——徽章在有红的那次必须出声。"""
+    red = _MULTI_SUITE_LOG.replace("e1 reflex: 82/82 passed",
+                                   "e1 reflex: 80/82 passed")
+    with tempfile.TemporaryDirectory() as d:
+        log = _write(d, "verify_all_20260830-161223.log", red)
+        csv = _write(d, "CORPUS_LEDGER.csv", _LEDGER_CSV)
+        rows = badges.build(log, csv)
+    by = {k: (v, s) for k, v, s in rows}
+    assert by["reflex_tests"][0] == "971/973", by["reflex_tests"]
+    assert "NOT all green" in by["reflex_tests"][1], by["reflex_tests"]
+
+
 def test_values_come_from_the_chain_log_not_from_thin_air():
     """绿链跑：三个值都取自实测行，且各带可核来源。"""
     with tempfile.TemporaryDirectory() as d:

@@ -1457,6 +1457,38 @@ def _all_line_refs():
     return found
 
 
+def test_the_manifest_is_generated_after_the_badges_it_describes():
+    """`sha256-manifest.txt` 必须在 `badges.txt` **之后**生成——否则它永远记旧值。
+
+    实测成因（2026-08-30，D-612）：原顺序是先写清单、后跑 `badges.py`
+    ⇒ 写清单那一刻 badges.txt 还是**上一跑**那份 ⇒ **清单里 badges 的哈希从未对过一次**
+    （0/2：首跑该文件还不存在被漏收，此后每次归档跑都记成陈旧值）。
+    比特级实证：清单记的值 ＝ 拿上一次归档日志重跑 `badges.py` 得到的字节。
+
+    **它能活到今天是因为清单没有读者**——全仓无任何守卫回读它。本条即那个缺席的读者。
+    ⚠ 判据是**顺序**，不是「这次哈希对上了没有」：徽章那步没跑时清单反而相符，
+    **「相符」不是健康信号**。顺序是唯一能静态查、且不依赖某一次跑的判据。
+
+    ⚠ **用字符串锚，不用行号**（本仓明令；且当天实测过一次行号漂移：
+    四路调查引的 706/720 全来自未提交的工作区，HEAD 其实是 695/709）。
+    """
+    with open(os.path.join(REPO, "scripts", "verify_all.ps1"),
+              encoding="utf-8") as fh:
+        text = fh.read()
+    badge_call = text.find("& $py $badgeScript")
+    badge_else = text.find("badges: NOT_EXECUTED")
+    manifest_write = text.find("Out-File -Encoding utf8 $manifestPath")
+    assert badge_call > 0, "找不到徽章调用锚 `& $py $badgeScript`"
+    assert badge_else > 0, "找不到徽章 else 分支锚 `badges: NOT_EXECUTED`"
+    assert manifest_write > 0, "找不到清单写入锚 `Out-File ... $manifestPath`"
+    assert badge_call < manifest_write, (
+        "清单写在了徽章之前 ⇒ 它会永久记录上一跑的 badges.txt 哈希（D-612）")
+    # 清单还必须落在徽章 if/else **之外**：else 分支里那句在清单之前，
+    # 说明清单不在任一分支内部——徽章没刷新时清单照样要记录真实现态。
+    assert badge_else < manifest_write, (
+        "清单似乎被并进了徽章的 if 分支 ⇒ 徽章未执行时清单不会刷新（D-612）")
+
+
 def test_no_new_cross_file_line_number_references():
     """BASELINE §5 rule 6：引他文给节号+锚文字，**不给行号**——行号会悄悄漂。
 

@@ -300,15 +300,26 @@ if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','e
 # 东西核对它——手改能一直活到下次重算，期间那两面仍被当作单一事实源引用。
 # 本门只比不写：落盘的 md/CSV 必须与现算逐字节相同。不一致的两种成因（有人手改／
 # 语料变了没重算）后果相同：被引用的数字不再是当前语料算出来的，故都记 FAIL。
+# ⚠ **必须 Push-Location 到仓根**（2026-08-30 实测）：`corpus_ledger.py` 的默认
+# `--md`/`--csv` 是**相对路径**（`docs/CORPUS_LEDGER.md`），而本门此前不切目录，
+# 于是**同一份代码、同一个仓，从不同 cwd 调 verify_all 会给出不同结论**——
+# 实测一次 `-Scope all` 报 FAIL，日志里真正的话是 `No such file or directory`。
+# 邻近几道门（campaign-analysis-unit / obs-tools-*）本来就 Push-Location，**只有这道漏了**。
+# exit: 0=一致 / 1=真漂移 / 2=**没比成**（读不了，多半是 cwd 不对）——2 不是漂移。
 $ledgerScript = Join-Path $repo 'scripts/corpus_ledger.py'
 if ($py -and (Test-Path $ledgerScript)) {
+    Push-Location $repo
     $out = & $py $ledgerScript --check 2>&1 | Out-String
     $code = $LASTEXITCODE
+    Pop-Location
     $log += "--- corpus-ledger-fresh (exit $code) ---"
     $log += $out
     $head = ($out -split "`n" | Where-Object { $_ -match 'corpus ledger check:' } | Select-Object -First 1)
     if ($code -eq 0) {
         $log += Add-Result 'corpus-ledger-fresh' 'PASS' $head
+    } elseif ($code -eq 2) {
+        # 「没比成」不冒充「比过了、不一致」——判词点对成因，处置才会对
+        $log += Add-Result 'corpus-ledger-fresh' 'NOT_EXECUTED' $head
     } else {
         $log += Add-Result 'corpus-ledger-fresh' 'FAIL' $head
     }
@@ -684,17 +695,21 @@ $isRed = ($failed.Count -gt 0) -or ($ghosts.Count -gt 0)
 $isFinalGreen = ($Scope -eq 'all') -and (-not $isRed) -and ($notRun.Count -eq 0)
 if ($isRed -or $isFinalGreen) {
     $log -join "`r`n" | Out-File -Encoding utf8 $logPath
-    # --- regenerate sha256 manifest for evidence/phase0 (scripted, never manual) ---
-    $manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
-    $mlines = @()
-    Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.Name -ne 'sha256-manifest.txt' } | Sort-Object FullName | ForEach-Object {
-        $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
-        $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
-        $mlines += "$h  $rel"
-    }
-    $mlines -join "`r`n" | Out-File -Encoding utf8 $manifestPath
     "log: $logPath  ($(if ($isRed) { '红门样本归档' } else { '收官全绿归档' }))"
-    "manifest: $manifestPath ($($mlines.Count) files)"
+    # ⚠ **顺序是承重的：徽章必须在清单之前刷新**（2026-08-30，D-612）。
+    # 原先清单写在徽章之前 ⇒ 写清单那一刻 `badges.txt` 还是**上一跑**那份 ⇒
+    # **清单里 badges 的哈希从来没对过一次**（0/2：首跑该文件还不存在被漏收；
+    # 此后每次归档跑都记成陈旧值）。比特级实证：清单记的值 ＝ 拿上一次归档日志
+    # 重跑 `badges.py` 得到的字节。而 `badges.py` 把来源日志名写进正文、`$ts` 每跑必变
+    # ⇒ 内容每跑都不同，不存在"碰巧相同蒙混过关"的分支。
+    #
+    # **这条能活到今天，是因为清单没有读者**：全仓没有任何守卫/测试回读它
+    # （`check_evidence.py` 对 manifest/sha256/badges 三词零命中）。
+    # ⇒ **描述别人的产物必须最后生成；而一份没有读者的清单，这种错永远不会自己报出来。**
+    #
+    # ⚠ 反向脚注（比正向更要紧）：**清单与 badges「相符」不是健康信号**——
+    # 徽章那步 `NOT_EXECUTED` 或写出前失败时 badges.txt 没被改写，清单反而相符。
+    # 所以判据是顺序，不是"这次对上了没有"。
     # --- 徽章值（SPEC-4 4.4 砍④脚本侧）：只在**归档的那几次**产出，
     # 因为徽章的新鲜度就是来源日志的新鲜度——分层跑不落 evidence，也就
     # 不该去覆盖一份看起来像"刚测的"徽章。测不到的项由脚本写 unknown。
@@ -714,6 +729,19 @@ if ($isRed -or $isFinalGreen) {
         if (-not (Test-Path $badgeScript)) { $bm += 'scripts/badges.py' }
         "badges: NOT_EXECUTED (missing: $($bm -join ', ')) —— 徽章未刷新"
     }
+    # --- regenerate sha256 manifest for evidence/phase0 (scripted, never manual) ---
+    # **必须排在徽章之后**（见上方 D-612 注释）：清单描述的是 evidence/phase0 的现态，
+    # 而 badges.txt 是本块里最后一个被写的文件。**无条件执行**，不得并进上面的
+    # `if ($py -and ...)` 分支——徽章没刷新时清单照样要记录当时的真实现态。
+    $manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
+    $mlines = @()
+    Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.Name -ne 'sha256-manifest.txt' } | Sort-Object FullName | ForEach-Object {
+        $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+        $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
+        $mlines += "$h  $rel"
+    }
+    $mlines -join "`r`n" | Out-File -Encoding utf8 $manifestPath
+    "manifest: $manifestPath ($($mlines.Count) files)"
 } else {
     $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)
     $log -join "`r`n" | Out-File -Encoding utf8 $scratchLog

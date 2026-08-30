@@ -60,14 +60,29 @@ def reflex_tests(log_path):
     txt = _read(log_path)
     if txt is None:
         return UNKNOWN, "log unreadable"
-    m = re.findall(r"campaign-analysis reflex:\s*(\d+)/(\d+)\s*passed", txt)
-    if not m:
+    # ⚠ **2026-08-30 语义修正**：本函数原先只正则 `campaign-analysis reflex:` 一套。
+    # 那在当时是对的——门上只有那一套。而 `obs-tools-e1-unit` / `obs-tools-e234-unit`
+    # 两道门接进来之后，**门上跑的是三套（785＋82＋106＝973），徽章仍报 785**
+    # ⇒ 键名叫 `reflex_tests`、周报模板拿它当「本仓有多少条反例」用，**而它少报了 188**。
+    # **加门的人（我）没去问「谁在消费这个聚合数」**——同一族的又一次。
+    # 修法＝**求和 + 让来源自述**：来源串逐套列出，数字不必读者猜它涵盖谁。
+    #
+    # 同一套在日志里会出现多次（跑器原始输出 + Add-Result 汇总行）⇒ 按套名去重取最后一次。
+    per_suite = {}
+    for name, passed, total in re.findall(
+            r"([A-Za-z0-9_-]+) reflex:\s*(\d+)/(\d+)\s*passed", txt):
+        per_suite[name] = (int(passed), int(total))
+    if not per_suite:
         return UNKNOWN, "no reflex summary line in log"
-    passed, total = m[-1]
-    if passed != total:
+    order = sorted(per_suite)
+    sum_passed = sum(per_suite[n][0] for n in order)
+    sum_total = sum(per_suite[n][1] for n in order)
+    detail = " + ".join("%s %d" % (n, per_suite[n][1]) for n in order)
+    if sum_passed != sum_total:
         # 不是徽章该沉默的场合：有红的那次，徽章要说出来
-        return "%s/%s" % (passed, total), "reflex line (NOT all green)"
-    return total, "reflex line (all green)"
+        return ("%d/%d" % (sum_passed, sum_total),
+                "reflex lines (NOT all green): " + detail)
+    return str(sum_total), "reflex lines (all green): " + detail
 
 
 def corpus_real_runs(csv_path):

@@ -409,6 +409,46 @@ def test_a_hand_edit_to_the_ledger_is_detected_by_check_mode():
         assert cl.main(args + ["--check"]) == 1, "手改必须被抓住"
 
 
+def test_a_missing_ledger_is_cannot_compare_not_drift():
+    """**「读不了」不是「漂移」**——判词必须点对成因，否则处置句会把人带反。
+
+    实测成因（2026-08-30，`-Scope all`）：本门当时不 `Push-Location`，
+    `--md/--csv` 的默认相对路径落在别的 cwd 上 ⇒ 文件读不到 ⇒ 旧实现报 **DRIFT**，
+    而 DRIFT 的处置句是「**重算并提交**」。
+    ⇒ **它会指使人去重算一份本来就正确的台账，并提交一个由错误 cwd 算出的结果。**
+
+    退出码三分：0＝一致 / 1＝真漂移 / **2＝没比成**。
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        gone_md = os.path.join(d, "nope", "CORPUS_LEDGER.md")
+        gone_csv = os.path.join(d, "nope", "CORPUS_LEDGER.csv")
+        rc = cl.main(["--root", d, "--md", gone_md, "--csv", gone_csv, "--check"])
+    assert rc == 2, "文件不在时必须是「没比成」(2)，不能冒充漂移(1)，rc=%s" % rc
+
+
+def test_a_configured_root_that_does_not_exist_is_detectable():
+    """**「根不在」与「根里没语料」结果同形**——必须有一条判据把前者认出来。
+
+    成因（v4 的 worktree 试点实证）：`server/data/` 被 `.gitignore` 挡、零受跟踪文件
+    ⇒ **全新 worktree 里该目录不存在**，而它在 `DEFAULT_ROOTS` 里
+    ⇒ **同一份代码算出一个不同的语料范围，不报错，只给一个不同的数**——
+    而那个数正是台账、正是「进展」声明的单一事实源。
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        present = os.path.join(d, "here")
+        os.makedirs(present)
+        absent = os.path.join(d, "not_here")
+        assert cl.missing_roots([present]) == []
+        assert cl.missing_roots([present, absent]) == [absent]
+        # 判据必须落在「根存不存在」上，而不是「扫出来几条」——
+        # 空目录与不存在的目录都扫出 0 条，但只有后者是配置/环境问题。
+        corpus, _ = cl.discover([present])
+        assert corpus == [], "空的真实目录应当扫出 0 条，且**不**被判为缺根"
+        assert cl.missing_roots([present]) == []
+
+
 def test_the_ledgers_claim_about_validate_results_is_actually_true():
     """台账渲染面上那句**关于另一个工具行为**的断言，必须真的成立。
 

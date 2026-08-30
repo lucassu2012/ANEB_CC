@@ -49,6 +49,25 @@ MD_HEADER = (
     "> 合成=`cc.is_synthetic` 单列，RAT=场景级计数（一 run 可跨 RAT，不折单值）。\n")
 
 
+def missing_roots(roots):
+    """返回**配置了却不存在**的扫描根。
+
+    为什么需要它（2026-08-30，v4 的 worktree 试点实证）：`server/data/` 被 `.gitignore`
+    挡住、**零个受跟踪文件** ⇒ **任何全新 worktree 里该目录根本不存在**；主树里它在，
+    只是因为长期积累。而 `DEFAULT_ROOTS` 含 `server/data/results` ⇒
+    **同一份代码在 worktree 里算出一个不同的语料范围，不报错，只给一个不同的数**
+    ——而这个数正是台账、正是「进展」声明的单一事实源。
+
+    ⇒ 这与 `discover()` 里已经写下的那条是**同一条原则、不同成因**：
+    「**一个自称『单一事实源』的台账不该有无声排除**」。
+    那次的成因是**根没配**（漏扫 server 落盘），这次是**根不存在**（worktree）。
+    **「根不在」与「根里没有语料」在结果上完全同形**——都是少一批数、都不吭声。
+    """
+    if isinstance(roots, str):
+        roots = [roots]
+    return [r for r in roots if not os.path.isdir(r)]
+
+
 def discover(roots):
     """给定根目录（单个字符串或多个）下全部 jsonl 逐文件试装载。
 
@@ -404,17 +423,34 @@ def main(argv=None):
         # **只比不写**：落盘那份必须与现算逐字节相同。不一致有两种成因——有人
         # 手改了，或语料变了而没重算——**两者都该红**，因为两者的后果一样：
         # 被引用的数字不再是当前语料算出来的。
-        drift = []
+        # ⚠ **「读不了」不是 DRIFT**（2026-08-30 实测）：本门曾在一次 `-Scope all` 里
+        # 报 `DRIFT`，而日志里真正的话是 `No such file or directory: docs\CORPUS_LEDGER.md`
+        # ——**台账没问题，是这次跑的工作目录不对**（本门当时未 `Push-Location`，
+        # 相对路径落在了别处）。可 `DRIFT` 的处置句写着「重算并提交」⇒
+        # **它会指使人去重算一份本来就正确的台账，并提交一个由错误 cwd 算出的结果。**
+        # ⇒ **判词必须点对成因**：比不了（文件不在／读不了）与比过了不一致，是两件事。
+        drift, unreadable = [], []
         for path, want, enc in ((a.md, md, "utf-8"),
                                 (a.csv, csv_text, "utf-8-sig")):
             try:
                 got = io.open(path, encoding=enc, newline="").read()
             except OSError as e:
-                drift.append("%s 读不了：%s" % (path, e))
+                unreadable.append("%s 读不了：%s" % (path, e))
                 continue
             if got != want:
                 drift.append("%s 与现算不一致（落盘 %d 字符 / 现算 %d 字符）"
                              % (path, len(got), len(want)))
+        if unreadable:
+            # 第三态：**没比成**。既不宣布一致，也不宣布漂移。
+            print("corpus ledger check: CANNOT_COMPARE")
+            for u in unreadable:
+                print("  " + u)
+            for d in drift:
+                print("  " + d)
+            print("  处置：**先确认工作目录是仓根**（本门的默认路径是相对路径），"
+                  "别急着重算——重算不会让文件出现在一个错的 cwd 下。"
+                  "确认在仓根后仍读不到，才是文件真的缺了。")
+            return 2
         print("corpus ledger check: %s" % ("DRIFT" if drift else "in sync"))
         for d in drift:
             print("  " + d)
