@@ -408,6 +408,17 @@ def main(argv=None):
     # 正是本仓那条「**写好了一道门 ≠ 那道门在门禁清单上**」，这次是我自己犯的。
     gone = missing_roots(roots)
     if gone:
+        # ⚠ 这一行必须打到 **stdout** 且必须带 `corpus ledger check:` 前缀：
+        # `verify_all.ps1` 的判词是**捞含该前缀的那一行**，捞不到就把 NOT_EXECUTED
+        # 写成一句空判词。首版（我加的）只写了下面那段 stderr、没打这行标记
+        # ⇒ 摘要面只剩「corpus-ledger-fresh  NOT_EXECUTED」六个字，**读者分不出
+        # 「缺根/环境不对」和「别的没比成」**。而 D-609③ 给这条路径的定位正是
+        # **响亮拒算** —— 响亮丢在摘要面上就等于没响（「摘要面才是被执行的那面」）。
+        # ⚠ 复用状态词 CANNOT_COMPARE 是对的（两条 RC=2 回答同一个问题＝「为什么没比成」），
+        # 但**成因必须写在同一行**：状态相同、处置不同（这条＝回主树；那条＝先确认 cwd）。
+        print("corpus ledger check: CANNOT_COMPARE —— 扫描根不存在：%s"
+              "（多半在 git worktree 里；处置＝回主树跑，或 --root 显式声明范围）"
+              % ", ".join(gone))
         sys.stderr.write(
             "拒算：扫描根不存在 —— %s\n"
             "  这多半意味着你在一个全新的 git worktree 里（`server/data/` 被 .gitignore 挡、"
@@ -457,7 +468,9 @@ def main(argv=None):
                              % (path, len(got), len(want)))
         if unreadable:
             # 第三态：**没比成**。既不宣布一致，也不宣布漂移。
-            print("corpus ledger check: CANNOT_COMPARE")
+            # 成因写进**同一行**：门只把这一行当判词，写在后续行里到不了摘要面。
+            print("corpus ledger check: CANNOT_COMPARE —— 落盘文件读不了（%d 个）"
+                  "（先确认 cwd 是仓根，本门默认路径是相对路径）" % len(unreadable))
             for u in unreadable:
                 print("  " + u)
             for d in drift:

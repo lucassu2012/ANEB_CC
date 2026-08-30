@@ -506,3 +506,49 @@ def test_the_ledgers_claim_about_validate_results_is_actually_true():
     assert r.returncode != 0, (
         "观察通道产物竟通过了 wire 契约校验——台账那句「结构上进不了 wire 池」"
         "已不成立，两条链的隔离前提没了。stdout=%s" % r.stdout[:400])
+
+
+def test_the_refusal_prints_a_summary_marker_the_gate_can_actually_find():
+    """拒算必须打**门捞得到的那一行**，否则「响亮拒算」在摘要面上是哑的。
+
+    实测（2026-08-30，worktree 里跑 `-Scope scripts`）：`verify_all.ps1` 取判词的
+    办法是**捞含 `corpus ledger check:` 的那一行**；而我首版给缺根拒算只写了
+    stderr 的多行说明、**没打这行标记** ⇒ 摘要面上是
+
+        NOT_EXECUTED checks (these verified NOTHING):
+          - corpus-ledger-fresh
+
+    后面**一个成因都没有**，读者分不出「缺根/环境不对」和「别的没比成」。
+    D-609③ 给这条路径的定位正是**响亮拒算**——响亮丢在摘要面上就等于没响
+    （同族＝本仓那条「摘要面才是被执行的那面」）。
+
+    ⚠ 成因必须与状态词在**同一行**：写在后续行里到不了摘要面。
+    ⚠ 两条 RC=2 复用状态词 CANNOT_COMPARE 是对的（它们回答同一个问题＝
+    「为什么没比成」），但**处置不同**（这条＝回主树；另一条＝先确认 cwd），
+    故各自必须带成因——共用状态词、不共用成因。
+
+    本条走的是**生产路径**（真起子进程、读它的 stdout 与退出码），
+    不是只测那个函数——首版的缺陷恰恰是「函数在、测试也绿，而生产路径没走过它」。
+    """
+    import os as _o
+    import subprocess
+    import sys as _s
+    import tempfile
+    repo = _o.path.dirname(_o.path.dirname(_o.path.abspath(cl.__file__)))
+    with tempfile.TemporaryDirectory(prefix="dryrun_ledger_") as tmp:
+        absent = _o.path.join(tmp, "definitely_not_here")
+        r = subprocess.run(
+            [_s.executable, _o.path.join(repo, "scripts", "corpus_ledger.py"),
+             "--check", "--root", absent],
+            capture_output=True, text=True, cwd=repo)
+    assert r.returncode == 2, (
+        "缺根时退出码应为 2（没比成），实得 %r；stderr=%s"
+        % (r.returncode, r.stderr[:300]))
+    marker = [ln for ln in r.stdout.splitlines() if "corpus ledger check:" in ln]
+    assert marker, (
+        "拒算没打门捞得到的那一行（须含 `corpus ledger check:` 前缀）⇒ "
+        "verify_all 的摘要行会是一句**空判词**。stdout=%r" % r.stdout[:300])
+    line = marker[0]
+    assert "CANNOT_COMPARE" in line, "标记行丢了状态词：%r" % line
+    assert ("definitely_not_here" in line) or ("扫描根不存在" in line), (
+        "标记行没带成因 ⇒ 状态到了摘要面、原因没到：%r" % line)
