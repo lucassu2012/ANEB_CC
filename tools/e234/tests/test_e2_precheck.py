@@ -407,3 +407,41 @@ def test_the_real_void_fixture_is_refused_with_its_measured_numbers():
     assert res["dumps_issued"] == 569, res["dumps_issued"]
     assert res["dumps_with_frames"] == 45, res["dumps_with_frames"]
     assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
+
+
+def test_dump_rows_counts_raw_lines_including_the_empty_dumps():
+    """逐段行数的长度＝**发出次数**（空段也占一位），否则它答不了「每段满不满」。"""
+    text = _sf_text([_burst(1_000_000_000, 20), [], _burst(2_000_000_000, 5)])
+    rows = ep.dump_row_counts(text)
+    assert len(rows) == 3, rows
+    assert rows[1] == 0, rows
+    assert len(rows) == ep.count_issued_dumps(text)
+
+
+def test_a_full_ring_of_pending_frames_is_a_different_disease_from_a_dead_layer():
+    """**「环是满的但每帧都待定」与「图层死了」是两种病，两个数并排看才分得开。**
+
+    `dump_rows` 数**原始行**，`split_dumps` 会**滤掉待定帧**再去重
+    ⇒ 一次 dump 完全可能「满行、零可用帧」。
+    单看 `dump_survival` 会把它误报成图层失效，单看 `dump_rows` 会以为一切正常。
+    ⚠ 本条钉的正是「两个数别混用」——它们回答的不是同一个问题。
+    """
+    pend = ep.PENDING_NS
+    lines = [PERIOD_LINE]
+    for i in range(30):
+        lines.append("%d\t%d\t%d" % (1000 + i, pend, pend))
+    lines += ["\r", ""]
+    text = "\n".join(lines) + "\n"
+    assert ep.dump_row_counts(text) == [30], ep.dump_row_counts(text)
+    assert ep.split_dumps(text) == [], "待定帧没有被滤掉，两个口径就不再是两个了"
+
+
+def test_uniform_segments_stay_silent_and_ragged_ones_speak():
+    """真机健康格实测 min=p50=max=127 无一例外 ⇒ **沉默本身是健康信号**。"""
+    ok = _run([_burst(1_000_000_000 + i * 100_000_000, 20) for i in range(8)])
+    assert ok["dump_rows"]["min"] == ok["dump_rows"]["max"], ok["dump_rows"]
+    assert "逐段行数" not in ep.render_line(ok), ep.render_line(ok)
+    ragged = _run([_burst(1_000_000_000, 20), _burst(2_000_000_000, 5),
+                   _burst(3_000_000_000, 20)])
+    assert ragged["dump_rows"]["min"] < ragged["dump_rows"]["max"]
+    assert "逐段行数" in ep.render_line(ragged), ep.render_line(ragged)

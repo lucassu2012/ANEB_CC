@@ -150,6 +150,40 @@ DUMP_SURVIVAL_FLOOR = 0.95
 DUMP_SURVIVAL_MIN_N = 3
 
 
+def dump_row_counts(text):
+    """逐次 dump 的**原始帧行数**（含取空的那些，故长度＝发出次数）。
+
+    裁定 D-645 ④「合并测量源、不合并消费方」的落点：操作卡上「每段应为 127 行」
+    此前是**人肉抽查**，与工具的判据各写一份 —— 同一个事实两处存，必有一处先漂。
+    现在数由这里出，卡去读它。
+
+    ⚠ **口径与 `split_dumps` 不同，两个数别混用**：这里数的是**原始行**，
+    而 `split_dumps` 会**滤掉待定帧**（`actual`/`ready` 为 0 或哨兵）再去重。
+    ⇒ 一次 dump 完全可能「127 原始行、0 个可用帧」——**「环是满的但每帧都待定」
+    与「图层死了」是两种病**，前者 `dump_rows` 报 127 而 `dump_survival` 报 0，
+    两个数并排看才分得开。单看任何一个都会把两种病归成一种。
+    """
+    out, cur = [], None
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        parts = s.split()
+        if len(parts) == 1:
+            if cur is not None:
+                out.append(cur)
+            cur = 0
+        elif cur is not None and len(parts) >= 3:
+            try:
+                int(parts[0]), int(parts[1]), int(parts[2])
+            except ValueError:
+                continue
+            cur += 1
+    if cur is not None:
+        out.append(cur)
+    return out
+
+
 def count_issued_dumps(text):
     """**发出**了几次 `--latency`（不管有没有取到帧）。
 
@@ -373,6 +407,10 @@ def precheck(run_dir, pkg=None):
     # 524 次取空（图层约 55 秒被重建，采集器只挑过一次图层）。
     # **判词面上少了「分母」这个数，作废格就会表面全绿逐条通过收窗清单。**
     res["dumps_issued"] = count_issued_dumps(sf_text)
+    _rows = sorted(dump_row_counts(sf_text))
+    res["dump_rows"] = ({"n": len(_rows), "min": _rows[0],
+                         "p50": _rows[len(_rows) // 2], "max": _rows[-1]}
+                        if _rows else None)
     res["dumps_with_frames"] = len(dumps)
     if res["dumps_issued"]:
         res["dump_survival"] = round(len(dumps) / float(res["dumps_issued"]), 4)
@@ -473,6 +511,13 @@ def render_line(res):
     warn = ("" if surv is None or surv >= 1.0
             else " ⚠dump存活=%.1f%%(发出%d/有帧%d)" % (
                 100.0 * surv, res["dumps_issued"], res["dumps_with_frames"]))
+    # 逐段行数**只在各段不一致时出声**（D-645 ④）：真机健康格实测 min=p50=max=127
+    # 无一例外（含 583 段的长跑），所以「有话说」本身就是信号。
+    # ⚠ 只报不拦：灾难性失效已由 `DUMP_SURVIVAL_FLOOR` 管；再加一道基于行数的门
+    # 会需要 dry-run 豁免名单（模拟器夹具环深 120、各段 70～120），**而豁免名单会过期**。
+    rw = res.get("dump_rows")
+    if rw and rw["min"] != rw["max"]:
+        warn += " 逐段行数=%d/%d/%d(min/p50/max)" % (rw["min"], rw["p50"], rw["max"])
     return ("e2_precheck %s: %s - %s%s | dump=%d(同=%d 叠=%d 断=%d) "
             "C侧已观测间隔=%d 不可判=%d | A侧可用轮=%s/%s | B动率=%s "
             "建议 --framestats-period-s=%s"

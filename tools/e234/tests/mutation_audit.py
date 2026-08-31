@@ -332,6 +332,21 @@ def m23():
     return _mut(ep, "DUMP_SURVIVAL_MIN_N", 0)
 
 
+@mutation("M24 逐段行数改用 split_dumps 的口径（滤掉待定帧后再数）", "CAUGHT")
+def m24():
+    import e2_precheck as ep
+    # 坏实现：拿过滤后的帧数当原始行数 ⇒「环满但全待定」与「图层死了」合成一种病。
+    return _mut(ep, "dump_row_counts",
+                lambda text: [len(d) for d in ep.split_dumps(text)])
+
+
+@mutation("M25 逐段行数丢掉空段（长度不再等于发出次数）", "CAUGHT")
+def m25():
+    import e2_precheck as ep
+    real = ep.dump_row_counts
+    return _mut(ep, "dump_row_counts", lambda text: [n for n in real(text) if n])
+
+
 def main():
     base = run_all()
     _say("基线：%d 条测试，失败 %d 条" % (len(TESTS), len(base)))
