@@ -293,3 +293,99 @@ def test_word_boundary_still_accepts_a_genuinely_listed_window():
         ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True,
                                   "DW-20260829-01", board)
         assert ok is True, "真授权被挡：%s" % why
+
+
+# ── T90：通道 C 图层自愈（D-644）─────────────────────────────────────────
+
+def test_a_header_only_latency_response_counts_as_zero_frames():
+    """失效判据必须认「有头无帧」，**不能**认「响应为空」。
+
+    实测（`wifi_f6_b_VOID1` 尾部）：图层被重建后每次 `--latency` 返回的是
+    `16666666` 一行刷新周期 + 一个孤立回车，**退出码 0、stderr 空**。
+    ⇒ 任何「检查有没有报错」的层都看不见它。
+    """
+    dead = "16666666\r\n\r\n"
+    assert e2c._sf_frame_rows(dead) == 0, "把失效响应当成有帧了"
+    alive = "16666666\n1000\t2000\t1500\n1001\t2001\t1501\n\r\n"
+    assert e2c._sf_frame_rows(alive) == 2, e2c._sf_frame_rows(alive)
+    assert e2c._sf_frame_rows("") == 0
+    assert e2c._sf_frame_rows(None) == 0
+
+
+class _FakeAdb(object):
+    """只回答 `--latency` 与 `--list` 两句；图层名切换后才重新出帧。"""
+
+    def __init__(self, live_layer):
+        self.live = live_layer
+        self.lists = 0
+
+    def text(self, *args, **kw):
+        if "--list" in args:
+            self.lists += 1
+            # 真实 `--list` 形态：`pick_layer` 靠 `RequestedLayerState{...}` 取 body。
+            # ⚠ 首版夹具写的是 "handle | <name>"，正则匹配不到时 `pick_layer` 会
+            # **把整行当图层名返回** —— 测试于是在验一个生产代码永远不会走到的分支。
+            return "  RequestedLayerState{%s parentId=5}\n" % self.live
+        if "--latency" in args:
+            asked = args[-1]
+            if asked != self.live:
+                return "16666666\r\n\r\n"          # 死图层：有头无帧
+            return "16666666\n1000\t2000\t1500\n\r\n"
+        return ""
+
+
+def test_the_collector_repicks_the_layer_after_frames_stop():
+    """出过帧之后连续取空 ⇒ 必须重挑图层，并把 `--list` 原文落盘。
+
+    ⚠ 触发判据可以很紧，因为**真静默产生的是重复的满帧，不是空帧**
+    （静默期间不渲染 ⇒ 环缓冲不推进 ⇒ 相邻 dump 内容完全相同）。
+    ⇒ 一旦该图层出过帧，零帧行就永远不合法。
+    ⚠ 落盘 `--list` 那一半不是附赠：`wifi_f6_b_VOID1` 根因至今未定，
+    正因为**没人在失效之后拍过一张 `--list`**。
+    """
+    d = tempfile.mkdtemp(prefix="t90_")
+    try:
+        adb = _FakeAdb("pkg/pkg.Act#100")
+        acct = {"relists": []}
+        new = e2c._relist_layer(adb, "pkg", "pkg/pkg.Act#99", acct,
+                                os.path.join(d, "sf_layer_probe.jsonl"), 7)
+        assert new == "pkg/pkg.Act#100", new
+        assert acct["relists"][0]["switched"] is True, acct["relists"]
+        assert acct["relists"][0]["dump_index"] == 7
+        probe = os.path.join(d, "sf_layer_probe.jsonl")
+        assert os.path.exists(probe), "重挑没有留下 --list 快照 ⇒ 下次照样查不出根因"
+        rec = json.loads(open(probe, encoding="utf-8").read().strip())
+        assert "pkg/pkg.Act#100" in rec["listing"], rec
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_a_relist_that_finds_the_same_layer_does_not_switch():
+    """重挑拿回同一个名字时不许「切换」——否则日志里全是假切换，遮住真的那次。"""
+    d = tempfile.mkdtemp(prefix="t90b_")
+    try:
+        adb = _FakeAdb("pkg/pkg.Act#100")
+        acct = {"relists": []}
+        same = e2c._relist_layer(adb, "pkg", "pkg/pkg.Act#100", acct,
+                                 os.path.join(d, "p.jsonl"), 3)
+        assert same == "pkg/pkg.Act#100"
+        assert acct["relists"][0]["switched"] is False, acct["relists"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_the_relist_trigger_covers_every_branch_it_claims():
+    """三个条件逐条钉住 —— 正例反例都要，否则「永远重挑」与「永不重挑」都能全绿。"""
+    N = e2c.SF_EMPTY_DUMPS_BEFORE_RELIST
+    W = e2c.SF_RELIST_MIN_INTERVAL_S
+    # 正例：出过帧 + 连续空够 + 间隔够
+    assert e2c._should_relist(True, N, W) is True
+    assert e2c._should_relist(True, N + 50, W * 3) is True
+    # 反例①：还没出过帧 —— App 首帧之前的零帧是正常的，不许每格开头白重挑一次
+    assert e2c._should_relist(False, N + 50, W * 3) is False
+    # 反例②：空得还不够 —— 单段空可能是别的抖动
+    assert e2c._should_relist(True, N - 1, W * 3) is False
+    # 反例③：刚重挑过 —— 死图层每段都空，没有这条就是在上面空转
+    assert e2c._should_relist(True, N, W - 0.01) is False
+    # 判据本身要有意义：N 太大就永远救不回来，太小则出帧前就乱挑
+    assert 1 <= N <= 5, "SF_EMPTY_DUMPS_BEFORE_RELIST=%r 偏离标定区间" % N

@@ -295,6 +295,43 @@ def m18():
     return _mut(ep, "channel_a_anchors", patched)
 
 
+# ── T90：通道 C 图层失效自愈（D-644）────────────────────────────────────
+
+@mutation("M19 失效判据退回「响应是否为空」（死图层的有头无帧被当成有帧）", "CAUGHT")
+def m19():
+    import e234_collect as e2c
+    # 坏实现：只看响应空不空。而死图层返回的**不是空**——它有刷新周期头。
+    return _mut(e2c, "_sf_frame_rows", lambda text: 1 if (text or "").strip() else 0)
+
+
+@mutation("M20 重挑判据不看「这个图层出过帧没有」（每格开头白重挑）", "CAUGHT")
+def m20():
+    import e234_collect as e2c
+    real = e2c._should_relist
+    return _mut(e2c, "_should_relist",
+                lambda ever, streak, since: real(True, streak, since))
+
+
+@mutation("M21 分母改成数所有非空行（孤立回车与帧行都被算进 dump 次数）", "CAUGHT")
+def m21():
+    import e2_precheck as ep
+    def patched(text):
+        return sum(1 for l in (text or "").splitlines() if l.strip())
+    return _mut(ep, "count_issued_dumps", patched)
+
+
+@mutation("M22 存活率门限放到 0（仪器失效不再拦，作废格重新表面全绿）", "CAUGHT")
+def m22():
+    import e2_precheck as ep
+    return _mut(ep, "DUMP_SURVIVAL_FLOOR", 0.0)
+
+
+@mutation("M23 「样本太少」与「图层死了」合并（两种病共用一个判词）", "CAUGHT")
+def m23():
+    import e2_precheck as ep
+    return _mut(ep, "DUMP_SURVIVAL_MIN_N", 0)
+
+
 def main():
     base = run_all()
     _say("基线：%d 条测试，失败 %d 条" % (len(TESTS), len(base)))

@@ -139,6 +139,37 @@ def split_dumps(text):
     return [sorted(set(d)) for d in out if d]
 
 
+# 图层失效判据的门限（T90／D-644）。**从数据标定，不是拍的**：
+# 全仓 27 个格实测存活率呈双峰且中间是空的 —— 健康格**无一例外恰好 100.0%**
+# （含 `wifi_f6` 583/583 的长跑），异常格 68.2%（`wifi_f1_VOID2`，本就已作废）
+# 与 7.9%（`wifi_f6_b_VOID1`，图层失效）。空区是 (68.2, 100)，门限切在其中任何
+# 一处等价，取 0.95 只为留裕量。
+DUMP_SURVIVAL_FLOOR = 0.95
+# 太少的样本不套比例判据：退化跑（发出 1～5 次）会以 0% 命中，而它们的病因是
+# 「根本没跑起来」不是「图层死了」——**两种病共用一个判词会把下游引向错的修法**。
+DUMP_SURVIVAL_MIN_N = 3
+
+
+def count_issued_dumps(text):
+    """**发出**了几次 `--latency`（不管有没有取到帧）。
+
+    判据＝单 token 行数，与 `split_dumps` 的切段判据同源：每次 dump 的首行是
+    刷新周期。图层失效时响应**不是空的**——它有那一行头、只是零帧行
+    （实测尾部逐段 `16666666` 后直接跟空行，退出码 0、stderr 空）。
+    ⇒ **这个数是唯一能把「没发生」与「发生了但取空」分开的量**，
+    而它此前从未被任何人记下来过。
+
+    ⚠ 别用 `awk NF==1` 数它（见 `split_dumps` 的警告：dump 之间夹着孤立回车，
+    awk 把它当字段，数出来正好是真值的两倍）。Python 的 `strip()` 天然免疫。
+    """
+    n = 0
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if s and len(s.split()) == 1:
+            n += 1
+    return n
+
+
 def parse_ring_shape(text):
     """-> (refresh_period_ns, ring_depth_rows)。环缓冲的**容量**，不是本场的内容。
 
@@ -332,11 +363,39 @@ def precheck(run_dir, pkg=None):
            "criterion": ("T81 §7-2：思考期两条通道须同时静默"
                          "（先判记录连不连，再判 App 静不静）")}
 
-    dumps = split_dumps(ec.read_text(run_dir, "sf_latency.txt"))
+    sf_text = ec.read_text(run_dir, "sf_latency.txt")
+    dumps = split_dumps(sf_text)
     res["dumps"] = len(dumps)
+
+    # ── 仪器自检：发出了几次 dump，其中几次真有帧（T90／D-644）────────────
+    # ⚠ `res["dumps"]` 是**过滤之后**的数：`split_dumps` 末尾 `if d` 把空 dump
+    # 整批丢弃。`wifi_f6_b_VOID1` 上它显示 45，看着完全健康——而实际发出了 569 次、
+    # 524 次取空（图层约 55 秒被重建，采集器只挑过一次图层）。
+    # **判词面上少了「分母」这个数，作废格就会表面全绿逐条通过收窗清单。**
+    res["dumps_issued"] = count_issued_dumps(sf_text)
+    res["dumps_with_frames"] = len(dumps)
+    if res["dumps_issued"]:
+        res["dump_survival"] = round(len(dumps) / float(res["dumps_issued"]), 4)
+    else:
+        res["dump_survival"] = None
+
     if not dumps:
         res["verdict"] = (CANNOT_TELL,
                           "通道 C 无帧记录（sf_latency.txt 缺失或全为待定帧）")
+        return res
+
+    # 仪器坏了就别评这一格：**幸存的那些 dump 本身是好的，正因如此才危险**
+    # ——它们会拼出一份看着健康的判词，而覆盖的只是会话最前面的一小段。
+    if (res["dump_survival"] is not None
+            and res["dumps_issued"] >= DUMP_SURVIVAL_MIN_N
+            and res["dump_survival"] < DUMP_SURVIVAL_FLOOR):
+        res["verdict"] = (CANNOT_TELL,
+                          "通道 C 仪器失效：发出 %d 次 dump，仅 %d 次取到帧"
+                          "（存活 %.1f%%，健康格实测恒为 100%%）——图层多半在跑动中"
+                          "被重建而采集器只挑过一次（T90／D-644）。"
+                          "**幸存的 dump 只覆盖失效之前那一小段，不代表整场**"
+                          % (res["dumps_issued"], res["dumps_with_frames"],
+                             100.0 * res["dump_survival"]))
         return res
 
     counts, runs = classify_pairs(dumps)
@@ -407,10 +466,17 @@ def render_line(res):
     if "pair_states" not in res:
         return "e2_precheck %s: %s - %s" % (os.path.basename(res["run_dir"]), v, why)
     ps, a = res["pair_states"], res.get("channel_a") or {}
-    return ("e2_precheck %s: %s - %s | dump=%d(同=%d 叠=%d 断=%d) "
+    # ⚠ 存活率**只在不足 100% 时出声**（T90）：硬门限 DUMP_SURVIVAL_FLOOR 只拦
+    # 灾难性失效，而 96% 那种**部分**退化会从门限底下静默走过去。健康格实测恒为
+    # 100%，所以「有话说」本身就是信号；沉默时不占版面，是为了让它出现时刺眼。
+    surv = res.get("dump_survival")
+    warn = ("" if surv is None or surv >= 1.0
+            else " ⚠dump存活=%.1f%%(发出%d/有帧%d)" % (
+                100.0 * surv, res["dumps_issued"], res["dumps_with_frames"]))
+    return ("e2_precheck %s: %s - %s%s | dump=%d(同=%d 叠=%d 断=%d) "
             "C侧已观测间隔=%d 不可判=%d | A侧可用轮=%s/%s | B动率=%s "
             "建议 --framestats-period-s=%s"
-            % (os.path.basename(res["run_dir"]), v, why, res["dumps"],
+            % (os.path.basename(res["run_dir"]), v, why, warn, res["dumps"],
                ps["identical"], ps["overlap"], ps["disjoint"],
                res["observed_gaps"], res["unjudgeable_gaps"],
                a.get("turns_with_anchor", "?"), a.get("turns", "?"),

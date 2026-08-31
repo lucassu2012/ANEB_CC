@@ -308,3 +308,102 @@ def test_recommended_period_is_below_the_ring_bound():
                 _burst(1000000000 + 60 * FRAME_NS, 127)])
     assert res["ring_bound_s"] is not None, res
     assert res["recommended_framestats_period_s"] < res["ring_bound_s"], res
+
+
+# ── T90：图层中途失效（D-644）────────────────────────────────────────────
+
+def test_a_layer_that_dies_mid_run_is_not_judged_as_if_it_were_healthy():
+    """图层跑到一半失效的格，**不许**出一份看着健康的判词。
+
+    实测形状（`wifi_f6_b_VOID1`）：图层约 55 秒被重建后，**569 次 dump 里 524 次
+    取空**。而 `split_dumps` 末尾 `if d` 把空 dump 整批丢弃 ⇒ 判读侧只看见
+    45 段整齐 127，**逐条核收窗清单会全部通过**。
+    ⚠ 危险的不是那 524 段没数据，是**幸存的 45 段本身是好的**——
+    它们拼出的判词看着健康，而覆盖的只是会话最前面 8% 的时间。
+    """
+    dumps = [_burst(1_000_000_000 + i * 100_000_000, 20) for i in range(20)]
+    dumps += [[] for _ in range(100)]
+    res = _run(dumps)
+    assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
+    why = res["verdict"][1]
+    assert "120" in why and "20" in why, why
+
+
+def test_the_denominator_is_the_dumps_issued_not_the_ones_that_survived():
+    """`dumps` 这个字段是**过滤之后**的数；分母必须另记，否则失效不可见。"""
+    dumps = [_burst(1_000_000_000 + i * 100_000_000, 20) for i in range(6)]
+    dumps += [[] for _ in range(2)]
+    res = _run(dumps)
+    assert res["dumps_issued"] == 8, res["dumps_issued"]
+    assert res["dumps_with_frames"] == 6, res["dumps_with_frames"]
+    assert res["dumps"] == res["dumps_with_frames"], "legacy 字段口径变了"
+    assert abs(res["dump_survival"] - 0.75) < 1e-9, res["dump_survival"]
+
+
+def test_a_healthy_run_is_not_flagged_by_the_survival_floor():
+    """健康格不许被新判据误伤 —— 实测全仓健康格存活率**恒为 100%**。"""
+    dumps = [_burst(1_000_000_000 + i * 100_000_000, 20) for i in range(10)]
+    res = _run(dumps)
+    assert res["dump_survival"] == 1.0, res["dump_survival"]
+    assert "仪器失效" not in res["verdict"][1], res["verdict"]
+    assert "dump存活" not in ep.render_line(res), ep.render_line(res)
+
+
+def test_too_few_dumps_is_not_reported_as_a_layer_failure():
+    """**「根本没跑起来」与「图层死了」是两种病，判词不许共用。**
+
+    实测有三个退化跑（发出 1／1／5 次 dump、零帧）会以 0% 命中比例判据，
+    而它们的病因是采集根本没起来。共用一个判词会把下游引向错的修法
+    ——本仓吃过「共用 token 前先问这两个词回答的是同一个问题吗」的亏。
+
+    ⚠ 用例必须让 `dumps` **非空**：首版写的是 `_run([[], []])`，两段全空会在
+    `if not dumps` 那里就返回，**根本走不到本条要守的那个守卫**——突变审计当场
+    判它 SURVIVED（拿掉 DUMP_SURVIVAL_MIN_N 它照样绿）。**测试为错误的理由变绿。**
+    """
+    res = _run([_burst(1_000_000_000, 20), []])
+    assert res["dumps_issued"] == 2 and res["dumps_with_frames"] == 1
+    assert res["dump_survival"] == 0.5, res["dump_survival"]
+    assert "仪器失效" not in res["verdict"][1], res["verdict"]
+
+
+def test_partial_degradation_speaks_even_when_it_passes_the_floor():
+    """**硬门限只拦灾难，部分退化必须自己出声。**
+
+    门限 0.95 是从空区里取的（健康恒 100%，异常 68.2% 与 7.9%）；
+    落在 (0.95, 1.0) 的格会从门限底下**静默走过去**，而它同样意味着仪器抖了。
+    ⇒ 判词行在存活率不足 100% 时一律带 ⚠，沉默本身才是健康信号。
+    """
+    dumps = [_burst(1_000_000_000 + i * 100_000_000, 20) for i in range(39)]
+    dumps += [[]]
+    res = _run(dumps)
+    assert res["dump_survival"] == 0.975, res["dump_survival"]
+    assert "仪器失效" not in res["verdict"][1], "0.975 不该触发硬门限"
+    assert "dump存活=97.5%" in ep.render_line(res), ep.render_line(res)
+
+
+def test_count_issued_dumps_is_immune_to_the_stray_carriage_return():
+    """数分母别用 `awk NF==1`：dump 之间夹着孤立回车，会**正好数出两倍**。
+
+    「正好 2 倍」是最危险的错——它看起来像一条干净的结构性事实
+    （「每次两个标记」），本仓已在 framestats 的 PROFILEDATA 上撞过一次巧合等值。
+    """
+    text = _sf_text([_burst(1_000_000_000, 5), [], _burst(2_000_000_000, 5)])
+    assert "\r" in text, "夹具没复现孤立回车，这条守卫就没在守它该守的东西"
+    assert ep.count_issued_dumps(text) == 3, ep.count_issued_dumps(text)
+
+
+def test_the_real_void_fixture_is_refused_with_its_measured_numbers():
+    """真反例夹具（`wifi_f6_b_VOID1`）必须被拒判，且数字对得上。
+
+    569 发出／45 有帧／524 取空 —— 524 这个数是我按单 token 行独立数出来的，
+    与采集侧独立报的 524 逐字吻合（两条不共享量法）。
+    ⚠ 夹具缺失时**红**，不 skip：一条「找不到数据就悄悄通过」的守卫，
+    与它要防的静默缺席是同一种病。
+    """
+    root = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
+    d = os.path.join(root, "evidence", "wave1_20260831", "wifi_f6_b_VOID1")
+    assert os.path.isdir(d), "反例夹具不在：%s" % d
+    res = ep.precheck(d)
+    assert res["dumps_issued"] == 569, res["dumps_issued"]
+    assert res["dumps_with_frames"] == 45, res["dumps_with_frames"]
+    assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]

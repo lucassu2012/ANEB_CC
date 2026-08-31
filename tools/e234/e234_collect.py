@@ -299,7 +299,8 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
         notes["sf_status"] = "NOT_EXECUTED: SurfaceFlinger --list 未找到该包的图层"
     stop_c = {"stop": False}
     tc = threading.Thread(target=_dump_channel_c, daemon=True,
-                          args=(adb, out_dir, pkg, layer, framestats_period_s, stop_c))
+                          args=(adb, out_dir, pkg, layer, framestats_period_s,
+                                stop_c, notes))
     tc.start()
 
     idx_path = os.path.join(out_dir, "screencap_index.jsonl")
@@ -327,20 +328,121 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
     return notes
 
 
-def _dump_channel_c(adb, out_dir, pkg, layer, period_s, stop):
-    """周期性追加通道 C 的两条支路。相邻 dump 必然重叠，去重是判读侧的事。"""
+# ── 通道 C 图层自愈（T90／D-644）────────────────────────────────────────
+# 实测失效（`wifi_f6_b_VOID1`）：图层约 55 秒被重建后，**569 次 dump 里 524 次取空**，
+# 而采集器开跑只挑一次图层、此后一直拿那个名字去 dump。
+#
+# ⚠ 这个失效在每一层都**无错可捕**：`--latency <死图层>` 返回的是
+# **有刷新周期头、零帧行**的合法响应（实测尾部逐段 `16666666` 后直接跟空行），
+# 退出码 0、stderr 空；判读侧 `split_dumps` 又把空 dump 整批丢弃（末尾 `if d`）
+# ⇒ 分析链看到的是「45 段整齐 127，全健康」，**作废格表面全绿**。
+#
+# 触发判据为什么可以很紧：**真静默产生的是重复的满帧，不是空帧**——
+# 静默期间不渲染 ⇒ 环缓冲不推进 ⇒ 相邻 dump 内容完全相同（命题单 §1b 机制）。
+# ⇒ **一旦该图层出过帧，零帧行就永远不合法**，两段即可判死。
+# 但**出帧之前**不算：App 首帧之前本来就是零帧，那是正常的。
+SF_EMPTY_DUMPS_BEFORE_RELIST = 2      # 出过帧之后，连续空到这个数即重挑
+SF_RELIST_MIN_INTERVAL_S = 5.0        # 重挑之间的最小间隔，避免死图层上空转
+
+
+def _should_relist(ever_had_frames, empty_streak, since_last_relist_s):
+    """要不要重挑图层。**抽成纯函数是为了让它的每个分支都能被合成输入钉住**
+    ——埋在 `while` 循环里的判据没人证明得了它在承重（本仓当日实证：
+    同样的抽取把一组守卫的突变覆盖从 2/4 提到 7/7）。
+
+    三个条件缺一不可：
+    · `ever_had_frames`：**出帧之前的零帧是正常的**（App 首帧还没来）；
+      少了这一条，采集器会在每一格开头就白白重挑一次。
+    · `empty_streak >= N`：一旦出过帧，零帧行就永远不合法
+      （真静默产生的是**重复的满帧**，不是空帧 —— 静默期间不渲染 ⇒
+      环缓冲不推进 ⇒ 相邻 dump 内容完全相同）。故 N 可以取得很小。
+    · 距上次重挑的间隔：图层真死了会**每一段都空**，没有这一条就是在死图层上空转。
+    """
+    return bool(ever_had_frames
+                and empty_streak >= SF_EMPTY_DUMPS_BEFORE_RELIST
+                and since_last_relist_s >= SF_RELIST_MIN_INTERVAL_S)
+
+
+def _sf_frame_rows(text):
+    """一次 `--latency` 响应里的帧行数（三列整数行），与 `split_dumps` 同口径。
+
+    ⚠ 判据不是「响应是否为空」：图层失效时响应**非空**，它有刷新周期头。
+    """
+    n = 0
+    for line in (text or "").splitlines():
+        parts = line.strip().split()
+        if len(parts) < 3:
+            continue
+        try:
+            int(parts[0]), int(parts[1]), int(parts[2])
+        except ValueError:
+            continue
+        n += 1
+    return n
+
+
+def _dump_channel_c(adb, out_dir, pkg, layer, period_s, stop, notes=None):
+    """周期性追加通道 C 的两条支路。相邻 dump 必然重叠，去重是判读侧的事。
+
+    图层失效时自愈：见上方 T90 注释块。**账目一律记进 notes**——
+    这个失效以前之所以能过收窗清单，正是因为「发出了几次 dump」这个数
+    从来没有被任何人记下来过。
+    """
     sf_path = os.path.join(out_dir, "sf_latency.txt")
     fs_path = os.path.join(out_dir, "framestats.txt")
+    probe_path = os.path.join(out_dir, "sf_layer_probe.jsonl")
+    acct = {"layer_initial": layer, "issued": 0, "with_frames": 0,
+            "empty_streak_max": 0, "relists": [], "ever_had_frames": False}
+    if notes is not None:
+        notes["sf_dumps"] = acct
+    empty_streak, last_relist = 0, 0.0
     while not stop["stop"]:
         if layer:
-            _append(sf_path, adb.text("shell", "dumpsys", "SurfaceFlinger",
-                                      "--latency", layer))
+            txt = adb.text("shell", "dumpsys", "SurfaceFlinger",
+                           "--latency", layer)
+            _append(sf_path, txt)
+            acct["issued"] += 1
+            if _sf_frame_rows(txt) > 0:
+                acct["with_frames"] += 1
+                acct["ever_had_frames"] = True
+                empty_streak = 0
+            else:
+                empty_streak += 1
+                if empty_streak > acct["empty_streak_max"]:
+                    acct["empty_streak_max"] = empty_streak
+                if _should_relist(acct["ever_had_frames"], empty_streak,
+                                  time.time() - last_relist):
+                    last_relist = time.time()
+                    layer = _relist_layer(adb, pkg, layer, acct, probe_path,
+                                          acct["issued"])
         _append(fs_path, adb.text("shell", "dumpsys", "gfxinfo", pkg,
                                   "framestats", timeout=45))
         for _ in range(int(max(1, period_s) * 4)):
             if stop["stop"]:
                 return
             time.sleep(0.25)
+
+
+def _relist_layer(adb, pkg, old_layer, acct, probe_path, dump_index):
+    """重挑图层，**并把 `--list` 原文落盘**。
+
+    ⚠ 落盘那一半不是附赠：`wifi_f6_b_VOID1` 之所以到现在根因仍未定，
+    正是因为**没人在失效之后拍过一张 `--list`**——全批只留下 `#2756` 这一个序号，
+    重建后的新序号是多少、图层还在不在，事后一概查不到。
+    自愈把运气变成检查，这一行把**下一次的可归因性**也一起买下来。
+    """
+    listing = adb.text("shell", "dumpsys", "SurfaceFlinger", "--list")
+    new = e1c.pick_layer(listing, pkg)
+    rec = {"dump_index": dump_index, "old": old_layer, "new": new,
+           "switched": bool(new and new != old_layer),
+           "list_has_pkg": bool(listing and pkg in listing)}
+    acct["relists"].append(rec)
+    try:
+        with open(probe_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(dict(rec, listing=listing), ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+    return new if rec["switched"] else old_layer
 
 
 def _append(path, text):
