@@ -42,6 +42,7 @@ sys.path.insert(0, _HERE)
 
 import e234_common as ec    # noqa: E402
 import e234_session as es   # noqa: E402
+import e1_io                    # noqa: E402  (D-648③ 输出编码自锁)
 
 
 def analyze(run_dir, pkg):
@@ -202,6 +203,7 @@ def render_markdown(res):
 
 
 def main(argv=None):
+    e1_io.pin_console_utf8()   # D-648③：重定向落盘时别退回 GBK（中文键名是分流信号）
     ap = argparse.ArgumentParser(description="E2 三通道同轨对拍判读")
     ap.add_argument("--run-dir", required=True)
     ap.add_argument("--pkg", required=True)

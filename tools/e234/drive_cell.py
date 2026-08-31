@@ -35,6 +35,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+# ⚠ 本文件与其余八只不同：它顶层不 import `e234_common`，故 `tools/e1` 不在
+# sys.path 上 —— 批量接线时按「结构一致」假设插入，**命令行一跑当场 ImportError**，
+# 而测试套件永远抓不到它（测试是 import 模块，不是跑 CLI）。
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "e1"))
+import e1_io                    # noqa: E402  (D-648③ 输出编码自锁)
 
 PKG = "com.larus.nova"
 TAP_MENU = ("90", "243")        # ☰
@@ -87,6 +92,7 @@ def wait_until(t0, seconds):
 
 def main():
     """用法: drive_cell.py <out_dir> <rounds> <prompt> <answer_wait_s> <quiet_s>
+    e1_io.pin_console_utf8()   # D-648③：重定向落盘时别退回 GBK（中文键名是分流信号）
 
     静置期（quiet）＝答完标记之后、切下一轮之前什么都不做的一段。它一个防御一个进攻：
       防御 —— 若「高模」由驱动器的切轮动作触发，静置期把那个动作推远，真簇才有机会先形成；

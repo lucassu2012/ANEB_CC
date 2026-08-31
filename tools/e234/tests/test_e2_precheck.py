@@ -445,3 +445,69 @@ def test_uniform_segments_stay_silent_and_ragged_ones_speak():
                    _burst(3_000_000_000, 20)])
     assert ragged["dump_rows"]["min"] < ragged["dump_rows"]["max"]
     assert "逐段行数" in ep.render_line(ragged), ep.render_line(ragged)
+
+
+# ── D-648③：输出编码自锁 ────────────────────────────────────────────────
+
+class _FakeStream(object):
+    def __init__(self, encoding, tty):
+        self.encoding, self._tty, self.calls = encoding, tty, []
+
+    def isatty(self):
+        return self._tty
+
+    def reconfigure(self, **kw):
+        self.calls.append(kw)
+        self.encoding = kw.get("encoding", self.encoding)
+
+
+def test_the_encoding_lock_pins_files_and_leaves_the_terminal_alone():
+    """**这个不对称是刻意的，别「统一」掉。**
+
+    重定向／管道 ⇒ 读它的是机器与后来的人 ⇒ 必须 UTF-8；
+    终端 ⇒ 读它的是此刻的人，老式 GBK 控制台收到 UTF-8 字节会显示成乱码，
+    那一侧已由 `e234_common.say()` 兜住（编不出的字符逐个丢，话仍说得完）。
+    """
+    import sys as _sys
+    import e1_io
+    old_o, old_e = _sys.stdout, _sys.stderr
+    try:
+        f_out, f_err = _FakeStream("cp936", False), _FakeStream("cp936", False)
+        _sys.stdout, _sys.stderr = f_out, f_err
+        e1_io.pin_console_utf8()
+        assert f_out.encoding == "utf-8" and f_err.encoding == "utf-8"
+        assert f_out.calls[0].get("errors") == "replace", f_out.calls
+
+        t_out = _FakeStream("cp936", True)
+        _sys.stdout, _sys.stderr = t_out, t_out
+        e1_io.pin_console_utf8()
+        assert t_out.calls == [], "终端被改了 —— GBK 控制台会收到 UTF-8 字节变乱码"
+    finally:
+        _sys.stdout, _sys.stderr = old_o, old_e
+
+
+def test_a_redirected_verdict_line_can_still_be_grepped_for_its_chinese_keys():
+    """端到端：重定向落盘后，**中文键名仍读得回来**。
+
+    实测（修前）：`e2_precheck.py > out.txt` 后 `grep '逐段行数' out.txt` **恒 0**，
+    而 `grep 'e2_precheck'` 照常命中 —— Python 重定向时退回 locale 编码（cp936）。
+    ⚠ 致命处不在难看：**区分「两种病」的两个键名全是中文**
+    （`dump存活` 与 `逐段行数`）⇒ 量法只剩 ASCII 命中时，**读的人以为自己读全了**。
+    """
+    import subprocess
+    import sys as _sys
+    d = tempfile.mkdtemp(prefix="e2enc_")
+    try:
+        with open(os.path.join(d, "sf_latency.txt"), "w", encoding="utf-8") as fh:
+            fh.write(_sf_text([_burst(1_000_000_000, 20), _burst(2_000_000_000, 5),
+                               _burst(3_000_000_000, 20)]))
+        out = os.path.join(d, "stdout.txt")
+        tool = os.path.join(os.path.dirname(_HERE), "e2_precheck.py")
+        with open(out, "wb") as fh:
+            subprocess.call([_sys.executable, tool, "--run-dir", d], stdout=fh,
+                            stderr=subprocess.STDOUT)
+        raw = open(out, "rb").read()
+        text = raw.decode("utf-8")          # 解不出来就是又退回 GBK 了
+        assert "逐段行数" in text, text[:200]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
