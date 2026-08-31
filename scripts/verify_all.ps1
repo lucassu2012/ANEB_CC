@@ -812,6 +812,12 @@ if ($isRed -or $isFinalGreen) {
         '# 已排除两类：①清单自身；②本 checkout 中被 .gitignore 忽略的未跟踪文件',
         '#   （绝大多数是 verify_all_*.log 运行日志，只在本机存在、别处无从复核）。',
         '# ⚠ 因此本清单**不含当次运行日志**；当次日志路径见 badges.txt 与本次 verify_all 输出。',
+        '# ⚠⚠ 【本表头描述的是「清单生成的那一刻」，不是「入库后的状态」】：归档提交会在',
+        '#   清单生成**之后**把当次运行日志 `git add -f` 入库 ⇒ 入库后必然短暂存在',
+        '#   **已跟踪、却不在本清单里**的日志，它不属于上面任何一类。下次重算即收入。',
+        '#   ⇒ 拿本清单核对账时把这一类算进去，别当成不一致去查（有人为此查过二十分钟）。',
+        '#   守它的是 `test_every_tracked_evidence_file_has_a_hash_except_the_run_logs`：',
+        '#   已跟踪却未列的**必须全部是 verify_all_*.log**，其余一律红。',
         '# 行格式：<sha256 小写><两个空格><相对 evidence/phase0 的路径，斜杠分隔>；`#` 开头为注释。'
     )
     ($mhdr + $mlines) -join "`r`n" | Out-File -Encoding utf8 $manifestPath

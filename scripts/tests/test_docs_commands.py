@@ -2077,3 +2077,94 @@ def test_the_decoding_criterion_bites_on_every_shape_it_claims_to_cover():
     # ⑦ 正例三：同名但**不是** subprocess 的函数 ⇒ 不该被误伤
     assert offenders("import shutil\nshutil.run(['x'], text=True)\n") == []
     assert offenders("def run(*a, **k): pass\nrun(['x'], text=True)\n") == []
+
+
+# ── 清单对账（D-633 ⑤(i)）──────────────────────────────────────────────
+
+MANIFEST_UNLISTED_OK = "verify_all_"
+
+
+def unlisted_tracked_files(tracked, listed, manifest_rel):
+    """git 跟踪了、却没有清单条目的文件。**判据不含时间、不含名单，不会过期。**
+
+    抽成纯函数是为了让「例外只许是运行日志」这一条能被**合成输入**钉住 ——
+    仓里此刻恰好只有合规的那一种，靠真实数据永远测不出把例外放宽的坏实现
+    （干净仓上「拿掉检查」与「存在违规」只能联合观测）。
+    """
+    return sorted(f for f in tracked
+                  if f not in listed and f != manifest_rel
+                  and os.path.basename(f).startswith(MANIFEST_UNLISTED_OK) is False)
+
+
+def test_every_tracked_evidence_file_has_a_hash_except_the_run_logs():
+    """`evidence/phase0` 下**已跟踪但不在清单里**的文件，必须全部是 `verify_all_*.log`。
+
+    守的是这句话：**「清单覆盖了该覆盖的一切」在此之前没有任何东西在守它。**
+    一份别人要引用的证据可以躺在库里、没有任何完整性记录，**而不会有人发现**。
+
+    ⚠ 为什么例外恰好是运行日志：顺序是**结构性**的 —— 清单永远先生成，
+    当次日志随后才 `git add -f` 入库 ⇒ 每次归档提交之后必然短暂存在
+    「已跟踪但未列」的日志，**下次重算即自愈**（实测：两小时前 2 个，一次归档跑后
+    变 1 个 —— 旧的被收进清单、新的又添了一条）。
+    ⇒ **判据不能写成「一个都不许有」**：那会把正常工作流判成违规，
+    而**一条第一天就要加豁免的守卫，它的豁免名单会过期**。
+
+    ⚠ **反向（清单条目指向已删文件）刻意不守**：那种失效会**响亮报错**
+    （核对哈希时当场喊），而本条守的是**静默缺席**。危险度不对等，
+    为对称加第二条只会把一条精准守卫稀释成两条。实测反向此刻为 ∅。
+
+    ⚠ 读 git 输出用**字节模式**：本仓有过 `text=True` 不给 `encoding=` 时
+    stdout 静默变 None 的实例，守卫自己不能踩它要防的坑。
+    """
+    import subprocess
+    ev = "evidence/phase0"
+    ls = subprocess.run(["git", "ls-files", ev], capture_output=True, cwd=REPO)
+    assert ls.returncode == 0, "git ls-files 跑不动，本条的绿不说明任何事"
+    tracked = {x for x in ls.stdout.decode("utf-8", errors="replace")
+               .replace(chr(13), "").split(chr(10)) if x.strip()}
+    assert tracked, "%s 下一个跟踪文件都没有 —— 扫描八成坏了" % ev
+
+    show = subprocess.run(["git", "show", "HEAD:%s/sha256-manifest.txt" % ev],
+                          capture_output=True, cwd=REPO)
+    assert show.returncode == 0, "HEAD 里没有清单文件"
+    listed = {ev + "/" + ln.split("  ", 1)[1]
+              for ln in show.stdout.decode("utf-8-sig", errors="replace")
+              .replace(chr(13), "").split(chr(10))
+              if ln.strip() and not ln.startswith("#") and "  " in ln}
+    assert listed, "清单解析出零条 —— 行格式变了，判据跟不上"
+
+    bad = unlisted_tracked_files(tracked, listed, ev + "/sha256-manifest.txt")
+    assert not bad, (
+        "这些文件 git 跟踪着、却没有任何完整性记录，且不是运行日志：%s\n"
+        "⇒ 别人 checkout 后无从核对它们有没有被改过，而**没有任何东西会报错**。"
+        "修法：跑一次 `verify_all.ps1 -Scope all` 让清单重算，与产物同批入库。" % bad)
+
+
+def test_the_manifest_exception_covers_run_logs_and_nothing_else():
+    """拿**合成输入**逐条钉住例外的边界 —— 真实数据此刻只有合规的那一种。
+
+    ⚠ 正例反例都要：只有反例时，把例外收成「什么都不许缺」照样全绿；
+    只有正例时，把例外放宽成「什么都可以缺」也照样全绿。
+    """
+    ev = "evidence/phase0"
+    mf = ev + "/sha256-manifest.txt"
+    listed = {ev + "/badges.txt"}
+
+    # 反例①：一份**非日志**的证据被跟踪却没有哈希 ⇒ 必须被逮住
+    bad = unlisted_tracked_files({ev + "/badges.txt", ev + "/STATUS.json", mf},
+                                 listed, mf)
+    assert bad == [ev + "/STATUS.json"], bad
+
+    # 正例①：运行日志缺条目是**结构性**的（清单先生成、日志后 add -f）⇒ 放行
+    ok = unlisted_tracked_files(
+        {ev + "/badges.txt", ev + "/verify_all_20260831-000000-1.log", mf},
+        listed, mf)
+    assert ok == [], ok
+
+    # 正例②：清单自身永远不在清单里 ⇒ 放行
+    assert unlisted_tracked_files({mf}, set(), mf) == []
+
+    # 反例②：**名字里带 verify_all 但不在开头**不算例外 —— 例外按前缀不按包含，
+    # 否则任何人只要把 `verify_all` 塞进文件名就能绕过完整性记录。
+    sneaky = ev + "/notes_verify_all_hack.json"
+    assert unlisted_tracked_files({sneaky, mf}, set(), mf) == [sneaky]
