@@ -335,7 +335,10 @@ def m23():
 @mutation("M24 逐段行数改用 split_dumps 的口径（滤掉待定帧后再数）", "CAUGHT")
 def m24():
     import e2_precheck as ep
-    # 坏实现：拿过滤后的帧数当原始行数 ⇒「环满但全待定」与「图层死了」合成一种病。
+    # 坏实现：拿过滤后的帧数当原始行数 ⇒ 两个口径合成一个，深浅不一就再也看不见。
+    # ⚠ 本行初版写「⇒『环满但全待定』与『图层死了』合成一种病」——**那个组合真机上
+    # 不存在**（D-650②）。上一轮订正时我只 grep 了 e2_precheck 与它的测试，**没扫到
+    # 这里**：订正的扫描面比断言的传播面窄，正是我同一小时里提醒别人的那个形状。
     return _mut(ep, "dump_row_counts",
                 lambda text: [len(d) for d in ep.split_dumps(text)])
 
