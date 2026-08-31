@@ -4,7 +4,7 @@
 > **批次 ID 是它与语料对上的唯一钥匙。**
 > ⚠ **文件名仍带 `DW-NEXT`，是复核人的一个决定，不是遗漏**——
 > 它被另两份文档按名引用（清单见 §5），改名会同时改动他人在管的文件。
-> **⚠ 而 `scripts/README.md:470` 的命名约定写的是 `BATCH_PROPOSITION_<批次ID>.md`，
+> **⚠ 而 `scripts/README.md` 的批次命题单命名约定（搜 `BATCH_PROPOSITION_<批次ID>`）写的是 `BATCH_PROPOSITION_<批次ID>.md`，
 > 与这个决定相反**——如实写在这里，**属主可随时推翻并改名**；正文以本行映射为准。
 >
 > **来源**：格阵取自 `docs/T33_GRID_APP_FORM_MATRIX_20260830.md` §3；
