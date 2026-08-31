@@ -36,10 +36,18 @@ docstring 为准）与 `ADAPTER_OBS`（**5 秒节流的聚合**：events / first
 3. 但会跑一条今天就能跑的弱检查：`cadence_p50_ms` 应约等于刺激源的 `interval_ms`
    ——它证不了偏移，只证得了"通道 A 确实看见了这串翻转"。
 
-提案（需大脑排期，属 `:probe` 代码面，与设备批的构建对应关系有冲突，故本轮不动）：
-把既有 `ADAPTER_EVT` 扩到内容变化事件并加一个字段——
-`ADAPTER_EVT type=content cls=<cls> txt_len=<n> pkg=<pkg> t_boot_ns=<ns>`。
-一行、additive、DEBUG 门控，不改任何既有字段。
+〔2026-08-31 订正 · D-627④〕上面这段「提案」**已于 T27（2026-08-03，`3d31512`）落地**，
+探针现打 `ADAPTER_EVT type=<t> cls=<c> desc=<d> txt_len=<n> pkg=<p> t_boot_ns=<ns>`
+（格式逐字见 `AnebAccessibilityService.kt`，`formatAdapterEvtLine` 为纯 JVM 可测点）。
+⚠ 此前的处置是在旧段落上方贴一句「以本句为准」——**那是补丁不是修复**：
+跳读的人会读到错的那一半，而这里正是他们来找答案的地方。故旧提案段落已删。
+⚠ 同批订正的还有 `_why_no_adapter_events()`：它取代了那句「服务今天只打 click 型
+ADAPTER_EVT（无 t_boot_ns），需 :probe 侧扩展后方可判读」——**那两句自 T27 起逐字为假**，
+而它**只在分支真触发时被读到，读到的人正处在最需要准确信息的时刻**，
+于是会被指去修一件已经修好的事。新文本按现场形状分流到今天真正可能的几种成因。
+⚠ 「DEBUG 门控」这半句**经核是准的**（`logAdapterEvent` 开头 `if (!BuildConfig.DEBUG) return`），
+订正时没有跟着一起改——`Log.i` 管的是**日志级别**，与**门控**是两回事，
+差点被我当成同一处旧文一并「修」掉。
 """
 import argparse
 import json
@@ -53,6 +61,7 @@ sys.path.insert(0, os.path.join(
 # 分位数复用仓内单一实现（nearest-rank），不另造同名函数：同名不同义比不同名更危险
 # （D-315/D-317 的原样形状）。
 from campaign_common import percentile  # noqa: E402
+import e1_io                    # noqa: E402  (D-648③ 输出编码自锁)
 
 NS_PER_MS = 1_000_000.0
 
@@ -669,6 +678,48 @@ def g2_candidate_c(frame_ms):
     }
 
 
+def _why_no_adapter_events(adapter_lines, obs):
+    """通道 A 拿不到逐事件时戳时，**说出你落在哪一种**，不是给一句通用的话。
+
+    ⚠ 这段文字**只在分支真触发时被读到，而读到它的人正处在最需要准确信息的时刻**
+    ——所以它错了的代价，比同样一句错话写在文档里高得多。
+    旧文本（T27 之前写的）说「服务今天只打 click 型 ADAPTER_EVT（无 t_boot_ns），
+    需 :probe 侧一行 additive 扩展后方可判读」——**这两句自 T27（2026-08-03，
+    `3d31512`）起逐字为假**：探针早已扩到 click 与 content 两类且都带 `t_boot_ns`
+    （`AnebAccessibilityService.kt:392` 逐字给出格式）。
+    ⇒ 撞上这条分支的人会被指去**修一件已经修好的事**，而零事件的真因无人查。
+
+    今天的真因只有下面这几种，各有实证出处；按现场形状分流到最可能的那一条。
+    """
+    n_lines = len(adapter_lines)
+    n_evt = sum(1 for ln in adapter_lines if "ADAPTER_EVT" in ln)
+    head = "通道 A 无逐事件时戳（%d 行 adapter.log，其中 ADAPTER_EVT %d 行，OBS %d 条）：" % (
+        n_lines, n_evt, len(obs or []))
+    if n_evt:
+        return head + (
+            "**有 ADAPTER_EVT 行却没有一行带 `t_boot_ns`** ⇒ 多半是**旧探针构建**"
+            "（T27／`3d31512` 之前）或行格式漂了。期望格式逐字见 "
+            "`AnebAccessibilityService.kt`：`ADAPTER_EVT type=<t> cls=<c> desc=<d> "
+            "txt_len=<n> pkg=<p> t_boot_ns=<ns>`。先核设备上装的是哪一版。")
+    if n_lines == 0:
+        return head + (
+            "**一行都没有**。按可能性排：①**无障碍服务没在跑**——本仓实证 "
+            "`am force-stop` 会让系统把该服务标记 Crashed 并**清空** "
+            "`enabled_accessibility_services`，**静默无报错**（CLAUDE.md 设备条 §4／D-611）；"
+            "②**logcat 标签不匹配**——`logcat -s <tag>:I` 是**排他过滤**，写错一个字母就是"
+            "零行，而零行与「探针没打时戳」在下游长得一模一样（D-309／D-392②，"
+            "`test_adapter_tag_equals_the_producers_tag` 守的正是这条）；"
+            "③**logcat 环缓冲已冲净**（约七分钟，任务板设备注意条）。")
+    return head + (
+        "**有行但没有 ADAPTER_EVT**。按可能性排：①**设备上装的是 release 构建**——"
+        "`logAdapterEvent` 开头就是 `if (!BuildConfig.DEBUG) return`，release 下这行"
+        "**一条都不打**（而 ADAPTER_OBS 不受此门控，所以「OBS 有、EVT 无」正是它的签名）；"
+        "②**日志级别被丢弃**——华为 EMUI 默认丢 D 级，探针为此刻意用 `Log.i`"
+        "（同文件真机实证注释），若有人改回 `Log.d` 即恒不可见；③**该 App 不在适配名单**——`spec/adapters` 与"
+        "设备上加载的资产不一致时，严格 Json 会 fail-safe 返回**空 spec 列表**，"
+        "于是每个 App 掉到 generic、adapter_obs 停止落库，**且任何地方都不报**（D-54）。")
+
+
 def _analyze_channel_a(good, aligned, evts, off_ns, frame_ms_c, max_gap_ns):
     """通道 A：t_event(BOOT) 换算到 MONOTONIC 后减去该翻转的 t_present。
 
@@ -760,9 +811,7 @@ def analyze(stim_lines, adapter_lines, sf_text, framestats_text, screencap_rows,
         ch_a = {
             "status": NOT_EXECUTED,
             "n": 0,
-            "reason": ("无障碍侧无逐事件时戳：AnebAccessibilityService 今天只打 "
-                       "click 型 ADAPTER_EVT（无 t_boot_ns）与 5s 节流的 ADAPTER_OBS 聚合。"
-                       "需 :probe 侧一行 additive 扩展后方可判读，见本文件模块注释。"),
+            "reason": _why_no_adapter_events(adapter_lines or [], obs),
         }
         verdict_a, reason_a = NOT_EXECUTED, "通道 A 无逐事件时戳"
     else:
@@ -921,6 +970,7 @@ def render_markdown(res):
 
 
 def main(argv=None):
+    e1_io.pin_console_utf8()   # D-648③：重定向落盘时别退回 GBK（中文键名是分流信号）
     ap = argparse.ArgumentParser(description="E1 误差判读（三通道分列）")
     ap.add_argument("--run-dir", required=True, help="e1_collect.py 产出的目录")
     ap.add_argument("--out-md", default=None, help="markdown 落点（默认 <run-dir>/e1_report.md）")

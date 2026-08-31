@@ -37,6 +37,7 @@ sys.path.insert(0, _HERE)
 
 import e234_common as ec   # noqa: E402
 import e234_session as es  # noqa: E402
+import e1_io                    # noqa: E402  (D-648③ 输出编码自锁)
 
 # ── 基准（任意但固定；只用于差值，绝对值无意义）────────────────────────────
 BOOT_BASE_NS = 8_000_000_000_000        # 开机 8000 s
@@ -330,6 +331,7 @@ def write(out_dir, scenario, seed=20260802):
 
 
 def main(argv=None):
+    e1_io.pin_console_utf8()   # D-648③：重定向落盘时别退回 GBK（中文键名是分流信号）
     ap = argparse.ArgumentParser(description="E2/E3/E4 会话模拟器（dry-run 专用）")
     ap.add_argument("--scenario", required=True, choices=sorted(SCENARIOS))
     ap.add_argument("--out", required=True, help="产出目录（名字必须带 dryrun）")

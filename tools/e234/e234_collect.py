@@ -46,6 +46,7 @@ import e234_session as es       # noqa: E402
 
 sys.path.insert(0, os.path.join(ec.REPO_ROOT, "tools", "e1"))
 import e1_collect as e1c        # noqa: E402
+import e1_io                    # noqa: E402  (D-648③ 输出编码自锁)
 
 TASKBOARD = os.path.join(ec.REPO_ROOT, "docs", "BRAIN_TASKBOARD.md")
 # 窗 ID 的板面写法（`DW-YYYYMMDD-NN`）。只用于**拒绝时的诊断提示**，不参与判定
@@ -484,6 +485,7 @@ def _write(path, text):
 
 
 def main(argv=None):
+    e1_io.pin_console_utf8()   # D-648③：重定向落盘时别退回 GBK（中文键名是分流信号）
     ap = argparse.ArgumentParser(description="E2/E3/E4 同轨采集（一次会话，三实验共用）")
     ap.add_argument("--serial", required=True, help="adb 序列号；必填，无自动挑设备的路径")
     ap.add_argument("--pkg", required=True, help="目标 App 包名（com.larus.nova / com.deepseek.chat）")

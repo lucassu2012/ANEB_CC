@@ -750,3 +750,68 @@ def test_a_line_missing_the_new_keys_yields_none_not_zero():
     for k in ("rule_matched", "ttft_cluster_ms", "ttft_density_ms",
               "session_span_ms", "ttft_send_ms"):
         assert r[k] is None, "%s 应为 None 而不是 %r" % (k, r[k])
+
+
+# ── D-627④：通道 A 零事件时的成因分流 ────────────────────────────────────
+
+def test_no_adapter_events_names_the_cause_class_that_matches_the_scene():
+    """三种现场形状必须分流到**不同**的成因，因为它们的修法不同。
+
+    ⚠ 断言落在**标识符**上不落在措辞上（本文件开篇的规矩）：
+    `enabled_accessibility_services` / `BuildConfig.DEBUG` / `t_boot_ns`
+    只在**诊断本身**变了时才会变，改一句话不会红。
+    """
+    import e1_analyze as ea
+    # ① 一行都没有 ⇒ 服务没在跑／标签不匹配／环缓冲冲净
+    empty = ea._why_no_adapter_events([], [])
+    assert "enabled_accessibility_services" in empty, empty
+    assert "BuildConfig.DEBUG" not in empty, "空日志被归到了 release 构建那一类"
+
+    # ② OBS 有、EVT 无 ⇒ release 构建的签名（OBS 不受 DEBUG 门控）
+    obs_only = ea._why_no_adapter_events(["t ADAPTER_OBS events=3"], [{"n": 1}])
+    assert "BuildConfig.DEBUG" in obs_only, obs_only
+    assert "enabled_accessibility_services" not in obs_only, obs_only
+
+    # ③ 有 EVT 行却无一带时戳 ⇒ 旧构建或格式漂移，别去查服务是否在跑
+    old_build = ea._why_no_adapter_events(["t ADAPTER_EVT type=click cls=X"], [])
+    assert "t_boot_ns" in old_build, old_build
+    assert "enabled_accessibility_services" not in old_build, old_build
+
+    # 三条都要带上现场计数，否则读的人还得自己回去数
+    for txt in (empty, obs_only, old_build):
+        assert "adapter.log" in txt, txt
+
+
+def test_the_two_sentences_that_went_false_in_T27_never_come_back():
+    """**回归钉**（不是承重守卫）：钉住两句自 T27 起逐字为假的话。
+
+    旧文本说服务「只打 click 型 ADAPTER_EVT（无 t_boot_ns）」且「需 :probe 侧
+    一行 additive 扩展后方可判读」——而那个扩展 2026-08-03 就落地了。
+    ⚠ 它的危害不在于文档不准，而在于**它只在分支真触发时被读到**：
+    读到的人正在排障，会被指去**修一件已经修好的事**，真因无人查。
+    """
+    import e1_analyze as ea
+    src = open(ea.__file__, encoding="utf-8").read()
+    # 允许在订正说明里**引用**这两句（那是记录），但不许再作为断言出现在诊断文本里
+    txt = ea._why_no_adapter_events([], []) + ea._why_no_adapter_events(
+        ["t ADAPTER_OBS"], [{"n": 1}]) + ea._why_no_adapter_events(
+        ["t ADAPTER_EVT"], [])
+    assert "需 :probe" not in txt, "旧提案指引又回到了运行时文本里"
+    assert "只打" not in txt, "「服务只打 click 型」这句又回来了"
+    assert "3d31512" in src or "T27" in src, "订正锚不见了，下一个人会以为旧文本是对的"
+
+
+def test_the_production_path_actually_uses_the_new_reason_not_just_the_helper():
+    """走 `analyze()` 这条**生产路径**核，不是只调那个 helper。
+
+    ⚠ 本条是被突变审计逼出来的：上一条回归钉直接调 `_why_no_adapter_events()`，
+    于是把 `analyze()` 里的**调用点**换回旧文本时，套件**照样全绿**（SURVIVED）
+    —— **我守的是函数，不是接线**。旧文本可以从调用点回来而无人报错。
+    「写好了一道门」≠「那道门在承重路径上」。
+    """
+    import e1_analyze as ea
+    res = ea.analyze(_stim_lines(count=4, warmup=0), [], "", "", [])
+    reason = res["channel_a"]["reason"]
+    assert res["channel_a"]["status"] == ea.NOT_EXECUTED, res["channel_a"]
+    assert "enabled_accessibility_services" in reason, reason
+    assert "需 :probe" not in reason, "调用点换回了旧提案指引"
