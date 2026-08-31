@@ -419,12 +419,17 @@ def test_dump_rows_counts_raw_lines_including_the_empty_dumps():
 
 
 def test_a_full_ring_of_pending_frames_is_a_different_disease_from_a_dead_layer():
-    """**「环是满的但每帧都待定」与「图层死了」是两种病，两个数并排看才分得开。**
+    """钉住 `dump_row_counts` 与 `split_dumps` 的**口径差**：前者数原始行，后者滤待定帧。
 
-    `dump_rows` 数**原始行**，`split_dumps` 会**滤掉待定帧**再去重
-    ⇒ 一次 dump 完全可能「满行、零可用帧」。
-    单看 `dump_survival` 会把它误报成图层失效，单看 `dump_rows` 会以为一切正常。
-    ⚠ 本条钉的正是「两个数别混用」——它们回答的不是同一个问题。
+    ⚠ **〔2026-09-01 订正 · D-650②〕本条初版的理由是错的，照录**：我原本写它证明
+    「环满但全待定」与「图层死了」是两种病。**真机上那个组合不出现**——图层死则
+    原始行也归 0，两数同向、是同一件事的两面。**照抄一句话时，连它断言的那个状态
+    存不存在也要验。**
+
+    **但本条留着，因为它钉的东西是真的**：两个函数的口径确实不同，
+    而突变 M24（拿 `split_dumps` 的口径冒充原始行）正是被它咬住的。
+    ⇒ **「理由错了」不等于「守卫没用」**——这两件要分开判，
+    否则订正会顺手删掉一条在承重的守卫。
     """
     pend = ep.PENDING_NS
     lines = [PERIOD_LINE]
@@ -491,8 +496,9 @@ def test_a_redirected_verdict_line_can_still_be_grepped_for_its_chinese_keys():
 
     实测（修前）：`e2_precheck.py > out.txt` 后 `grep '逐段行数' out.txt` **恒 0**，
     而 `grep 'e2_precheck'` 照常命中 —— Python 重定向时退回 locale 编码（cp936）。
-    ⚠ 致命处不在难看：**区分「两种病」的两个键名全是中文**
-    （`dump存活` 与 `逐段行数`）⇒ 量法只剩 ASCII 命中时，**读的人以为自己读全了**。
+    ⚠ 致命处不在难看：**两个判词键名全是中文**（`dump存活` 与 `逐段行数`），
+    而它们答的是两个不同问题（有没有帧／够不够深，见 `dump_row_counts` 的订正段）
+    ⇒ 量法只剩 ASCII 命中时，**读的人以为自己读全了**，漏掉的恰是其中一问。
     """
     import subprocess
     import sys as _sys
