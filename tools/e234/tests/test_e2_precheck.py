@@ -418,7 +418,10 @@ def test_dump_rows_counts_raw_lines_including_the_empty_dumps():
     assert len(rows) == ep.count_issued_dumps(text)
 
 
-def test_a_full_ring_of_pending_frames_is_a_different_disease_from_a_dead_layer():
+def test_raw_rows_and_usable_frames_are_two_different_calibers():
+    # ⚠ 旧名 `..._is_a_different_disease_from_a_dead_layer` 断言了一个**真机上不存在**
+    # 的组合（D-650②）。**名字比 docstring 被读得多**，订正时只改正文会把错断言
+    # 留在最显眼的地方 —— 这是「订正的传播面比原文小」的名字版。
     """钉住 `dump_row_counts` 与 `split_dumps` 的**口径差**：前者数原始行，后者滤待定帧。
 
     ⚠ **〔2026-09-01 订正 · D-650②〕本条初版的理由是错的，照录**：我原本写它证明
