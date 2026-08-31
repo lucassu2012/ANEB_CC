@@ -1,0 +1,31 @@
+{
+  "device_window": "T90-VERIFY-20260901",
+  "pkg": "com.larus.nova",
+  "stim_pre": "evidence/t90_verify_20260901/relist1\\stim_pre.log",
+  "layer": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2968",
+  "sf_dumps": {
+    "layer_initial": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2968",
+    "issued": 139,
+    "with_frames": 133,
+    "empty_streak_max": 6,
+    "relists": [
+      {
+        "dump_index": 83,
+        "old": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2968",
+        "new": null,
+        "switched": false,
+        "list_has_pkg": false
+      },
+      {
+        "dump_index": 87,
+        "old": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2968",
+        "new": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2988",
+        "switched": true,
+        "list_has_pkg": true
+      }
+    ],
+    "ever_had_frames": true
+  },
+  "screencap_samples": 116,
+  "stim_post": "evidence/t90_verify_20260901/relist1\\stim_post.log"
+}
