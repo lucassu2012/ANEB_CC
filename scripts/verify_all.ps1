@@ -302,7 +302,7 @@ if ($py -and (Test-Path $schemaTest)) {
 # 既不跑、也不记 SKIPPED_SCOPE，而是**从汇总里彻底消失**——正是 `Test-InScope`
 # 自己注释里写的「沉默的跳过＝没有检查项」。`obs-tools-*` 两道 2026-08-30 补登。
 # （它们测的是 `tools/`，归 'scripts' 层是因为那是分析 lane 的层，不是路径前缀。）
-if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh','obs-tools-e1-unit','obs-tools-e234-unit')) {
+if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh','obs-tools-e1-unit','obs-tools-e234-unit','obs-tools-e03-unit')) {
 # --- 语料台账新鲜度门（T82 §9.2 #12）：台账开篇写着「勿手编」，而此前没有任何
 # 东西核对它——手改能一直活到下次重算，期间那两面仍被当作单一事实源引用。
 # 本门只比不写：落盘的 md/CSV 必须与现算逐字节相同。不一致的两种成因（有人手改／
@@ -419,7 +419,12 @@ if ($py -and (Test-Path $campaignTest)) {
 # 5 也判 FAIL：零收集意味着枚举坏了或目录空了，那时「全绿」是假的（D-275/D-364）。
 foreach ($obsSuite in @(
     @{ Name = 'obs-tools-e1-unit';   Dir = 'tools/e1/tests' },
-    @{ Name = 'obs-tools-e234-unit'; Dir = 'tools/e234/tests' })) {
+    @{ Name = 'obs-tools-e234-unit'; Dir = 'tools/e234/tests' },
+    # 第三只（2026-09-03 接入，D-671④）：E-03 真端点抓取器的红线守卫。
+    # ⚠ 它是本仓「门真绿、只是不在清单上」的**第三例** —— 前两例就是上面那两只。
+    # 具体代价：E-03「夹具转换环节被钉住」这个结论的**真钉子**在这套里，
+    # 而它此前只在有人想起时才跑；读者却会以为它每轮都在被检验。
+    @{ Name = 'obs-tools-e03-unit';  Dir = 'tools/e03/tests' })) {
     $obsDir = Join-Path $repo $obsSuite.Dir
     $obsRunner = Join-Path $obsDir 'run_tests.py'
     if ($py -and (Test-Path $obsRunner)) {
