@@ -1,0 +1,122 @@
+{"seq": 1, "t_host_ns": 1788406769851006100, "t_rel_ms": 1361.9829, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"潮\"}}]}"}
+{"seq": 2, "t_host_ns": 1788406769851111000, "t_rel_ms": 1362.0877, "raw": ""}
+{"seq": 3, "t_host_ns": 1788406770118874600, "t_rel_ms": 1629.8514, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"汐\"}}]}"}
+{"seq": 4, "t_host_ns": 1788406770120856900, "t_rel_ms": 1631.8342, "raw": ""}
+{"seq": 5, "t_host_ns": 1788406770120983200, "t_rel_ms": 1631.96, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"是由\"}}]}"}
+{"seq": 6, "t_host_ns": 1788406770121029000, "t_rel_ms": 1632.0057, "raw": ""}
+{"seq": 7, "t_host_ns": 1788406770121079200, "t_rel_ms": 1632.0558, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"月球\"}}]}"}
+{"seq": 8, "t_host_ns": 1788406770121112900, "t_rel_ms": 1632.0895, "raw": ""}
+{"seq": 9, "t_host_ns": 1788406770121160600, "t_rel_ms": 1632.1373, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"和\"}}]}"}
+{"seq": 10, "t_host_ns": 1788406770121190800, "t_rel_ms": 1632.1675, "raw": ""}
+{"seq": 11, "t_host_ns": 1788406770121210600, "t_rel_ms": 1632.1873, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"太阳\"}}]}"}
+{"seq": 12, "t_host_ns": 1788406770121235300, "t_rel_ms": 1632.2119, "raw": ""}
+{"seq": 13, "t_host_ns": 1788406770121275700, "t_rel_ms": 1632.2524, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"对\"}}]}"}
+{"seq": 14, "t_host_ns": 1788406770121303100, "t_rel_ms": 1632.2797, "raw": ""}
+{"seq": 15, "t_host_ns": 1788406770121342400, "t_rel_ms": 1632.319, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"地球\"}}]}"}
+{"seq": 16, "t_host_ns": 1788406770121369000, "t_rel_ms": 1632.3456, "raw": ""}
+{"seq": 17, "t_host_ns": 1788406770121408800, "t_rel_ms": 1632.3854, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"海\"}}]}"}
+{"seq": 18, "t_host_ns": 1788406770121435200, "t_rel_ms": 1632.4118, "raw": ""}
+{"seq": 19, "t_host_ns": 1788406770121453600, "t_rel_ms": 1632.4302, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"水的\"}}]}"}
+{"seq": 20, "t_host_ns": 1788406770121476400, "t_rel_ms": 1632.4531, "raw": ""}
+{"seq": 21, "t_host_ns": 1788406770121514700, "t_rel_ms": 1632.4914, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"引力\"}}]}"}
+{"seq": 22, "t_host_ns": 1788406770121579600, "t_rel_ms": 1632.5562, "raw": ""}
+{"seq": 23, "t_host_ns": 1788406770152345800, "t_rel_ms": 1663.3225, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"作用\"}}]}"}
+{"seq": 24, "t_host_ns": 1788406770152423700, "t_rel_ms": 1663.4004, "raw": ""}
+{"seq": 25, "t_host_ns": 1788406770152454100, "t_rel_ms": 1663.4307, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"以及\"}}]}"}
+{"seq": 26, "t_host_ns": 1788406770152486700, "t_rel_ms": 1663.4633, "raw": ""}
+{"seq": 27, "t_host_ns": 1788406770153019800, "t_rel_ms": 1663.9965, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"地球\"}}]}"}
+{"seq": 28, "t_host_ns": 1788406770153067700, "t_rel_ms": 1664.0443, "raw": ""}
+{"seq": 29, "t_host_ns": 1788406770153092400, "t_rel_ms": 1664.069, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"自\"}}]}"}
+{"seq": 30, "t_host_ns": 1788406770153119200, "t_rel_ms": 1664.0958, "raw": ""}
+{"seq": 31, "t_host_ns": 1788406770304713000, "t_rel_ms": 1815.6901, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"转\"}}]}"}
+{"seq": 32, "t_host_ns": 1788406770304847300, "t_rel_ms": 1815.8243, "raw": ""}
+{"seq": 33, "t_host_ns": 1788406770305589600, "t_rel_ms": 1816.5664, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"所\"}}]}"}
+{"seq": 34, "t_host_ns": 1788406770305649300, "t_rel_ms": 1816.6261, "raw": ""}
+{"seq": 35, "t_host_ns": 1788406770306063500, "t_rel_ms": 1817.0403, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"引起的\"}}]}"}
+{"seq": 36, "t_host_ns": 1788406770306157100, "t_rel_ms": 1817.1337, "raw": ""}
+{"seq": 37, "t_host_ns": 1788406770307408500, "t_rel_ms": 1818.3853, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"海水\"}}]}"}
+{"seq": 38, "t_host_ns": 1788406770307481400, "t_rel_ms": 1818.458, "raw": ""}
+{"seq": 39, "t_host_ns": 1788406770457457900, "t_rel_ms": 1968.4347, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"周期\"}}]}"}
+{"seq": 40, "t_host_ns": 1788406770457534300, "t_rel_ms": 1968.511, "raw": ""}
+{"seq": 41, "t_host_ns": 1788406770457840000, "t_rel_ms": 1968.8167, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"性\"}}]}"}
+{"seq": 42, "t_host_ns": 1788406770457885300, "t_rel_ms": 1968.8619, "raw": ""}
+{"seq": 43, "t_host_ns": 1788406770457931300, "t_rel_ms": 1968.908, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"涨\"}}]}"}
+{"seq": 44, "t_host_ns": 1788406770458000000, "t_rel_ms": 1968.9766, "raw": ""}
+{"seq": 45, "t_host_ns": 1788406770460982500, "t_rel_ms": 1971.9593, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"落\"}}]}"}
+{"seq": 46, "t_host_ns": 1788406770461057800, "t_rel_ms": 1972.0345, "raw": ""}
+{"seq": 47, "t_host_ns": 1788406770617129300, "t_rel_ms": 2128.1061, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"现象\"}}]}"}
+{"seq": 48, "t_host_ns": 1788406770617205300, "t_rel_ms": 2128.1819, "raw": ""}
+{"seq": 49, "t_host_ns": 1788406770618578200, "t_rel_ms": 2129.555, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"。\"}}]}"}
+{"seq": 50, "t_host_ns": 1788406770618655900, "t_rel_ms": 2129.6326, "raw": ""}
+{"seq": 51, "t_host_ns": 1788406770620124900, "t_rel_ms": 2131.1017, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"月球\"}}]}"}
+{"seq": 52, "t_host_ns": 1788406770620201900, "t_rel_ms": 2131.1786, "raw": ""}
+{"seq": 53, "t_host_ns": 1788406770620551600, "t_rel_ms": 2131.5284, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"和\"}}]}"}
+{"seq": 54, "t_host_ns": 1788406770620599800, "t_rel_ms": 2131.5764, "raw": ""}
+{"seq": 55, "t_host_ns": 1788406770740934600, "t_rel_ms": 2251.9114, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"太阳\"}}]}"}
+{"seq": 56, "t_host_ns": 1788406770741011700, "t_rel_ms": 2251.9883, "raw": ""}
+{"seq": 57, "t_host_ns": 1788406770741254000, "t_rel_ms": 2252.2308, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"分别\"}}]}"}
+{"seq": 58, "t_host_ns": 1788406770741312800, "t_rel_ms": 2252.2895, "raw": ""}
+{"seq": 59, "t_host_ns": 1788406770742910900, "t_rel_ms": 2253.8877, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"对\"}}]}"}
+{"seq": 60, "t_host_ns": 1788406770742965200, "t_rel_ms": 2253.9418, "raw": ""}
+{"seq": 61, "t_host_ns": 1788406770744990300, "t_rel_ms": 2255.9671, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"地球\"}}]}"}
+{"seq": 62, "t_host_ns": 1788406770745064500, "t_rel_ms": 2256.0411, "raw": ""}
+{"seq": 63, "t_host_ns": 1788406770872186300, "t_rel_ms": 2383.1631, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"施加\"}}]}"}
+{"seq": 64, "t_host_ns": 1788406770872320900, "t_rel_ms": 2383.2976, "raw": ""}
+{"seq": 65, "t_host_ns": 1788406770873000400, "t_rel_ms": 2383.9772, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"引力\"}}]}"}
+{"seq": 66, "t_host_ns": 1788406770873054700, "t_rel_ms": 2384.0314, "raw": ""}
+{"seq": 67, "t_host_ns": 1788406770874861900, "t_rel_ms": 2385.8387, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"，\"}}]}"}
+{"seq": 68, "t_host_ns": 1788406770874939100, "t_rel_ms": 2385.9158, "raw": ""}
+{"seq": 69, "t_host_ns": 1788406770875173800, "t_rel_ms": 2386.1505, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"这种\"}}]}"}
+{"seq": 70, "t_host_ns": 1788406770875230300, "t_rel_ms": 2386.207, "raw": ""}
+{"seq": 71, "t_host_ns": 1788406771215169900, "t_rel_ms": 2726.1469, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"引力\"}}]}"}
+{"seq": 72, "t_host_ns": 1788406771215252800, "t_rel_ms": 2726.2295, "raw": ""}
+{"seq": 73, "t_host_ns": 1788406771215315400, "t_rel_ms": 2726.292, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"作用\"}}]}"}
+{"seq": 74, "t_host_ns": 1788406771215347600, "t_rel_ms": 2726.3242, "raw": ""}
+{"seq": 75, "t_host_ns": 1788406771215386300, "t_rel_ms": 2726.3629, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"在\"}}]}"}
+{"seq": 76, "t_host_ns": 1788406771215411900, "t_rel_ms": 2726.3885, "raw": ""}
+{"seq": 77, "t_host_ns": 1788406771215447500, "t_rel_ms": 2726.4242, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"地球\"}}]}"}
+{"seq": 78, "t_host_ns": 1788406771215471900, "t_rel_ms": 2726.4485, "raw": ""}
+{"seq": 79, "t_host_ns": 1788406771215506700, "t_rel_ms": 2726.4833, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"的\"}}]}"}
+{"seq": 80, "t_host_ns": 1788406771215546500, "t_rel_ms": 2726.5232, "raw": ""}
+{"seq": 81, "t_host_ns": 1788406771215585300, "t_rel_ms": 2726.562, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"海洋\"}}]}"}
+{"seq": 82, "t_host_ns": 1788406771215609700, "t_rel_ms": 2726.5863, "raw": ""}
+{"seq": 83, "t_host_ns": 1788406771215626300, "t_rel_ms": 2726.6029, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"上\"}}]}"}
+{"seq": 84, "t_host_ns": 1788406771215646400, "t_rel_ms": 2726.6231, "raw": ""}
+{"seq": 85, "t_host_ns": 1788406771423058300, "t_rel_ms": 2934.0352, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"尤为\"}}]}"}
+{"seq": 86, "t_host_ns": 1788406771423137400, "t_rel_ms": 2934.1141, "raw": ""}
+{"seq": 87, "t_host_ns": 1788406771423255000, "t_rel_ms": 2934.2316, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"明显\"}}]}"}
+{"seq": 88, "t_host_ns": 1788406771423293700, "t_rel_ms": 2934.2703, "raw": ""}
+{"seq": 89, "t_host_ns": 1788406771423334200, "t_rel_ms": 2934.3108, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"。\"}}]}"}
+{"seq": 90, "t_host_ns": 1788406771423360800, "t_rel_ms": 2934.3374, "raw": ""}
+{"seq": 91, "t_host_ns": 1788406771486821100, "t_rel_ms": 2997.7979, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"当地\"}}]}"}
+{"seq": 92, "t_host_ns": 1788406771486891400, "t_rel_ms": 2997.8681, "raw": ""}
+{"seq": 93, "t_host_ns": 1788406771486942200, "t_rel_ms": 2997.9188, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"球\"}}]}"}
+{"seq": 94, "t_host_ns": 1788406771486971200, "t_rel_ms": 2997.9478, "raw": ""}
+{"seq": 95, "t_host_ns": 1788406771488907400, "t_rel_ms": 2999.8842, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"、\"}}]}"}
+{"seq": 96, "t_host_ns": 1788406771488984400, "t_rel_ms": 2999.961, "raw": ""}
+{"seq": 97, "t_host_ns": 1788406771489011700, "t_rel_ms": 2999.9883, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"月球\"}}]}"}
+{"seq": 98, "t_host_ns": 1788406771489037600, "t_rel_ms": 3000.0142, "raw": ""}
+{"seq": 99, "t_host_ns": 1788406771652319000, "t_rel_ms": 3163.2958, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"和\"}}]}"}
+{"seq": 100, "t_host_ns": 1788406771652392400, "t_rel_ms": 3163.369, "raw": ""}
+{"seq": 101, "t_host_ns": 1788406771652442400, "t_rel_ms": 3163.419, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"太阳\"}}]}"}
+{"seq": 102, "t_host_ns": 1788406771652470300, "t_rel_ms": 3163.4469, "raw": ""}
+{"seq": 103, "t_host_ns": 1788406771652488100, "t_rel_ms": 3163.4647, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"三者\"}}]}"}
+{"seq": 104, "t_host_ns": 1788406771652509600, "t_rel_ms": 3163.4862, "raw": ""}
+{"seq": 105, "t_host_ns": 1788406771653669000, "t_rel_ms": 3164.6457, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"位于\"}}]}"}
+{"seq": 106, "t_host_ns": 1788406771653713000, "t_rel_ms": 3164.6896, "raw": ""}
+{"seq": 107, "t_host_ns": 1788406772095218400, "t_rel_ms": 3606.1953, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"一条\"}}]}"}
+{"seq": 108, "t_host_ns": 1788406772095324400, "t_rel_ms": 3606.301, "raw": ""}
+{"seq": 109, "t_host_ns": 1788406772095375700, "t_rel_ms": 3606.3524, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"直\"}}]}"}
+{"seq": 110, "t_host_ns": 1788406772095404700, "t_rel_ms": 3606.3813, "raw": ""}
+{"seq": 111, "t_host_ns": 1788406772095442900, "t_rel_ms": 3606.4195, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"线上\"}}]}"}
+{"seq": 112, "t_host_ns": 1788406772095468800, "t_rel_ms": 3606.4454, "raw": ""}
+{"seq": 113, "t_host_ns": 1788406772095486100, "t_rel_ms": 3606.4627, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"时\"}}]}"}
+{"seq": 114, "t_host_ns": 1788406772095506600, "t_rel_ms": 3606.4833, "raw": ""}
+{"seq": 115, "t_host_ns": 1788406772095541400, "t_rel_ms": 3606.518, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"，\"}}]}"}
+{"seq": 116, "t_host_ns": 1788406772095565900, "t_rel_ms": 3606.5425, "raw": ""}
+{"seq": 117, "t_host_ns": 1788406772107518800, "t_rel_ms": 3618.4956, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"即\"}}]}"}
+{"seq": 118, "t_host_ns": 1788406772107595200, "t_rel_ms": 3618.5718, "raw": ""}
+{"seq": 119, "t_host_ns": 1788406772117253300, "t_rel_ms": 3628.2301, "raw": "data: {\"id\":\"20260903113929826bc0af69054d9b\",\"created\":1788406769,\"object\":\"chat.completion.chunk\",\"model\":\"glm-4-flash\",\"choices\":[{\"index\":0,\"finish_reason\":\"length\",\"delta\":{\"role\":\"assistant\",\"content\":\"\"}}],\"usage\":{\"prompt_tokens\":31,\"completion_tokens\":60,\"total_tokens\":91}}"}
+{"seq": 120, "t_host_ns": 1788406772117323800, "t_rel_ms": 3628.3004, "raw": ""}
+{"seq": 121, "t_host_ns": 1788406772117375000, "t_rel_ms": 3628.3516, "raw": "data: [DONE]"}
+{"seq": 122, "t_host_ns": 1788406772117398000, "t_rel_ms": 3628.3746, "raw": ""}

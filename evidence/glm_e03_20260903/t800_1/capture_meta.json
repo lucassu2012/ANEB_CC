@@ -1,0 +1,18 @@
+{
+  "ts": "20260903-114006",
+  "batch": "GLM-E03-20260903",
+  "model": "glm-4-flash",
+  "base_url": "https://open.bigmodel.cn/api/paas/v4",
+  "prompt": "请用中文写一段约 300 字的说明，介绍潮汐是怎么形成的。直接开始，不要寒暄。",
+  "params": {
+    "model": "glm-4-flash",
+    "max_tokens": 800,
+    "stream": true,
+    "variant": "production_identical"
+  },
+  "http_status": 200,
+  "key_source": "file (path and value intentionally not recorded)",
+  "note": null,
+  "raw_lines": 496,
+  "t_start_ns": 1788406806301771700
+}

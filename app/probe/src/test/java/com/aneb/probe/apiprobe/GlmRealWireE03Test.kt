@@ -51,7 +51,14 @@ class GlmRealWireE03Test {
         OpenAiSseAdapter().parse(SseFixtures.toRawEvents(fixture(name)))
 
     /** 三笔冒烟全部走一遍：**逐笔都要对账**，不许只看一笔就宣布命题成立。 */
-    private val cells = listOf("smoke_a", "smoke_b", "smoke_c")
+    // 3×3 正式批（D-661④）：三档 max_tokens × 三笔，其余同冒烟笔 A（生产同构）。
+    // ⚠ 冒烟三格不并入：它们 max_tokens=800 与 t800 同参，但**属另一轮**，
+    // 而「重试/另轮不并池」是 §1c 写死的。要看冒烟数请回 D-661 前的记录。
+    private val cells = listOf(
+        "t60_1", "t60_2", "t60_3",
+        "t150_1", "t150_2", "t150_3",
+        "t800_1", "t800_2", "t800_3",
+    )
 
     /**
      * 该轮是否进 **P3 形状池**。判据与命题单 §1c 同源：**`finish_reason` 非 `stop` 不进**。
@@ -152,8 +159,13 @@ class GlmRealWireE03Test {
         // ⚠ **3×3 落地后本条的期望要改成「九取三」**：短/中两档压在自然长度以下、预期
         // `length` ⇒ 只有长档进 P3。**改期望时连这句一起改**，别只改数字。
         val inPool = cells.count { inP3Pool(parseFixture(it)) }
+        // ⚠ **九取三**：短/中两档 `max_tokens` 压在自然长度以下 ⇒ `finish_reason=length`
+        // ⇒ **不进 P3 形状池**（形状被人为截断，进池会污染形状结论）；
+        // 只有长档 t800 自然停。**它们仍进 P1 差额分析** —— 两个用途不混池。
+        // ⚠ 数字与理由一起改过：不是「三笔全进」改成「九取三」这么简单，
+        // **进池的判据没变（finish_reason），变的是哪些格满足它**。
         assertEquals(
-            "冒烟三笔应全部进 P3 池（全为 stop）；若这里变了，要么参数变了、" +
+            "应为九取三（仅 t800 三笔自然停）；若这里变了，要么档位参数变了、" +
                 "要么 GLM 的自然停长度变了 —— 两种都得先回单子登记再继续",
             3, inPool,
         )
@@ -164,6 +176,6 @@ class GlmRealWireE03Test {
         // ⚠ 防一种静默失败：三份夹具若因转换出错而内容相同，上面两条会「三笔全过」
         // 而实际只验了一笔。**n 是这里唯一撑得住「逐笔都对账」这句话的东西。**
         val texts = cells.map { fixture(it) }
-        assertEquals("夹具去重后少于三份 —— 三笔冒烟没有真的各自入夹具", 3, texts.toSet().size)
+        assertEquals("夹具去重后少于九份 —— 有格没真的各自入夹具", 9, texts.toSet().size)
     }
 }

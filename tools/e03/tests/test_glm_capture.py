@@ -191,7 +191,11 @@ def test_the_kotlin_fixtures_are_a_verified_derivation_not_a_second_copy():
     #      ⇒ 把「记得回去合上登记面」变成**一条可机检的收工步骤**，不靠任何人的自觉
     #      （本单已因这个形状栽过两次：P1 判词、P4 闸门，且两次都不是作者自己发现的）。
     # ⚠ 4) **别只改数字**：那条断言的注释解释了「为什么是三」，数字与理由要一起改。
-    assert cells == ["smoke_a", "smoke_b", "smoke_c"], cells
+    expected = ["smoke_a", "smoke_b", "smoke_c",
+                "t150_1", "t150_2", "t150_3",
+                "t60_1", "t60_2", "t60_3",
+                "t800_1", "t800_2", "t800_3"]
+    assert cells == sorted(expected), cells
     for c in cells:
         expect = sse_fixture.stream_text(os.path.join(ev, c, "raw_sse.jsonl"))
         actual = open(os.path.join(res, c + ".sse"), encoding="utf-8", newline="").read()
