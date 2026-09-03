@@ -158,3 +158,30 @@ def test_the_production_identical_body_really_matches_the_shipped_probe():
 
     with_usage = gc.build_body("m", 8, include_usage=True, production_identical=True)
     assert with_usage["stream_options"] == {"include_usage": True}, with_usage
+
+
+def test_the_kotlin_fixtures_are_a_verified_derivation_not_a_second_copy():
+    """`app/.../test/resources/glm_e03/*.sse` 必须能由证据包的 jsonl **逐字节重生**。
+
+    ⚠ 同一份抓取现在存在两处（`evidence/` 的 jsonl ＋ 测试资源的 .sse），
+    而本仓的规矩是「**同一事实写在两处，必有一处先漂**」。
+    这里不靠纪律，靠**可验证的派生**：夹具＝`sse_fixture.stream_text(jsonl)` 的输出，
+    对不上就红。⇒ 重复被降级成**导出关系**，漂了当场看得见。
+
+    ⚠ 两者不是同一个东西的两份拷贝：jsonl 是**抓取层**产物（多带宿主时戳），
+    .sse 是**wire 本身**。喂给解析器的必须是后者 —— 多带的那一列若一起喂进去，
+    解析器就在吃一份我加工过的东西。
+    """
+    import sse_fixture
+    root = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
+    res = os.path.join(root, "app", "probe", "src", "test", "resources", "glm_e03")
+    ev = os.path.join(root, "evidence", "glm_e03_20260903")
+    assert os.path.isdir(res), "夹具目录不在：%s" % res
+    cells = sorted(n[:-4] for n in os.listdir(res) if n.endswith(".sse"))
+    assert cells == ["smoke_a", "smoke_b", "smoke_c"], cells
+    for c in cells:
+        expect = sse_fixture.stream_text(os.path.join(ev, c, "raw_sse.jsonl"))
+        actual = open(os.path.join(res, c + ".sse"), encoding="utf-8", newline="").read()
+        assert actual == expect, (
+            "%s.sse 与证据包对不上（%d vs %d 字符）—— 夹具漂了，或证据被改过"
+            % (c, len(actual), len(expect)))

@@ -1,0 +1,486 @@
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"汐"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"是由"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"月球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"太阳"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"对"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"引力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"作用"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"以及"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"自"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"转"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"产生的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"月球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"对"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"引力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"作用"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"最强"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"太阳"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"引力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"作用"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"次"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"之"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"当地"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"、"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"月球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"太阳"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"三者"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"位于"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"同"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"一直"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"线上"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"时"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"月球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"太阳"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"引力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"会"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"相互"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"叠加"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"形成"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"春"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"此时"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海水"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"涨"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"最为"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"显著"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"当地"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"、"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"月球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"太阳"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"三者"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"呈"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"直"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"角"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"排列"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"时"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"月球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"太阳"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"引力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"会"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"相互"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"抵"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"消"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"形成"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"秋"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"此时"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海水"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"涨"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"相对"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"较弱"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。\n\n地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"自"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"转"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"也会"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"影响"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"汐"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"自"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"转"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"使得"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海水"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"受到"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"离心"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"力的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"作用"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"导致"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海水"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"在"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"赤"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"道"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"附近"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"向外"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"膨胀"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"形成"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"赤"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"道"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"而在"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"两"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"极"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"附近"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"由于"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"离心"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的影响"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"较小"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海水"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"涨"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"相对"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"较弱"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。\n\n此外"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"形状"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海底"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地形"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"也会"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"影响"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"汐"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"是一个"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"不"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"规则的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"椭"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"体"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"赤"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"道"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"半径"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"比"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"极"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"半径"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"长"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"这使得"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"赤"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"道"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地区的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海水"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"受到"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"更大的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"引力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"作用"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"形成"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"较大的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"差"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海底"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地形"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"也会"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"影响"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"汐"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"如"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海底"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"山脉"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"、"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"沟"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"等地"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"形"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"会导致"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海水"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"流速"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"变化"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"进而"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"影响"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"汐"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。\n\n总之"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"，"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"潮"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"汐"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"是由"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"月球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"太阳"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"引力"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"作用"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"、"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"自"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"转"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"以及"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地球"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"形状"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"和"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"海底"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"地形"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"等多种"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"因素"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"共同"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"作用"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"的结果"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"。"}}]}
+
+data: {"id":"20260903092539768a4da719624df2","created":1788398739,"object":"chat.completion.chunk","model":"glm-4-flash","choices":[{"index":0,"finish_reason":"stop","delta":{"role":"assistant","content":""}}],"usage":{"prompt_tokens":31,"completion_tokens":246,"total_tokens":277}}
+
+data: [DONE]
+
