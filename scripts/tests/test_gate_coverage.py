@@ -47,6 +47,15 @@ def _read_verify_all():
         return fh.read()
 
 
+def _code_lines(ps):
+    """剥掉整行注释后的 `verify_all.ps1`——构造判据只在**代码**里找。
+
+    ⚠ 只处理行首 `#`；`<# #>` 块注释不处理（本仓当下不用，用了这条会重新变松）。
+    """
+    keep = [ln for ln in ps.splitlines() if not ln.lstrip().startswith("#")]
+    return "\n".join(keep)
+
+
 def _norm(p):
     return p.replace("\\", "/").strip("/")
 
@@ -73,8 +82,17 @@ def _enumerated_tool_dirs(ps):
     ⚠ **第二处对齐**：目录判据改成与 verify_all 同款（须有 `tests/run_tests.py`），
     不再用「磁盘上有 `tests/` 目录」这个**更宽**的面。两面当下恰好相等
     （`tools/e1_stimulus` 无 `tests/`），**而恰好相等不是相等**。
+
+    ⚠ **第三处收窄（属主复核时以突变 M6 证出）**：只做**子串**判断仍不够——把整个枚举块
+    **注释掉**，三个字面量依旧都在（在注释里），本函数照样报「已枚举」，**7/7 全绿**。
+    那还是「被提及 ≠ 被执行」，只是下沉了一层，**方向仍是变松**。
+    ⇒ 判据改为只在**非注释行**上找构造。
+    ⚠ 已知边界：只剥行首 `#` 整行注释，**不处理 PowerShell 的 `<# #>` 块注释**；
+    本仓 `verify_all.ps1` 当下不用块注释，**若将来开始用，这条会重新变松**——写在这里，
+    不是留给记性。
     """
-    if not (ENUM_HEAD in ps and ENUM_PROBE in ps and "$obsSuites" in ps):
+    code = _code_lines(ps)
+    if not (ENUM_HEAD in code and ENUM_PROBE in code and "$obsSuites" in code):
         return set()
     out = set()
     tools = os.path.join(REPO_ROOT, "tools")
@@ -133,6 +151,37 @@ def test_the_extractors_actually_extract_before_any_difference_is_trusted():
         assert {"tools/e1/tests", "tools/e234/tests"} <= enumerated, (
             "枚举形抽取器认不出 e1/e234 ⇒ 量法在这份文件上不工作（零命中先验量法）")
     assert len(files) >= 30, "全仓只发现 %d 个 test_*.py —— 枚举坏了或目录空了" % len(files)
+
+
+def test_positive_control_known_covered_dirs_are_still_recognised():
+    """**第四条先验：正对照**（D-680⑥ 复核时补，回答「要不要补」＝要）。
+
+    ⚠ **前三条先验都在问「收集到东西了吗」，而 2026-09-03 实际发生的形态是
+    「收集到了、但范围静默变窄」**——抽取器与被守对象的**形态耦合**，对方把硬编码改成枚举，
+    这边的正则于是少认一批；**假空与「全都登记好了」在差集上完全同形**。
+    非空断言对这种narrowing 无感：它照样非空。
+
+    ⇒ 本条不问机制、只问结果：**已知一定被覆盖的那几个目录，现在还被判为覆盖吗**。
+    因而它对「是哪一个抽取器坏了」不敏感——**换了接线形态也不必改这条**，
+    这正是它与前三条的分工。
+    """
+    ps = _read_verify_all()
+    explicit, obs = _explicit_targets(ps), _obs_dirs(ps)
+    enumerated, roots = _enumerated_tool_dirs(ps), _autodiscovery_roots(ps)
+
+    known = ["scripts/tests", "tools/e1/tests", "tools/e234/tests"]
+    present = [d for d in known
+               if os.path.isdir(os.path.join(REPO_ROOT, *d.split("/")))]
+    assert len(present) == len(known), \
+        "正对照锚目录消失了：%s —— 先确认仓结构，再改本条" % sorted(set(known) - set(present))
+
+    lost = [d for d in present
+            if not _covered(d + "/test_x.py", explicit, obs, enumerated, roots)]
+    assert not lost, (
+        "这些目录**确实在门里跑着**，本文件却已认不出来：\n  " + "\n  ".join(lost) +
+        "\n⇒ 抽取器的**范围静默变窄**了（与接线形态耦合）。"
+        "差集此刻仍是空的，看起来一切正常——**别信那个空**，先修抽取器。"
+    )
 
 
 def test_gate_entry_enumeration_sees_interpolated_names_not_only_quoted_literals():
@@ -212,6 +261,18 @@ def test_every_gate_step_name_is_registered_in_a_scope_list():
             # 名单用变量登记的那部分：按 verify_all 的推名规则展开
             scoped |= _obs_step_names(ps)
     declared = set(re.findall(r"Add-Result '([^']+)'", ps)) | _obs_step_names(ps)
+
+    # ⚠ **本条也被同一个形态耦合打中过，写在这里而不是靠记性**（属主 D-680⑥ 复核时发现）：
+    # 枚举化之后 obsSuite 的步名**不再是字面量**（`Name = '...'` 抽取恒空），于是本条对
+    # 那批门**静默失明**——`declared` 少了它们，差集照样空、照样绿。
+    # 它们当下由 `$obsNames` **从同一个 `$obsSuites` 派生**进名单（构造上不可能与实际执行漂），
+    # 比逐名核对更硬 ⇒ 这里改为**核那条派生还在不在**。
+    # **若哪天改回手写字面量，这条会红**，那时必须同时把逐名核对补回来，否则本条对它们失明。
+    code = _code_lines(ps)
+    assert "$obsNames = @($obsSuites" in code and "+ $obsNames)" in code, (
+        "obsSuite 步名不再由 $obsNames 派生进 Test-InScope 名单。"
+        "若已改回手写字面量，本条对那批门是**失明**的（它只看得见字面量），须同时改回逐名核对"
+    )
 
     assert len(scoped) >= 10, "Test-InScope 名单只抽到 %d 个 —— 正则坏了，下面的差集会假空" % len(scoped)
     assert "obs-tools-e1-unit" in scoped, "已知一定在名单里的步名没抽到 ⇒ 量法不工作"
