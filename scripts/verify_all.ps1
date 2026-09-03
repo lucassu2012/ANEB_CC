@@ -436,8 +436,13 @@ if ($py -and (Test-Path $campaignTest)) {
 #
 # 5 也判 FAIL：零收集意味着枚举坏了或目录空了，那时「全绿」是假的（D-275/D-364）。
 # ⚠ 零命中即 FAIL：枚举坏了会**静默返回空**，那时「一道 obs 门都没跑」而汇总全绿。
+# 成功也出行（不只失败才出）：一条**只在失败时才出现**的检查，健康时是隐形的
+# —— 那时 `0 FAIL` 分不清「枚举跑了且没事」与「这条检查压根没跑」，且 gate_count
+# 会随层数摆动（实测 scripts 层 26、spec 层 27）。⇒ 两条腿都出行，数才稳。
 if ($obsSuites.Count -eq 0) {
-    $log += Add-Result 'obs-tools-enumeration' 'FAIL' 'tools/*/tests/run_tests.py 零命中——枚举坏了或目录空了'
+    $log += Add-Result 'obs-tools-enumeration' 'FAIL' 'tools 下带 tests/run_tests.py 的目录零命中——枚举坏了或目录空了'
+} else {
+    $log += Add-Result 'obs-tools-enumeration' 'PASS' ("枚举到 " + $obsSuites.Count + " 只：" + ($obsNames -join ', '))
 }
 foreach ($obsSuite in $obsSuites) {
     $obsDir = Join-Path $repo $obsSuite.Dir
