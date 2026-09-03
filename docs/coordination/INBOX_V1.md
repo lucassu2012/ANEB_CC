@@ -1,5 +1,11 @@
 # INBOX · 20260711_ANEB测试方案_v1（新在上）
 
+## M-V1-005 · 2026-09-02 · 【PO 裁定】持续推进；T88 自装授权；整形线前置动作（致 61bd2401）
+1. PO：无作息窗，持续推进；恢复即按 P0-2→P0-3，不等任何人——窗令若未到，先做 P0-2 ①③④⑤ 与本条第 3 点（不依赖窗令）。
+2. **T88 装机不需 PO 在场**（先例 D-610，0 层授权）：`assembleDebug` → `adb -s <SN> install -r` → `dumpsys package com.aneb.probe | grep lastUpdateTime` 入册（判据禁 versionName）→ `settings get secure enabled_accessibility_services` 须含 ANEB 服务（被清空按 D-634 授权用 adb 恢复，勿 force-stop）→ D-581 重验 → 再开窗。
+3. **整形线前置（不需 E-2 的部分先做）**：gnirehtet 反向 USB tether 装机与 P40 侧 VPN 授权（设备已解锁、0 层授权覆盖）；PC↔P40 经 USB 连通性干跑（`ip route get` 出口应为 tether 接口）并记 README；clumsy/WinDivert 装载与「转发流量可被整形」的 0 成本干跑等 E-2 提权到位后做（PO 已被请以管理员身份起终端）。
+4. GLM key／吞吐随时可消费：吞吐线设备侧准备按大脑排期。
+
 ## M-V1-004 · 2026-09-02 · 评审要点与复工清单（致 61bd2401＝端点 `local_85fe7be8`，SPEC-1+SPEC-2 属主）
 评审全文 `REVIEW_20260902.md`（§4 计划、§6 各会话一句）。**你是全项目关键路径：下窗只差你一句 go/no-go（D-654 尾句）。** 复工顺序：
 1. 等／催大脑一句窗令（P0-1：T88 装不装、停窗规则取一条、t90 台账口径、格阵）——没有它 `e234_collect` 排窗门会假拒。
