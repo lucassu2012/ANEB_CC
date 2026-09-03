@@ -151,13 +151,65 @@ def field_points(bk):
 # **缺一个数只是不可见，错一个数会被人当真用**；本文件的出身正是拦这种合并
 # （见下方 `real_dirs` 处注释：初版把 6 个 dry-run 并进「13 个采集目录」）。
 API_CMP_KIND = "api_cmp"      # 名字钉死防漂（D-676⑤）
+DEVICE_REAL_KIND = "DEVICE_REAL"
+DRY_RUN_KIND = "DRY_RUN_SIMULATED"
+
+# D-676⑤ 判据原文＝「有 `capture_meta.json` 且**对照量到位**的格」。
+# `capture_meta.json` 是直接可核的那半；「对照量到位」落到 `raw_sse.jsonl`——
+# **两侧计数（解析器数出／usage）都是从这份原始字节数出来的**，没有它就没有对照，
+# 只剩一个自称。⚠ 这里**只编码可核的部分**：文件在场且非空。
+# 「数出来的两个量是否真的可比」台账判不了，**就不假装能判**——
+# 把模糊判据硬编成假精确，比不编码更坏。
+API_CMP_REQUIRED = ("capture_meta.json", "raw_sse.jsonl")
+
+
+def api_cmp_missing(d):
+    """api_cmp 格缺了哪些判据文件。**缺＝不在场，或在场但 0 字节**。
+
+    零字节要算缺：抓取中断会留下一个空文件，而**空文件与「有文件」在
+    `os.path.isfile` 上完全同形**——只判存在会把一次失败的抓取记成合格对照批。
+    """
+    out = []
+    for name in API_CMP_REQUIRED:
+        f = os.path.join(d, name)
+        try:
+            if not (os.path.isfile(f) and os.path.getsize(f) > 0):
+                out.append(name)
+        except OSError:
+            out.append(name)
+    return out
 
 
 def classify_obs(obs):
-    """-> (device_real, api_cmp, dry_run) 三个计数。**三者相加恒等于 len(obs)。**"""
-    dev = sum(1 for r in obs if r.get("kind") == "DEVICE_REAL")
-    api = sum(1 for r in obs if r.get("kind") == API_CMP_KIND)
-    return dev, api, len(obs) - dev - api
+    """观察格分类 -> dict（五个键）。
+
+    **五个数相加恒等于 `len(obs)`，且没有一个是减法算出来的。**
+
+    ⚠ 上一版 `dry_run = len(obs) - device_real - api_cmp` 是个**减法兜底桶**
+    （「不是已知类的都算干跑」）。它在 D-676⑤ 立第三类时**差点**把十二格真花配额的
+    API 抓取整批算成干跑——只因先改了分类器再回填标签才躲开。**同一个陷阱不留第二次**：
+    本次（D-689④）既然又在动这个函数，就地把兜底桶拆掉——未知 kind 有自己的去处，
+    且**会被守卫咬住**，不再悄悄并进某个现成的桶。
+
+    `api_cmp_rejected`＝**自称** api_cmp 但判据文件不到位的格（D-676⑤ 判据落装置）。
+    ⚠ **它不并进 `dry_run`**——把一个坏标签并进某个真实类别，正是本文件出身要拦的合并。
+    """
+    out = {"device_real": 0, "api_cmp": 0, "dry_run": 0,
+           "api_cmp_rejected": 0, "unknown_kind": 0}
+    for r in obs:
+        k = r.get("kind")
+        if k == DEVICE_REAL_KIND:
+            out["device_real"] += 1
+        elif k == DRY_RUN_KIND:
+            out["dry_run"] += 1
+        elif k == API_CMP_KIND:
+            if r.get("api_cmp_missing"):
+                out["api_cmp_rejected"] += 1
+            else:
+                out["api_cmp"] += 1
+        else:
+            out["unknown_kind"] += 1
+    return out
 
 
 def observation_runs(roots):
@@ -198,6 +250,10 @@ def observation_runs(roots):
                                    if os.path.isfile(os.path.join(d, f)))
             except OSError:
                 row["files"] = 0
+            # 判据只在这里算一次：`classify_obs` 是纯函数，不碰磁盘
+            # ——否则同一判据会有「读盘的」与「读行的」两套，必有一套先漂（D-326）。
+            if row.get("kind") == API_CMP_KIND:
+                row["api_cmp_missing"] = api_cmp_missing(d)
             runs.append(row)
     return runs
 
@@ -289,11 +345,20 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
         # 真机与 dry-run **不能合成一个数**——这与本节把 `is_synthetic` 单列是
         # 同一个角色（D-341：刚写完的修复要立刻当被审对象再问一遍同类。初版
         # 印「13 个采集目录」，其中 6 个是 dry-run，正是本台账要拦的那种合并）。
-        real_dirs, api_dirs, dry_dirs = classify_obs(obs)
-        lines.append(f"- 观察通道另有 **{real_dirs} 个真机采集目录**"
-                     f"（dry-run {dry_dirs} 个、API 对照批 {api_dirs} 个，"
+        c = classify_obs(obs)
+        lines.append(f"- 观察通道另有 **{c['device_real']} 个真机采集目录**"
+                     f"（dry-run {c['dry_run']} 个、API 对照批 {c['api_cmp']} 个，"
                      f"**三者各自单列、均不计入上行**；第四节）——"
                      f"其产物结构上进不了 wire 池")
+        if c["api_cmp_rejected"] or c["unknown_kind"]:
+            # 坏标签必须**看得见**且**不进任何真实类别的计数**：
+            # 少一个数只是不可见，把它并进某个真桶会被人当真用。
+            lines.append(
+                f"- ⚠ **另有 {c['api_cmp_rejected'] + c['unknown_kind']} 个格需要人看**："
+                f"自称 API 对照批但判据文件不到位 **{c['api_cmp_rejected']} 个**"
+                f"（判据＝{'、'.join(API_CMP_REQUIRED)} 在场且非空）、"
+                f"kind 不认识 **{c['unknown_kind']} 个**。"
+                f"**它们没有被计进上面任何一个数**——按标签错误处理，不是新类别")
     lc = (f"{bk['low_conf']}/{bk['aqs_runs']}"
           f"（{bk['low_conf'] / bk['aqs_runs'] * 100:.0f}%）"
           if bk["aqs_runs"] else "0/0（无带分 run，无从判断）")
@@ -400,7 +465,10 @@ def render_csv_rows(real, synth, bk, obs=()):
     # 而它恰恰**不属于**那族——面名本身就是「别相加」的第一道提示。
     # 刻意**不出**一个合计行：真机与 dry-run 相加没有任何用途，而一个印好的
     # 合计数就是邀请别人去用它（第一节把合成单列，是同一条理由）。
-    _dev, _api, _dry = classify_obs(obs)
+    _c = classify_obs(obs)
+    _dev, _api, _dry = _c["device_real"], _c["api_cmp"], _c["dry_run"]
+    rows.append(("observation", "api_cmp_rejected_dirs", _c["api_cmp_rejected"]))
+    rows.append(("observation", "unknown_kind_dirs", _c["unknown_kind"]))
     rows.append(("observation", "device_real_dirs", _dev))
     rows.append(("observation", "api_cmp_dirs", _api))
     rows.append(("observation", "dry_run_dirs", _dry))

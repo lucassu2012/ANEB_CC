@@ -33,6 +33,8 @@ validity_scenarios,valid_low_confidence,589
 validity_scenarios,valid,32
 validity_scenarios,degraded,4
 validity_scenarios,invalid,2
+observation,api_cmp_rejected_dirs,0
+observation,unknown_kind_dirs,0
 observation,device_real_dirs,24
 observation,api_cmp_dirs,12
 observation,dry_run_dirs,6

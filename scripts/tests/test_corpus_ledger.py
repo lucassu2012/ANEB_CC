@@ -229,8 +229,13 @@ def test_the_two_aqs_calibers_are_never_conflated():
     assert "1 条只有版本戳、没有分数" in md
 
 
-def _obs_dir(root, name, kind, pkg="com.x", experiments=("E2",)):
-    """造一个观察通道采集目录：判据是 RUN_KIND.json，不是文件名。"""
+def _obs_dir(root, name, kind, pkg="com.x", experiments=("E2",), cmp_files=True):
+    """造一个观察通道采集目录：判据是 RUN_KIND.json，不是文件名。
+
+    `cmp_files=False` 造的是**假标签格**：自称 api_cmp、判据文件却不在场
+    （D-676⑤ 判据落装置＝批后件 (f)）。**默认 True**——「合格」是常态，
+    而**默认值决定了忘记传参时测到的是哪一种**，让忘记传参偏向严格那侧。
+    """
     import io as _io
     import json as _json
     import os as _os
@@ -242,6 +247,9 @@ def _obs_dir(root, name, kind, pkg="com.x", experiments=("E2",)):
     # 观察通道的真实产物：它是 .jsonl，但装不出契约记录
     _io.open(_os.path.join(d, "screencap_index.jsonl"), "w",
              encoding="utf-8").write('{"t_ms":1,"roi_mean":12.5}\n')
+    if kind == cl.API_CMP_KIND and cmp_files:
+        for fn in cl.API_CMP_REQUIRED:
+            _io.open(_os.path.join(d, fn), "w", encoding="utf-8").write("{}")
     return d
 
 
@@ -576,3 +584,67 @@ def test_the_refusal_prints_a_summary_marker_the_gate_can_actually_find():
     assert "CANNOT_COMPARE" in line, "标记行丢了状态词：%r" % line
     assert ("definitely_not_here" in line) or ("扫描根不存在" in line), (
         "标记行没带成因 ⇒ 状态到了摘要面、原因没到：%r" % line)
+
+def test_a_label_alone_does_not_make_a_cell_an_api_comparison_batch():
+    """D-676⑤ 的判据必须落在**装置**上，不能只落在填单人脑子里（批后件 (f)／D-689④）。
+
+    裁定原文＝「有 `capture_meta.json` 且**对照量到位**的格」。台账若只信
+    `RUN_KIND.json` 里的标签，**丢一个假标签目录进去就会被静默照数**——
+    而「多算了一格对照批」与「真有一格对照批」在产物上**完全同形**。
+
+    ⚠ 本条同时钉住**坏标签的去向**：它不许被并进 `dry_run`、也不许并进任何真实类别。
+    把坏标签藏进一个真桶，正是本文件出身要拦的那种合并（初版「13 个采集目录」含 6 个 dry-run）。
+    ⚠ 突变实证（D-689④ 要求，预测→实测）：把判据函数改成恒返回空，
+    两个坏格立刻被算成合格（api_cmp 1→3）⇒ **CAUGHT，这条判据在承重**。
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _obs_dir(d, "ok_cell", cl.API_CMP_KIND)
+        _obs_dir(d, "forged", cl.API_CMP_KIND, cmp_files=False)
+        _obs_dir(d, "future", "SOME_KIND_NOBODY_HAS_TAUGHT_IT_YET")
+        obs = cl.observation_runs([d])
+    c = cl.classify_obs(obs)
+    assert c["api_cmp"] == 1, "假标签格被当成了合格对照批：%r" % (c,)
+    assert c["api_cmp_rejected"] == 1, c
+    assert c["unknown_kind"] == 1, c
+    assert c["dry_run"] == 0, (
+        "坏标签或未知 kind 被并进了 dry_run —— 那是把一个错误藏进一个真桶：%r" % (c,))
+    assert sum(c.values()) == len(obs), (
+        "五者相加不等于总数 —— 有一类被漏归或被重复计：%r" % (c,))
+    md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), [], obs)
+    assert "需要人看" in md, (
+        "坏格没在 md 上示警 —— 少一个数只是不可见，错一个数会被人当真用")
+
+
+def test_a_zero_byte_capture_counts_as_missing_not_as_present():
+    """抓取中断会留下一个 **0 字节**文件，而它与「有文件」在 `isfile` 上完全同形。
+
+    只判存在，会把**一次失败的抓取**记成一格合格对照批——比缺这一格更坏。
+    """
+    import io as _io
+    import os as _os
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _obs_dir(d, "truncated", cl.API_CMP_KIND)
+        _io.open(_os.path.join(d, "truncated", "raw_sse.jsonl"), "w").close()
+        obs = cl.observation_runs([d])
+    c = cl.classify_obs(obs)
+    assert c["api_cmp"] == 0 and c["api_cmp_rejected"] == 1, c
+
+
+def test_the_repo_has_no_mislabelled_observation_cells_right_now():
+    """仓内现态：真有人贴错标签，**这条红**——而不是等谁去读 md 上那行示警。
+
+    ⚠ 与上面两条的分工：那两条证明判据**能**咬（喂合成目录），本条证明**此刻仓里没有**。
+    在一个合规的仓上，「判据在」与「违规在」只能一起被看见，所以两种都要有。
+    ⚠ 若将来新立一类 kind，本条会红——**那是对的**：新 kind 必须先教会分类器，
+    否则它会落进某个现成的桶里而没人知道。红了请改 `classify_obs`，别改本条。
+    """
+    import os as _os
+    repo = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+        _os.path.abspath(__file__))))
+    roots = [_os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]
+    c = cl.classify_obs(cl.observation_runs(roots))
+    assert c["api_cmp_rejected"] == 0 and c["unknown_kind"] == 0, (
+        "有观察格的标签与判据对不上：%r —— api_cmp 判据＝%s 在场且非空"
+        % (c, "、".join(cl.API_CMP_REQUIRED)))
