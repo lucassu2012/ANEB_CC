@@ -178,6 +178,15 @@ def test_the_kotlin_fixtures_are_a_verified_derivation_not_a_second_copy():
     ev = os.path.join(root, "evidence", "glm_e03_20260903")
     assert os.path.isdir(res), "夹具目录不在：%s" % res
     cells = sorted(n[:-4] for n in os.listdir(res) if n.endswith(".sse"))
+    # ⚠ **3×3 落地时本行必红，这是设计的**：格名写死是**回归钉**——防的是有人悄悄少放
+    # 一份夹具而其余断言照常全绿（少一份就少验一格，而「全过」读起来一模一样）。
+    # 届时要改的**不止这一行**，一并记在这里，免得拿着新鲜数据现想（当时最容易慌）：
+    #   1) 本行 → 九个格名；
+    #   2) `GlmRealWireE03Test.cells` → 九个；
+    #   3) 该测试「三份互异」→ 九份互异；
+    #   4) 「三笔全进 P3 池」→ **九取三**（短/中两档预期 `length` 不进池）；
+    #   5) 跑一次 `compileDebugUnitTestKotlin --rerun-tasks`（改了测试源码，必触发编译）。
+    # ⚠ 4) **别只改数字**：那条断言的注释解释了「为什么是三」，数字与理由要一起改。
     assert cells == ["smoke_a", "smoke_b", "smoke_c"], cells
     for c in cells:
         expect = sse_fixture.stream_text(os.path.join(ev, c, "raw_sse.jsonl"))
