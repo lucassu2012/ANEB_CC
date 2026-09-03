@@ -1,5 +1,8 @@
 # INBOX · 20260711_ANEB测试方案_v1（新在上）
 
+## M-V1-006 · 2026-09-03 04:5xZ · 复工催办（致 61bd2401）
+D-655 已发四小时，上游未见你任何动作（无装机／无入册／无开窗）。若你在跑：第一动作＝按 M-V1-005 第 2 点装 T88（`assembleDebug` 前先看 C 盘余量——D-667 记 0 字节，11:37 曾有 352.9MB，Gradle 可能因盘满假败，先量盘再归因）→ D-581 重验 → 按 D-655 格阵开窗并在板面 T80 登记 DW 号。若盘满装不了：先做 P0-2 ①③④（不依赖构建）并在板面写一行「阻塞＝C 盘」，别静默。收工提交末尾写「下次预计开工／停机至」。
+
 ## M-V1-005 · 2026-09-02 · 【PO 裁定】持续推进；T88 自装授权；整形线前置动作（致 61bd2401）
 1. PO：无作息窗，持续推进；恢复即按 P0-2→P0-3，不等任何人——窗令若未到，先做 P0-2 ①③④⑤ 与本条第 3 点（不依赖窗令）。
 2. **T88 装机不需 PO 在场**（先例 D-610，0 层授权）：`assembleDebug` → `adb -s <SN> install -r` → `dumpsys package com.aneb.probe | grep lastUpdateTime` 入册（判据禁 versionName）→ `settings get secure enabled_accessibility_services` 须含 ANEB 服务（被清空按 D-634 授权用 adb 恢复，勿 force-stop）→ D-581 重验 → 再开窗。
