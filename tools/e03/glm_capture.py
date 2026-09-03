@@ -123,8 +123,11 @@ def capture(out_dir, key_path=DEFAULT_KEY_PATH, model=GLM_DEFAULT_MODEL,
     ts = time.strftime("%Y%m%d-%H%M%S")
     payload = build_body(model, max_tokens, include_usage, production_identical)
     params = {k: v for k, v in payload.items() if k != "messages"}
-    params["variant"] = ("production_identical" if production_identical
-                         else "with_temperature")
+    # ⚠ 标签必须能把两格分开：首版只写 production_identical，而**笔 B 也是生产同构
+    # 加一个开关** ⇒ 光看标签分不出 A 和 B。分不清两格的标签，日后必被当成同一格并池。
+    params["variant"] = "%s%s" % (
+        "production_identical" if production_identical else "with_temperature",
+        "+include_usage" if include_usage else "")
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
     req = urllib.request.Request(
