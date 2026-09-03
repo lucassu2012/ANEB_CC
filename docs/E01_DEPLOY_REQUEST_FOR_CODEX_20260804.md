@@ -44,6 +44,23 @@
 >    `parallel:1` 与省略则可区分（实测）。
 > 3. **量级安全。** s4 的 512MiB 下行 ceiling 与 48MiB 上行 ceiling 均在 0.8.3 限额内
 >    （`downloadMaxBytes` 1GiB / `uploadMaxBytes` 64MiB；边界 400 与 413 路径实测存在）。
+> 🔴 **先读这条限定（2026-09-04 自审补正）——我方复现环境不是线上的完整复现。**
+> 上述实测跑在**我方按 G 树 `aneb-probe-codex-v0.2.0` 工作树 HEAD `4dac782`（2026-07-29）构建**的二进制上；
+> 而线上二进制自报 `vcs.revision=55554d0e383da7bb83415d9186b19d1bf8997b6b`，
+> 经 `merge-base --is-ancestor` 实测**不是 `4dac782` 的祖先**（属分支 `codex/release-sprint-r1`），
+> 两版 `server/` 相差 13 个文件 / +29 −1750 行。**我方原先认血统只用了「源文件清单吻合＋版本串 `0.8.3`」，
+> 那不足以定位到具体提交——两个不同提交同报 `0.8.3` 完全可能。此处感谢贵方 buildinfo 留了 `vcs.revision`。**
+> **范围划分（已逐条实测，不含推断）**：
+> - `server/profiles.go` 与 `server/handlers_download.go` 在两版之间 **`git diff` 为空（逐字节相同）**
+>   ⇒ **上面第 1、2、3 条以及「`window_ms` 被静默丢弃」「`presentation` 变 `{}` 是 Go `omitempty` 对 struct 无效的通用行为」
+>   这些结论全部不受影响。**
+> - **受影响的只有下面第 4 条所依赖的启动路径**：`55554d0e` 的 `main.go` 比我方构建的那版多两个 flag
+>   （`-result-upload-token-file`、`-harden-result-storage-only`）与一个 `initializeResultUpload` 的
+>   `log.Fatalf` 启动闸——三者均已在**线上二进制**上用 `strings` 直接验到（阳性对照 `execution-profiles` 命中）。
+>   ⇒ 第 4 条描述的 profile 侧 fail-closed 行为仍然成立（机制在 `profiles.go`，两版相同），
+>   但**线上重启时还有一条我方未测到的失败路径**（result upload 初始化失败同样 `log.Fatalf`）。
+>   **贵方重启前请把这条也算进风险面；我方不主张对它的行为下任何结论。**
+>
 > 4. **新增 profile 对线上是安全的加法，但必须重启才生效，且 fail-closed 到整进程。**
 >    实测：往运行中的服务的 profiles 目录 cp 文件是**纯 no-op**（接口仍返回原有条目）；
 >    而截断文件 → `unexpected end of JSON input` 退出码 1，重复 `profile_id` → 退出码 1。
