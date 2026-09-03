@@ -174,6 +174,40 @@ def test_exemptions_expire_when_no_longer_needed():
     )
 
 
+def test_every_gate_step_name_is_registered_in_a_scope_list():
+    """**第二层**：门跑了，但步名没登进 `Test-InScope` 名单 ⇒ 层外**从汇总里彻底消失**。
+
+    ⚠ **这一层原本不在本文件里，是被一句夸奖逼出来的**：D-677 ① 判「元守卫＝结构性关闭的
+    承担者」，属主去核那句断言，发现本文件当时**只关闭了第一层**（测试文件没落在任何门上），
+    **查不出第二层**（门进了、步名没登记 ⇒ 出层时既不跑、也不记 `SKIPPED_SCOPE`，
+    悄悄消失）。⇒ **补此条后那个判定才成立**；不补而照收，就是拿一句好话当验过。
+
+    判据方向刻意只取**危险的那一侧**（declared ⊆ scoped）：漏登会让门静默消失；
+    反向（名单里有已不存在的步）只会多打印一行 SKIPPED_SCOPE，不伤判读。
+    """
+    ps = _read_verify_all()
+    scoped = set()
+    for m in re.finditer(r"Test-InScope\s+'[a-z]+'\s+@\(([^)]*)\)", ps, re.S):
+        scoped |= set(re.findall(r"'([^']+)'", m.group(1)))
+    declared = set(re.findall(r"Add-Result '([^']+)'", ps)) | _obs_step_names(ps)
+
+    assert len(scoped) >= 10, "Test-InScope 名单只抽到 %d 个 —— 正则坏了，下面的差集会假空" % len(scoped)
+    assert "obs-tools-e1-unit" in scoped, "已知一定在名单里的步名没抽到 ⇒ 量法不工作"
+    assert declared, "门条目一个都没抽到"
+
+    unregistered = sorted(declared - scoped)
+    assert not unregistered, (
+        "这些门会跑，但步名没登进任何 Test-InScope 名单 —— **出层时它们不跑、也不记 "
+        "SKIPPED_SCOPE，从汇总里彻底消失**，而汇总看起来一切正常：\n  "
+        + "\n  ".join(unregistered)
+    )
+
+
+def _obs_step_names(ps):
+    """obsSuite 的 `Name = '...'` 步名。"""
+    return set(re.findall(r"Name\s*=\s*'([^']+)'", ps))
+
+
 def test_pending_wiring_entries_point_at_real_directories():
     """豁免不许挂在一个不存在的目录上——那样它永远不会过期。"""
     missing = [d for d in PENDING_WIRING
