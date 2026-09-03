@@ -152,7 +152,7 @@ class GlmRealWireE03Test {
     }
 
     @Test
-    fun `pool membership follows finish reason and the smoke three all qualify`() {
+    fun `pool membership follows finish reason and only the long tier qualifies`() {
         // ⚠ 让 [inP3Pool] **承重**，否则它就是「写了门没挂上」。
         // 断言的是**关于数据的事实**：三笔冒烟 `finish_reason` 全为 `stop`（`max_tokens=800`
         // 未生效、模型自然停）⇒ **三笔全进 P3 池**。
@@ -172,7 +172,7 @@ class GlmRealWireE03Test {
     }
 
     @Test
-    fun `the fixtures really are three distinct captures`() {
+    fun `the fixtures really are nine distinct captures`() {
         // ⚠ 防一种静默失败：三份夹具若因转换出错而内容相同，上面两条会「三笔全过」
         // 而实际只验了一笔。**n 是这里唯一撑得住「逐笔都对账」这句话的东西。**
         val texts = cells.map { fixture(it) }
