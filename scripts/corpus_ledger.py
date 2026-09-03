@@ -142,6 +142,24 @@ def field_points(bk):
     return sorted(out, key=lambda kv: (-kv[1], str(kv[0])))
 
 
+# 观察目录的三分类（D-676⑤ 立第三类）。**判定只写一处**：`render_md` 与
+# `render_csv_rows` 都调它 —— 同一分类写两处必有一处先漂，而漂的那处不报错。
+#
+# ⚠ **为什么必须在回填 `RUN_KIND.json` 的同一笔里加这一类**：`dry_run_dirs` 原本是
+# `len(obs) - device_real`，即**「不是真机的都算干跑」**。E-03 十二格一旦带上标记，
+# 就会被算成十二个**干跑格** —— **把真花了配额的 API 抓取标成 dry run**。
+# **缺一个数只是不可见，错一个数会被人当真用**；本文件的出身正是拦这种合并
+# （见下方 `real_dirs` 处注释：初版把 6 个 dry-run 并进「13 个采集目录」）。
+API_CMP_KIND = "api_cmp"      # 名字钉死防漂（D-676⑤）
+
+
+def classify_obs(obs):
+    """-> (device_real, api_cmp, dry_run) 三个计数。**三者相加恒等于 len(obs)。**"""
+    dev = sum(1 for r in obs if r.get("kind") == "DEVICE_REAL")
+    api = sum(1 for r in obs if r.get("kind") == API_CMP_KIND)
+    return dev, api, len(obs) - dev - api
+
+
 def observation_runs(roots):
     """观察通道采集目录（判据＝目录里有 `RUN_KIND.json`，不是文件名清单）。
 
@@ -271,10 +289,11 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
         # 真机与 dry-run **不能合成一个数**——这与本节把 `is_synthetic` 单列是
         # 同一个角色（D-341：刚写完的修复要立刻当被审对象再问一遍同类。初版
         # 印「13 个采集目录」，其中 6 个是 dry-run，正是本台账要拦的那种合并）。
-        real_dirs = sum(1 for r in obs if r.get("kind") == "DEVICE_REAL")
+        real_dirs, api_dirs, dry_dirs = classify_obs(obs)
         lines.append(f"- 观察通道另有 **{real_dirs} 个真机采集目录**"
-                     f"（dry-run {len(obs) - real_dirs} 个单列不计入；第四节）——"
-                     f"**不并入上行**：其产物结构上进不了 wire 池")
+                     f"（dry-run {dry_dirs} 个、API 对照批 {api_dirs} 个，"
+                     f"**三者各自单列、均不计入上行**；第四节）——"
+                     f"其产物结构上进不了 wire 池")
     lc = (f"{bk['low_conf']}/{bk['aqs_runs']}"
           f"（{bk['low_conf'] / bk['aqs_runs'] * 100:.0f}%）"
           if bk["aqs_runs"] else "0/0（无带分 run，无从判断）")
@@ -381,9 +400,10 @@ def render_csv_rows(real, synth, bk, obs=()):
     # 而它恰恰**不属于**那族——面名本身就是「别相加」的第一道提示。
     # 刻意**不出**一个合计行：真机与 dry-run 相加没有任何用途，而一个印好的
     # 合计数就是邀请别人去用它（第一节把合成单列，是同一条理由）。
-    _dev = sum(1 for r in obs if r.get("kind") == "DEVICE_REAL")
+    _dev, _api, _dry = classify_obs(obs)
     rows.append(("observation", "device_real_dirs", _dev))
-    rows.append(("observation", "dry_run_dirs", len(obs) - _dev))
+    rows.append(("observation", "api_cmp_dirs", _api))
+    rows.append(("observation", "dry_run_dirs", _dry))
     # 机器面同样给具名行项：**机器消费方也不该自己去挑哪个是外场最大点**。
     # key 用点位 id（不是 "max"），数字与身份于是一起进 CSV，搬不散。
     for pid, cnt in field_points(bk)[:1]:

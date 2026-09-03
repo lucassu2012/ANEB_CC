@@ -34,6 +34,11 @@ VERIFY_ALL = os.path.join(SCRIPTS, "verify_all.ps1")
 # ⇒ 自失效豁免不是纸面纪律，它在本仓已实测生效一次（2026-09-03）。
 PENDING_WIRING = {}
 
+# 枚举形接线的构造判据：**逐字**取自 verify_all.ps1 的枚举块。
+# 那边改写法这边会红 —— 红了要去核「枚举还在不在」，不是把这两行放宽。
+ENUM_HEAD = "Get-ChildItem (Join-Path $repo 'tools')"
+ENUM_PROBE = "tests/run_tests.py"
+
 _SKIP_DIRS = {".git", "__pycache__", "node_modules", "build", ".gradle", "evidence"}
 
 
@@ -57,22 +62,27 @@ def _obs_dirs(ps):
 
 
 def _enumerated_tool_dirs(ps):
-    """接线若已升级为枚举形（D-674 ④a），把所有 tools/*/tests 视为已覆盖。
+    """接线若已升级为枚举形（D-674 ④a），把 verify_all **会枚举到**的 tools 目录视为已覆盖。
 
-    判据取「verify_all 里出现对 tools 下 tests 的通配枚举」——写成宽匹配是刻意的：
-    枚举可能用 Get-ChildItem、也可能用别的写法，**漏判只会让本守卫更严，不会更松**。
+    ⚠ **判据认「构造」不认「提及」**（2026-09-03 实测订正）：初版判据是宽匹配
+    `tools/` + 通配 + `/tests`，而该字面量在 `verify_all.ps1` 里**只出现在枚举零命中时的
+    FAIL 提示文字里**，真正的枚举代码里一个字都没有 —— 即本文件 docstring 自列的失败形态
+    ①「**被提及 ≠ 被执行**」。且方向是**变松**：删掉枚举块、留着那句提示语，本守卫照样绿。
+    初版注释写的「漏判只会让本守卫更严，不会更松」**只覆盖假阴性方向，不覆盖这个方向**。
+
+    ⚠ **第二处对齐**：目录判据改成与 verify_all 同款（须有 `tests/run_tests.py`），
+    不再用「磁盘上有 `tests/` 目录」这个**更宽**的面。两面当下恰好相等
+    （`tools/e1_stimulus` 无 `tests/`），**而恰好相等不是相等**。
     """
-    if re.search(r"tools[/\\]\*[/\\]tests", ps):
-        out = set()
-        tools = os.path.join(REPO_ROOT, "tools")
-        if os.path.isdir(tools):
-            for name in os.listdir(tools):
-                d = os.path.join(tools, name, "tests")
-                if os.path.isdir(d):
-                    out.add("tools/%s/tests" % name)
-        return out
-    return set()
-
+    if not (ENUM_HEAD in ps and ENUM_PROBE in ps and "$obsSuites" in ps):
+        return set()
+    out = set()
+    tools = os.path.join(REPO_ROOT, "tools")
+    if os.path.isdir(tools):
+        for name in sorted(os.listdir(tools)):
+            if os.path.isfile(os.path.join(tools, name, "tests", "run_tests.py")):
+                out.add("tools/%s/tests" % name)
+    return out
 
 def _autodiscovery_roots(ps):
     """自动发现型覆盖根：只有当 runner 确实按 listdir 收集时才算。"""
@@ -109,12 +119,19 @@ def test_the_extractors_actually_extract_before_any_difference_is_trusted():
     ps = _read_verify_all()
     explicit = _explicit_targets(ps)
     obs = _obs_dirs(ps)
+    enumerated = _enumerated_tool_dirs(ps)
     files = _tracked_py_tests()
 
     assert len(explicit) >= 5, "具名调用目标只抽到 %d 个 —— 正则坏了，差集会假空" % len(explicit)
     assert "spec/portraits/check_redline.py" in explicit, \
         "已知一定被调用的目标没抽到 ⇒ 量法在这份文件上不工作（零命中先验量法）"
-    assert obs, "obsSuite 目录一个都没抽到 —— 差集会把 e1/e234 误报成缺口"
+    assert obs or enumerated, (
+        "obsSuite 两种形态（硬编码 `Dir = '...'` ／ tools 枚举）都零命中 —— "
+        "差集会把 e1/e234/e03 全部误报成缺口")
+    if not obs:
+        # 枚举形是当下的活形态：量法前验落到「它认不认得出已知一定在跑的门」
+        assert {"tools/e1/tests", "tools/e234/tests"} <= enumerated, (
+            "枚举形抽取器认不出 e1/e234 ⇒ 量法在这份文件上不工作（零命中先验量法）")
     assert len(files) >= 30, "全仓只发现 %d 个 test_*.py —— 枚举坏了或目录空了" % len(files)
 
 
@@ -187,8 +204,13 @@ def test_every_gate_step_name_is_registered_in_a_scope_list():
     """
     ps = _read_verify_all()
     scoped = set()
-    for m in re.finditer(r"Test-InScope\s+'[a-z]+'\s+@\(([^)]*)\)", ps, re.S):
+    # ⚠ 允许 `Test-InScope 'x' (@(...) + $var)` 形：scripts 那行加了 `$obsNames` 之后
+    # 外面多了一层括号，原正则要求 `@(` 紧跟 ⇒ **整条 scripts 名单一个名都抽不到**。
+    for m in re.finditer(r"Test-InScope\s+'[a-z]+'\s+\(?@\(([^)]*)\)([^\n]*)", ps):
         scoped |= set(re.findall(r"'([^']+)'", m.group(1)))
+        if "$obsNames" in m.group(2):
+            # 名单用变量登记的那部分：按 verify_all 的推名规则展开
+            scoped |= _obs_step_names(ps)
     declared = set(re.findall(r"Add-Result '([^']+)'", ps)) | _obs_step_names(ps)
 
     assert len(scoped) >= 10, "Test-InScope 名单只抽到 %d 个 —— 正则坏了，下面的差集会假空" % len(scoped)
@@ -204,8 +226,16 @@ def test_every_gate_step_name_is_registered_in_a_scope_list():
 
 
 def _obs_step_names(ps):
-    """obsSuite 的 `Name = '...'` 步名。"""
-    return set(re.findall(r"Name\s*=\s*'([^']+)'", ps))
+    """obsSuite 步名：硬编码 `Name = '...'` ∪ **枚举形推出的** `obs-tools-<x>-unit`。
+
+    ⚠ 枚举化（D-674 ④a）后仓里**一个 `Name = '...'` 字面量都不剩**，只认字面量会让本文件
+    两条差集**同时假空**——而假空长得跟「全都登记好了」一模一样。
+    步名规则逐字对齐 verify_all 的 `('obs-tools-' + $_.Name + '-unit')`。
+    """
+    names = set(re.findall(r"Name\s*=\s*'([^']+)'", ps))
+    for d in _enumerated_tool_dirs(ps):
+        names.add("obs-tools-%s-unit" % d.split("/")[1])
+    return names
 
 
 def test_pending_wiring_entries_point_at_real_directories():

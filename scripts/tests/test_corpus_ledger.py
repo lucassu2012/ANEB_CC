@@ -277,13 +277,24 @@ def test_dry_run_observation_dirs_are_listed_but_never_counted_as_real():
     with tempfile.TemporaryDirectory() as d:
         _obs_dir(d, "real_cell", "DEVICE_REAL")
         _obs_dir(d, "sim_cell", "DRY_RUN_SIMULATED")
+        # 第三类 api_cmp（D-676 ⑤）就地纳入 —— 这正是本 docstring 引的 D-341：
+        # **修好一层要立刻拿新桶再问一遍同类**。回填标记那一刻，若 dry_run 仍是
+        # `len(obs) - device_real`，十二格**真花配额的 API 抓取会被算成干跑**。
+        _obs_dir(d, "api_cell", cl.API_CMP_KIND)
         obs = cl.observation_runs([d])
-    assert len(obs) == 2
+    assert len(obs) == 3
     md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), [], obs)
-    assert "**1 个真机采集目录**" in md and "dry-run 1 个单列不计入" in md
+    assert "**1 个真机采集目录**" in md, md
+    assert "dry-run 1 个" in md and "API 对照批 1 个" in md, md
     rows = {(f, k): v for f, k, v in cl.render_csv_rows([], [], cl.buckets([]), obs)}
     assert rows[("observation", "device_real_dirs")] == 1
-    assert rows[("observation", "dry_run_dirs")] == 1
+    assert rows[("observation", "api_cmp_dirs")] == 1
+    assert rows[("observation", "dry_run_dirs")] == 1, (
+        "api_cmp 被算进了 dry_run —— 真花配额的抓取不是干跑")
+    # 三者相加恒等于总数：任一类漏归都在这里现形，而不是悄悄并进另一类
+    assert (rows[("observation", "device_real_dirs")]
+            + rows[("observation", "api_cmp_dirs")]
+            + rows[("observation", "dry_run_dirs")]) == len(obs)
     assert not any(k == "run_dirs" for f, k in rows), \
         "不得出合计行——印好的合计数就是邀请别人去相加"
 

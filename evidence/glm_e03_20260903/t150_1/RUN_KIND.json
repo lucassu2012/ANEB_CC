@@ -1,0 +1,10 @@
+{
+  "kind": "api_cmp",
+  "batch": "GLM-E03-20260903",
+  "experiments": [
+    "E-03"
+  ],
+  "pkg": null,
+  "note": "API 对照批（D-676⑤ 立第三类）。**不是设备观察格、也不是 dry-run**：它是真花配额的外呼抓取，只是产物结构上进不了 wire 池。对照量＝服务端 usage.completion_tokens，判读由生产解析器在 JVM 单测里做。",
+  "backfilled": "2026-09-03（元数据回填，未重跑调用；抓取字节一字未动）"
+}
