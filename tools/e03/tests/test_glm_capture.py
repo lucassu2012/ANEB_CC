@@ -186,6 +186,10 @@ def test_the_kotlin_fixtures_are_a_verified_derivation_not_a_second_copy():
     #   3) 该测试「三份互异」→ 九份互异；
     #   4) 「三笔全进 P3 池」→ **九取三**（短/中两档预期 `length` 不进池）；
     #   5) 跑一次 `compileDebugUnitTestKotlin --rerun-tasks`（改了测试源码，必触发编译）。
+    #   6) **收工扫描（v4 给的可机检判据，D-666② 族）**：对命题单全量搜
+    #      「待答／待判／进入分流」这类**状态词**，命中数须为 0，或每一处都带当轮日期戳。
+    #      ⇒ 把「记得回去合上登记面」变成**一条可机检的收工步骤**，不靠任何人的自觉
+    #      （本单已因这个形状栽过两次：P1 判词、P4 闸门，且两次都不是作者自己发现的）。
     # ⚠ 4) **别只改数字**：那条断言的注释解释了「为什么是三」，数字与理由要一起改。
     assert cells == ["smoke_a", "smoke_b", "smoke_c"], cells
     for c in cells:
