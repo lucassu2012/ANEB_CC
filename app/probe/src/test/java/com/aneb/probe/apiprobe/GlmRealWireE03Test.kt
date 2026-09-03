@@ -53,6 +53,19 @@ class GlmRealWireE03Test {
     /** 三笔冒烟全部走一遍：**逐笔都要对账**，不许只看一笔就宣布命题成立。 */
     private val cells = listOf("smoke_a", "smoke_b", "smoke_c")
 
+    /**
+     * 该轮是否进 **P3 形状池**。判据与命题单 §1c 同源：**`finish_reason` 非 `stop` 不进**。
+     *
+     * ⚠ **它仍然进 P1 差额分析** —— 两个用途不混池：截断轮的 usage 反映的是**实际吐出的量**，
+     * 对「解析器数出 vs usage」的对账**依然有效**；而它的**形状**（速率曲线、静默）被
+     * 人为截断，进 P3 会污染形状结论。
+     *
+     * ⚠ 判据落在**解析器产出的 `stopReason`** 上，不落在采集器上：
+     * 采集器**刻意不解析**（本批设计核心，有守卫钉着），而生产解析器本就产出这个字段。
+     * **为了记一个字段而在采集器里开一个解析的口子，会把「校生产量法」退化成「校重新实现」。**
+     */
+    private fun inP3Pool(r: LlmParseResult): Boolean = r.stopReason == "stop"
+
     @Test
     fun `production parser survives the real wire without silent damage`() {
         // P2：危险的不是解析失败（那会计数），是**解析成功而结果是错的**。
@@ -61,7 +74,17 @@ class GlmRealWireE03Test {
             val r = parseFixture(c)
             assertEquals("$c: 解析器报了 parseErrors", 0, r.parseErrors)
             assertNull("$c: 解析器报了 protocolError", r.protocolError)
-            assertEquals("$c: finish_reason 非 stop，该笔不进 P3 池", "stop", r.stopReason)
+            // ⚠ **不把 "stop" 写死**：D-661④ 的 3×3 里，短/中两档 `max_tokens` 压在自然
+            // 长度以下 ⇒ 预期 `finish_reason=length`。写死 "stop" 会让那六笔**一到就红，
+            // 而红的理由是错的**（它们本就该是 length，不是缺陷）。
+            // 判的是**池规则**不是那个值：非 `stop` 的轮**不进 P3 形状池，只进 P1 差额分析**
+            // （§1c 已写死）。⇒ 这里只断言它是**已登记的两种之一**；
+            // 谁进 P3 由 [inP3Pool] 决定，判据与单子同源。
+            assertTrue(
+                "$c: finish_reason=${r.stopReason} 不是已登记的取值（stop/length）—— " +
+                    "出现第三种就说明池规则没覆盖它，必须先回单子登记再跑",
+                r.stopReason in setOf("stop", "length"),
+            )
             assertTrue("$c: 一个 token 都没数到 —— 夹具或切分坏了", r.arrivals.isNotEmpty())
         }
     }
@@ -119,6 +142,21 @@ class GlmRealWireE03Test {
             assertTrue("$c: 解析器数得比 usage 还多（$gap）—— 形态变了，本条的诊断不再适用", gap >= 0)
             assertTrue("$c: 差额 $gap 超出实测区间 0..12，形态已变，需重新归因", gap <= 12)
         }
+    }
+
+    @Test
+    fun `pool membership follows finish reason and the smoke three all qualify`() {
+        // ⚠ 让 [inP3Pool] **承重**，否则它就是「写了门没挂上」。
+        // 断言的是**关于数据的事实**：三笔冒烟 `finish_reason` 全为 `stop`（`max_tokens=800`
+        // 未生效、模型自然停）⇒ **三笔全进 P3 池**。
+        // ⚠ **3×3 落地后本条的期望要改成「九取三」**：短/中两档压在自然长度以下、预期
+        // `length` ⇒ 只有长档进 P3。**改期望时连这句一起改**，别只改数字。
+        val inPool = cells.count { inP3Pool(parseFixture(it)) }
+        assertEquals(
+            "冒烟三笔应全部进 P3 池（全为 stop）；若这里变了，要么参数变了、" +
+                "要么 GLM 的自然停长度变了 —— 两种都得先回单子登记再继续",
+            3, inPool,
+        )
     }
 
     @Test
