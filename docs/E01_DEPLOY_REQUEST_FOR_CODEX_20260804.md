@@ -1,5 +1,66 @@
 # 给 Codex 的 E-01 部署请求单：s4_throughput profile 服务端支持（2026-08-04，D-481/D-483）
 
+> # 🔴 2026-09-04 重大修订（D-699）——请先读本块再读下文
+>
+> **本单的隐含前提「服务端支持了 s4 就能采到 s4 数据」已被实测推翻。范围须扩到客户端。**
+> 下文 §1–§6 写于 2026-08-04，其**服务端部分的技术内容仍然正确且仍然需要**；
+> 但**只做服务端不足以解阻**，且**本单不再主张部署我方编译的二进制**。三条实测：
+>
+> **①「部署我方二进制」这条选项须撤回（不是待商榷，是会造成真停服）。**
+> E-01 线上二进制是贵方血统 `aneb-server/0.8.3`（`vcs.revision=55554d0e…`，在 C 树不存在），
+> 其 unit 传 `-execution-profiles` 与 `-udp-echo-addr` 两个 flag，而 C 树 `server/main.go`
+> 只定义 9 个 flag——Go 的 `flag.Parse()` 遇未定义 flag 直接 `os.Exit(2)`；配 unit 的
+> `Restart=on-failure`/`RestartSec=3` 会进重启循环。且 C 树产物**没有**线上独有的
+> `/api/v1/{impairments,token-sim,realtime-sim,udp-echo}` 四端点与 execution-profiles 机制。
+> ⇒ **原文第 6 行三选项中，「直接合并本文附的 diff」应理解为在贵方树上做等价改动，
+> 而非替换线上二进制。我方明确撤回后者。**
+>
+> **②只把 `s4_throughput.json` 放进 `/opt/aneb/profiles/` 会得到一个静默残废的 profile。**
+> 0.8.3 的 `Phase` 结构体无 `WindowMs` ⇒ 实测该 profile 能加载、能下发，但回传的两个
+> `adaptive_*_window` 相位里 **`window_ms:4000` 被静默丢弃，该相位丧失全部时间信息**，
+> 全程零告警。（这正是 §1.1 请求新增 `WindowMs` 字段的理由——**该请求依然成立且必要**。）
+>
+> **③真正的堵点在客户端，这是本单原先完全没有覆盖的一面。**
+> 设备上跑的 `com.aneb.probe`（versionCode 20 / versionName 0.2.0）经 APK sha256 逐位比对，
+> 唯一匹配 `G:\...\DevSpace\aneb-prototype-0.1-g3-g4-rc\...\probe-prototypeRelease.apk`
+> （分支 `codex/issue-17-g3-g4-rc`）——**既不是 C 树，也不是 `aneb-probe-codex-v0.2.0`，是第三条血统**。
+> 该树中 `adaptive_download_window`/`adaptive_upload_window` **零命中**（阳性对照
+> `token_stream` 24 命中 / `clock_sync` 27 命中 / `download_throughput` 3 命中，量法有效）；
+> 而 `download_throughput`/`upload_throughput` 虽然认，其执行路径**只在 `NetworkSpeedEngine` 内，
+> 且该引擎硬绑** `PROFILE_ID = "basic_network"`（`NetworkSpeedEngine.kt:389`）。
+> ⇒ **即便服务端完全就绪，设备侧也不会执行 s4。**
+>
+> ## 修订后的请求（一句话）
+> **请在贵方 lane 内实现「单流自适应窗口 goodput」这一测量能力（服务端相位字段 ＋ 客户端执行路径），
+> 形式由贵方定；我方提供设计意图、判据与 profile 定义作为输入，不主张具体实现，也不再请求部署我方产物。**
+> 设计意图见 §2；可直接复用的实测结论见下面「四条硬子结论」。
+>
+> ## 四条硬子结论（我方实测，可直接用，省贵方一轮试错）
+> 1. **用 `duration_ms`，不要用 `window_ms`。** 在 0.8.3 上 `window_ms` 被静默丢弃且相位丧失全部
+>    时间信息；`duration_ms` 无损往返（两者均在本地 0.8.3 复现环境实测）。若贵方新增字段，
+>    命名沿用 `duration_ms` 可少改一处。
+> 2. **单流请写 `parallel:1`，永远不要写 `parallel:0`。** Go 零值 ＋ `omitempty` 使 `parallel:0`
+>    与「省略该键」的回传**逐字节相同**——「0 条流」这个意图过不了服务端一个来回。
+>    `parallel:1` 与省略则可区分（实测）。
+> 3. **量级安全。** s4 的 512MiB 下行 ceiling 与 48MiB 上行 ceiling 均在 0.8.3 限额内
+>    （`downloadMaxBytes` 1GiB / `uploadMaxBytes` 64MiB；边界 400 与 413 路径实测存在）。
+> 4. **新增 profile 对线上是安全的加法，但必须重启才生效，且 fail-closed 到整进程。**
+>    实测：往运行中的服务的 profiles 目录 cp 文件是**纯 no-op**（接口仍返回原有条目）；
+>    而截断文件 → `unexpected end of JSON input` 退出码 1，重复 `profile_id` → 退出码 1。
+>    另实测：新增一个 profile 后其余条目的 canonical-JSON **逐条 identical**，
+>    `serverinfo.execution_capabilities` 段两侧 sha256 **byte-identical**（`-profiles` 与
+>    `-execution-profiles` 是独立参数，后者只遍历子目录）——**既有 preflight 不受影响**。
+>
+> ## 我方尚未验证的三件（诚实边界，勿当结论）
+> (i) 贵方客户端是否把 `duration_ms` 实现成「到点 cancel 的硬窗口」——0.8.3 只在
+>     `handlers_download.go:19` 的**注释**里这么说，注释不是被执行面；
+> (ii) `parallel:1` 是否真＝恰好一条流（服务端从不读该字段，无代码依据）；
+> (iii) `download_throughput` 下 `bytes` 是 ceiling 还是 exact，以及 `parallel>1` 时是每流还是
+>     总量（**4 倍差**）。贵方 `basic_network` 用的是 `parallel:4`，这条对读数影响最大。
+>
+> **本修订块的取证方式**：G 树全程只读（源码复制到 scratchpad 后构建，`profiles.go` mtime 未变）；
+> E-01 全程只读（无写入、无重启）；设备全程只读（未 force-stop、未启动 App、未改设置）。
+
 > **性质**：本文是**请求单**，不是部署操作——**E-01 部署所有权=仅 Codex**（D-35/D-37，
 > `docs/launchpad/README.md:34`："P2/E-01：归 Codex（部署权 D-35/D-37），我方不碰。"）。
 > C 树本文全程未对 E-01 做任何写操作，也不会。是否采纳、何时采纳、以何种形式采纳
