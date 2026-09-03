@@ -121,3 +121,40 @@ def test_the_capturer_does_not_parse_anything():
     for banned in ("ttft", "completion_tokens", "token_count", "itl"):
         assert banned not in names, (
             "抓取器里长出了判读侧的标识符 `%s` —— 解析必须留在 OpenAiSseAdapter" % banned)
+
+
+def test_the_production_identical_body_really_matches_the_shipped_probe():
+    """「与生产逐字同构」是个**断言**，这里去生产源码对账。
+
+    ⚠ 不对账它就会静默变成假话：`ApiProbe.requestBodyJson` 一改，我这边的笔 A 仍自称
+    「生产同构」，而抓到的 wire 已经不是生产会拿到的那份 —— 于是整批的前提悄悄塌掉。
+
+    ⚠ 生产**刻意不发 `temperature`**（源码注释：各 OpenAI 兼容服务商约束不一，
+    Moonshot 仅接受 temperature=1，显式传 0 会 400）。本条一并钉住这个**缺席**。
+    """
+    root = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
+    probe = os.path.join(root, "app", "probe", "src", "main", "java", "com",
+                         "aneb", "probe", "apiprobe", "ApiProbe.kt")
+    assert os.path.exists(probe), "对账源不在：%s" % probe
+    src = open(probe, encoding="utf-8").read()
+    # ⚠ 锚必须又唯一又指对：`LlmProvider.OPENAI_COMPAT ->` 在本文件里出现**四次**
+    # （选适配器 / 加认证头 / 拼路径 / 造请求体），`requestBodyJson` 出现**五次**
+    # （两处 KDoc、调用点、注释、定义）。我连撞三次才落到定义上 ——
+    # **同一个标识符在调用点与定义点各出现一次，这是锚不唯一最常见的形态。**
+    fb = src.find("fun requestBodyJson(")      # ⚠ 要**定义**不要调用点
+    assert fb > 0, "找不到 requestBodyJson —— 生产请求体的构造点变了"
+    i = src.find("LlmProvider.OPENAI_COMPAT ->", fb)
+    assert i > 0, "buildBody 里找不到 OPENAI_COMPAT 分支"
+    branch = src[i:i + 400]
+
+    body = gc.build_body("m", 8, include_usage=False, production_identical=True)
+    assert set(body) == {"model", "max_tokens", "stream", "messages"}, sorted(body)
+    for k in body:
+        assert '"%s"' % k in branch, "生产请求体里没有 %s，笔 A 不再是生产同构" % k
+    assert "temperature" not in branch, (
+        "生产开始发 temperature 了 —— 笔 A 也得跟着改，否则它不再同构")
+    assert "stream_options" not in branch, (
+        "生产开始发 stream_options 了 —— 那本批的 P4 观察（生产不请求 usage）已过时")
+
+    with_usage = gc.build_body("m", 8, include_usage=True, production_identical=True)
+    assert with_usage["stream_options"] == {"include_usage": True}, with_usage

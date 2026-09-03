@@ -83,8 +83,37 @@ def build_meta(ts, model, base_url, prompt, params, http_status, note=None):
     }
 
 
+def build_body(model, max_tokens, include_usage, production_identical):
+    """构造请求体。**两种变体，因为它们回答两个不同的问题。**
+
+    · `production_identical=True` ⇒ **与生产探针逐字同构**
+      （`ApiProbe.requestBodyJson` 的 OPENAI_COMPAT 分支：只有 model/max_tokens/stream/messages）。
+      ⚠ **刻意不发 `temperature`**：生产注释写着各家约束不一（Moonshot 仅接受 1，
+      显式传 0 会 400）。我若加上它，抓到的 wire 就**不是生产会拿到的那份**。
+    · `include_usage=True` ⇒ 额外带 `stream_options.include_usage`。
+
+    ⚠ 为什么要两种：**生产探针不发 `stream_options`**（已核 `ApiProbe.kt`），
+    而解析器**知道**有 include_usage 尾帧（`OpenAiSseAdapter.kt` 注释点名），
+    **mock 却无条件发 usage** ⇒ **所有既有测试都走不到这条路**。
+    于是「生产在需要该开关的端点上拿不拿得到 usage」**从未被验证过**，
+    而 usage 正是本批唯一的地面真值。两笔冒烟同时答这两件事。
+    """
+    body = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "stream": True,
+        "messages": [{"role": "user", "content": FIXED_PROMPT}],
+    }
+    if not production_identical:
+        body["temperature"] = 0
+    if include_usage:
+        body["stream_options"] = {"include_usage": True}
+    return body
+
+
 def capture(out_dir, key_path=DEFAULT_KEY_PATH, model=GLM_DEFAULT_MODEL,
-            base_url=GLM_BASE_URL, max_tokens=800, timeout=120):
+            base_url=GLM_BASE_URL, max_tokens=800, timeout=120,
+            include_usage=False, production_identical=True):
     """打一次真调用，把**原始 SSE 行**逐行落盘。返回落盘的元数据 dict。
 
     ⚠ 逐行都带 `t_host_ns`：**时戳是抓取器唯一被允许产生的量**，因为它必须在字节
@@ -92,14 +121,11 @@ def capture(out_dir, key_path=DEFAULT_KEY_PATH, model=GLM_DEFAULT_MODEL,
     """
     os.makedirs(out_dir, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S")
-    params = {"temperature": 0, "max_tokens": max_tokens, "stream": True}
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": FIXED_PROMPT}],
-        "stream": True,
-        "temperature": 0,
-        "max_tokens": max_tokens,
-    }, ensure_ascii=False).encode("utf-8")
+    payload = build_body(model, max_tokens, include_usage, production_identical)
+    params = {k: v for k, v in payload.items() if k != "messages"}
+    params["variant"] = ("production_identical" if production_identical
+                         else "with_temperature")
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
     req = urllib.request.Request(
         base_url + "/chat/completions", data=body, method="POST")
@@ -145,9 +171,14 @@ def main(argv=None):
     ap.add_argument("--key-path", default=DEFAULT_KEY_PATH)
     ap.add_argument("--model", default=GLM_DEFAULT_MODEL)
     ap.add_argument("--max-tokens", type=int, default=800)
+    ap.add_argument("--include-usage", action="store_true",
+                    help="额外带 stream_options.include_usage（笔 B）")
+    ap.add_argument("--allow-non-production-body", action="store_true",
+                    help="偏离生产请求体（加 temperature）；默认关，见 build_body")
     args = ap.parse_args(argv)
     meta = capture(args.out_dir, key_path=args.key_path, model=args.model,
-                   max_tokens=args.max_tokens)
+                   max_tokens=args.max_tokens, include_usage=args.include_usage,
+                   production_identical=not args.allow_non_production_body)
     sys.stdout.write("glm_capture: status=%s raw_lines=%s -> %s\n"
                      % (meta["http_status"], meta["raw_lines"], args.out_dir))
     return 0 if meta["http_status"] == 200 else 1
