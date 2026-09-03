@@ -435,6 +435,7 @@ private fun buildShareModel(
         gradeLabel = grade?.labelFriendly ?: "未完成",
         gradeColorArgb = gradeArgb,
         verdict = verdict,
+        lowConfidence = run.aqsLowConfidence == true,
         tiles = listOf(
             ShareCard.Model.Tile(
                 t1?.value?.let { "${it.roundToInt()}ms" } ?: "—", "响应速度", argb(t1?.grade),

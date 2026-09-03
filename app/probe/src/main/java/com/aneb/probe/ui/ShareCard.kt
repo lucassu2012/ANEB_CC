@@ -27,12 +27,64 @@ object ShareCard {
     private const val W = 1080
     private const val H = 1350
 
+    /** 结论文案的起绘 y。横幅必须整体落在它**之上**，见 [lowConfBannerLayout]。 */
+    private const val VERDICT_TOP = 830f
+
+    /** 低置信横幅的顶边与高度（`render` 与 [lowConfBannerLayout] 共用，不许各写一份）。 */
+    private const val BANNER_TOP = 748f
+    private const val BANNER_H = 62f
+
+    /**
+     * 低置信横幅文案——与结果页徽章**同一事实源** [lowConfBadgeText]。
+     * 两面各写一份则改一处漏一处即静默分叉，而分叉后两面都不报错。
+     */
+    internal val lowConfBanner: String get() = lowConfBadgeText
+
+    /** 结论起绘线（供测试读，免得测试里再写第二份 830f）。 */
+    internal val verdictTop: Float get() = VERDICT_TOP
+
+    /** 低置信横幅版面。 */
+    internal data class BannerLayout(
+        val top: Float,
+        val height: Float,
+        val baseline: Float,
+        val text: String,
+    ) {
+        val bottom: Float get() = top + height
+    }
+
+    /**
+     * 决定低置信横幅**画不画、画在哪**（`null` ＝ 不画）。唯一判据是 [Model.lowConfidence]。
+     *
+     * **抽成纯函数的理由**：分享卡走 Canvas 离屏绘制，本仓单测环境没有 Robolectric
+     * native runtime（栅格化不可用），逐像素比对根本跑不起来。抽出后，「画不画」与
+     * 「画在结论之前还是之后」这两件**判定**在无 Canvas 时也可判——而它们正是 D-610 ③
+     * 的实质：警示要在读者形成判断**之前**到达。
+     */
+    internal fun lowConfBannerLayout(model: Model): BannerLayout? =
+        if (!model.lowConfidence) {
+            null
+        } else {
+            BannerLayout(
+                top = BANNER_TOP,
+                height = BANNER_H,
+                baseline = BANNER_TOP + 41f,
+                text = lowConfBanner,
+            )
+        }
+
     /** 一张分享卡所需的展示态（由 ResultScreen 从落库实体投影，绝不重算）。 */
     data class Model(
         val score: Int?,
         val gradeLabel: String,
         val gradeColorArgb: Int,
         val verdict: String,
+        /**
+         * AQS 低置信（`TestRun.aqsLowConfidence`）。**不给默认值是刻意的**：
+         * 分享卡是唯一会脱离 App 传给第三人的面，漏传警示的代价不对称，
+         * 故让漏传在**编译期**红，而不是指望谁记得写一条可能忘记写的测试。
+         */
+        val lowConfidence: Boolean,
         val tiles: List<Tile>,
         val networkLine: String,
     ) {
@@ -139,11 +191,31 @@ object ShareCard {
         c.drawText(model.gradeLabel, cx, cy + 150f, p)
         p.textAlign = Paint.Align.LEFT
 
+        // 低置信横幅（D-610 ③ 延伸到分享面）：分享图是唯一会脱离 App 传给第三人的面，
+        // 读它的人手里没有 App、没有详情页、没有任何补充上下文，故警示等级必须与结果页
+        // 等同——独占一行、分级色、排在结论**之前**。结论句尾原有的括号附注
+        // （VerdictText 的 LOW_CONF_CAVEAT）保留不删：取 max 不取 min。
+        lowConfBannerLayout(model)?.let { band ->
+            val rect = RectF(72f, band.top, W - 72f, band.bottom)
+            p.style = Paint.Style.FILL
+            p.color = Color.parseColor("#2A2418")
+            c.drawRoundRect(rect, 14f, 14f, p)
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 2f
+            p.color = Color.parseColor("#EFCA72")
+            c.drawRoundRect(rect, 14f, 14f, p)
+            p.style = Paint.Style.FILL
+            p.typeface = bold
+            p.textSize = 30f
+            c.drawText(band.text, 96f, band.baseline, p)
+            p.typeface = Typeface.SANS_SERIF
+        }
+
         // 结论文案（自动换行）
         p.typeface = Typeface.SANS_SERIF
         p.textSize = 38f
         p.color = ink
-        drawWrapped(c, p, model.verdict, 72f, 830f, W - 144f, 52f)
+        drawWrapped(c, p, model.verdict, 72f, VERDICT_TOP, W - 144f, 52f)
 
         // 三瓦片
         val tiles = model.tiles.take(3)
