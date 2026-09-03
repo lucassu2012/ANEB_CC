@@ -1,6 +1,7 @@
 # C 树大脑任务板（属主：Fable 5 大脑会话）
 
 > 执行会话（v2/v3）开工前先在此认领：状态置 DOING 填属主；收工置 DONE 填证据路径并输出 where-are-we 简报。状态词只用 TODO / DOING / DONE / BLOCKED。大脑对每个 DONE 有权抽查复核。
+> ⚠ **盘点本板时，状态判据锚在状态列开头整词匹配，禁用子串匹配**（D-670）：按 `DONE` 子串扫会同时漏两类方向相反的行——非标准状态词（「部分 DONE」被当成完成）与状态描述里恰好提到 DONE 的行（被挡出待办清单）；**只防一类会更确信自己已扫全**。
 > 本板只管「谁在做什么」；技术裁定仍走 `DECISION_LOG.md`，PO 待决仍走 DECISION_REQUEST 文件，不在此复制。
 > 远程协调通道（PO 2026-08-28 批准）：各执行会话每次开工/收工执行 `git fetch origin claude/aneb-project-progress-analysis-x2wn7x` 并读该分支 `docs/coordination/INBOX_V<n>.md` 与 `BROADCAST.md`；协议见同目录 PROTOCOL.md。
 
