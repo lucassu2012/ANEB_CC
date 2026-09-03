@@ -22,8 +22,17 @@
 >
 > **③真正的堵点在客户端，这是本单原先完全没有覆盖的一面。**
 > 设备上跑的 `com.aneb.probe`（versionCode 20 / versionName 0.2.0）经 APK sha256 逐位比对，
-> 唯一匹配 `G:\...\DevSpace\aneb-prototype-0.1-g3-g4-rc\...\probe-prototypeRelease.apk`
-> （分支 `codex/issue-17-g3-g4-rc`）——**既不是 C 树，也不是 `aneb-probe-codex-v0.2.0`，是第三条血统**。
+> 匹配 `E:\G Project\ANEB\DevSpace\aneb-prototype-0.1-g3-g4-rc\...\probe-prototypeRelease.apk`
+> （分支 `codex/issue-17-g3-g4-rc`，`HEAD 78de945d`）——**既不是 C 树，也不是 `aneb-probe-codex-v0.2.0`，是第三条血统**。
+> ⚠ **量词与路径两处订正（2026-09-04 自审，D-700⑧）**：初稿写「**全机唯一**匹配」并把路径写成 `G:\...`，两处都不确。
+> 全机 293 个 `.apk` 逐个 sha256 后该哈希实际命中 **5 个文件**——上面那个构建产物，
+> 外加 `E:\ANEB-Release-Candidates\ANEB-Prototype-0.1-rc-20260901-78de945\` 下 4 份发布副本（同属一次构建）。
+> **血统结论不受影响**（5 个命中同源，且均不匹配 C 树任何产物），但「唯一」这个量词当时没有扫描面支撑。
+> 另：本机 `G:` 是一个**真实存在的别的卷**（华为 HiSuite 安装盘），G 树实际在 `E:\G Project\ANEB\`——
+> 按 `G:\` 去找会静默落空而不是报错。贵方若要复核，另有一份更硬的机读凭证可用：
+> `E:\ANEB-Release-Candidates\ANEB-Prototype-0.1-rc-20260901-78de945\artifact-build-receipt.json`
+> （据复核方报告含 `android_sha256` / `android_version_code` / `source_commit`；
+> **此条我方未独立核实，转述自复核方，采信前请自行读一次**）。
 > 该树中 `adaptive_download_window`/`adaptive_upload_window` **零命中**（阳性对照
 > `token_stream` 24 命中 / `clock_sync` 27 命中 / `download_throughput` 3 命中，量法有效）；
 > 而 `download_throughput`/`upload_throughput` 虽然认，其执行路径**只在 `NetworkSpeedEngine` 内，

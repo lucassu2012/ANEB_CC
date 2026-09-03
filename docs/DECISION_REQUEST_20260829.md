@@ -139,8 +139,10 @@ v1.0 §6 M2 只留下一句「带数据进局点的弹药」，外部读者线�
 - 🔴🔴 **【2026-09-04 大脑订正 · 本项前提已被实测推翻，请勿按上面的「现状/卡住/推荐」行动】（D-699）**
   上面三行写于 2026-08-29，其中两处现已证伪：
   - **「客户端侧全就绪」→ 指的是 C 树客户端，而设备上跑的不是它。** 设备 `com.aneb.probe`
-    （versionCode 20 / 0.2.0）的 APK sha256 逐位比对，唯一匹配 G 树
-    `DevSpace\aneb-prototype-0.1-g3-g4-rc\...\probe-prototypeRelease.apk`（分支 `codex/issue-17-g3-g4-rc`）——
+    （versionCode 20 / 0.2.0）的 APK sha256 逐位比对，匹配 G 树
+    `E:\G Project\ANEB\DevSpace\aneb-prototype-0.1-g3-g4-rc\...\probe-prototypeRelease.apk`（分支 `codex/issue-17-g3-g4-rc`）——
+    〔量词订正 D-700⑧：初稿写「**唯一**匹配」不确，全机 293 个 apk 里该哈希实为 **5 处命中**，
+    但 5 处同属一次构建（另 4 份在 `E:\ANEB-Release-Candidates\...-78de945\`），**血统结论不受影响**〕——
     **既不是 C 树、也不是 `aneb-probe-codex-v0.2.0`，是第三条血统**。该树里
     `adaptive_download_window`/`adaptive_upload_window` **零命中**（阳性对照 `token_stream` 24 命中，量法有效）。
   - **「一旦部署到位可随时插单」→ 不成立。** 即使 Codex 把服务端相位与 profile 全部部署好，
