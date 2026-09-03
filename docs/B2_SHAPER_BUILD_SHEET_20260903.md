@@ -167,13 +167,20 @@
 | 组件 | 版本 | 官方来源 URL | sha256（发布页公布） | sha256（本机自算） | 下载时刻 |
 |---|---|---|---|---|---|
 | C1 gnirehtet（relay＋apk） | v2.5.1（2023-07-09 发布） | `github.com/Genymobile/gnirehtet/releases/download/v2.5.1/gnirehtet-rust-win64-v2.5.1.zip` | `7f5b1063e7895182aa60def1437e50363c3758144088dcd079037bb7c3c46a1c`（取自同 release 的 `SHA256SUMS.txt`，另附 `.asc` GPG 签名） | `7f5b1063…c46a1c` **与公布值逐位相等 ⇒ 过** | 2026-09-04 02:08:39 |
-| C2 WinDivert（`.sys`＋dll） | **2.2.0-A**（驱动版本资源自报 `FileVersion 2.2`／`CompanyName Basil`，文件日期 2019-10-20） | 随 C3 附带；**外部锚取自上游** `github.com/basil00/WinDivert/releases/download/v2.2.0/WinDivert-2.2.0-A.zip` | **上游官方包内** `WinDivert64.sys`＝`5c3e7bbb06ebb134bed7b1231fdf3139a2052cbe5e8c8418e54237933b51bb4e`；`WinDivert.dll`(x64)＝`6110bfa44667405179c3e15e12af1b62037e447ed59b054b19042032995e6c7e` | clumsy 包内两文件**与上游逐位相等 ⇒ 过** | 2026-09-04 02:11 |
+| C2 WinDivert（`.sys`＋dll） | **2.2.0-A**（驱动版本资源自报 `FileVersion 2.2`／`CompanyName Basil`，文件日期 2019-10-20） | 随 C3 附带；**比对基准取自上游** `github.com/basil00/WinDivert/releases/download/v2.2.0/WinDivert-2.2.0-A.zip` | 🔴 **无——本格原先填的两个哈希是我自己从下载来的上游 zip 算出来的，不是任何发布页公布的值**（2026-09-04 自审订正，D-700③）。上游 v2.2.0 release **是否提供校验和资产或签名，本次未查** ⇒ 本列如实留空。 | **两两相等，但两侧都是本机自算**：clumsy 包内 `WinDivert64.sys`＝`5c3e7bbb06ebb134bed7b1231fdf3139a2052cbe5e8c8418e54237933b51bb4e`、`WinDivert.dll`(x64)＝`6110bfa44667405179c3e15e12af1b62037e447ed59b054b19042032995e6c7e`，与上游包内同名文件**逐位相等** | 2026-09-04 02:11 |
 | C3 clumsy | 0.3（2023-10-21 发布），变体 **win64-a** | `github.com/jagt/clumsy/releases/download/0.3/clumsy-0.3-win64-a.zip` | 🔴 **无——该 release 未发布任何校验和资产** | `f50dc734148815831c67d9fc2c246c22d421c53dcea51e26eee905b0b2806c27`（仅自算） | 2026-09-04 02:08:39 |
 
 **🔴 C3 的外部锚缺口与其补救（本表最要紧的一条）**：按下方纪律第 2 条「两者相等才算过」，**clumsy 自身不算过**——其发布页不提供任何 sha256。
 补救不是降低标准，而是**换一个更靠上游的锚**：clumsy 的风险落点是 `WinDivert64.sys` 进内核（段 B 第 4 步），
 而该驱动是独立开源项目 WinDivert 的产物 ⇒ 直接与**驱动原作者的官方发布**比对，已实测**逐位一致**（见 C2 行）。
-⇒ **内核落点已锚定**（此锚跨过了 clumsy 这个中间分发者，比 clumsy 自己给校验和更强）；
+⇒ ~~**内核落点已锚定**（此锚跨过了 clumsy 这个中间分发者，比 clumsy 自己给校验和更强）~~
+🔴 **【2026-09-04 自审订正，D-700③——这句把「一致」说成了「已锚定」，而两侧都是我自己算的】**：
+该比对确实排除了「clumsy 在打包时篡改了驱动」这一种情形（有价值，保留），
+**但它不是外部锚**——上游 zip 也是我从网络下载、由我本机计算哈希的，**没有任何第三方公布值参与**，
+正是本表纪律第 2 条点名的「**只记本机自算等于自证**」。要真正锚定，还缺一步：
+**去查 WinDivert v2.2.0 release 是否发布了校验和资产或数字签名，或核 `WinDivert64.sys` 的 Authenticode 签名链**
+（该驱动能被 Windows 加载，说明它带有效签名——**这条是真正的外部锚，但本次未取证，故不写进结论**）。
+⇒ 当前诚实状态：**C2 与 C3 均无外部锚**；已确立的只是「clumsy 包内驱动 ≡ 上游包内驱动」。
 **仍未锚定的是 `clumsy.exe` 本体**（1,432,064 字节，`088d012a3d2788f7…`）——它是用户态 GUI，风险等级低于驱动，但**如实登记为「无外部锚」**，不得写成已验证。
 附：clumsy 0.3 的 a/b/c 三变体＝**打包 WinDivert 2.2.0 的 A/B/C 三种签名版本**（release body 原文「provide 3 binaries each uses different WinDivert signs」＋上游 v2.2.0 恰有 A/B/C 三资产）⇒ 若 a 变体的驱动签名在本机被拒，**换 b/c 即可，无需另找来源**。
 落盘位置：`E:\tools\aneb-shaper\`（**仓外**，符合本单「不入仓」与 R4）。包内清单已只读核过：gnirehtet＝`gnirehtet.exe`(2,991,788)＋`gnirehtet.apk`(23,904)＋`gnirehtet-run.cmd`(28)；clumsy＝`clumsy.exe`(1,432,064)＋`WinDivert64.sys`(90,288)＋`WinDivert.dll`(47,104)＋`config.txt`＋`License.txt`；两包 `testzip()` 完整性均 OK。
