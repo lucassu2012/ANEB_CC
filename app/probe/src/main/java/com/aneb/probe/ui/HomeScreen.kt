@@ -610,7 +610,8 @@ private fun NetworkSheet(lastRun: TestRun?, onChangeNode: () -> Unit) {
             Column {
                 HorizontalDivider(color = colors.hairline)
                 Spacer(Modifier.height(10.dp))
-                SheetDetailRow("连接模式", homeConnMode(lastRun), null)
+                // 标签带「上次」：值取自上次 run，写成现在时会被读成当前连接模式（T88 ③）
+                SheetDetailRow("上次连接模式", homeConnMode(lastRun), null)
                 Spacer(Modifier.height(12.dp))
                 SheetDetailRow("测试节点", "仿真节点 E-01", onChangeNode)
                 Spacer(Modifier.height(12.dp))
@@ -654,16 +655,39 @@ private fun SheetDetailRow(label: String, value: String, onChange: (() -> Unit)?
 
 private fun homeNodeLabel(@Suppress("UNUSED_PARAMETER") run: TestRun?): String = "仿真节点 · E-01"
 
-private fun homeConnMode(run: TestRun?): String = when (run?.transport?.lowercase()) {
-    "wifi" -> "Wi-Fi · 多线程"
-    "cellular" -> "蜂窝 · 多线程"
-    else -> "自动选择 · 多线程"
+/** 首屏时间格式：与 [NetworkLabel] 同一写法，不为首屏另起一套。 */
+private val HOME_TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.US)
+
+/**
+ * **上次** run 的连接模式（T88 ③）。
+ *
+ * ⚠ **「尚未测试」与「transport 未知」是两件事，不合并**：原实现用一个 `else` 把两者
+ * 都渲染成「自动选择 · 多线程」——对前者那是**凭空断言**（一次都没跑过，何来连接模式），
+ * 对后者是**把未知说成已知**。合并后两种情况在屏上完全同形，谁也分不出。
+ */
+internal fun homeConnMode(run: TestRun?): String = when {
+    run == null -> "尚未测试"
+    run.transport.equals("wifi", ignoreCase = true) -> "Wi-Fi · 多线程"
+    run.transport.equals("cellular", ignoreCase = true) -> "蜂窝 · 多线程"
+    else -> "未知 · 多线程"
 }
 
-private fun homeNetworkLabel(run: TestRun?): String = when (run?.transport?.lowercase()) {
-    "wifi" -> "Wi-Fi 网络"
-    "cellular" -> "蜂窝网络"
-    else -> "自动选择网络"
+/**
+ * **上次** run 的网络标签（T88 ③）。
+ *
+ * ⚠ **「上次」这个限定与时刻都不可省**：本行与 `android.os.Build.MODEL`（一个**当前**事实）
+ * 用 `·` 拼成一句渲染，屏上读作 `P40 Pro · Wi-Fi 网络` —— 读者会把**整句**读成当前状态，
+ * 而 `transport` 是**上次那一轮**的值，可能是三天前、在另一个网络下测的。
+ * 带上时刻，读者才判得出它有多旧；否则**一个陈旧值与一个新鲜值在屏上一模一样**。
+ */
+internal fun homeNetworkLabel(run: TestRun?): String {
+    if (run == null) return "尚未测试"
+    val net = when {
+        run.transport.equals("wifi", ignoreCase = true) -> "Wi-Fi"
+        run.transport.equals("cellular", ignoreCase = true) -> "蜂窝"
+        else -> "网络未知"
+    }
+    return "上次 $net · ${HOME_TIME_FMT.format(Date(run.startedAtEpochMs))}"
 }
 
 /** run 网络/时间副标题（跨屏用：ResultScreen 等）。 */
