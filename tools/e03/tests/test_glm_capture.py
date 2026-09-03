@@ -182,6 +182,11 @@ def test_the_kotlin_fixtures_are_a_verified_derivation_not_a_second_copy():
     for c in cells:
         expect = sse_fixture.stream_text(os.path.join(ev, c, "raw_sse.jsonl"))
         actual = open(os.path.join(res, c + ".sse"), encoding="utf-8", newline="").read()
+        # ⚠ 两侧归一化行尾再比：git 按 autocrlf 会把资源 checkout 成 CRLF，
+        # 而重生成侧恒为 LF ⇒ 不归一化的话**这条守卫在新 clone 上必假红**。
+        # 行尾不是被测对象（抓取时已剥掉），比的是流内容。
+        actual = actual.replace(chr(13) + chr(10), chr(10)).replace(chr(13), chr(10))
+        expect = expect.replace(chr(13) + chr(10), chr(10)).replace(chr(13), chr(10))
         assert actual == expect, (
             "%s.sse 与证据包对不上（%d vs %d 字符）—— 夹具漂了，或证据被改过"
             % (c, len(actual), len(expect)))

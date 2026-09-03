@@ -37,7 +37,14 @@ class GlmRealWireE03Test {
     private fun fixture(name: String): String {
         val stream = javaClass.getResourceAsStream("/glm_e03/$name.sse")
         assertNotNull("真 wire 夹具缺失：/glm_e03/$name.sse", stream)
+        // ⚠ **归一化行尾，否则新 clone 上整条测试会静默变样**：git 会按 autocrlf
+        // 把 `.sse` checkout 成 CRLF，而 [SseFixtures.toRawEvents] 按 "\n\n" 切 event
+        // ⇒ CRLF 下**一个 event 都切不出来，整条流被当成一个**，解析结果面目全非。
+        // 行尾不是被测对象（抓取时 `\r\n` 已被剥掉），故这里归一化是**恢复语义**不是掩盖。
+        // 仓内 `.gitattributes` 全仓策略单列待裁、试点期禁动，故修在消费方。
         return stream!!.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            .replace("\r\n", "\n").replace("\r", "\n")
+
     }
 
     private fun parseFixture(name: String): LlmParseResult =
