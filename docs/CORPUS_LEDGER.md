@@ -13,7 +13,7 @@
 
 - **真实 run 总数：111**（场景 627；文件 41 份、原始行 3511、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
 - 合成记录（`is_synthetic`）：**560 条，单列不计入上行**
-- 观察通道另有 **24 个真机采集目录**（dry-run 6 个单列不计入；第四节）——**不并入上行**：其产物结构上进不了 wire 池
+- 观察通道另有 **24 个真机采集目录**（dry-run 6 个、API 对照批 12 个，**三者各自单列、均不计入上行**；第四节）——其产物结构上进不了 wire 池
 - 带 AQS **分数**的 run（`run.aqs.score` 非空）：110；其中 low_confidence：100/110（91%）｜顶层 `aqs_version` 版本戳共 111 条，其中 **1 条只有版本戳、没有分数**（两个量不可混用）
 
 - **单点位最大样本：`SZ-PILOT-01` 57 条**（其余具名外场点位：无）｜**已排除**：`PENDING-PO-01` 16（占位符，真名待回填，**不是第二个点位的证据**）；`home_indoor` 10（非外场）；无点位标签 28（不是一个点位）
@@ -119,6 +119,18 @@
 | evidence/e234_dryrun_20260802/dryrun-e3-present | DRY_RUN_SIMULATED | — | — | 11 |
 | evidence/e234_dryrun_20260802/dryrun-e4-overlap | DRY_RUN_SIMULATED | — | — | 11 |
 | evidence/e234_dryrun_20260802/dryrun-e4-separable | DRY_RUN_SIMULATED | — | — | 11 |
+| evidence/glm_e03_20260903/smoke_a | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/smoke_b | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/smoke_c | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t150_1 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t150_2 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t150_3 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t60_1 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t60_2 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t60_3 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t800_1 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t800_2 | api_cmp | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t800_3 | api_cmp | E-03 | — | 3 |
 | evidence/t90_verify_20260901/relist1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 9 |
 | evidence/wave1_20260831/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 8 |
 | evidence/wave1_20260831/wifi_f6_b_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 8 |

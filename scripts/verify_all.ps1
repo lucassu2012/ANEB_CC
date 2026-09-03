@@ -298,11 +298,29 @@ if ($py -and (Test-Path $schemaTest)) {
 
 }
 
+# --- obs-tools 套件：**枚举而非手写名单**（D-674④a）---------------------------
+# 判据＝`tools/<x>/tests/run_tests.py` 存在，门名由目录推出 `obs-tools-<x>-unit`。
+#
+# ⚠ **为什么改成枚举**：手写名单把「这道门在不在清单上」交给**人记得**，
+# 而本仓已为此付过**三次**学费（e1／e234 两只跑器 docstring 写着「以便直接接进
+# verify_all」却从未被接进来；e03 守卫 2026-09-03 建好当天也不在清单里）。
+# **前两次是补登，这次是把「靠人记得」这个形状本身关掉。**
+# ⚠ 名字仍要稳：`obs-tools-<dir>-unit` 与既有三道逐字相同，徽章/日志的既有引用不断。
+# ⚠ **枚举必须会响亮地失败**：glob 坏掉会**静默返回空**，那时「全绿」是假的——
+# 与它要防的「门不在清单上」是同一个病，只是换了个入口。故下方零命中即 FAIL。
+$obsSuites = @(Get-ChildItem (Join-Path $repo 'tools') -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName 'tests/run_tests.py') } |
+    ForEach-Object { @{ Name = ('obs-tools-' + $_.Name + '-unit'); Dir = ('tools/' + $_.Name + '/tests') } } |
+    Sort-Object { $_.Name })
+$obsNames = @($obsSuites | ForEach-Object { $_.Name })
+
 # ⚠ 这张名单必须与本块内**实际 Add-Result 的门名**逐一对齐：漏登记的门在层外
 # 既不跑、也不记 SKIPPED_SCOPE，而是**从汇总里彻底消失**——正是 `Test-InScope`
-# 自己注释里写的「沉默的跳过＝没有检查项」。`obs-tools-*` 两道 2026-08-30 补登。
+# 自己注释里写的「沉默的跳过＝没有检查项」。
+# ⚠ `obs-tools-*` 那几道**由上方枚举得出、不再手写**：手写与实际执行的两处一旦
+# 各写各的，必有一处先漂，而漂的那处不报错（本仓「同一事实两处存」）。
 # （它们测的是 `tools/`，归 'scripts' 层是因为那是分析 lane 的层，不是路径前缀。）
-if (Test-InScope 'scripts' @('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh','obs-tools-e1-unit','obs-tools-e234-unit','obs-tools-e03-unit')) {
+if (Test-InScope 'scripts' (@('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh','obs-tools-enumeration') + $obsNames)) {
 # --- 语料台账新鲜度门（T82 §9.2 #12）：台账开篇写着「勿手编」，而此前没有任何
 # 东西核对它——手改能一直活到下次重算，期间那两面仍被当作单一事实源引用。
 # 本门只比不写：落盘的 md/CSV 必须与现算逐字节相同。不一致的两种成因（有人手改／
@@ -417,14 +435,11 @@ if ($py -and (Test-Path $campaignTest)) {
 # 而**自称「已备好接入」的东西最容易被当成已接入**——那句话本身读起来就像完成态。
 #
 # 5 也判 FAIL：零收集意味着枚举坏了或目录空了，那时「全绿」是假的（D-275/D-364）。
-foreach ($obsSuite in @(
-    @{ Name = 'obs-tools-e1-unit';   Dir = 'tools/e1/tests' },
-    @{ Name = 'obs-tools-e234-unit'; Dir = 'tools/e234/tests' },
-    # 第三只（2026-09-03 接入，D-671④）：E-03 真端点抓取器的红线守卫。
-    # ⚠ 它是本仓「门真绿、只是不在清单上」的**第三例** —— 前两例就是上面那两只。
-    # 具体代价：E-03「夹具转换环节被钉住」这个结论的**真钉子**在这套里，
-    # 而它此前只在有人想起时才跑；读者却会以为它每轮都在被检验。
-    @{ Name = 'obs-tools-e03-unit';  Dir = 'tools/e03/tests' })) {
+# ⚠ 零命中即 FAIL：枚举坏了会**静默返回空**，那时「一道 obs 门都没跑」而汇总全绿。
+if ($obsSuites.Count -eq 0) {
+    $log += Add-Result 'obs-tools-enumeration' 'FAIL' 'tools/*/tests/run_tests.py 零命中——枚举坏了或目录空了'
+}
+foreach ($obsSuite in $obsSuites) {
     $obsDir = Join-Path $repo $obsSuite.Dir
     $obsRunner = Join-Path $obsDir 'run_tests.py'
     if ($py -and (Test-Path $obsRunner)) {
