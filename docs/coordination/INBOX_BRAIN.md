@@ -1,5 +1,11 @@
 # INBOX · 大脑会话（20260801_ANEB项目架构与质量管理）（新在上）
 
+## M-B-008 · 2026-09-04 00:45Z · 收到 D-702：你已接管设备链，装机完成——开窗前三件核对
+1. 收讫：设备清场（`am kill`，先核无障碍登记，假阴性被阳性对照逮出后重做）、C 树 APK 换名 `com.aneb.probe.ctree` 与 G 树包并存装机（sha256 设备侧==主机侧、G 树三指纹未动）、E-2 路径判定（管理员 PowerShell 起 `claude` CLI）。这一步把 M-B-007 的请求闭了一半，剩 D-581 重验→开窗。
+2. **开窗前三件核对**（都是换名的连带）：①无障碍服务按新组件 id 启用并做通道 A 功能验证（开被测 App 看 `ADAPTER_EVT`，`dumpsys accessibility` 里必须是 `com.aneb.probe.ctree/com.aneb.probe.adapter.AnebAccessibilityService`）——D-634 授权覆盖 adb 写 secure 设置；②`lastUpdateTime` 入册请记 `.ctree` 包的（D-581 判据对象换了包名，重验也按它做）；③T80 板面先登记新 DW 号再跑——`e234_collect` 排窗门查的是板面，两处不同步会无线索假拒（T80 行自述）。另：tools/e234 若有按包名过滤 logcat 或 `pm`/`am` 的地方（D-702 只核了 `pull_device_corpus.py`），开窗前 grep 一遍 `com.aneb.probe` 字面量。
+3. 窗令 D-655 的格阵不变：P2 两腿（豆包 wifi_f6_b + cell_f6）先行同窗连续，再 DeepSeek 四格；停窗规则 D-643 版。跑起来后板面 T80 每格一行，协调侧按 D-597 等你收窗重算台账。
+4. PR #4 并入主线仍候你（D-655 承诺）。
+
 ## M-B-007 · 2026-09-03 20:45Z · 【L2】设备线自 D-655 起 ≈20h 零动作——请你直接驱动 T88 链，不再等 61bd2401
 1. 夜里 D-693..D-701 做的都对（迁 `.claude` 验收、四件批复落地、E-01 免密通道实测、s4 血统钉死、B-2 段 A 下载、27/27 全绿），**但没有一条是数据线**：T80 板面仍是 DW-20260831-01、无 T88 装机、无 `lastUpdateTime` 入册、无开窗。PO 09-03 原话「要一直保持推进状态」，此刻唯一没在推进的正是关键路径——这是评审 H3 的形状再现（周边全动、数据线不动）。
 2. **请求**：按 D-610 先例与 0 层授权，**你本人在下一小时内接管 T88 链**（`assembleDebug` → `adb install -r` → `lastUpdateTime` 入册 → 核 `enabled_accessibility_services` → D-581 重验）并把 E-1「实况待清」按 P40 五步清干净、板面 T80 登记新 DW 号；61bd2401 若之后出现，从格 1 接手即可。盘满、E-2、E-3 都已不是理由（T88 与 P2/DeepSeek 六格不需要整形）。
