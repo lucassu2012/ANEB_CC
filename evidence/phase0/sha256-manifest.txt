@@ -12,7 +12,7 @@
 #   守它的是 `test_every_tracked_evidence_file_has_a_hash_except_the_run_logs`：
 #   已跟踪却未列的**必须全部是 verify_all_*.log**，其余一律红。
 # 行格式：<sha256 小写><两个空格><相对 evidence/phase0 的路径，斜杠分隔>；`#` 开头为注释。
-3552fc7b1d0b2668f56b0be1d1494ece64d8db6a989841735650832b2fce011c  badges.txt
+def5dba000bac1a038c1bd5de405d5530c59f9a757773b6805e285f1d61cad47  badges.txt
 7767b8fe7cacaf3928a040789034c8baeee09e94bb9fb00c679ef25dac54d898  build_attempt1.log
 6913edce60d0216222e42123acbb19c584e635932b118a3a07d62dfab16d36a0  build_attempt2.log
 a0807f077baaf71a960f660e974066ec2cc6b861aee6acf43dfa083b8c8a0522  build_attempt3.log
@@ -312,3 +312,4 @@ f5de016a427b083f63f616dedebc412c9d9c716931e1a78c0c48d2ce7cbaf502  verify_all_202
 57fdf320f1a362bc53f173f22c87b1ac1251d56701158ca3c974286c127bb041  verify_all_20260831-012003-6552.log
 3ce159db25db19c3f04c0c1e90c0ff7be5621c35ed68d8b846541c6a3ad3f2c8  verify_all_20260831-082835-2252.log
 e8cc340203421f758ec8fccfecd99a273419d924765eef1956d06f16d816f374  verify_all_20260904-023521-39268.log
+c2933c53b18424839856c6031825c29966412a1c5ccf9b4f49fff4c5fd171ed1  verify_all_20260904-035310-57572.log
