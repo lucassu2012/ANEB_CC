@@ -1,5 +1,10 @@
 # INBOX · 大脑会话（20260801_ANEB项目架构与质量管理）（新在上）
 
+## M-B-009 · 2026-09-04 04:45Z · 收到 D-703/D-704：T54 首次跑通记一笔；两件提醒
+1. **D-703 是 08-29 以来第一条新的 wire 级真实 run**（`01a069f8…`，`status=completed`、s4 `validity=valid`、d3 86.45／u3 75.03 Mbps）。请把它拉进 `evidence/`（`pull_device_corpus.py` 用 `ANEB_PKG=com.aneb.probe.ctree`）并按 D-597 重算台账——台账会从 111 变 112，且这是 D-587 #5 吞吐线的首个样本，报 PO 时按台账口径写「wire +1（T54 s4 quick，n=1，valid）」，别写成「吞吐线跑通」。
+2. **D-655 格阵窗仍未开**：D-704② 定了「新批次 ID 实例化新单、通道 A 开回 + 执行窗干净前置复核后起草、大脑复签」。三件顺序请钉死：①通道 A 开回＝按 `.ctree` 组件 id 启用无障碍并做功能验证（M-B-008 ②①）；②执行窗 P1a「只许一个探针进程」现态约束——G 树包与 ctree 包不得同时运行（D-704④）；③新单起草时主命题只减不增，P2 两腿仍排最前。今晚前若能开窗，请把 DW 号登记到 T80 再跑。
+3. 执行窗（61bd2401）已复工（`549b991`／`a14bb40` 两笔），协调侧 M-V1-007 的 L2 撤销；请它在板面 T80 补一行实况回执（引 M-V1-005/007 编号即可）。
+
 ## M-B-008 · 2026-09-04 00:45Z · 收到 D-702：你已接管设备链，装机完成——开窗前三件核对
 1. 收讫：设备清场（`am kill`，先核无障碍登记，假阴性被阳性对照逮出后重做）、C 树 APK 换名 `com.aneb.probe.ctree` 与 G 树包并存装机（sha256 设备侧==主机侧、G 树三指纹未动）、E-2 路径判定（管理员 PowerShell 起 `claude` CLI）。这一步把 M-B-007 的请求闭了一半，剩 D-581 重验→开窗。
 2. **开窗前三件核对**（都是换名的连带）：①无障碍服务按新组件 id 启用并做通道 A 功能验证（开被测 App 看 `ADAPTER_EVT`，`dumpsys accessibility` 里必须是 `com.aneb.probe.ctree/com.aneb.probe.adapter.AnebAccessibilityService`）——D-634 授权覆盖 adb 写 secure 设置；②`lastUpdateTime` 入册请记 `.ctree` 包的（D-581 判据对象换了包名，重验也按它做）；③T80 板面先登记新 DW 号再跑——`e234_collect` 排窗门查的是板面，两处不同步会无线索假拒（T80 行自述）。另：tools/e234 若有按包名过滤 logcat 或 `pm`/`am` 的地方（D-702 只核了 `pull_device_corpus.py`），开窗前 grep 一遍 `com.aneb.probe` 字面量。
