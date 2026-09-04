@@ -14,7 +14,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.aneb.probe"
+        // applicationId 后缀由 Gradle 属性驱动（PO 2026-09-04 裁定：C 树 APK 换名装机，不顶掉设备上的 G 树包）。
+        //   默认不传属性 => 仍为 com.aneb.probe，门禁与既有构建逐字节不受影响；
+        //   装机构建：./gradlew :probe:assembleDebug -PanebAppIdSuffix=.ctree  => com.aneb.probe.ctree
+        //   ⚠ namespace 不变（R 类与 Kotlin 包名不动）；无障碍服务组件 id 前缀随 applicationId 变，
+        //   启用时须写 com.aneb.probe.ctree/com.aneb.probe.adapter.AnebAccessibilityService（D-611 相关）。
+        applicationId = "com.aneb.probe" + (project.findProperty("anebAppIdSuffix")?.toString() ?: "")
         minSdk = 29 // CellInfoNr / 5G API 需要（设计文档 §5）
         targetSdk = 35
         versionCode = 1
