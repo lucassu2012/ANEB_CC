@@ -23,7 +23,7 @@ v3 已加自愈（连续 2 次空且出过帧且距上次重挑 ≥5s ⇒ 重挑
 1. `collect_notes.json` 的 `sf_dumps`：`issued` / `with_frames` / `empty_streak_max` / `relists`；
 2. `sf_layer_probe.jsonl`：每次重挑一行，含 `old` / `new` / `switched` / `list_has_pkg` ＋ `--list` 原文；
 3. **触发后 `with_frames` 要继续涨**——只重挑不恢复不算数；
-4. `e2_precheck` 的 `dump存活`。⚠ **两项须同看**（D-646 ②），且**两项沉默即健康**。
+4. `e2_precheck` 的 `dump存活` **与** `逐段行数=min/p50/max`。⚠ **两项须同看，而分辨点在 `min`**——D-646 ② 的原措辞（「rows 满 127 而 survival 低＝图层死」）**已被本包真机否证**，订正见下方结果节与卡 `d9d5a11`（D-650 ②）：**`min ＝ 0`** ⇒ 图层失效，此时存活率**必然同步下掉**，两个数是同一件事的两面；**`min ＞ 0` 而 `min ≠ max`** ⇒ 另一种病，此时**存活率仍是 100%**，只看它会把这种病整个漏掉。⚠ **两项都「不正常才出声」——沉默即健康，看不到 ≠ 没查。**
 
 ---
 
