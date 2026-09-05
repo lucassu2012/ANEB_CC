@@ -7,14 +7,14 @@
 
 | # | 条件 | 判据 | 现态 | 锚 |
 |---|---|---|---|---|
-| P0 | 通道 A 对 DeepSeek 有事件 | DeepSeek 规格 `input_node=VALIDATED-PARTIAL`、`response_node/send_button=PENDING-VALIDATION`（X6b）⇒ 不信规格，**在 P4 试水里实核 `adapter.log` 有 `pkg=com.deepseek.chat` 的内容事件** | ⬜ 随 P4 | D-705；X6b；D-579 |
-| P1 | 命题单 §5 锁定 | 新批次 ID＋授权链＋追认位 | ⬜ 前置全绿后锁 | D-655；D-704②(b) |
+| P0 | 通道 A 对 DeepSeek 有事件 | DeepSeek 规格 `input_node=VALIDATED-PARTIAL`、`response_node/send_button=PENDING-VALIDATION`（X6b）⇒ 不信规格，**在 P4 试水里实核 `adapter.log` 有 `pkg=com.deepseek.chat` 的内容事件** | **✅ 试水 F6/F2/F1 各 617/1396/228 条 `pkg=com.deepseek.chat` 内容事件** | D-705；X6b；D-579 |
+| P1 | 命题单 §5 锁定 | 新批次 ID＋授权链＋追认位 | **✅ 已锁定 2026-09-06 00:4x（§5，追认位开）** | D-655；D-704②(b) |
 | P2 | 构建对应性成立 | 只认 `lastUpdateTime`；对象＝**`com.aneb.probe.ctree`** | **✅ `2026-09-04 09:02:32`（sha256 `f7a31a4b…`，D-703①）**；DeepSeek 端 `2.2.2`／`lastUpdateTime=2026-07-19 15:02:06`（与 `spec/adapters/deepseek.json` 记载一致） | D-581 |
 | P3 | 驱动器身份可记 | 本窗驱动器＝`tools/e234/drive_cell_ds.py`@**`99d07b2`**（drive_cell.py 的 DeepSeek 孪生，D-638①；A-1 四件同批）；每格 README 记哈希 | **✅ 与豆包驱动器同哈希** | D-638①；REVIEW §7.1 A-1 |
-| P4 | **DeepSeek 三轮试水** | `evidence/DW-20260905-02/ds_trial_wifi/`，WiFi，1×F6＋1×F2＋1×F1，答四件（发送键／「+」开新对话／F6 是否短答／限流）；**不许拿豆包额度外推** | ⬜ 待跑 | D-622②；D-637②；D-641④ |
+| P4 | **DeepSeek 三轮试水** | `evidence/DW-20260905-02/ds_trial_wifi/`，WiFi，1×F6＋1×F2＋1×F1，答四件（发送键／「+」开新对话／F6 是否短答／限流）；**不许拿豆包额度外推** | **✅ 00:19–00:44 跑完：发送键✓／「+」开新对话✓／F6 非短答（与 F2 同量级，照原案）／无限流；见命题单 §1b** | D-622②；D-637②；D-641④ |
 | P5 | 操作卡对版 | `DW_NEXT_OPERATOR_CARD_v2_DRAFT_20260830.md` ＋ P1a（`a14bb40`）＋ **步 0b「App 先前台出一屏再起采集」**（DW-20260905-01 固化） | **✅** | D-653③；D-711 |
 | P6 | 设备实况干净（P40 五步）＋ P1a | `ps -A` 匹配 aneb **恰一行**；无 VPN tun；桌面焦点 | 编排步 0 逐条跑并写进格 README | 根 CLAUDE.md；D-704④ |
-| P7 | **DeepSeek 开关态** | 3／4 格：深度思考 ON＋智能搜索 OFF；5／6 格：双 OFF；每格开跑前设好、截图（仓外）自读核色、README 记 | ⬜ 每格前 | D-641②；D-638② |
+| P7 | **DeepSeek 开关态** | 3／4 格：深度思考 ON＋智能搜索 OFF；5／6 格：双 OFF；每格开跑前设好、截图（仓外）自读核色、README 记 | **✅ 编排钩子每格重设并像素核对（am kill 后复位为双 ON，试水实测）** | D-641②；D-638② |
 
 ## 二、格阵与参数（承 D-655 (4)、T33 §3 第 3–6 格；**逐格交替 WiFi／蜂窝**，X1／D-622②）
 
