@@ -1,0 +1,7 @@
+{"kind": "prompt", "text": "Generate an image of a red circle on a white background.", "pkg": "com.larus.nova", "serial": "8MY0221126002537"}
+{"round": 1, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.014, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 9.128, "round_total_s": 104.279}
+{"round": 2, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.045, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 9.177, "round_total_s": 104.346}
+{"round": 3, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.013, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 9.299, "round_total_s": 104.491}
+{"round": 4, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.026, "quiet_intended_s": 20.0, "quiet_actual_s": 20.037, "prep_before_send_s": 9.207, "round_total_s": 104.384}
+{"round": 5, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.04, "quiet_intended_s": 20.0, "quiet_actual_s": 20.04, "prep_before_send_s": 9.139, "round_total_s": 104.297}
+{"round": 6, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.032, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 9.185, "round_total_s": 104.342}

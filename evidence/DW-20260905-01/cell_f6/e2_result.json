@@ -1,0 +1,113 @@
+{
+  "experiment": "E2",
+  "run_dir": "E:/C Project/ANEB/evidence/DW-20260905-01/cell_f6",
+  "pkg": "com.larus.nova",
+  "dry_run": false,
+  "run_kind": "DEVICE_REAL",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E2 / §3.4 G-3",
+  "events_used": 1654,
+  "events_other_pkg": 12,
+  "events_bad_dimension": 0,
+  "wall_to_boot": {
+    "status": "PASS",
+    "offset_ns": -20656830968594265,
+    "n": 1666,
+    "residual_ms_p50": 0.248387,
+    "residual_ms_max": 4.735933
+  },
+  "clock_pin": {
+    "status": "PASS",
+    "offset_ns": 137288516790842,
+    "drift_ns": 0,
+    "frame_ms": 16.667,
+    "pre_n": 5,
+    "post_n": 5,
+    "pre_spread_ns": 1562,
+    "post_spread_ns": 2083
+  },
+  "turn_method": "operator-marks",
+  "turns_total": 6,
+  "frames_total": 7334,
+  "frames_duplicate_dropped": 65164,
+  "frame_ms": 16.666666,
+  "channel_b": {
+    "status": "PASS",
+    "n": 467,
+    "period_ms_p50": 1500.3369,
+    "period_ms_p90": 1500.5436,
+    "period_ms_p99": 1501.3323,
+    "period_ms_min": 1500.0458,
+    "period_ms_max": 1688.8926,
+    "transitions_detected": 37
+  },
+  "per_turn": [
+    {
+      "turn": 0,
+      "a_clusters": 5,
+      "c_clusters": 4,
+      "frames": 733,
+      "delta_ms": -12391.028644
+    },
+    {
+      "turn": 1,
+      "a_clusters": 3,
+      "c_clusters": 4,
+      "frames": 710,
+      "delta_ms": -11801.855728
+    },
+    {
+      "turn": 2,
+      "a_clusters": 4,
+      "c_clusters": 4,
+      "frames": 915,
+      "delta_ms": -14724.610414
+    },
+    {
+      "turn": 3,
+      "a_clusters": 4,
+      "c_clusters": 5,
+      "frames": 941,
+      "delta_ms": -10167.839061
+    },
+    {
+      "turn": 4,
+      "a_clusters": 3,
+      "c_clusters": 4,
+      "frames": 1153,
+      "delta_ms": -15252.697914
+    },
+    {
+      "turn": 5,
+      "a_clusters": 5,
+      "c_clusters": 5,
+      "frames": 787,
+      "delta_ms": -11259.374478
+    }
+  ],
+  "drop_reasons": {},
+  "signed": {
+    "status": "PASS",
+    "n": 6,
+    "dropped": 0,
+    "p50_ms": -12391.028644,
+    "p90_ms": -10167.839061,
+    "p99_ms": -10167.839061,
+    "min_ms": -15252.697914,
+    "max_ms": -10167.839061
+  },
+  "channel_a_vs_c": {
+    "status": "PASS",
+    "n": 6,
+    "dropped": 0,
+    "p50_ms": 11801.855728,
+    "p90_ms": 15252.697914,
+    "p99_ms": 15252.697914,
+    "min_ms": 10167.839061,
+    "max_ms": 15252.697914
+  },
+  "verdict": [
+    "FAIL",
+    "p99 15252.698ms > 1 帧 16.667ms（n=6）"
+  ],
+  "gate_caveat": "该判定**已设**最小 n（e1_analyze.GATE_MIN_N，n 不足即 NOT_EXECUTED），但**不看 dropped**（T14 C-2 余半）；本次 n=6 dropped=0"
+}

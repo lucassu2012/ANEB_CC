@@ -1,0 +1,16 @@
+{
+  "device_window": "DW-20260905-01",
+  "pkg": "com.larus.nova",
+  "stim_pre": "E:/C Project/ANEB/evidence/DW-20260905-01/cell_f6\\stim_pre.log",
+  "layer": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#4107",
+  "sf_dumps": {
+    "layer_initial": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#4107",
+    "issued": 578,
+    "with_frames": 578,
+    "empty_streak_max": 0,
+    "relists": [],
+    "ever_had_frames": true
+  },
+  "screencap_samples": 467,
+  "stim_post": "E:/C Project/ANEB/evidence/DW-20260905-01/cell_f6\\stim_post.log"
+}

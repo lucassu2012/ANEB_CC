@@ -1,0 +1,1 @@
+e2_precheck wifi_f6: WORTH_RUNNING - 已观测间隔 36 次（>=5）、不可判间隔 0 不占多数，A 侧 6 轮可用 ⇒ 值得开 e2 | dump=581(同=448 叠=132 断=0) C侧已观测间隔=36 不可判=0 | A侧可用轮=6/6 | B动率=0.058 建议 --framestats-period-s=1

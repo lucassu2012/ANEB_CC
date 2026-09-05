@@ -11,21 +11,21 @@
 
 ## 一、wire 语料（真实测量，run_id 去重后）
 
-- **真实 run 总数：111**（场景 627；文件 41 份、原始行 3511、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
+- **真实 run 总数：113**（场景 634；文件 42 份、原始行 3513、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
 - 合成记录（`is_synthetic`）：**560 条，单列不计入上行**
-- 观察通道另有 **24 个真机采集目录**（dry-run 6 个、API 对照批 12 个，**三者各自单列、均不计入上行**；第四节）——其产物结构上进不了 wire 池
-- 带 AQS **分数**的 run（`run.aqs.score` 非空）：110；其中 low_confidence：100/110（91%）｜顶层 `aqs_version` 版本戳共 111 条，其中 **1 条只有版本戳、没有分数**（两个量不可混用）
+- 观察通道另有 **27 个真机采集目录**（dry-run 6 个、API 对照批 12 个，**三者各自单列、均不计入上行**；第四节）——其产物结构上进不了 wire 池
+- 带 AQS **分数**的 run（`run.aqs.score` 非空）：111；其中 low_confidence：101/111（91%）｜顶层 `aqs_version` 版本戳共 113 条，其中 **2 条只有版本戳、没有分数**（两个量不可混用）
 
-- **单点位最大样本：`SZ-PILOT-01` 57 条**（其余具名外场点位：无）｜**已排除**：`PENDING-PO-01` 16（占位符，真名待回填，**不是第二个点位的证据**）；`home_indoor` 10（非外场）；无点位标签 28（不是一个点位）
+- **单点位最大样本：`SZ-PILOT-01` 57 条**（其余具名外场点位：无）｜**已排除**：`PENDING-PO-01` 16（占位符，真名待回填，**不是第二个点位的证据**）；`home_indoor` 10（非外场）；无点位标签 30（不是一个点位）
   > 引用「（外场）单点位有多少」**直接引本行**，不要自己从下方维度表里挑——能自己挑就能挑错。
 | 维度 | 分布（run 计） |
 |---|---|
-| 战役 | unlabeled×28、m3-expansion-wave0×20、t39-rehearsal-nr-20260803×16、m2-pilot-20260731×12、acceptance_20260820×10、m2-afternoonradio-20260801×4、m2-busyradio-20260801×4、m2-idlenight-20260801×4、m2-idleprobe-20260731×4、m2-pilot-forensic-20260731×4、warmup-transport-probe×4、radiowire-verify-20260801×1 |
-| 点位 | SZ-PILOT-01×57、unlabeled×28、PENDING-PO-01×16、home_indoor×10（**PENDING-PO-01 是占位符不是点位**：真名待回填，不可当作一个真实站点计入覆盖） |
-| 运营商 | ctcc×83、unknown×28 |
-| 时窗 | busy×43、idle×40、unknown×28 |
-| RAT（**场景**计——一 run 可跨 RAT，不折单值） | NR×268、no_radio_block×248、LTE×111 |
-| 场景有效性 | valid_low_confidence×589、valid×32、degraded×4、invalid×2 |
+| 战役 | unlabeled×30、m3-expansion-wave0×20、t39-rehearsal-nr-20260803×16、m2-pilot-20260731×12、acceptance_20260820×10、m2-afternoonradio-20260801×4、m2-busyradio-20260801×4、m2-idlenight-20260801×4、m2-idleprobe-20260731×4、m2-pilot-forensic-20260731×4、warmup-transport-probe×4、radiowire-verify-20260801×1 |
+| 点位 | SZ-PILOT-01×57、unlabeled×30、PENDING-PO-01×16、home_indoor×10（**PENDING-PO-01 是占位符不是点位**：真名待回填，不可当作一个真实站点计入覆盖） |
+| 运营商 | ctcc×83、unknown×30 |
+| 时窗 | busy×43、idle×40、unknown×30 |
+| RAT（**场景**计——一 run 可跨 RAT，不折单值） | NR×268、no_radio_block×255、LTE×111 |
+| 场景有效性 | valid_low_confidence×592、valid×33、invalid×5、degraded×4 |
 
 ## 二、设备侧 Room 库（与第一节**不可相加**——同 run 两面）
 
@@ -81,10 +81,11 @@
 | evidence/t39_report_chain_rehearsal_20260803/nr_0803_raw.jsonl | 19 | 19 |
 | evidence/t46_full_corpus_analysis_20260804/full_corpus_labelled.jsonl | 73 | 73 |
 | evidence/t47_s4throughput_devverify_20260804/s4_throughput_run1.jsonl | 1 | 1 |
+| evidence/t54_ctree_quick_20260904/t54_quick_raw.jsonl | 2 | 2 |
 | server/data/results/20260713.jsonl | 1 | 1 |
 | server/data/results/20260804.jsonl | 1 | 1 |
 
-跳过（0 条契约记录，非语料）：`evidence/doubao_wave0_20260830/cell_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f1b/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f5/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f5_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/cell_f6/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f6_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID3/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_anchor/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f2/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f5/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f5_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/wifi_f6/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f6_driver_timing.jsonl`、`evidence/e1/20260801-150506/screencap_index.jsonl`、`evidence/e1/20260801-170127/screencap_index.jsonl`、`evidence/e1_realdevice_20260802/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802/screencap_index.jsonl`、`evidence/e1_realdevice_20260802_run2/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802_run2/screencap_index.jsonl`、`evidence/e234/20260802-163504/screencap_index.jsonl`、`evidence/e234/20260802-164148/screencap_index.jsonl`、`evidence/e234/20260802-172614/screencap_index.jsonl`、`evidence/e234/20260802-173031/screencap_index.jsonl`、`evidence/e234/20260803-154544-e1band/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-over/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-within/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-absent/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-present/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-overlap/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-separable/screencap_index.jsonl`、`evidence/glm_e03_20260903/smoke_a/raw_sse.jsonl`、`evidence/glm_e03_20260903/smoke_b/raw_sse.jsonl`、`evidence/glm_e03_20260903/smoke_c/raw_sse.jsonl`、`evidence/glm_e03_20260903/t150_1/raw_sse.jsonl`、`evidence/glm_e03_20260903/t150_2/raw_sse.jsonl`、`evidence/glm_e03_20260903/t150_3/raw_sse.jsonl`、`evidence/glm_e03_20260903/t60_1/raw_sse.jsonl`、`evidence/glm_e03_20260903/t60_2/raw_sse.jsonl`、`evidence/glm_e03_20260903/t60_3/raw_sse.jsonl`、`evidence/glm_e03_20260903/t800_1/raw_sse.jsonl`、`evidence/glm_e03_20260903/t800_2/raw_sse.jsonl`、`evidence/glm_e03_20260903/t800_3/raw_sse.jsonl`、`evidence/phase1/calibration/clean_run1.jsonl`、`evidence/phase1/calibration/clean_run2.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run1.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run2.jsonl`、`evidence/phase1/calibration/nginx_run1.jsonl`、`evidence/phase1/calibration/nginx_run2.jsonl`、`evidence/phase1/calibration/proxied_run1.jsonl`、`evidence/phase1/calibration/proxied_run2.jsonl`、`evidence/phase3/e01_results/20260712.jsonl`、`evidence/t90_verify_20260901/relist1/screencap_index.jsonl`、`evidence/t90_verify_20260901/relist1/sf_layer_probe.jsonl`、`evidence/wave1_20260831/wifi_f6/screencap_index.jsonl`、`evidence/wave1_20260831/wifi_f6_b_VOID1/screencap_index.jsonl`、`evidence/wave1_20260831/wifi_f6_b_VOID1_driver_timing.jsonl`、`evidence/wave1_20260831/wifi_f6_driver_timing.jsonl`
+跳过（0 条契约记录，非语料）：`evidence/DW-20260905-01/cell_f6/screencap_index.jsonl`、`evidence/DW-20260905-01/cell_f6_driver_timing.jsonl`、`evidence/DW-20260905-01/wifi_f6/screencap_index.jsonl`、`evidence/DW-20260905-01/wifi_f6_attempt1_preflight_stop/screencap_index.jsonl`、`evidence/DW-20260905-01/wifi_f6_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/cell_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f1b/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f2_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f5/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f5_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/cell_f6/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/cell_f6_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID1/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_VOID3/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f1_anchor/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f2/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f5/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f5_driver_timing.jsonl`、`evidence/doubao_wave0_20260830/wifi_f6/screencap_index.jsonl`、`evidence/doubao_wave0_20260830/wifi_f6_driver_timing.jsonl`、`evidence/e1/20260801-150506/screencap_index.jsonl`、`evidence/e1/20260801-170127/screencap_index.jsonl`、`evidence/e1_realdevice_20260802/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802/screencap_index.jsonl`、`evidence/e1_realdevice_20260802_run2/mark_rtt.jsonl`、`evidence/e1_realdevice_20260802_run2/screencap_index.jsonl`、`evidence/e234/20260802-163504/screencap_index.jsonl`、`evidence/e234/20260802-164148/screencap_index.jsonl`、`evidence/e234/20260802-172614/screencap_index.jsonl`、`evidence/e234/20260802-173031/screencap_index.jsonl`、`evidence/e234/20260803-154544-e1band/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-over/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e2-within/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-absent/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e3-present/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-overlap/screencap_index.jsonl`、`evidence/e234_dryrun_20260802/dryrun-e4-separable/screencap_index.jsonl`、`evidence/glm_e03_20260903/smoke_a/raw_sse.jsonl`、`evidence/glm_e03_20260903/smoke_b/raw_sse.jsonl`、`evidence/glm_e03_20260903/smoke_c/raw_sse.jsonl`、`evidence/glm_e03_20260903/t150_1/raw_sse.jsonl`、`evidence/glm_e03_20260903/t150_2/raw_sse.jsonl`、`evidence/glm_e03_20260903/t150_3/raw_sse.jsonl`、`evidence/glm_e03_20260903/t60_1/raw_sse.jsonl`、`evidence/glm_e03_20260903/t60_2/raw_sse.jsonl`、`evidence/glm_e03_20260903/t60_3/raw_sse.jsonl`、`evidence/glm_e03_20260903/t800_1/raw_sse.jsonl`、`evidence/glm_e03_20260903/t800_2/raw_sse.jsonl`、`evidence/glm_e03_20260903/t800_3/raw_sse.jsonl`、`evidence/phase1/calibration/clean_run1.jsonl`、`evidence/phase1/calibration/clean_run2.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run1.jsonl`、`evidence/phase1/calibration/nginx_nobuf_run2.jsonl`、`evidence/phase1/calibration/nginx_run1.jsonl`、`evidence/phase1/calibration/nginx_run2.jsonl`、`evidence/phase1/calibration/proxied_run1.jsonl`、`evidence/phase1/calibration/proxied_run2.jsonl`、`evidence/phase3/e01_results/20260712.jsonl`、`evidence/t90_verify_20260901/relist1/screencap_index.jsonl`、`evidence/t90_verify_20260901/relist1/sf_layer_probe.jsonl`、`evidence/wave1_20260831/wifi_f6/screencap_index.jsonl`、`evidence/wave1_20260831/wifi_f6_b_VOID1/screencap_index.jsonl`、`evidence/wave1_20260831/wifi_f6_b_VOID1_driver_timing.jsonl`、`evidence/wave1_20260831/wifi_f6_driver_timing.jsonl`
 
 ⚠ **装载失败（坏行/读不了，不等于「不是语料」）**：`evidence/doubao_wave0_20260830/wifi_f1_VOID2/screencap_index.jsonl`（1 处）
 
@@ -92,6 +93,9 @@
 
 | 目录 | kind | 实验 | 包名 | 文件数 |
 |---|---|---|---|---|
+| evidence/DW-20260905-01/cell_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 15 |
+| evidence/DW-20260905-01/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 15 |
+| evidence/DW-20260905-01/wifi_f6_attempt1_preflight_stop | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 7 |
 | evidence/doubao_wave0_20260830/cell_f1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/cell_f1b | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/doubao_wave0_20260830/cell_f2 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |

@@ -1,0 +1,30 @@
+[21:10:21] == 环节 0：P40 五步 + P1a 前置 ==
+[21:10:21] P1a aneb_processes=1 (须=1)
+[21:10:22] focus=mCurrentFocus=Window{51a4d69 u0 com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher}
+[21:10:23] == 环节 0a：条件=wifi，切网并核实生效 ==
+[21:10:29] route_pre=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[21:10:30] gsm.network.type(pre)=NR_SA,Unknown
+[21:10:30] doubao=versionName=14.9.0
+[21:10:30] == 环节 0b：先把被测 App 切到前台并出一屏画面，再起采集（操作卡步 1：顺序反了⇒通道 C 零帧，历史 9 跑 7 次栽在这；本窗 attempt1 是第 8 次）==
+[21:10:41] focus_after_launch=mCurrentFocus=Window{423d7be u0 com.larus.nova/com.larus.home.impl.alias.AliasActivity1}
+sf_layers_for_pkg=0
+[21:10:41] == 环节 1：起采集器（后台）==
+[21:10:41] collector pid=2441
+[21:10:53] == 环节 1a：sf_latency 在长？==
+[21:10:59] sf_latency bytes 11736 -> 24324
+[21:10:59] == 环节 2：起驱动器（6 轮 × (75+20)s）驱动器哈希=99d07b2 ==
+[21:12:59] == 环节 1c（约 2 分处）：e2_precheck 看 dump存活 / 逐段行数 min ==
+e2_precheck wifi_f6: CANNOT_TELL - C 侧够了（已观测间隔 11 次），**但 A 侧只有 1/1 轮切得出次簇** < 5 ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解 | dump=108(同=70 叠=37 断=0) C侧已观测间隔=11 不可判=0 | A侧可用轮=1/1 | B动率=0.093 建议 --framestats-period-s=1
+[21:21:27] driver exit=0
+[21:21:27] == 等采集器收尾 ==
+[21:22:39] collector exit=0
+[21:22:39] == 环节 4b：e2_analyze 看 clock_pin / wall_to_boot / turn_method ==
+E2 report -> E:/C Project/ANEB/evidence/DW-20260905-01/wifi_f6\e2_report.md
+E2 |t_A-t_C| verdict=FAIL (p99 15071.805ms > 1 帧 16.667ms（n=6）) n=6 dropped=0 frame_ms=16.667
+channel_b=PASS (采样周期与检出次数，非时刻) transitions=27
+clock_pin: PASS | wall_to_boot: PASS | turn_method: operator-marks
+[21:22:40] gsm.network.type(post)=NR_SA,Unknown route_post=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[21:22:40] == 环节 5：格 README（记实际值）==
+[21:22:41] == 环节 6：设备复原（豆包退桌面、WiFi 回开）==
+[21:22:43] aneb_processes=1 focus=mCurrentFocus=Window{51a4d69 u0 com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher}
+[21:22:43] DONE wifi_f6
