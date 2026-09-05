@@ -10,7 +10,7 @@
 | P0 | 通道 A 功能验证通过 | 开一次豆包看 `ADAPTER_EVT`，不信 settings 读回 | **✅ 09-05 20:17 `ADAPTER_EVT=14`，Bound=1，服务组件＝`com.aneb.probe.ctree/…AnebAccessibilityService`** | D-705；D-611③④ |
 | P1 | 命题单 §5 锁定 | 新批次 ID＋授权链＋追认位 | **✅ 本单 §5（代签，追认位开）** | D-655；D-704②(b) |
 | P2 | 构建对应性成立 | 只认 `lastUpdateTime`（禁 versionName）；对象＝**`com.aneb.probe.ctree`** | **✅ `2026-09-04 09:02:32`（sha256 `f7a31a4b…`，D-703①）** | D-581（对象换包名，M-B-008②） |
-| P3 | 驱动器身份可记 | 本窗驱动器＝`tools/e234/drive_cell.py`@**〈A-1 合入哈希，合入后填〉**（A-1 四件：pin_console 首条语句／focus 精确匹配＋Awake／`-s SERIAL`＋单引号包裹／prompt isascii＋首行落盘）；每格 README 记哈希 | **⏳ 待 A-1 合入** | REVIEW §7.1 A-1；D-621③ |
+| P3 | 驱动器身份可记 | 本窗驱动器＝`tools/e234/drive_cell.py`@**`99d07b2`**（A-1 四件：pin_console 首条语句／focus 精确匹配＋Awake／`-s SERIAL`＋单引号包裹／prompt isascii＋首行落盘）；每格 README 记哈希 | **✅ A-1 已合入 `99d07b2`（e234 reflex 130/130，15 突变全 CAUGHT）** | REVIEW §7.1 A-1；D-621③ |
 | P4 | DeepSeek 额度试水 | 仅 DeepSeek 格前做 | **本批 P2 两腿不涉，顺延** | D-622② |
 | P5 | 操作卡对版 | `DW_NEXT_OPERATOR_CARD_v2_DRAFT_20260830.md` ＋ P1a（`a14bb40`） | **✅** | D-653③ |
 | P6 | 设备实况干净（P40 五步）＋ P1a | `ps -A` 匹配 aneb **恰一行**（即 ctree 的无障碍服务进程）；无 VPN tun；桌面焦点 | 开窗时逐条跑并写进格 README | 根 CLAUDE.md；D-704④ |
