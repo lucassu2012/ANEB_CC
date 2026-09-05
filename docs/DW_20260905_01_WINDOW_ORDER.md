@@ -22,8 +22,8 @@
 | 1 | WiFi | F6 图像生成 | 6 | 75s ＋ 20s | `Generate an image of a red circle on a white background.` |
 | 2 | 蜂窝 | F6 图像生成 | 6 | 75s ＋ 20s | 同上（同功能两条件**必须同参**，命题单 §1c） |
 
-采集器：`e234_collect.py --serial 8MY0221126002537 --pkg com.larus.nova --roi 400,1800,400,200 --allow-real-device --device-window DW-20260905-01 --session-seconds 700 --screencap-period-ms 1500 --framestats-period-s 1 --no-marks --out evidence/wave2_20260905/<格名>`；
-驱动器：`ANEB_SERIAL=8MY0221126002537 python tools/e234/drive_cell.py evidence/wave2_20260905/<格名> 6 "<提示词>" 75 20`（A-1 后形态）。
+采集器：`e234_collect.py --serial 8MY0221126002537 --pkg com.larus.nova --roi 400,1800,400,200 --allow-real-device --device-window DW-20260905-01 --session-seconds 700 --screencap-period-ms 1500 --framestats-period-s 1 --no-marks --out evidence/DW-20260905-01/<格名>`；
+驱动器：`ANEB_SERIAL=8MY0221126002537 python tools/e234/drive_cell.py evidence/DW-20260905-01/<格名> 6 "<提示词>" 75 20`（A-1 后形态）。
 **每格必做**：开跑前/跑完后各读一次 `gsm.network.type`；切网后 `ip route get 120.79.148.0` 核实生效（禁 dumpsys connectivity）；步 1a/1c（操作卡）；`e2_precheck` 退出码为权威信号；每格 README 记驱动器哈希（P3）。
 
 ## 三、停窗规则
