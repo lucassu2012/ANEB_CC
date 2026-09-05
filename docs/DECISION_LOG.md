@@ -712,6 +712,7 @@
 | D-707 | 2026-09-05 | **裁 B-7 低置信门槛＝(b)**：profile 每 KPI 声明 `expected_n`（三端契约同步），`lowConfidence = valid.sampleCount < expected_n`；未声明时回落 (a) 的 run 级 Σ 门槛并在 `kpi_quality` 标 `threshold_source=fallback`；回放语料出新旧比例入 D 条。 | REVIEW §7.2 B-7；M-B-011③(b) |
 | D-708 | 2026-09-05 | **裁 B-10 裁项 B 终态标签＝新增 `ABANDONED-BY-PO`**（入 CAPTURE_STATUSES，不入 BLOCKING），不复用 N/A-BY-CALIBER：「口径不适用」与「PO 放弃」是两个事实，合并丢史实；reason 引 D-592①。run.kpi_set wire 值＝实际执行口径（现役 v0.2）。 | REVIEW §7.2 B-10；DECISION_REQUEST 裁项 B；D-592①；M-B-011③(c) |
 | D-709 | 2026-09-05 | **PR #4：协调侧 `docs/coordination/` 一次性并入主线作归档**（M-B-011⑤）。它是另一条 lane 的文档，跨文件行号引用与 D 号自成体系，故 rule 6 与 D 号解析两守卫对该目录排除（`_EXTERNAL_LANE_DIRS`，仅此一目录不通配）；本仓不改其内容。 | `origin/claude/aneb-project-progress-analysis-x2wn7x` b5be7ad；test_docs_commands 排除常量；M-B-011⑤ |
+| D-710 | 2026-09-05 | **A-1 驱动器四件合入 `99d07b2`**（61bd2401/v3 缺席，大脑按 PO 令做）：pin_console 作 main 首条；focus 精确包名＋Awake；`adb -s $ANEB_SERIAL`＋单引号包裹＋SH 注入点；prompt 须 ASCII 并作账目首行。新增 8 测试（122→130），15 突变全 CAUGHT，时序代码零改动。 | `99d07b2`；wf_da542748 两份报告；REVIEW §7.1 A-1 机检 |
 
 ## 否决记录（评估后明确不采纳）
 
