@@ -93,6 +93,10 @@ _CARRIER_ALIASES = {
     "cmcc": "cmcc", "移动": "cmcc", "chinamobile": "cmcc", "china mobile": "cmcc",
     "cucc": "cucc", "联通": "cucc", "chinaunicom": "cucc", "china unicom": "cucc",
     "ctcc": "ctcc", "电信": "ctcc", "chinatelecom": "ctcc", "china telecom": "ctcc",
+    # 全称在实采语料里真实出现过（acceptance_20260820 十条 run 填「中国电信」），
+    # 两字简称接不住四字全称——跨语料视图里 ctcc 被劈成两桶，正是 D-149 那种
+    # 「同一标签两种写法拆格」的形状（T81/语料台账首算当场咬出）。
+    "中国移动": "cmcc", "中国联通": "cucc", "中国电信": "ctcc",
 }
 
 DEFAULT_MIN_SAMPLES = 5   # per-tier / per-cell sample floor for low_confidence

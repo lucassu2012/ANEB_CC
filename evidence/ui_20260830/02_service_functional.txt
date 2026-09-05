@@ -1,0 +1,8 @@
+=== 功能验证：服务真的在发事件吗（设置在 ≠ 服务绑上了）===
+ADAPTER_EVT 行数: 15
+ADAPTER_OBS 行数: 1
+--- 样例 ---
+08-30 16:21:19.177 15746 15746 I AnebProbe: ADAPTER_EVT type=content cls=androidx.recyclerview.widget.RecyclerView desc=null txt_len=0 pkg=com.larus.nova t_boot
+08-30 16:21:19.278 15746 15746 I AnebProbe: ADAPTER_EVT type=content cls=android.view.ViewGroup desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=656448309069887
+--- 新进程 ---
+15746       00:56 com.aneb.probe

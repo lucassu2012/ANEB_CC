@@ -1,0 +1,12 @@
+--------- beginning of main
+09-05 21:06:28.342 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191957373869493
+09-05 21:06:28.441 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191957472387202
+09-05 21:06:28.839 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191957870594493
+09-05 21:06:28.938 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc=小卡片堆叠,共2张,当前卡片小艺建议 txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191957969903348
+09-05 21:06:29.038 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc=小卡片堆叠,共2张,当前卡片小艺建议 txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191958069503348
+09-05 21:06:29.139 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc=小卡片堆叠,共2张,当前卡片小艺建议 txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191958170637722
+09-05 21:06:29.239 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc=小卡片堆叠,共2张,当前卡片小艺建议 txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191958270407514
+09-05 21:06:29.344 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc=小卡片堆叠,共2张,当前卡片小艺建议 txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191958375437722
+09-05 21:06:29.444 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc=小卡片堆叠,共2张,当前卡片小艺建议 txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191958475497097
+09-05 21:06:29.544 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc= txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191958575634077
+09-05 21:06:29.645 I/AnebProbe(25624): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc= txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=1191958676549181

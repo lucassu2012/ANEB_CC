@@ -71,6 +71,27 @@ sealed interface HistoryEntry {
 /** 历史页混排纯函数（抽出 Composable 便于单测）。 */
 object HistoryFeed {
     /**
+     * 历史行 TTFT 展示值（抽出 Composable 便于单测；**R-10 在回退层的落点**，D-608）。
+     *
+     * **只认发送锚定的 TTFT**：[AdapterObsEntity.ttftClusterMs] 落库前已在
+     * [com.aneb.probe.adapter.AnebAccessibilityService] 内做过**同口径**择优
+     * （v3 簇分割优先、v4 密度谱兜底，二者口径同轴），故本层已无同口径可退者——
+     * 取不到就是**没测到**，返回 null 让调用方显 `—`。
+     *
+     * **为什么不再回退到 [AdapterObsEntity.firstDeltaMs]**（本函数存在的全部理由）：
+     * 它锚在**观察启动**而非**发送**，与 TTFT **不同轴**。当观察窗开在流已经在跑之后，
+     * 它 ≈ 0——**那个 0 恰恰证明「这一轮没测到 TTFT」，而不是「0 毫秒出了首字」**。
+     * D-608 实证：本批 290 条 OBS 中 `ttftClusterMs` 为 null 的 104 条其 `firstDeltaMs`
+     * **全部为 0**，而 null 的真值可达 **49.5 s** ⇒ 旧回退把 49 秒显示成 0 毫秒，
+     * **误差方向朝「看起来最快」**。
+     *
+     * **「仅 first_delta > 0 才回退」不足以修**：窗开在流中途而首增量恰为 300 ms 时，
+     * 仍把 49 秒显示成 300 毫秒——**门设在 0 上只挡住最扎眼的那个值，挡不住机制**。
+     * 病因是跨锚点取值，故整条回退去掉；首增量不丢，另以自己的名字显在副行。
+     */
+    fun obsTtftDisplayMs(obs: AdapterObsEntity): Double? = obs.ttftClusterMs
+
+    /**
      * TestRun + 语音记录 + 观察记录按时间降序合成混合列表。
      * sortedByDescending 稳定：同刻条目保持拼接序（run → 语音 → 观察）、各自输入相对序（key 仍唯一）。
      */
@@ -263,8 +284,10 @@ private fun VoiceHistoryRow(result: VoiceResultEntity, fmt: SimpleDateFormat) {
 /**
  * 观察记录历史行（镜像 [VoiceHistoryRow] 卡型，不可点击——观察无结果详情页）：
  * [AdapterObsEntity.appLabel]（豆包/DeepSeek 友好名，缺退 pkg）+「AI体验」标签 + 关键值
- * （TTFT 簇代理 [AdapterObsEntity.ttftClusterMs] 优先，缺退首增量 [AdapterObsEntity.firstDeltaMs]，
- * 均无显 —，R-10 诚实缺席）+ cadence 副行 + 恒 LOW/INCONCLUSIVE（观察口径红线）色注。
+ * （**只显发送锚定 TTFT** [AdapterObsEntity.ttftClusterMs]，未测显 —，R-10 诚实缺席；
+ * 判据与「为何不回退首增量」见 [HistoryFeed.obsTtftDisplayMs]，D-608）
+ * + cadence／首增量副行（[AdapterObsEntity.firstDeltaMs] **以自己的名字**出现，不冒充 TTFT）
+ * + 恒 LOW/INCONCLUSIVE（观察口径红线）色注。
  * 只展示落库实测值，不重算（D-02）；观察=端到端体验代理≠网络口径。
  */
 @Composable
@@ -307,14 +330,17 @@ private fun AdapterHistoryRow(obs: AdapterObsEntity, fmt: SimpleDateFormat) {
                 modifier = Modifier.padding(top = 2.dp),
             )
             Text(
-                "cadence " + (obs.cadenceP50Ms?.let { "%.0f ms".format(it) } ?: "—"),
+                "cadence " + (obs.cadenceP50Ms?.let { "%.0f ms".format(it) } ?: "—") +
+                    // 首增量以**自己的名字**显示，绝不冒充 TTFT（D-608）：它锚在观察启动、
+                    // 与 TTFT 不同轴；去掉跨锚点回退后信息不丢，只是各归各名。
+                    " · 首增量 " + (obs.firstDeltaMs?.let { "$it ms" } ?: "—"),
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 color = colors.faint,
             )
         }
-        // 关键值：TTFT 簇代理优先，缺退观察启动→首增量（均无显 —，R-10）
-        val ttft = obs.ttftClusterMs ?: obs.firstDeltaMs?.toDouble()
+        // 关键值：只显发送锚定 TTFT，未测显 —（R-10 延伸到回退层，判据见 HistoryFeed.obsTtftDisplayMs）
+        val ttft = HistoryFeed.obsTtftDisplayMs(obs)
         Text(
             "TTFT " + (ttft?.let { "%.0f ms".format(it) } ?: "—"),
             fontSize = 12.sp,

@@ -36,6 +36,7 @@ import subprocess
 import sys
 import threading
 import time
+import e1_io                    # noqa: E402  (D-648③ 输出编码自锁)
 
 # ── 设备守卫 ──────────────────────────────────────────────────────────────
 # P40 Pro 的 ro.product.model。ELS = 该机型代号；列出已知变体而非做前缀匹配，
@@ -293,6 +294,7 @@ def _write(path, text):
 
 
 def main(argv=None):
+    e1_io.pin_console_utf8()   # D-648③：重定向落盘时别退回 GBK（中文键名是分流信号）
     ap = argparse.ArgumentParser(description="E1 三通道采集（设备守卫内建）")
     ap.add_argument("--serial", required=True,
                     help="adb 序列号。必填：本脚本没有自动挑设备的路径")

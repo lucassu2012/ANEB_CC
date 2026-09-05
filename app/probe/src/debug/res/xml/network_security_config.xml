@@ -32,4 +32,14 @@
             <certificates src="system" />
         </trust-anchors>
     </domain-config>
+    <!-- T54（D-703）：设备经真 WiFi 连 PC 上的 C 树 server。锚＝gencert -mode=ip -ip 10.10.3.119
+         生成的自签 IP-SAN 证书（私钥在仓外 E:/tools/aneb-ctree/tls，不入库）。作用域钉死单个 LAN IP，
+         明文不放行。⚠ 该 IP 是酒店 DHCP 所分，换网即失效——届时重跑 gencert 并替换 raw/aneb_lan_ca.pem。 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">10.10.3.119</domain>
+        <trust-anchors>
+            <certificates src="@raw/aneb_lan_ca" />
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

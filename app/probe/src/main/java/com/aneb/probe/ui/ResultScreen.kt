@@ -89,6 +89,23 @@ import kotlin.math.roundToInt
 
 enum class ResultViewMode(val label: String) { Simple("简洁"), Detailed("专业") }
 
+/**
+ * 低置信警示徽章文案——**简洁面与专业面共用的单一事实源**（D-610 ③）。
+ *
+ * **缺陷原状**：专业面有 `⚠` 徽章 ＋ `ConfidenceChip` ＋ 逐项原因，而**默认的简洁面**
+ * 只在结论正文句尾挂一个括号「（本次证据不完整，分数仅供参考）」——同字号同颜色，
+ * 而**括号本身就是「这句次要」的排版信号**。简洁面恰是非专业读者会看的那一面。
+ *
+ * **裁定取向（D-610 ③）**：**信任标记的显著度不得随视图简化而降级——简化可以删细节，
+ * 不可以删警示等级。** 故简洁面该删的是「逐项低置信原因」这类细节，
+ * 而**警示等级（`⚠` ＋ 分级色 ＋ 独占一行）必须与专业面等同**。
+ *
+ * **做成共用值而非两处各写一份**：各写一份则改一处漏一处就重新分叉，
+ * 而**分叉后两面都不报错**——正是本仓反复咬到的那个形状。共用后结构上不可能漂。
+ */
+internal val lowConfBadgeText: String
+    get() = "⚠ ${ResultFormat.LOW_CONFIDENCE_LABEL} · 证据不完整，本分数仅供参考"
+
 @Composable
 fun ResultScreen(
     run: TestRun?,
@@ -297,6 +314,14 @@ private fun SimpleResultView(
         }
 
         Spacer(Modifier.height(14.dp))
+        // ---- 低置信警示（D-610 ③）：与专业面**同一警示等级**，排在结论句之前 ----
+        // 排在前面是刻意的：警示要在读者形成判断**之前**到达；跟在结论后面（更别说
+        // 收进括号）等于让读者先信了再补一句「其实别太信」。文案走 [lowConfBadgeText]
+        // 单一事实源，简化面删的是逐项原因这类细节，不删警示等级。
+        if (run.aqsLowConfidence == true) {
+            InlineBadge(lowConfBadgeText, colors.lowConf, colors.fairSoft)
+            Spacer(Modifier.height(10.dp))
+        }
         // ---- 结论句（关键结论小句分档色加粗）----
         Text(
             verdictAnnotated(verdict, band, colors.ink),
@@ -410,6 +435,7 @@ private fun buildShareModel(
         gradeLabel = grade?.labelFriendly ?: "未完成",
         gradeColorArgb = gradeArgb,
         verdict = verdict,
+        lowConfidence = run.aqsLowConfidence == true,
         tiles = listOf(
             ShareCard.Model.Tile(
                 t1?.value?.let { "${it.roundToInt()}ms" } ?: "—", "响应速度", argb(t1?.grade),
@@ -527,7 +553,7 @@ private fun AqsHeadlineCard(
             }
             if (run.aqsLowConfidence == true) {
                 Spacer(Modifier.height(8.dp))
-                InlineBadge("⚠ ${ResultFormat.LOW_CONFIDENCE_LABEL} · 证据不完整，本分数仅供参考", colors.lowConf, colors.fairSoft)
+                InlineBadge(lowConfBadgeText, colors.lowConf, colors.fairSoft)
                 // 「为什么低」一句话（D-505③）：此前这里只印"低置信"三个字、不说原因——
                 // 裁定原话是「低置信要可解释不是要消灭」。原因逐字照 AqsScorer 的判据导出
                 // （场景判定 + 权重项证据不足两个来源），见 ResultFormat.lowConfidenceReason。

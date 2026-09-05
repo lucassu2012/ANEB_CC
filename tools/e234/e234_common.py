@@ -409,3 +409,31 @@ def write_report(path, text):
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text)
     return path
+
+
+def say(text, stream=None):
+    """控制台编码不下这行字时也要把话说完（D-265：**报错通道自己最容易死在报错上**）。
+
+    实测触发：Windows 控制台是 GBK，而判定理由里的 `⇒` 不在 GBK 里 ⇒
+    `sys.stdout.write` 直接抛 `UnicodeEncodeError`，**整个工具带着一条正确的结论崩掉**。
+    崩在打印上比算错更隐蔽：退出码非零、看起来像判定失败，而其实判定早就算完了。
+
+    与 `tools/e1/tests/run_tests.py:_say` 同形。**那一只没有被改成 import 这一只**：
+    它是测试跑器、在 `sys.path` 尚未接好时就要能说话，依赖边反向会更脆。
+    此处留下互指注释，是为了让下次改编码策略的人知道有两处（D-315 的教训是
+    「副本要留依赖边」，而**留不了依赖边时，至少留一条互指**）。
+    """
+    stream = stream or sys.stdout
+    enc = getattr(stream, "encoding", None) or "ascii"
+    try:
+        text.encode(enc)
+    except (UnicodeEncodeError, LookupError):
+        out = []
+        for ch in text:
+            try:
+                ch.encode(enc)
+                out.append(ch)
+            except (UnicodeEncodeError, LookupError):
+                out.append("\\u%04x" % ord(ch))
+        text = "".join(out)
+    stream.write(text)

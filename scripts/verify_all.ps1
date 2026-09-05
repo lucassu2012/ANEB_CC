@@ -7,13 +7,29 @@
 #            NOTHING must never be indistinguishable from one that passed.
 
 # -Strict: treat NOT_EXECUTED as failure (default off; see summary block at the end).
-param([switch]$Strict)
+param(
+    # SPEC-3 §3.2（T81）：分层触发。all=全链（收官/入册/交接点专用）；其余只跑
+    # 该层的门，未跑的门以 SKIPPED_SCOPE 显名列出——绝不折算 PASS，也不冒充
+    # NOT_EXECUTED（那是「想验验不了」，这是「本次没请它验」）。
+    [ValidateSet('server','app','scripts','spec','all')][string]$Scope = 'all',
+    # -Strict 自 SPEC-3 §3.2 起为默认（NOT_EXECUTED 计败）；开关保留作兼容名。
+    # 要旧的宽松行为用 -Lenient 显式退出。
+    [switch]$Strict,
+    [switch]$Lenient)
+$Strict = -not $Lenient
 
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 $evidenceDir = Join-Path $repo 'evidence\phase0'
 New-Item -ItemType Directory -Force $evidenceDir | Out-Null
-$ts = Get-Date -Format 'yyyyMMdd-HHmmss'
+# ⚠ 时间戳带 **PID**（T89，承 D-612④）：原先只有秒级 `yyyyMMdd-HHmmss`，**无进程区分**
+# ⇒ 两个 verify_all 在同一秒启动会**共用同一个 $logPath 互相覆盖**，且不报错。
+# 本树是共享工作树、同刻常有多个会话在跑门，这不是理论风险。
+# 形状仍匹配 `.gitignore` 的 `verify_all_*.log` 与 `badges.py:latest_log` 的 glob；
+# 时间戳是**定宽前缀**，故按名排序在跨时间戳时仍正确。
+# ⚠ 同秒内两条日志的先后由 PID **字符串**比较决定（"9999" > "10000"）——**那是任意的**；
+# 但 verify_all 总是显式把 $logPath 传给 badges.py，`latest_log` 只是手工调用时的兜底。
+$ts = (Get-Date -Format 'yyyyMMdd-HHmmss') + "-$PID"
 $logPath = Join-Path $evidenceDir "verify_all_$ts.log"
 $results = @()
 
@@ -22,10 +38,29 @@ function Add-Result([string]$check, [string]$state, [string]$detail) {
     "$state  $check  $detail"
 }
 
+function Test-InScope([string]$layer, [string[]]$gates) {
+    # 层外的门逐个显名记 SKIPPED_SCOPE（沉默的跳过=没有检查项，2.9）；
+    # 汇总与退出码都认得这个状态：不算 PASS、不算 FAIL、不触发 -Strict。
+    if ($Scope -eq 'all' -or $Scope -eq $layer) { return $true }
+    foreach ($g in $gates) {
+        $script:log += Add-Result $g 'SKIPPED_SCOPE' ('out of -Scope ' + $Scope)
+    }
+    return $false
+}
+
 $log = @()
 $log += "verify_all run at $ts"
 $log += "repo: $repo"
 
+
+# --- 共享工具链探测（python）：必须在任何 -Scope 层块之外 ---
+# SPEC-3 §3.2 施工自伤记录：初版把它留在 spec 层块内，`-Scope scripts` 跑时
+# 整块不执行 ⇒ $py 为空 ⇒ 本层两道门双双报「missing: python」——**实测当场
+# 咬出**（分层跑 2.1s 里 0 PASS）。共享探测与被圈的门不是一回事，外提。
+$py = $null
+foreach ($c in @('python', 'python3', 'py')) { try { $py = (Get-Command $c -ErrorAction Stop).Source; break } catch {} }
+
+if (Test-InScope 'server' @('server-vet','server-build','server-test')) {
 # --- locate go ---
 $goCandidates = @('C:\Program Files\Go\bin\go.exe', 'E:\tools\go\bin\go.exe')
 $go = $null
@@ -51,6 +86,9 @@ if ($go) {
     }
 }
 
+}
+
+if (Test-InScope 'spec' @('profiles-valid','portraits-redline','adapters-spec','adapters-spec-unit','portraits-redline-unit','portraits-schema','portraits-schema-unit','spec-versions','spec-versions-unit')) {
 # --- profile validation ---
 $profileErrors = @()
 $profileFiles = Get-ChildItem (Join-Path $repo 'profiles') -Filter '*.json'
@@ -69,8 +107,6 @@ $log += Add-Result 'profiles-valid' $(if ($profileErrors.Count -eq 0) { 'PASS' }
 # --- Profile-3 portrait red-line guard (D-62): params gate intact, no caliber overclaim ---
 # check_redline.py exit: 0=all invariants hold (PASS) / 1=violation(s) (FAIL) / 2=env gap
 # (pyyaml missing or no yaml found) -> NOT_EXECUTED (honest, per this script's philosophy).
-$py = $null
-foreach ($c in @('python', 'python3', 'py')) { try { $py = (Get-Command $c -ErrorAction Stop).Source; break } catch {} }
 $redlineScript = Join-Path $repo 'spec\portraits\check_redline.py'
 if ($py -and (Test-Path $redlineScript)) {
     $out = & $py $redlineScript 2>&1 | Out-String
@@ -161,6 +197,59 @@ if ($py -and (Test-Path $redlineTest)) {
     $log += Add-Result 'portraits-redline-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+# --- AQS 版本冻结守卫 + 其自守卫（SPEC-4 4.1 / D-567；接门半由 SPEC-3 代做）---
+# check_versions.py exit: 0=weights 与 AQS_VERSIONS 登记表一致 / 非 0=有未登记或
+# 对不上的 version_id。
+#
+# **自守卫用 pytest 跑，而不是照 portraits 那样 `& $py <file>`**：那份姊妹文件
+# （test_check_redline.py）自带 `__main__` runner，直接执行会真跑；而这一份没有
+# ——**当脚本执行它，7 条测试一条都不跑、退出码恒 0**（实测：脚本跑零输出 RC=0，
+# pytest 跑 7 passed）。照抄形态就会造出一道永远绿的假门，而 gate-integrity 也
+# 抓不到（python 在、不抛 CommandNotFoundException）——D-532「从落地起没跑过却
+# 每次报 PASS」的同一形状。pytest 缺席时如实记 NOT_EXECUTED，不冒充 PASS。
+$versionsScript = Join-Path $repo 'spec\scoring\check_versions.py'
+if ($py -and (Test-Path $versionsScript)) {
+    $out = & $py $versionsScript 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- spec-versions (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'spec-versions' 'PASS' 'check_versions.py'
+    } else {
+        $log += Add-Result 'spec-versions' 'FAIL' 'version registry drift; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $versionsScript)) { $missing += 'spec/scoring/check_versions.py' }
+    $log += Add-Result 'spec-versions' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+$versionsTest = Join-Path $repo 'spec\scoring\test_check_versions.py'
+$hasPytest = $false
+if ($py) {
+    & $py -c "import pytest" 2>&1 | Out-Null
+    $hasPytest = ($LASTEXITCODE -eq 0)
+}
+if ($py -and $hasPytest -and (Test-Path $versionsTest)) {
+    $out = & $py -m pytest $versionsTest -q 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- spec-versions-unit (exit $code) ---"
+    $log += $out
+    if ($code -eq 0) {
+        $log += Add-Result 'spec-versions-unit' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'passed' } | Select-Object -First 1).Trim())
+    } else {
+        $log += Add-Result 'spec-versions-unit' 'FAIL' 'reflex test(s) failed; see log'
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    elseif (-not $hasPytest) { $missing += 'pytest（该文件无自带 runner，脚本执行会零测试假绿）' }
+    if (-not (Test-Path $versionsTest)) { $missing += 'spec/scoring/test_check_versions.py' }
+    $log += Add-Result 'spec-versions-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+
 # --- Profile-3 portrait SHAPE gate (spine-3 #6): jsonschema validates the three-layer
 # document structure (params / params_fit_approx / observed_*), complementing check_redline
 # semantics. exit: 0=PASS / 2=NOT_EXECUTED (pyyaml or jsonschema missing) / else FAIL.
@@ -207,6 +296,105 @@ if ($py -and (Test-Path $schemaTest)) {
     $log += Add-Result 'portraits-schema-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+}
+
+# --- obs-tools 套件：**枚举而非手写名单**（D-674④a）---------------------------
+# 判据＝`tools/<x>/tests/run_tests.py` 存在，门名由目录推出 `obs-tools-<x>-unit`。
+#
+# ⚠ **为什么改成枚举**：手写名单把「这道门在不在清单上」交给**人记得**，
+# 而本仓已为此付过**三次**学费（e1／e234 两只跑器 docstring 写着「以便直接接进
+# verify_all」却从未被接进来；e03 守卫 2026-09-03 建好当天也不在清单里）。
+# **前两次是补登，这次是把「靠人记得」这个形状本身关掉。**
+# ⚠ 名字仍要稳：`obs-tools-<dir>-unit` 与既有三道逐字相同，徽章/日志的既有引用不断。
+# ⚠ **枚举必须会响亮地失败**：glob 坏掉会**静默返回空**，那时「全绿」是假的——
+# 与它要防的「门不在清单上」是同一个病，只是换了个入口。故下方零命中即 FAIL。
+$obsSuites = @(Get-ChildItem (Join-Path $repo 'tools') -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName 'tests/run_tests.py') } |
+    ForEach-Object { @{ Name = ('obs-tools-' + $_.Name + '-unit'); Dir = ('tools/' + $_.Name + '/tests') } } |
+    Sort-Object { $_.Name })
+$obsNames = @($obsSuites | ForEach-Object { $_.Name })
+
+# ⚠ 这张名单必须与本块内**实际 Add-Result 的门名**逐一对齐：漏登记的门在层外
+# 既不跑、也不记 SKIPPED_SCOPE，而是**从汇总里彻底消失**——正是 `Test-InScope`
+# 自己注释里写的「沉默的跳过＝没有检查项」。
+# ⚠ `obs-tools-*` 那几道**由上方枚举得出、不再手写**：手写与实际执行的两处一旦
+# 各写各的，必有一处先漂，而漂的那处不报错（本仓「同一事实两处存」）。
+# （它们测的是 `tools/`，归 'scripts' 层是因为那是分析 lane 的层，不是路径前缀。）
+if (Test-InScope 'scripts' (@('campaign-analysis-unit','results-contract-unit','evidence-rules','corpus-ledger-fresh','obs-tools-enumeration') + $obsNames)) {
+# --- 语料台账新鲜度门（T82 §9.2 #12）：台账开篇写着「勿手编」，而此前没有任何
+# 东西核对它——手改能一直活到下次重算，期间那两面仍被当作单一事实源引用。
+# 本门只比不写：落盘的 md/CSV 必须与现算逐字节相同。不一致的两种成因（有人手改／
+# 语料变了没重算）后果相同：被引用的数字不再是当前语料算出来的，故都记 FAIL。
+# ⚠ **必须 Push-Location 到仓根**（2026-08-30 实测）：`corpus_ledger.py` 的默认
+# `--md`/`--csv` 是**相对路径**（`docs/CORPUS_LEDGER.md`），而本门此前不切目录，
+# 于是**同一份代码、同一个仓，从不同 cwd 调 verify_all 会给出不同结论**——
+# 实测一次 `-Scope all` 报 FAIL，日志里真正的话是 `No such file or directory`。
+# 邻近几道门（campaign-analysis-unit / obs-tools-*）本来就 Push-Location，**只有这道漏了**。
+# exit: 0=一致 / 1=真漂移 / 2=**没比成**（读不了，多半是 cwd 不对）——2 不是漂移。
+$ledgerScript = Join-Path $repo 'scripts/corpus_ledger.py'
+if ($py -and (Test-Path $ledgerScript)) {
+    Push-Location $repo
+    $out = & $py $ledgerScript --check 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    Pop-Location
+    $log += "--- corpus-ledger-fresh (exit $code) ---"
+    $log += $out
+    $head = ($out -split "`n" | Where-Object { $_ -match 'corpus ledger check:' } | Select-Object -First 1)
+    if ($code -eq 0) {
+        $log += Add-Result 'corpus-ledger-fresh' 'PASS' $head
+    } elseif ($code -eq 2) {
+        # 「没比成」不冒充「比过了、不一致」——判词点对成因，处置才会对
+        # ⚠ **判词不许落空**（2026-08-30 实测）：$head 只捞含 `corpus ledger check:`
+        # 的那一行，而后加的「缺根拒算」分支只写了 stderr、没打这行标记
+        # ⇒ 摘要面只剩「corpus-ledger-fresh  NOT_EXECUTED」、**一个字的成因都没有**，
+        # 读者分不出「缺根/环境不对」和「别的没比成」——而那条路径的设计定位
+        # 恰恰是**响亮拒算**。响亮丢在摘要面上就等于没响。
+        # 生产者侧已补标记；这里再兜一层，让**将来任何忘了打标记的 RC=2 分支**
+        # 也响得出来——判词落空是静默的，静默正是本仓最贵的那类缺陷。
+        $why = $head
+        if (-not $why) {
+            $why = (($out -split "`n") | Where-Object { $_.Trim() } | Select-Object -First 1)
+            # ⚠ PS 5.1 对原生命令用 `2>&1` 会把 stderr 行包成 ErrorRecord 并加
+            # "python.exe : " 这样的前缀（实测），剥掉再当判词，别把噪声当成因。
+            if ($why) { $why = ($why -replace '^\S+\.exe\s*:\s*', '').Trim() }
+        }
+        if (-not $why) { $why = '退出码 2（没比成），但脚本一句话都没打——见本日志 corpus-ledger-fresh 段' }
+        $log += Add-Result 'corpus-ledger-fresh' 'NOT_EXECUTED' $why
+    } else {
+        $log += Add-Result 'corpus-ledger-fresh' 'FAIL' $head
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $ledgerScript)) { $missing += 'scripts/corpus_ledger.py' }
+    $log += Add-Result 'corpus-ledger-fresh' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+# --- evidence/ RULE gate (T82 §9.2 #4/#6/#7/#13/#14): evidence/README 立了六条规则而
+# 此前一条都没有守卫。接上五条 + 一条 README 蕴含项（列出的证据文件必须真在盘上）。
+# 四态判据从 README 解析，不再抄一份。exit: 0=干净 / 1=有违规或过期豁免 -> FAIL /
+# 2=判据缺失（README 解析不出规则 1）-> NOT_EXECUTED，**不冒充 PASS**（D-511/D-532）。
+$evidenceGuard = Join-Path $repo 'scripts\check_evidence.py'
+if ($py -and (Test-Path $evidenceGuard)) {
+    $out = & $py $evidenceGuard --root (Join-Path $repo 'evidence') 2>&1 | Out-String
+    $code = $LASTEXITCODE
+    $log += "--- evidence-rules (exit $code) ---"
+    $log += $out
+    $head = ($out -split "`n" | Where-Object { $_ -match 'evidence guard:' } | Select-Object -First 1)
+    if ($code -eq 0) {
+        $log += Add-Result 'evidence-rules' 'PASS' $head
+    } elseif ($code -eq 2) {
+        $log += Add-Result 'evidence-rules' 'NOT_EXECUTED' 'evidence/README 解析不出规则 1；判据缺失不放行'
+    } else {
+        $log += Add-Result 'evidence-rules' 'FAIL' $head
+    }
+} else {
+    $missing = @()
+    if (-not $py) { $missing += 'python' }
+    if (-not (Test-Path $evidenceGuard)) { $missing += 'scripts/check_evidence.py' }
+    $log += Add-Result 'evidence-rules' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
 # --- Campaign-level analysis & reporting layer SELF-TEST (D-87): golden reflex tests ---
 # Guards scripts/{campaign_common,attribution,campaign_report}.py — three-tier differential
 # attribution + point×time×carrier heat card + before/after comparison. Self-contained runner
@@ -229,6 +417,56 @@ if ($py -and (Test-Path $campaignTest)) {
     if (-not $py) { $missing += 'python' }
     if (-not (Test-Path $campaignTest)) { $missing += 'scripts/tests/run_all.py' }
     $log += Add-Result 'campaign-analysis-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+}
+
+# --- Observation-channel analysis tools SELF-TEST (T81 §7-2, 2026-08-30) ---
+# Guards tools/e1/* and tools/e234/* — the E1..E4 collectors/analyzers plus the new
+# e2_precheck applicability assertion. Self-contained runners (no pytest).
+# exit: 0=all reflex pass / 1=a reflex failed -> FAIL / 5=zero collected -> FAIL.
+#
+# **为什么现在才接进来**：这两只跑器自 2026-08-02 就存在，`tools/e1/tests/run_tests.py`
+# 的 docstring 逐字写着三态退出码「以便直接接进 `scripts/verify_all.ps1`」——
+# **而它们从未被接进来**（2026-08-30 全仓核：只有 docs 与两份 README 提到它们，
+# 本文件零引用）。于是 180+ 条守卫观察通道分析工具的反例，**只在有人手动想起时才跑**。
+#
+# 这不是 D-532 那种「门没跑却报 PASS」，是更安静的一种：**门是绿的、也是真绿的，
+# 只是不在清单上** —— `gate_count` 从来没把它们数进去，所以谁也不会发现少了什么。
+# ⇒ **「写好了一道门」与「那道门在门禁清单上」是两件事**，后者要单独去核；
+# 而**自称「已备好接入」的东西最容易被当成已接入**——那句话本身读起来就像完成态。
+#
+# 5 也判 FAIL：零收集意味着枚举坏了或目录空了，那时「全绿」是假的（D-275/D-364）。
+# ⚠ 零命中即 FAIL：枚举坏了会**静默返回空**，那时「一道 obs 门都没跑」而汇总全绿。
+# 成功也出行（不只失败才出）：一条**只在失败时才出现**的检查，健康时是隐形的
+# —— 那时 `0 FAIL` 分不清「枚举跑了且没事」与「这条检查压根没跑」，且 gate_count
+# 会随层数摆动（实测 scripts 层 26、spec 层 27）。⇒ 两条腿都出行，数才稳。
+if ($obsSuites.Count -eq 0) {
+    $log += Add-Result 'obs-tools-enumeration' 'FAIL' 'tools 下带 tests/run_tests.py 的目录零命中——枚举坏了或目录空了'
+} else {
+    $log += Add-Result 'obs-tools-enumeration' 'PASS' ("枚举到 " + $obsSuites.Count + " 只：" + ($obsNames -join ', '))
+}
+foreach ($obsSuite in $obsSuites) {
+    $obsDir = Join-Path $repo $obsSuite.Dir
+    $obsRunner = Join-Path $obsDir 'run_tests.py'
+    if ($py -and (Test-Path $obsRunner)) {
+        Push-Location $obsDir
+        $out = & $py $obsRunner 2>&1 | Out-String
+        $code = $LASTEXITCODE
+        Pop-Location
+        $log += ("--- " + $obsSuite.Name + " (exit $code) ---")
+        $log += $out
+        if ($code -eq 0) {
+            $log += Add-Result $obsSuite.Name 'PASS' (($out -split "`n" | Where-Object { $_ -match 'reflex:' } | Select-Object -First 1).Trim())
+        } elseif ($code -eq 5) {
+            $log += Add-Result $obsSuite.Name 'FAIL' 'zero tests collected (enumeration broken or dir empty)'
+        } else {
+            $log += Add-Result $obsSuite.Name 'FAIL' 'reflex test(s) failed; see log'
+        }
+    } else {
+        $missing = @()
+        if (-not $py) { $missing += 'python' }
+        if (-not (Test-Path $obsRunner)) { $missing += ($obsSuite.Dir + '/run_tests.py') }
+        $log += Add-Result $obsSuite.Name 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
+    }
 }
 
 # --- Result JSONL INPUT CONTRACT gate (D-97): validate the committed corpus against
@@ -258,6 +496,9 @@ if ($py -and (Test-Path $contractScript)) {
     $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+}
+
+if (Test-InScope 'spec' @('spec-scoring-unit','profiles-deep','voice-plan-parity')) {
 # --- Spec SCORING-PACK gate (D-102): the authoritative parity guard
 # (SpecScoringParityTest.kt) is Android-toolchain-gated, so in the usual no-Android
 # run the scoring YAMLs are ungated. This validates the invariants they declare:
@@ -339,6 +580,9 @@ if ($py -and (Test-Path $voicePlanScript)) {
     $log += Add-Result 'voice-plan-parity' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
+}
+
+if (Test-InScope 'app' @('app-assembleDebug','app-parity-tests','app-unit-tests-full','app-release-signing')) {
 # --- app toolchain probe (build requires JDK + Android SDK) ---
 $jdk = $null; try { $jdk = (Get-Command java -ErrorAction Stop).Source } catch {}
 $sdk = ($env:ANDROID_HOME) -or (Test-Path "$env:LOCALAPPDATA\Android\Sdk")
@@ -436,77 +680,181 @@ if ($jdk -and $sdk -and $wrapperJar -and (Test-Path $signScript)) {
     $log += Add-Result 'app-release-signing' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 
-# --- write log (utf8, never UTF-16) ---
-$log -join "`r`n" | Out-File -Encoding utf8 $logPath
-
-# --- regenerate sha256 manifest for evidence/phase0 (scripted, never manual) ---
-$manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
-$lines = @()
-Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.Name -ne 'sha256-manifest.txt' } | Sort-Object FullName | ForEach-Object {
-    $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
-    $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
-    $lines += "$h  $rel"
 }
-$lines -join "`r`n" | Out-File -Encoding utf8 $manifestPath
 
-# --- summary ---
-''
-'=== verify_all summary ==='
-$results | ForEach-Object { "{0,-14} {1}  {2}" -f $_.state, $_.check, $_.detail }
-"log: $logPath"
-"manifest: $manifestPath ($($lines.Count) files)"
-$failed = @($results | Where-Object { $_.state -eq 'FAIL' })
-$notRun = @($results | Where-Object { $_.state -eq 'NOT_EXECUTED' })
+
+# --- summary（先算清，再按归档策略落盘；SPEC-3 §3.2/T81）---
+$failed  = @($results | Where-Object { $_.state -eq 'FAIL' })
+$notRun  = @($results | Where-Object { $_.state -eq 'NOT_EXECUTED' })
+$skipped = @($results | Where-Object { $_.state -eq 'SKIPPED_SCOPE' })
+$sum = @()
+$sum += ''
+$sum += "=== verify_all summary (scope: $Scope) ==="
+$sum += ($results | ForEach-Object { "{0,-14} {1}  {2}" -f $_.state, $_.check, $_.detail })
+$sum += ("checks: {0} total / {1} FAIL / {2} NOT_EXECUTED / {3} SKIPPED_SCOPE" -f `
+    $results.Count, $failed.Count, $notRun.Count, $skipped.Count)
 
 # --- NOT_EXECUTED must be visible, not silently folded into a green run (T69, G-1) ---
-# The header contract is "exit 0 if no FAIL (NOT_EXECUTED allowed)". That is this repo's own
-# "cannot-check reported as no-problem" shape sitting on the OUTERMOST gate: on a box without
-# python every python gate degrades to NOT_EXECUTED and the chain still exits 0.
-# Default behaviour is deliberately UNCHANGED (flipping it would turn other sessions' runs red
-# without warning); instead the count is now always printed, and -Strict makes it decisive for
-# anyone who wants a real gate (CI, release checks).
-"checks: {0} total / {1} FAIL / {2} NOT_EXECUTED" -f $results.Count, $failed.Count, $notRun.Count
+# SPEC-3 §3.2（T81，2026-08-28）把 -Strict 翻为**默认开**：NOT_EXECUTED 不折算 PASS
+# 是本仓四态证据的核心语义（诊断 §2.3 保①），此前「不翻默认」的顾虑（惊扰他会话）
+# 由 PO 裁定解除；要旧行为用 -Lenient 显式退出。SKIPPED_SCOPE 与 NOT_EXECUTED 是
+# 两回事：前者=操作者主动圈定范围（本次没请它验），后者=想验而验不了。
 if ($notRun.Count -gt 0) {
-    "NOT_EXECUTED checks (these verified NOTHING):"
-    $notRun | ForEach-Object { "  - {0}  {1}" -f $_.check, $_.detail }
-    if (-not $Strict) { "  (exit code ignores these; re-run with -Strict to make them fail)" }
+    $sum += 'NOT_EXECUTED checks (these verified NOTHING):'
+    $sum += ($notRun | ForEach-Object { "  - {0}  {1}" -f $_.check, $_.detail })
+    if (-not $Strict) { $sum += '  (-Lenient 生效：exit code 忽略这些——它们仍一个都没验)' }
 }
-# --- guard for the guards: 有没有哪一步的命令**根本没启动过**（D-532）---
-# D-532 实例：全量单测门在错误的工作目录下调 `.\gradlew.bat`，命令不存在，PowerShell 抛
-# CommandNotFoundException —— 它**不设 `$LASTEXITCODE`**，于是 `if ($LASTEXITCODE -eq 0)`
-# 沿用上一条命令成功的 0，那道门**从落地起一次没跑过却每次报 PASS**。
-#
-# 逐个 call site 审过一遍（python/go 都先解析成绝对路径再 `& $path` 调，不可能命中；
-# gradle 三处都在 `app/` 内），当时是孤例。但**"今天逐个查过是安全的"不等于"这类问题
-# 不会再来"**——判据沿用上一条退出码这个毛病，是写法本身带的。故在最外层加一道只读
-# 自检：捕获的输出里若出现命令不存在的签名，**整链判红**，而不是靠人去日志里撞见它。
-# 中英双签名：本仓在中英文 Windows 上都跑过。
-# **量法本身被反例证伪过一次，这里写清楚为什么是现在这个写法**：初版扫 `$log` 找
-# "is not recognized" 字样 —— 植入突变实测**它一次没响**。原因：CommandNotFoundException
-# 是 PowerShell 的**语句级**错误，在管道启动之前就抛出，`2>&1 | Out-String` **捕不到**
-# （所以当初它打在控制台、而日志里那一步照样写着 PASS）。改为查 `$Error`：语句级错误
-# 会被记进这个自动变量。
-#
-# 排除探针自身的正常"未找到"：本脚本用 `Get-Command python/go/java -ErrorAction Stop`
-# 探测工具链，缺工具时**本就应该**抛 CommandNotFoundException 并降级 NOT_EXECUTED，
-# 那是设计行为不是缺陷。判别方式＝**目标名长得像一条路径**（含分隔符或带可执行扩展名），
-# 探针传的是裸名字（`python`/`go`/`java`），真正的幽灵调用传的是 `.\gradlew.bat` 这类。
-$ghosts = @($Error | Where-Object {
-    $_.CategoryInfo.Reason -eq 'CommandNotFoundException' -and
-    ($_.CategoryInfo.TargetName -match '[\\/]' -or $_.CategoryInfo.TargetName -match '\.(bat|cmd|exe|ps1)$')
-})
-if ($ghosts.Count -gt 0) {
-    ''
-    'FAIL  gate-integrity  某一步的命令根本没启动（命令不存在），其 PASS 不可信'
-    ($ghosts | ForEach-Object { '  找不到的命令: ' + $_.CategoryInfo.TargetName } | Select-Object -Unique)
-    '  为什么这会造出假绿: CommandNotFoundException 不设 $LASTEXITCODE,'
-    '  于是 "if ($LASTEXITCODE -eq 0) { PASS }" 会沿用上一条命令成功的 0（D-532 实例）。'
-    '  处置: 先修工作目录/命令路径再重跑；在此之前本次汇总里的 PASS 都不作数。'
-    exit 1
+if ($skipped.Count -gt 0) {
+    $sum += ("SKIPPED_SCOPE checks (out of -Scope {0}; 收官/入册前必须补跑 -Scope all):" -f $Scope)
+    $sum += ($skipped | ForEach-Object { "  - {0}" -f $_.check })
 }
 
+# --- guard for the guards（D-532）：判据语义原样保留 ---
+# 有没有哪一步的命令**根本没启动过**。CommandNotFoundException 不设 $LASTEXITCODE，
+# "if ($LASTEXITCODE -eq 0)" 会沿用上一条成功的 0——app 全量单测门曾因此从落地起
+# 一次没跑过却每次报 PASS。字符串签名初版被突变证伪（语句级错误在管道启动前
+# 抛出，2>&1 捕不到），故查 $Error；探针的裸名字探测（python/go/java）是设计行为，
+# 判别=目标名长得像路径或带 bat/cmd/exe 扩展。
+$ghosts = @($Error | Where-Object {
+    $_.CategoryInfo.Reason -eq 'CommandNotFoundException' -and
+    ($_.CategoryInfo.TargetName -match '[\\/]' -or $_.CategoryInfo.TargetName -match '\.(bat|cmd|exe)$')
+})
+if ($ghosts.Count -gt 0) {
+    $sum += ''
+    $sum += 'FAIL  gate-integrity  某一步的命令根本没启动（命令不存在），其 PASS 不可信'
+    $sum += ($ghosts | ForEach-Object { '  找不到的命令: ' + $_.CategoryInfo.TargetName } | Select-Object -Unique)
+    $sum += '  为什么这会造出假绿: CommandNotFoundException 不设 $LASTEXITCODE,'
+    $sum += '  于是 "if ($LASTEXITCODE -eq 0) { PASS }" 会沿用上一条命令成功的 0（D-532 实例）'
+    $sum += '  处置: 先修工作目录/命令路径再重跑；在此之前本次汇总里的 PASS 都不可信'
+}
+$log += $sum
+$sum | ForEach-Object { $_ }
+
+# --- 归档策略（SPEC-3 §3.2）：只归档「收官全绿」与「红门样本」——日常分层跑
+# 不落 evidence（诊断实测 274 份日志全入库是流程开销大头）。收官全绿 =
+# ⚠ 2026-08-29 起 `.gitignore` 忽略 `evidence/phase0/verify_all_*.log`
+#（T86/D-586）。脚本照常写盘，但**要把某次留成证据必须 `git add -f`**——
+# 普通 `git add` 会报错并退出 1（实测：点名该文件+提示 -f，非静默）。
+# 已跟踪的旧日志不受影响；被 STATUS.json/badges.txt 点名的那几份仍在库。
+# -Scope all 且 0 FAIL、0 NOT_EXECUTED、无幽灵；红门样本 = 任一 FAIL 或幽灵
+# （任意 scope——红的诊断价值要留档）。其余写到 TEMP，路径照样打印。
+$isRed = ($failed.Count -gt 0) -or ($ghosts.Count -gt 0)
+$isFinalGreen = ($Scope -eq 'all') -and (-not $isRed) -and ($notRun.Count -eq 0)
+if ($isRed -or $isFinalGreen) {
+    $log -join "`r`n" | Out-File -Encoding utf8 $logPath
+    "log: $logPath  ($(if ($isRed) { '红门样本归档' } else { '收官全绿归档' }))"
+    # ⚠ **顺序是承重的：徽章必须在清单之前刷新**（2026-08-30，D-612）。
+    # 原先清单写在徽章之前 ⇒ 写清单那一刻 `badges.txt` 还是**上一跑**那份 ⇒
+    # **清单里 badges 的哈希从来没对过一次**（0/2：首跑该文件还不存在被漏收；
+    # 此后每次归档跑都记成陈旧值）。比特级实证：清单记的值 ＝ 拿上一次归档日志
+    # 重跑 `badges.py` 得到的字节。而 `badges.py` 把来源日志名写进正文、`$ts` 每跑必变
+    # ⇒ 内容每跑都不同，不存在"碰巧相同蒙混过关"的分支。
+    #
+    # **这条能活到今天，是因为清单没有读者**：全仓没有任何守卫/测试回读它
+    # （`check_evidence.py` 对 manifest/sha256/badges 三词零命中）。
+    # ⇒ **描述别人的产物必须最后生成；而一份没有读者的清单，这种错永远不会自己报出来。**
+    #
+    # ⚠ 反向脚注（比正向更要紧）：**清单与 badges「相符」不是健康信号**——
+    # 徽章那步 `NOT_EXECUTED` 或写出前失败时 badges.txt 没被改写，清单反而相符。
+    # 所以判据是顺序，不是"这次对上了没有"。
+    # --- 徽章值（SPEC-4 4.4 砍④脚本侧）：只在**归档的那几次**产出，
+    # 因为徽章的新鲜度就是来源日志的新鲜度——分层跑不落 evidence，也就
+    # 不该去覆盖一份看起来像"刚测的"徽章。测不到的项由脚本写 unknown。
+    # 路径用**正斜杠**：本行初版写作 scripts 反斜杠-b adges.py 那种形式，
+    # 而那个「反斜杠-b」在落盘时被吞成**一个真实退格符 0x08**（heredoc 转义坑）。
+    # grep 与编辑器都把它渲染没了，肉眼与工具都看不出异常——**这正是它能活下来的原因**。
+    # 后果：Test-Path 恒 False，而当时 if 又**没有 else**，于是这条接线自 3a1577a 起
+    # 一次都没跑过、也一次都没吭声，`badges.txt` 因此从不存在（D-532 的纯粹形态）。
+    # 正斜杠在 Windows 上照样解析，且对这一整类吞字免疫。
+    $badgeScript = Join-Path $repo 'scripts/badges.py'
+    if ($py -and (Test-Path $badgeScript)) {
+        & $py $badgeScript --log $logPath 2>&1 | Out-String | Write-Output
+    } else {
+        # 静默跳过正是上面那个 bug 能活这么久的原因；缺什么就说什么。
+        $bm = @()
+        if (-not $py) { $bm += 'python' }
+        if (-not (Test-Path $badgeScript)) { $bm += 'scripts/badges.py' }
+        "badges: NOT_EXECUTED (missing: $($bm -join ', ')) —— 徽章未刷新"
+    }
+    # --- regenerate sha256 manifest for evidence/phase0 (scripted, never manual) ---
+    # **必须排在徽章之后**（见上方 D-612 注释）：清单描述的是 evidence/phase0 的现态，
+    # 而 badges.txt 是本块里最后一个被写的文件。**无条件执行**，不得并进上面的
+    # `if ($py -and ...)` 分支——徽章没刷新时清单照样要记录当时的真实现态。
+    $manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
+    $evRel = $evidenceDir.Substring($repo.Length + 1) -replace '\\', '/'
+
+    # T89(b)：先整批取出「未跟踪且被 .gitignore 忽略」的文件，**一次 git 调用**，
+    # 别每个文件跑一次 check-ignore（清单三百多条，那是三百多次进程）。
+    # 为什么要排除：这些绝大多数是 verify_all_*.log 运行日志，只在本机存在
+    # ⇒ 留着会让**清单内容变成「本 checkout 跑过多少次」的函数**，
+    # 每跑一次就多一行**别的 checkout 无从复核**的行。清单的用处正是让别人能核。
+    # ⚠ 判据是 check-ignore 语义（未跟踪 **且** 被忽略），**不是**「未跟踪」——
+    # 刚产生、马上要入库的证据文件是未跟踪但不被忽略的，它必须进清单。
+    # ⚠ 已跟踪的 verify_all_*.log（在 .gitignore 那条规则之前入过库的）**照收**：
+    # 别的 checkout 确实有它们、核得动，排除它们才是丢信息。
+    $ignoredSet = @{}
+    $gitOk = $false
+    # ⚠ **失败必须朝「不排除」那侧倒**：git 缺失时 `& git` 不会自己把 $LASTEXITCODE
+    # 置非零，它会**留着上一条命令的值**——若那个值恰好是 0，就会走进「已排除」分支、
+    # 拿一个空集合当结果，然后**宣称排除过**。（同族即本文件 §673 记的 D-532。）
+    # 所以先探 git 是否存在，再把 $LASTEXITCODE 预置成哨兵 99：git 真跑过才会被覆盖。
+    # ⚠⚠ 必须写 `$global:` —— 首跑实测（2026-08-30）：裸写 `$LASTEXITCODE = 99`
+    # 会在**脚本作用域**新建一个局部变量把全局那个遮住，而 `& git` 写的是全局那个
+    # ⇒ 读回来永远是 99、`$gitOk` 永远 false、**排除功能整个静默失效**。
+    # 三个独立脚本一次只变一个量测过：局部赋值读 99／`$global:` 读 0／不预置读 0。
+    # 它当时没变成假绿，只因为哨兵朝安全侧倒 + stdout 会明说「未能排除」——
+    # **那句话是唯一的告警**，所以下面那行 $mnote 不许省。
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $global:LASTEXITCODE = 99
+        $ign = & git -C $repo ls-files --others --ignored --exclude-standard -- $evRel 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $gitOk = $true
+            foreach ($ip in $ign) { if ($ip) { $ignoredSet[$ip.Trim()] = $true } }
+        }
+    }
+
+    $mlines = @()
+    $skipped = 0
+    # T89(c)：过滤清单自身用**全路径**比较，不用 `.Name`。
+    # 原先写 `$_.Name -ne 'sha256-manifest.txt'` 而这里带 `-Recurse`
+    # ⇒ 任何子目录里的同名文件也会被静默排除，且不报错。
+    Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.FullName -ne $manifestPath } | Sort-Object FullName | ForEach-Object {
+        $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
+        if ($gitOk -and $ignoredSet.ContainsKey("$evRel/$rel")) { $skipped++; return }
+        $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+        $mlines += "$h  $rel"
+    }
+
+    # T89(a)：让清单**自述**它是什么。此前它没有表头，读者只能从文件名猜，
+    # 于是哈希对不上时第一反应是「内容被改了」，而最常见的真因是行尾形态不同。
+    # ⚠ 表头里**不写条数**——写了就每跑一次变一次，正好抵消上面消 churn 的目的；
+    # 条数走 stdout / 本次 verify_all 日志。
+    $mhdr = @(
+        '# evidence/phase0 的 SHA256 清单 —— 由 scripts/verify_all.ps1（-Scope all）自动重算，勿手编。',
+        '# 【这是本机 checkout 的形态快照，不是仓库内容的规范哈希】：文件落到磁盘的字节',
+        '# 受本机 core.autocrlf 与 .gitattributes 影响，换一台机器 checkout 出来的行尾可能不同。',
+        '# ⇒ 哈希对不上时**先核行尾形态，再怀疑内容被改**。（全仓行尾策略单列待裁，试点期禁动。）',
+        '# 已排除两类：①清单自身；②本 checkout 中被 .gitignore 忽略的未跟踪文件',
+        '#   （绝大多数是 verify_all_*.log 运行日志，只在本机存在、别处无从复核）。',
+        '# ⚠ 因此本清单**不含当次运行日志**；当次日志路径见 badges.txt 与本次 verify_all 输出。',
+        '# ⚠⚠ 【本表头描述的是「清单生成的那一刻」，不是「入库后的状态」】：归档提交会在',
+        '#   清单生成**之后**把当次运行日志 `git add -f` 入库 ⇒ 入库后必然短暂存在',
+        '#   **已跟踪、却不在本清单里**的日志，它不属于上面任何一类。下次重算即收入。',
+        '#   ⇒ 拿本清单核对账时把这一类算进去，别当成不一致去查（有人为此查过二十分钟）。',
+        '#   守它的是 `test_every_tracked_evidence_file_has_a_hash_except_the_run_logs`：',
+        '#   已跟踪却未列的**必须全部是 verify_all_*.log**，其余一律红。',
+        '# 行格式：<sha256 小写><两个空格><相对 evidence/phase0 的路径，斜杠分隔>；`#` 开头为注释。'
+    )
+    ($mhdr + $mlines) -join "`r`n" | Out-File -Encoding utf8 $manifestPath
+    $mnote = if ($gitOk) { "，已排除 gitignored $skipped 条" } else { '；⚠ git 不可用，未能排除 gitignored' }
+    "manifest: $manifestPath ($($mlines.Count) files$mnote)"
+} else {
+    $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)
+    $log -join "`r`n" | Out-File -Encoding utf8 $scratchLog
+    "log: $scratchLog  (未归档——分层/非收官跑不落 evidence，SPEC-3 §3.2)"
+}
+
+if ($ghosts.Count -gt 0) { exit 1 }
 if ($failed.Count -gt 0) { exit 1 }
 if ($Strict -and $notRun.Count -gt 0) { exit 1 }
 exit 0
-
-

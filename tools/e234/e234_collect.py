@@ -46,8 +46,12 @@ import e234_session as es       # noqa: E402
 
 sys.path.insert(0, os.path.join(ec.REPO_ROOT, "tools", "e1"))
 import e1_collect as e1c        # noqa: E402
+import e1_io                    # noqa: E402  (D-648③ 输出编码自锁)
 
 TASKBOARD = os.path.join(ec.REPO_ROOT, "docs", "BRAIN_TASKBOARD.md")
+# 窗 ID 的板面写法（`DW-YYYYMMDD-NN`）。只用于**拒绝时的诊断提示**，不参与判定
+# ——判定仍是子串精确匹配（授权不能靠一个正则去猜）。
+_DW_RE = re.compile(r"DW-\d{8}-\d{2}")
 
 
 # ── 设备门 ────────────────────────────────────────────────────────────────
@@ -68,10 +72,32 @@ def device_gate(serial, model, allow_real_device, device_window, taskboard_text)
                        "但解除它要一次排窗授权：请给 --device-window <任务板上的窗 ID>"
                        % reason)
     if not taskboard_text:
-        return False, "读不到任务板：无从核对 --device-window，拒绝在无授权凭据下连真机"
-    if device_window not in taskboard_text:
+        return False, ("读不到任务板：无从核对 --device-window，拒绝在无授权凭据下连真机"
+                       "（实搜路径 %s；文件不存在或为空——不是「你写错了窗号」，"
+                       "先确认仓库路径与文件本身）" % TASKBOARD)
+    # **词边界匹配，不是纯子串**（大脑 2026-08-29 裁定，v2 六案实证）：真风险是
+    # **假放行**——`DW-20260829-01` 会被板上的 `DW-20260829-011` 放行（实测复现），
+    # 一个从没被授权过的窗号于是解锁真机。边界取「两侧不是字母/数字/连字符」，
+    # 因为窗 ID 自带连字符：只用  会在 `-011` 处判为边界而漏掉这一族。
+    if not re.search(r"(?<![0-9A-Za-z-])%s(?![0-9A-Za-z-])"
+                     % re.escape(device_window), taskboard_text):
+        # **拒绝要带诊断**（7-5 案 A）：硬约束保留，但只报结论的拒绝在板面并发
+        # 编辑/格式漂移时会变成**无线索假拒**——操作者站在设备旁边，分不清是
+        # 自己写错了窗号，还是板上那行刚被别人改过。故把「我实际搜了什么」
+        # 一并打印：文件、大小、匹配模式，以及板上现有的窗 ID 供比对。
+        seen = sorted(set(_DW_RE.findall(taskboard_text)), reverse=True)
+        if seen:
+            # 板上窗 ID 已有几十个，全列会把关键信息淹掉——取最近 5 个（ID 自带
+            # 日期，倒序即新近优先），并如实说明还有多少没列（不静默截断，2.4）。
+            shown = "、".join(seen[:5])
+            more = ("（另有 %d 个较早的未列）" % (len(seen) - 5)) if len(seen) > 5 else ""
+            hint = "板上最近的窗 ID：%s%s" % (shown, more)
+        else:
+            hint = "板上**一个窗 ID 都没搜到**——多半是板面格式漂了，不是你写错了"
         return False, ("--device-window %r 在 docs/BRAIN_TASKBOARD.md 里查无此项："
-                       "授权要存在于板上，不是存在于操作者记忆里" % device_window)
+                       "授权要存在于板上，不是存在于操作者记忆里"
+                       "｜实搜：%s（%d 字符），子串精确匹配；%s"
+                       % (device_window, TASKBOARD, len(taskboard_text), hint))
     return True, "型号在 denylist，但排窗授权 %s 已在任务板上核到" % device_window
 
 
@@ -274,7 +300,8 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
         notes["sf_status"] = "NOT_EXECUTED: SurfaceFlinger --list 未找到该包的图层"
     stop_c = {"stop": False}
     tc = threading.Thread(target=_dump_channel_c, daemon=True,
-                          args=(adb, out_dir, pkg, layer, framestats_period_s, stop_c))
+                          args=(adb, out_dir, pkg, layer, framestats_period_s,
+                                stop_c, notes))
     tc.start()
 
     idx_path = os.path.join(out_dir, "screencap_index.jsonl")
@@ -302,20 +329,121 @@ def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
     return notes
 
 
-def _dump_channel_c(adb, out_dir, pkg, layer, period_s, stop):
-    """周期性追加通道 C 的两条支路。相邻 dump 必然重叠，去重是判读侧的事。"""
+# ── 通道 C 图层自愈（T90／D-644）────────────────────────────────────────
+# 实测失效（`wifi_f6_b_VOID1`）：图层约 55 秒被重建后，**569 次 dump 里 524 次取空**，
+# 而采集器开跑只挑一次图层、此后一直拿那个名字去 dump。
+#
+# ⚠ 这个失效在每一层都**无错可捕**：`--latency <死图层>` 返回的是
+# **有刷新周期头、零帧行**的合法响应（实测尾部逐段 `16666666` 后直接跟空行），
+# 退出码 0、stderr 空；判读侧 `split_dumps` 又把空 dump 整批丢弃（末尾 `if d`）
+# ⇒ 分析链看到的是「45 段整齐 127，全健康」，**作废格表面全绿**。
+#
+# 触发判据为什么可以很紧：**真静默产生的是重复的满帧，不是空帧**——
+# 静默期间不渲染 ⇒ 环缓冲不推进 ⇒ 相邻 dump 内容完全相同（命题单 §1b 机制）。
+# ⇒ **一旦该图层出过帧，零帧行就永远不合法**，两段即可判死。
+# 但**出帧之前**不算：App 首帧之前本来就是零帧，那是正常的。
+SF_EMPTY_DUMPS_BEFORE_RELIST = 2      # 出过帧之后，连续空到这个数即重挑
+SF_RELIST_MIN_INTERVAL_S = 5.0        # 重挑之间的最小间隔，避免死图层上空转
+
+
+def _should_relist(ever_had_frames, empty_streak, since_last_relist_s):
+    """要不要重挑图层。**抽成纯函数是为了让它的每个分支都能被合成输入钉住**
+    ——埋在 `while` 循环里的判据没人证明得了它在承重（本仓当日实证：
+    同样的抽取把一组守卫的突变覆盖从 2/4 提到 7/7）。
+
+    三个条件缺一不可：
+    · `ever_had_frames`：**出帧之前的零帧是正常的**（App 首帧还没来）；
+      少了这一条，采集器会在每一格开头就白白重挑一次。
+    · `empty_streak >= N`：一旦出过帧，零帧行就永远不合法
+      （真静默产生的是**重复的满帧**，不是空帧 —— 静默期间不渲染 ⇒
+      环缓冲不推进 ⇒ 相邻 dump 内容完全相同）。故 N 可以取得很小。
+    · 距上次重挑的间隔：图层真死了会**每一段都空**，没有这一条就是在死图层上空转。
+    """
+    return bool(ever_had_frames
+                and empty_streak >= SF_EMPTY_DUMPS_BEFORE_RELIST
+                and since_last_relist_s >= SF_RELIST_MIN_INTERVAL_S)
+
+
+def _sf_frame_rows(text):
+    """一次 `--latency` 响应里的帧行数（三列整数行），与 `split_dumps` 同口径。
+
+    ⚠ 判据不是「响应是否为空」：图层失效时响应**非空**，它有刷新周期头。
+    """
+    n = 0
+    for line in (text or "").splitlines():
+        parts = line.strip().split()
+        if len(parts) < 3:
+            continue
+        try:
+            int(parts[0]), int(parts[1]), int(parts[2])
+        except ValueError:
+            continue
+        n += 1
+    return n
+
+
+def _dump_channel_c(adb, out_dir, pkg, layer, period_s, stop, notes=None):
+    """周期性追加通道 C 的两条支路。相邻 dump 必然重叠，去重是判读侧的事。
+
+    图层失效时自愈：见上方 T90 注释块。**账目一律记进 notes**——
+    这个失效以前之所以能过收窗清单，正是因为「发出了几次 dump」这个数
+    从来没有被任何人记下来过。
+    """
     sf_path = os.path.join(out_dir, "sf_latency.txt")
     fs_path = os.path.join(out_dir, "framestats.txt")
+    probe_path = os.path.join(out_dir, "sf_layer_probe.jsonl")
+    acct = {"layer_initial": layer, "issued": 0, "with_frames": 0,
+            "empty_streak_max": 0, "relists": [], "ever_had_frames": False}
+    if notes is not None:
+        notes["sf_dumps"] = acct
+    empty_streak, last_relist = 0, 0.0
     while not stop["stop"]:
         if layer:
-            _append(sf_path, adb.text("shell", "dumpsys", "SurfaceFlinger",
-                                      "--latency", layer))
+            txt = adb.text("shell", "dumpsys", "SurfaceFlinger",
+                           "--latency", layer)
+            _append(sf_path, txt)
+            acct["issued"] += 1
+            if _sf_frame_rows(txt) > 0:
+                acct["with_frames"] += 1
+                acct["ever_had_frames"] = True
+                empty_streak = 0
+            else:
+                empty_streak += 1
+                if empty_streak > acct["empty_streak_max"]:
+                    acct["empty_streak_max"] = empty_streak
+                if _should_relist(acct["ever_had_frames"], empty_streak,
+                                  time.time() - last_relist):
+                    last_relist = time.time()
+                    layer = _relist_layer(adb, pkg, layer, acct, probe_path,
+                                          acct["issued"])
         _append(fs_path, adb.text("shell", "dumpsys", "gfxinfo", pkg,
                                   "framestats", timeout=45))
         for _ in range(int(max(1, period_s) * 4)):
             if stop["stop"]:
                 return
             time.sleep(0.25)
+
+
+def _relist_layer(adb, pkg, old_layer, acct, probe_path, dump_index):
+    """重挑图层，**并把 `--list` 原文落盘**。
+
+    ⚠ 落盘那一半不是附赠：`wifi_f6_b_VOID1` 之所以到现在根因仍未定，
+    正是因为**没人在失效之后拍过一张 `--list`**——全批只留下 `#2756` 这一个序号，
+    重建后的新序号是多少、图层还在不在，事后一概查不到。
+    自愈把运气变成检查，这一行把**下一次的可归因性**也一起买下来。
+    """
+    listing = adb.text("shell", "dumpsys", "SurfaceFlinger", "--list")
+    new = e1c.pick_layer(listing, pkg)
+    rec = {"dump_index": dump_index, "old": old_layer, "new": new,
+           "switched": bool(new and new != old_layer),
+           "list_has_pkg": bool(listing and pkg in listing)}
+    acct["relists"].append(rec)
+    try:
+        with open(probe_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(dict(rec, listing=listing), ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+    return new if rec["switched"] else old_layer
 
 
 def _append(path, text):
@@ -357,6 +485,7 @@ def _write(path, text):
 
 
 def main(argv=None):
+    e1_io.pin_console_utf8()   # D-648③：重定向落盘时别退回 GBK（中文键名是分流信号）
     ap = argparse.ArgumentParser(description="E2/E3/E4 同轨采集（一次会话，三实验共用）")
     ap.add_argument("--serial", required=True, help="adb 序列号；必填，无自动挑设备的路径")
     ap.add_argument("--pkg", required=True, help="目标 App 包名（com.larus.nova / com.deepseek.chat）")

@@ -32,3 +32,21 @@ app/.kotlin/
 
 # PO real calibration data - never committed (spine-1 blueprint 3.3)
 datasets/
+
+# Raw screencaps dumped at repo root by the T78 ROI self-check (roi_idle.raw /
+# roi_busy.raw). These are full-screen pixel dumps taken while the app under test
+# is mid-answer, so they carry the very content the observation red line keeps out
+# of this repo. Root-anchored on purpose: app debug res/raw/ must stay tracked.
+/*.raw
+
+# --- T86 evidence-backlog ruling (D-586, docs/EVIDENCE_BACKLOG_AUDIT_20260829.md) ---
+# SQLite WAL/shm sidecars — never commit: pairing a committed sidecar with a
+# tracked .db corrupts the database on next open.
+*.db-shm
+*.db-wal
+# Per-run gate logs — durable signal lives in tracked STATUS.json/badges.txt and
+# the few logs they cite by name; to keep one run as evidence use `git add -f`.
+evidence/phase0/verify_all_*.log
+# Full 112MB device DB (exceeds GitHub file limit; tracked stand-in is the
+# single-table extract voice30_voice_result_only.db).
+evidence/phase3/realdevice_data/voice30_aneb-probe.db

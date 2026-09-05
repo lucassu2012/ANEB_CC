@@ -1,0 +1,27 @@
+--------- beginning of main
+09-01 00:08:41.192 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.drawerlayout.widget.DrawerLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=770890223285237
+09-01 00:08:41.293 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.drawerlayout.widget.DrawerLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=770890324106071
+09-01 00:10:27.659 I/AnebProbe(14372): ADAPTER_OBS pkg=com.larus.nova mode=doubao events=6 rule_matched=1 first_delta_ms=0 cadence_p50_ms=100.2 session_span_ms=670.3 confidence=LOW/INCONCLUSIVE reason=throttle ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+09-01 00:10:27.705 I/AnebProbe(14372): ADAPTER_OBS pkg=com.larus.nova mode=doubao events=6 rule_matched=1 first_delta_ms=0 cadence_p50_ms=100.2 session_span_ms=670.3 confidence=LOW/INCONCLUSIVE reason=session_switch ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+09-01 00:10:27.706 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770996731090429
+09-01 00:10:27.709 I/AnebProbe(14372): ADAPTER_OBS_SAVED id=44 app=豆包
+09-01 00:10:27.787 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770996818789908
+09-01 00:10:27.888 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770996919702408
+09-01 00:10:27.987 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770997019161783
+09-01 00:10:28.088 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770997119238867
+09-01 00:10:28.190 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770997221812304
+09-01 00:10:28.290 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770997321451888
+09-01 00:10:28.395 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770997422995117
+09-01 00:10:28.797 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.TextView desc=null txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770997828530012
+09-01 00:10:28.898 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.LinearLayout desc= txt_len=0 pkg=com.huawei.android.launcher t_boot_ns=770997929334179
+09-01 00:10:32.339 I/AnebProbe(14372): ADAPTER_OBS pkg=com.huawei.android.launcher mode=generic events=10 rule_matched=0 first_delta_ms=0 cadence_p50_ms=100.8 session_span_ms=1198.2 confidence=LOW/INCONCLUSIVE reason=session_switch ttft_send_ms=null anchor_source=null ttft_cluster_ms=null ttft_density_ms=null
+09-01 00:10:32.339 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.widget.FrameLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771001370610220
+09-01 00:10:32.673 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.drawerlayout.widget.DrawerLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771001704870637
+09-01 00:10:32.877 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.view.ViewGroup desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771001908233658
+09-01 00:10:33.085 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.drawerlayout.widget.DrawerLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771002116940429
+09-01 00:10:33.183 I/AnebProbe(14372): ADAPTER_EVT type=content cls=android.view.ViewGroup desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771002214536783
+09-01 00:10:33.270 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.drawerlayout.widget.DrawerLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771002301499803
+09-01 00:10:33.398 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.recyclerview.widget.RecyclerView desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771002429916991
+09-01 00:10:33.489 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.recyclerview.widget.RecyclerView desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771002520344595
+09-01 00:10:33.680 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.drawerlayout.widget.DrawerLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771002711887824
+09-01 00:10:33.780 I/AnebProbe(14372): ADAPTER_EVT type=content cls=androidx.drawerlayout.widget.DrawerLayout desc=null txt_len=0 pkg=com.larus.nova t_boot_ns=771002811878449

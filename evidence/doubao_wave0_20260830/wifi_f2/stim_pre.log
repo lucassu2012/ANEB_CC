@@ -1,0 +1,15 @@
+--------- beginning of main
+08-30 10:49:46.817 I/E1_STIM ( 5725): CFG interval_ms=800 count=6 roi_px=480 warmup=1 refresh_hz=60.000004 frame_ms=16.667 density=3.3125 screen_px=1200x2486 boot_mono_offset_ns=84664573129012
+08-30 10:49:47.622 I/E1_STIM ( 5725): FLIP seq=1 color=B warmup=true t_req_boot_ns=636556653680735 t_req_mono_ns=551892080541307
+08-30 10:49:47.638 I/E1_STIM ( 5725): COMMIT seq=1 t_commit_boot_ns=636556669664068 t_commit_mono_ns=551892096524640
+08-30 10:49:48.431 I/E1_STIM ( 5725): FLIP seq=2 color=A warmup=false t_req_boot_ns=636557462758860 t_req_mono_ns=551892889624640
+08-30 10:49:48.444 I/E1_STIM ( 5725): COMMIT seq=2 t_commit_boot_ns=636557475463547 t_commit_mono_ns=551892902324640
+08-30 10:49:49.240 I/E1_STIM ( 5725): FLIP seq=3 color=B warmup=false t_req_boot_ns=636558271282297 t_req_mono_ns=551893698148598
+08-30 10:49:49.252 I/E1_STIM ( 5725): COMMIT seq=3 t_commit_boot_ns=636558283651568 t_commit_mono_ns=551893710513702
+08-30 10:49:50.049 I/E1_STIM ( 5725): FLIP seq=4 color=A warmup=false t_req_boot_ns=636559080568755 t_req_mono_ns=551894507434015
+08-30 10:49:50.072 I/E1_STIM ( 5725): COMMIT seq=4 t_commit_boot_ns=636559103479172 t_commit_mono_ns=551894530343910
+08-30 10:49:50.858 I/E1_STIM ( 5725): FLIP seq=5 color=B warmup=false t_req_boot_ns=636559888848964 t_req_mono_ns=551895315714744
+08-30 10:49:50.878 I/E1_STIM ( 5725): COMMIT seq=5 t_commit_boot_ns=636559909523443 t_commit_mono_ns=551895336387139
+08-30 10:49:51.666 I/E1_STIM ( 5725): FLIP seq=6 color=A warmup=false t_req_boot_ns=636560697475526 t_req_mono_ns=551896124341306
+08-30 10:49:51.666 I/E1_STIM ( 5725): DONE flips=6 warmup=1
+08-30 10:49:51.682 I/E1_STIM ( 5725): COMMIT seq=6 t_commit_boot_ns=636560713642713 t_commit_mono_ns=551896140506931

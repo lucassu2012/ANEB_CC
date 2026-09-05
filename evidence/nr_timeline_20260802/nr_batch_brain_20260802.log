@@ -6,3 +6,69 @@
 2026-08-02T19:33:08  wrap-up: leftover=(none)
 2026-08-02T19:33:09  sentinel DEVICE_BUSY removed
 2026-08-02T19:33:09  BATCH FINISHED runs=0 clean=0 (window total incl. pounce#1: 1)
+2026-08-03T09:09:01  DW-20260802-02 brain batch armed: maxRuns=15 timeout=12m gap=30s (window open since ~16:53, pounce run #1 already banked)
+2026-08-03T09:09:01  wifi_on before=1
+2026-08-03T09:09:16  RUN 1 STARTED ratStart=NR_SA
+2026-08-03T09:15:36  RUN 1 END run_id=019fc52a-f506-73b7-a824-a4ef57cababe status=completed
+2026-08-03T09:15:36  RUN 1 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:15:38  RUN 1 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 2)
+2026-08-03T09:16:15  RUN 2 STARTED ratStart=NR_SA
+2026-08-03T09:22:35  RUN 2 END run_id=019fc531-5aad-7a4f-9939-461d05b37e4f status=completed
+2026-08-03T09:22:36  RUN 2 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:22:36  RUN 2 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 3)
+2026-08-03T09:23:12  RUN 3 STARTED ratStart=NR_SA
+2026-08-03T09:29:32  RUN 3 END run_id=019fc537-b77c-74ca-902e-d89d01d1b23b status=completed
+2026-08-03T09:29:33  RUN 3 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:29:34  RUN 3 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 4)
+2026-08-03T09:30:10  RUN 4 STARTED ratStart=NR_SA
+2026-08-03T09:36:30  RUN 4 END run_id=019fc53e-186d-7e50-b57a-d49e0900b73a status=completed
+2026-08-03T09:36:31  RUN 4 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:36:31  RUN 4 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 5)
+2026-08-03T09:37:07  RUN 5 STARTED ratStart=NR_SA
+2026-08-03T09:43:37  RUN 5 END run_id=019fc544-7623-74b2-863d-2f7b487591c1 status=completed
+2026-08-03T09:43:38  RUN 5 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:43:38  RUN 5 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 6)
+2026-08-03T09:44:13  RUN 6 STARTED ratStart=NR_SA
+2026-08-03T09:50:24  RUN 6 END run_id=019fc54a-f72e-7e4d-9b82-265fa6a658f0 status=completed
+2026-08-03T09:50:24  RUN 6 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:50:24  RUN 6 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 7)
+2026-08-03T09:51:00  RUN 7 STARTED ratStart=NR_SA
+2026-08-03T09:57:30  RUN 7 END run_id=019fc551-2c2b-7d60-8b02-30528e61843b status=completed
+2026-08-03T09:57:31  RUN 7 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:57:31  RUN 7 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 8)
+2026-08-03T09:58:06  RUN 8 STARTED ratStart=NR_SA
+2026-08-03T10:04:27  RUN 8 END run_id=019fc557-ad8f-721e-a09f-59e3b570c88b status=completed
+2026-08-03T10:56:32  RUN 8 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T10:56:34  RUN 8 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 9)
+2026-08-03T10:57:09  RUN 9 STARTED ratStart=NR_SA
+2026-08-03T11:03:29  RUN 9 END run_id=019fc58d-bb62-79f1-aae8-468880e85510 status=completed
+2026-08-03T11:03:30  RUN 9 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T11:03:30  RUN 9 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 10)
+2026-08-03T11:04:06  RUN 10 STARTED ratStart=NR_SA
+2026-08-03T11:10:07  RUN 10 END run_id=019fc594-199a-71e5-9b77-3a7b073f3c5e status=completed
+2026-08-03T11:10:07  RUN 10 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T11:10:08  RUN 10 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 11)
+2026-08-03T11:10:43  RUN 11 STARTED ratStart=NR_SA
+2026-08-03T11:17:04  RUN 11 END run_id=019fc59a-2840-7132-9c36-b20d05173c74 status=completed
+2026-08-03T11:17:04  RUN 11 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T11:17:05  RUN 11 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 12)
+2026-08-03T11:17:42  RUN 12 STARTED ratStart=NR_SA
+2026-08-03T11:24:02  RUN 12 END run_id=019fc5a0-8a17-7a7d-b3c8-f9caf621919e status=completed
+2026-08-03T11:24:02  RUN 12 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T11:24:03  RUN 12 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 13)
+2026-08-03T11:24:38  RUN 13 STARTED ratStart=NR_SA
+2026-08-03T11:30:39  RUN 13 END run_id=019fc5a6-e6c5-71d2-a077-3e7718ddabcf status=completed
+2026-08-03T11:30:39  RUN 13 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T11:30:40  RUN 13 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 14)
+2026-08-03T11:31:16  RUN 14 STARTED ratStart=NR_SA
+2026-08-03T11:37:16  RUN 14 END run_id=019fc5ac-f7d1-7bbd-949f-1a5db40212f2 status=completed
+2026-08-03T11:37:17  RUN 14 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T11:37:18  RUN 14 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 15)
+2026-08-03T11:37:53  RUN 15 STARTED ratStart=NR_SA
+2026-08-03T11:43:54  RUN 15 END run_id=019fc5b3-0785-798f-9dc5-9f8fcc5e0274 status=completed
+2026-08-03T11:43:54  RUN 15 ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T11:43:55  RUN 15 CLEAN single-RAT on NR_SA (clean total incl. pounce#1: 16)
+2026-08-03T11:44:32  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-03T11:44:32  wrap-up: wifi_on=1 stayon=0
+2026-08-03T11:44:33  wrap-up: leftover=(none)
+2026-08-03T11:44:33  BATCH FINISHED runs=15 clean=15 (window total incl. pounce#1: 16)

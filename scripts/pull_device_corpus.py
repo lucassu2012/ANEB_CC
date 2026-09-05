@@ -37,7 +37,9 @@ import sys
 import tempfile
 
 SERIAL = "8MY0221126002537"
-PKG = "com.aneb.probe"
+# 包名默认 com.aneb.probe；装机为改名副本（如 com.aneb.probe.ctree，PO 2026-09-04 裁定不顶掉 G 树包）时
+# 用环境变量 ANEB_PKG 覆盖，避免拉错包。
+PKG = os.environ.get("ANEB_PKG", "com.aneb.probe")
 DB_FILES = ("aneb-probe.db", "aneb-probe.db-wal", "aneb-probe.db-shm")
 
 

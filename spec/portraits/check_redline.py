@@ -20,6 +20,9 @@ Invariants:
   R4  every fit field caliber in {direct, order-of-magnitude, ui-proxy, none}.
   R5  cross-layer: token_interval_ms_dist / think_pause_ms_dist caliber must be
       ui-proxy or none (never direct/order-of-magnitude) — UI/proxy != network ITL.
+  R5b ui-proxy caliber is field-restricted to token_interval_ms_dist only (§1 铁律3): every
+      other field with caliber=ui-proxy is a cross-layer overreach (think_pause/network-bytes/
+      session-duration are never sourced from the UI layer). Catches what R5 (direct/OoM only) misses.
   R6  caliber == none  => value starts with "PENDING".
   R7  keep_pending == false is allowed ONLY for caliber == direct.
   R8  keep_pending == false value must NOT start with "PENDING".
@@ -50,9 +53,15 @@ Invariants:
          with no status behind it;
       d. the by-caliber rulings are frozen: token_interval / think_pause = PENDING-BY-CALIBER
          (needs root mitm, outside D-24's red line), tool_loop_cadence = N/A-BY-CALIBER (consumer
-         chat apps orchestrate no tools — this methodology can never capture it);
+         chat apps orchestrate no tools — this methodology can never capture it), and D-595 adds
+         session_duration_s_dist = N/A-BY-CALIBER (session boundaries are App-internal events; the
+         indoor network dimension is orthogonal to them, and the UI-count shortcut is banned);
       e. no half-flip: once source_portrait leaves PENDING-CAPTURE it must match a traceable
-         capture id AND no field may still read plain PENDING.
+         capture id AND no field may still read plain PENDING;
+      f. per-App terminal rulings (R19f, D-595): a field unreachable for ONE app only — kimi's
+         request_size (encrypted aggregation, unsplittable without decryption) — is frozen per
+         (app, field), because RULED_STATUS keys on field name alone and would otherwise freeze
+         all four portraits while three of them can still be fed.
   Mode: source_portrait == "PENDING-CAPTURE" => PENDING mode (R1 all-null applies); anything else
       => CAPTURED mode, where R1 is replaced by R19c per-field consistency. Without this, a
       legitimate flip would be judged FAIL by R1/R2 and the gate could never open honestly.
@@ -69,6 +78,10 @@ PARAM_FIELDS = ["request_size_bytes_dist", "token_interval_ms_dist", "think_paus
 CALIBERS = {"direct", "order-of-magnitude", "ui-proxy", "none"}
 CALIBER_NON_PENDING = {"direct", "order-of-magnitude", "ui-proxy"}  # R12: these must not be PENDING
 NETWORK_TIMING = {"token_interval_ms_dist", "think_pause_ms_dist"}  # must never be direct/OoM (cross-layer)
+# R5b (D-audit #1): ui-proxy caliber is field-restricted. PARAMS_FIT_METHODOLOGY §1 铁律3 (:41):
+# UI 呈现层「至多作 ui-proxy 填 token_interval_ms_dist … 绝不填 think_pause/网络字节」；session_duration
+# 亦禁「事件计数换算」(:52/:122)。故 ui-proxy 只对 token_interval 合法——任何其它字段标 ui-proxy = 跨层越界。
+UI_PROXY_ALLOWED = {"token_interval_ms_dist"}
 SOURCE_LAYERS = {"network", "ui", "none"}          # R18: provenance layer (api excluded: App portraits
 #   never source from the API-direct token layer — that's the ApiProbe gate, §6 口径 boundary).
 CONFIDENCE = {"LOW", "INCONCLUSIVE"}                # R18: matches observed-layer + methodology vocabulary
@@ -95,6 +108,20 @@ RULED_STATUS = {
     "token_interval_ms_dist": "PENDING-BY-CALIBER",
     "think_pause_ms_dist": "PENDING-BY-CALIBER",
     "tool_loop_cadence": "N/A-BY-CALIBER",
+    # D-595 (C ruling landing): session duration is a SEMANTIC gap, not a precision gap — the
+    # indoor "multi-App x multi-network" dimension changes network conditions and App coverage;
+    # it does not produce session-boundary events. The methodology already bans the only shortcut
+    # (per-turn / UI-event-count conversion), and these are third-party chat apps we cannot
+    # instrument. Same shape as tool_loop_cadence, hence terminal rather than deferred.
+    "session_duration_s_dist": "N/A-BY-CALIBER",
+}
+# R19f — PER-APP terminal rulings (D-595). A field can be unreachable for ONE app while still
+# reachable for the others, and RULED_STATUS above cannot express that: it keys on field name only,
+# so putting request_size there would wrongly freeze all four portraits. kimi's request_size is
+# aggregated under encryption and cannot be split per-request without decryption (red line
+# D-24/D-61); doubao/deepseek/tongyi can still be fed direction-bytes by the indoor dimension.
+RULED_STATUS_BY_APP = {
+    ("kimi", "request_size_bytes_dist"): "N/A-BY-CALIBER",
 }
 # R19e — a flipped source_portrait must name a traceable capture, e.g. kimi-app-capture-2026-08-15.
 CAPTURE_ID = re.compile(r"^[a-z0-9_]+-app-capture-\d{4}-\d{2}-\d{2}$")
@@ -184,6 +211,13 @@ def check_portrait(app, d):
         if name in NETWORK_TIMING:
             bad(cal in {"ui-proxy", "none"}, "R5",
                 f"{name} caliber={cal} — network-timing field must be ui-proxy/none (cross-layer guard)")
+        # R5b (D-audit #1): ui-proxy is field-restricted — only token_interval may use it (§1 铁律3).
+        # Catches what R5 misses: think_pause=ui-proxy (UI 绝不填), and request_size/session_duration/
+        # downlink_media=ui-proxy (network/session fields never sourced from the UI layer).
+        if cal == "ui-proxy":
+            bad(name in UI_PROXY_ALLOWED, "R5b",
+                f"{name} caliber=ui-proxy — only token_interval_ms_dist may be ui-proxy "
+                f"(§1 铁律3: UI 层绝不填 think_pause/网络字节/会话时长)")
         # R6
         if cal == "none":
             bad(val.startswith("PENDING"), "R6", f"{name} caliber=none but value not PENDING: {val[:40]}")
@@ -326,7 +360,14 @@ def _check_capture_status(app, d, params, mode):
         ruled = RULED_STATUS.get(name)
         if ruled is not None:
             bad(status == ruled, "R19d",
-                f"{name} status={status} but the 2026-07-31 ruling fixes it at {ruled}")
+                f"{name} status={status} but a frozen ruling fixes it at {ruled}")
+        # R19f — per-App terminal ruling (D-595); only fires where a field is unreachable for
+        # THIS app while remaining reachable for the others.
+        ruled_app = RULED_STATUS_BY_APP.get((app, name))
+        if ruled_app is not None:
+            bad(status == ruled_app, "R19f",
+                f"{name} status={status} but the D-595 per-App ruling fixes it at {ruled_app} "
+                f"for {app}")
         # R19e — no half-flip
         if mode == "CAPTURED":
             bad(status != "PENDING", "R19e",

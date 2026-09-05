@@ -11,6 +11,18 @@
 - 记的是**失败测试的集合**，不只是 CAUGHT/SURVIVED —— 恰好一条才叫单点守卫；
 - 非单点的也如实写清，**标错比不标更误导**；
 - 先预测再验：预测与实测不一致时，写下来的是实测（D-325）。
+
+⚠ **给「另写一个临时突变脚本」的人**（2026-09-03 实录，本跑器不受影响）：
+凡**经子进程**执行的突变审计（`subprocess` 调 gradle/pytest/别的壳），
+**判 CAUGHT 必须同时满足两件：①基线绿；②本次子进程真的产出了输出。**
+只看退出码非零是不够的 —— 我用 `subprocess(shell=True)` ＋ 列表参数在 Windows 上
+调 `./gradlew`，**它根本没启动**（rc=1、stdout 长度 **0**），而我把「输出里没有
+BUILD SUCCESSFUL」读成了「测试咬住了突变」，**并把这个假结果报了出去**。
+**「命令根本没启动」与「测试咬住了突变」在退出码上完全同形。**
+⚠ **本跑器结构上免疫**：它**进程内**跑测试（`run_all()` 直接拿失败集合），
+不 shell out ⇒ 不存在「没启动」这一态；「基线绿」那一半它本来就有（见 `main()`）。
+**所以这条不是本文件的缺陷记录，是写临时脚本时的必备项** —— 放在这里，
+是因为下一个要做突变的人会先读到这份文件。
 """
 import os
 import sys
@@ -40,9 +52,26 @@ def _load(modnames):
     return out
 
 
+# ⚠ **这是一张手写清单**，而 `run_tests.py` 那边是**从磁盘枚举**的 —— 两者会分叉：
+# 新增一个 `test_*.py` 会自动进反例跑器，**却不会自动进突变审计**。
+# 分叉时没有任何报错，症状只是「这份守卫从没被突变考过」，而它在反例跑器里照样报绿。
+# 加测试文件时**必须同时加到这里**；`test_e2_precheck` 即 2026-08-30 新增的一条。
 TESTS = _load(["test_e234_common", "test_e234_collect", "test_e2_analyze",
-               "test_e3_analyze", "test_e4_analyze", "test_e1_analyze",
-               "test_e1_collect_guard"])
+               "test_e2_precheck", "test_e3_analyze", "test_e4_analyze",
+               "test_e1_analyze", "test_e1_collect_guard"])
+
+
+def _say(text):
+    """经 `ec.say` 输出 —— **报告通道自己不许死在报告上**（D-265）。
+
+    实测：本文件原用裸 `print`，把输出重定向到文件时 stdout 编码退回 GBK，
+    而 M11 的名字里有 `↔`（U+2194，GBK 里没有）⇒ **整个审计在打印第 11 行时崩掉**，
+    前 10 条结果已印、后 8 条与「还原后复跑」永远没印出来，退出码 1。
+    **看起来像审计失败，其实审计早就跑完了。** 交互式跑时不复现（那次我带了
+    `PYTHONIOENCODING=utf-8`）——**同一份代码在两种跑法下结论不同**，
+    而门禁用的是不带环境变量的那种。
+    """
+    ec.say(text + "\n")
 
 
 def run_all():
@@ -189,13 +218,157 @@ def m12():
     return _mut(e4, "separation", patched)
 
 
+# ── e2_precheck（2026-08-30 新增）─────────────────────────────────────────
+# 这五条对着的是同一件事的五个侧面：**「记录里的一个洞」与「App 的一次静默」
+# 在去重后的帧序列里长得一模一样**。每一条都把「把后者读成前者」的一种走法堵上。
+
+@mutation("M13 disjoint 不再断段（丢帧的洞被并进连续段）", "CAUGHT")
+def m13():
+    import e2_precheck as ep
+    real = ep.classify_pairs
+
+    def patched(dumps):
+        counts, _runs = real(dumps)
+        # 坏实现：不管断没断，全场当成一整段连续观测 ⇒ 洞被读成静默。
+        frames = sorted(set(t for d in dumps for t in d))
+        return counts, ([(frames[0], frames[-1])] if frames else [])
+    return _mut(ep, "classify_pairs", patched)
+
+
+# ── 一条**等价突变**的记录（D-325：预测与实测不一致时，写下来的是实测）──────
+#
+# 初版 M13 是「把 `identical` 也当断点」，预测 CAUGHT，**实测 SURVIVED**。
+# 追下去发现它是**等价突变**，不是守卫漏了：`classify_pairs` 里 `identical` 与
+# `overlap` 走的是**同一个分支**（都只延长 `hi`），只有 `disjoint` 断段；而一对
+# identical 的两次 dump **跨度完全相同**，所以「在这里断一刀」不改变任何区间的覆盖性。
+#
+# ⇒ **`identical` 这一支是诊断计数，不是承重逻辑**（承重的是 `disjoint`）。
+# 这条留在这里，是因为它纠正了一个我差点写进文档的错误印象：
+# **「我为某个判断写了一条分支」不等于「那个判断在承重」** —— 分支存在感很强，
+# 而它是否改变输出，只有突变审计答得出。改 M13 去打真正承重的那一支后即 CAUGHT。
+
+
+@mutation("M14 丢帧边界不再拦（跨洞间隔算成静默）", "CAUGHT")
+def m14():
+    import e2_precheck as ep
+
+    def patched(dumps, runs, gap_ns):
+        frames = sorted(set(t for d in dumps for t in d))
+        ver = [(frames[i] - frames[i - 1]) / ec.NS_PER_MS
+               for i in range(1, len(frames))
+               if frames[i] - frames[i - 1] > gap_ns]
+        return {"frames_deduped": len(frames), "observed_gaps": ver,
+                "unjudgeable_gaps": []}
+    return _mut(ep, "gap_census", patched)
+
+
+@mutation("M15 NOT_APPLICABLE 与 CANNOT_TELL 合并（「没看见」写成「不静默」）", "CAUGHT")
+def m15():
+    import e2_precheck as ep
+
+    # ⚠ 签名必须跟着 `_verdict` 走（现为 5 参，含 A 侧）：桩子签名对不上时，
+    # 每个用到它的测试都会 TypeError ⇒ 报 CAUGHT，**但那是崩的不是被抓的**。
+    # **一个因签名不符而崩出来的 CAUGHT，与真的被守卫咬住长得一模一样。**
+    def patched(counts, ver, unj, b, a=None):
+        if not ver:
+            return (ep.NOT_APPLICABLE, "无静默")
+        return (ep.WORTH_RUNNING, "有静默")
+    return _mut(ep, "_verdict", patched)
+
+
+@mutation("M16 通道 B 的反驳被摘掉（两通道矛盾照给绿）", "CAUGHT")
+def m16():
+    import e2_precheck as ep
+    real = ep.channel_b_motion
+
+    def patched(samples, threshold=ep.B_FLIP_THRESHOLD):
+        r = real(samples, threshold)
+        if r.get("status") == ec.PASS:
+            r = dict(r, motion_rate=0.0)      # 永远不反驳
+        return r
+    return _mut(ep, "channel_b_motion", patched)
+
+
+@mutation("M17 可核静默下界脱离 GATE_MIN_N（自取一个更松的数）", "CAUGHT")
+def m17():
+    import e2_precheck as ep
+    return _mut(ep, "MIN_OBSERVED_GAPS", 1)
+
+
+@mutation("M18 A 侧不足不再拦（只查 C 侧就给绿）", "CAUGHT")
+def m18():
+    import e2_precheck as ep
+    real = ep.channel_a_anchors
+
+    def patched(run_dir, pkg, gap_ns):
+        r = real(run_dir, pkg, gap_ns)
+        # 坏实现：A 侧永远报「够」⇒ 判据只验了一半却给绿。
+        return dict(r, status=ec.PASS, turns=99, turns_with_anchor=99)
+    return _mut(ep, "channel_a_anchors", patched)
+
+
+# ── T90：通道 C 图层失效自愈（D-644）────────────────────────────────────
+
+@mutation("M19 失效判据退回「响应是否为空」（死图层的有头无帧被当成有帧）", "CAUGHT")
+def m19():
+    import e234_collect as e2c
+    # 坏实现：只看响应空不空。而死图层返回的**不是空**——它有刷新周期头。
+    return _mut(e2c, "_sf_frame_rows", lambda text: 1 if (text or "").strip() else 0)
+
+
+@mutation("M20 重挑判据不看「这个图层出过帧没有」（每格开头白重挑）", "CAUGHT")
+def m20():
+    import e234_collect as e2c
+    real = e2c._should_relist
+    return _mut(e2c, "_should_relist",
+                lambda ever, streak, since: real(True, streak, since))
+
+
+@mutation("M21 分母改成数所有非空行（孤立回车与帧行都被算进 dump 次数）", "CAUGHT")
+def m21():
+    import e2_precheck as ep
+    def patched(text):
+        return sum(1 for l in (text or "").splitlines() if l.strip())
+    return _mut(ep, "count_issued_dumps", patched)
+
+
+@mutation("M22 存活率门限放到 0（仪器失效不再拦，作废格重新表面全绿）", "CAUGHT")
+def m22():
+    import e2_precheck as ep
+    return _mut(ep, "DUMP_SURVIVAL_FLOOR", 0.0)
+
+
+@mutation("M23 「样本太少」与「图层死了」合并（两种病共用一个判词）", "CAUGHT")
+def m23():
+    import e2_precheck as ep
+    return _mut(ep, "DUMP_SURVIVAL_MIN_N", 0)
+
+
+@mutation("M24 逐段行数改用 split_dumps 的口径（滤掉待定帧后再数）", "CAUGHT")
+def m24():
+    import e2_precheck as ep
+    # 坏实现：拿过滤后的帧数当原始行数 ⇒ 两个口径合成一个，深浅不一就再也看不见。
+    # ⚠ 本行初版写「⇒『环满但全待定』与『图层死了』合成一种病」——**那个组合真机上
+    # 不存在**（D-650②）。上一轮订正时我只 grep 了 e2_precheck 与它的测试，**没扫到
+    # 这里**：订正的扫描面比断言的传播面窄，正是我同一小时里提醒别人的那个形状。
+    return _mut(ep, "dump_row_counts",
+                lambda text: [len(d) for d in ep.split_dumps(text)])
+
+
+@mutation("M25 逐段行数丢掉空段（长度不再等于发出次数）", "CAUGHT")
+def m25():
+    import e2_precheck as ep
+    real = ep.dump_row_counts
+    return _mut(ep, "dump_row_counts", lambda text: [n for n in real(text) if n])
+
+
 def main():
     base = run_all()
-    print("基线：%d 条测试，失败 %d 条" % (len(TESTS), len(base)))
+    _say("基线：%d 条测试，失败 %d 条" % (len(TESTS), len(base)))
     if base:
         for n in sorted(base):
-            print("  基线失败：%s" % n)
-        print("基线不绿，突变审计的红与绿都不是你以为的那个意思（D-394）。")
+            _say("  基线失败：%s" % n)
+        _say("基线不绿，突变审计的红与绿都不是你以为的那个意思（D-394）。")
         return 1
     rows = []
     for name, predicted, apply_fn in MUTATIONS:
@@ -206,15 +379,15 @@ def main():
             undo()
         verdict = "CAUGHT" if failed else "SURVIVED"
         rows.append((name, predicted, verdict, sorted(failed)))
-    print("")
+    _say("")
     for name, predicted, verdict, failed in rows:
         mark = "" if verdict == predicted else "  ⚠ 预测=%s" % predicted
         sole = "（**单点守卫**）" if len(failed) == 1 else ""
-        print("%-46s %-9s %d 条承重%s%s" % (name, verdict, len(failed), sole, mark))
+        _say("%-46s %-9s %d 条承重%s%s" % (name, verdict, len(failed), sole, mark))
         for f in failed:
-            print("      %s" % f)
+            _say("      %s" % f)
     after = run_all()
-    print("\n还原后复跑：失败 %d 条（应为 0）" % len(after))
+    _say("\n还原后复跑：失败 %d 条（应为 0）" % len(after))
     return 0 if not after else 1
 
 

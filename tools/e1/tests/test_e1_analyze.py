@@ -357,13 +357,13 @@ def test_gate_uses_measured_frame_not_hardcoded_33ms():
     这正是 spec §3.1 说的那件事：门限按实测刷新率换算，不硬编码 33
     （一个常量被改后谁还在用旧基数算它，D-312）。
     """
-    s = {"status": ea.PASS, "p99_ms": 20.0}
+    s = {"status": ea.PASS, "n": 12, "p99_ms": 20.0}
     assert ea.gate_verdict(s, 16.667)[0] == ea.FAIL
     assert ea.gate_verdict(s, 33.333)[0] == ea.PASS
 
 
 def test_gate_without_frame_ms_is_not_executed_not_fail():
-    s = {"status": ea.PASS, "p99_ms": 1.0}
+    s = {"status": ea.PASS, "n": 12, "p99_ms": 1.0}
     assert ea.gate_verdict(s, None)[0] == ea.NOT_EXECUTED
 
 
@@ -553,8 +553,8 @@ def test_g2_true_meaning_does_not_move_with_the_total_verdict():
     """总量判定可以是 PASS 也可以是 FAIL，G-2 本义两种情况下都不变——
     证明两者是独立字段，不是同一个判断换了个措辞（D-417/D-418 形状）。
     """
-    passing = {"status": ea.PASS, "p99_ms": 1.0}
-    failing = {"status": ea.PASS, "p99_ms": 999.0}
+    passing = {"status": ea.PASS, "n": 12, "p99_ms": 1.0}
+    failing = {"status": ea.PASS, "n": 12, "p99_ms": 999.0}
     assert ea.gate_verdict(passing, 16.667)[0] == ea.PASS
     assert ea.g2_true_meaning()[0] == ea.NOT_EXECUTED
     assert ea.gate_verdict(failing, 16.667)[0] == ea.FAIL
@@ -568,7 +568,10 @@ def test_analyze_carries_g2_true_meaning_independent_of_channel_c_verdict():
     见 docs/G2_REACHABILITY_MEMO_20260802.md；这里用合成数据钉住"不管总量
     是哪个状态词，G-2 本义都不跟着变"这条不变量）。
     """
-    res = ea.analyze(_stim_lines(count=4, warmup=0), [], _sf_text(count=4), "", [])
+    # count=6（不是 4）：W-4/A 行给本判据加了 PROVISIONAL 最小 n=5，n<5 一律
+    # NOT_EXECUTED。本条钉的是「G-2 本义不随总量判词变」，总量取哪个词无所谓，
+    # 但要取得到——故把夹具放大到过门，而不是把门调松去迁就夹具。
+    res = ea.analyze(_stim_lines(count=6, warmup=0), [], _sf_text(count=6), "", [])
     assert res["channel_c_verdict"][0] == ea.PASS
     assert res["g2_true_meaning"][0] == ea.NOT_EXECUTED
     assert res["g2_true_meaning"] != res["channel_c_verdict"]
@@ -593,8 +596,10 @@ def test_render_still_shows_g2_true_meaning_line_when_total_is_fail_shaped():
     静默丢掉这行）。这里专门用总量 FAIL 的夹具钉住"该行不随总量判定的
     正负而消失"（大脑 D-421 追补③）。
     """
-    res = ea.analyze(_stim_lines(count=4, warmup=0), [],
-                     _sf_text(count=4, present_delay_ns=30_000_000), "", [])
+    # count=6：同上，W-4 最小 n=5 之后 n=4 会判 NOT_EXECUTED，而本条需要
+    # 一个货真价实的 FAIL 形状来钉「G-2 本义行不随总量正负而消失」。
+    res = ea.analyze(_stim_lines(count=6, warmup=0), [],
+                     _sf_text(count=6, present_delay_ns=30_000_000), "", [])
     assert res["channel_c_verdict"][0] == ea.FAIL   # 确认夹具真的是 FAIL 形状
     md = ea.render_markdown(res)
     g2_lines = [ln for ln in md.splitlines() if ln.startswith("**G-2 本义")]
@@ -629,8 +634,8 @@ def test_g2_candidate_c_does_not_move_with_the_total_verdict():
     两种情况下都不变——证明它与 `g2_true_meaning()` 一样，是独立于本次数据
     的固定字段，只随 frame_ms 这个共享输入变，不随总量判定变。
     """
-    passing = {"status": ea.PASS, "p99_ms": 1.0}
-    failing = {"status": ea.PASS, "p99_ms": 999.0}
+    passing = {"status": ea.PASS, "n": 12, "p99_ms": 1.0}
+    failing = {"status": ea.PASS, "n": 12, "p99_ms": 999.0}
     assert ea.gate_verdict(passing, 16.667)[0] == ea.PASS
     assert ea.g2_candidate_c(16.667) == ea.g2_candidate_c(16.667)
     assert ea.gate_verdict(failing, 16.667)[0] == ea.FAIL
@@ -653,3 +658,160 @@ def test_render_shows_candidate_c_line_once_regardless_of_total_verdict():
         assert len(lines) == 1
         assert "33.334ms" in lines[0]
         assert "候选 B" in lines[0]
+
+
+# ── W-4：最小 n（A 行）与 dropped 进判词（B1）──────────────────
+
+def test_a_single_sample_no_longer_passes_the_gate():
+    """n=1 时「p99 ≤ 1 帧」退化成「这一次没超」——不足以当结论（A 行，D-511 同构）。
+
+    实测过的病例形状：n=1/dropped=9 判 PASS。
+    反例证伪：去掉 n<min_n 分支，本条即红。
+    """
+    v, why = ea.gate_verdict({"status": ea.PASS, "n": 1, "p99_ms": 1.0}, 16.667)
+    assert v == ea.NOT_EXECUTED
+    assert "样本量不足" in why and "n=1" in why
+
+
+def test_the_threshold_is_a_boundary_not_a_vibe():
+    """门上/门下各一条：n=4 拒、n=5 放（GATE_MIN_N=5）。
+
+    钉的是「恰好在门上」这一侧——只测远离门限的值证明不了门在哪。
+    """
+    below = ea.gate_verdict({"status": ea.PASS, "n": ea.GATE_MIN_N - 1,
+                             "p99_ms": 1.0}, 16.667)
+    at = ea.gate_verdict({"status": ea.PASS, "n": ea.GATE_MIN_N,
+                          "p99_ms": 1.0}, 16.667)
+    assert below[0] == ea.NOT_EXECUTED
+    assert at[0] == ea.PASS
+
+
+def test_the_verdict_carries_its_own_denominator():
+    """B1：判词自带 n 与 dropped——一个 PASS 旁边没有分母，读者无从判断它值多少
+    （§2.15「汇池出来的数要交代汇了谁」在判词层的应用）。
+
+    反例证伪：判词不再拼 scale，本条即红。
+    """
+    v, why = ea.gate_verdict({"status": ea.PASS, "n": 12, "dropped": 9,
+                              "p99_ms": 1.0}, 16.667)
+    assert v == ea.PASS
+    assert "n=12" in why and "9 条被丢弃" in why
+    # dropped=0 时不该硬塞一句空话
+    _, why2 = ea.gate_verdict({"status": ea.PASS, "n": 12, "p99_ms": 1.0}, 16.667)
+    assert "n=12" in why2 and "丢弃" not in why2
+
+
+def test_the_provisional_threshold_says_it_is_provisional():
+    """PROVISIONAL 常量必须在**读者看得见的地方**自称 PROVISIONAL——
+    否则一个没有敏感性分析背书的数会被当成定值引用（D-469 先例）。
+    """
+    import inspect
+    src = inspect.getsource(ea)
+    i = src.index("GATE_MIN_N = ")
+    head = src[:i]
+    assert "PROVISIONAL" in head[-1200:], "常量定义处附近没有 PROVISIONAL 声明"
+    assert "n<100 时 p99 恒等于最大值" in head[-1200:], "没写清本判据自己的依据"
+    _, why = ea.gate_verdict({"status": ea.PASS, "n": 1, "p99_ms": 1.0}, 16.667)
+    assert "PROVISIONAL" in why, "拒绝理由里没告诉操作者这是暂定门限"
+
+
+def test_adapter_obs_projects_every_key_the_line_carries():
+    """`ADAPTER_OBS` 行有 13 个键，`_kv()` 本来就全解析了——**此前只投影 5 个**，
+    于是 `rule_matched`／两个 TTFT 口径／`session_span_ms` 在整个分析侧零读者：
+    **不是取不到，是取到了又扔掉**（T78 豆包批的核心量正是它们）。
+
+    反例证伪：把新增八键中任何一个从投影里删掉，本条即红。
+    """
+    line = ("07-19 11:27:13.000 I/AnebProbe(1234): ADAPTER_OBS pkg=com.larus.nova "
+            "mode=observe events=28 rule_matched=26 first_delta_ms=120.5 "
+            "cadence_p50_ms=99.0 session_span_ms=54321.0 confidence=high "
+            "reason=throttle ttft_send_ms=880.0 anchor_source=input_clear "
+            "ttft_cluster_ms=910.0 ttft_density_ms=905.0")
+    rows = ea.parse_adapter_obs([line])
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["rule_matched"] == 26 and r["events"] == 28
+    assert r["ttft_cluster_ms"] == 910.0 and r["ttft_density_ms"] == 905.0
+    assert r["session_span_ms"] == 54321.0
+    assert r["reason"] == "throttle" and r["anchor_source"] == "input_clear"
+    assert r["confidence"] == "high" and r["ttft_send_ms"] == 880.0
+
+
+def test_a_line_missing_the_new_keys_yields_none_not_zero():
+    """老格式的行（只有前五键）⇒ 新键一律 `None`，**不是 0**（R-10）。
+
+    `rule_matched=0` 与「这行根本没这个字段」是两件事：前者是「一次都没命中」，
+    后者是「不知道」。判读把后者读成前者，会把一个没测过的量写成测出来是零。
+    """
+    line = ("07-19 11:27:13.000 I/AnebProbe(1234): ADAPTER_OBS pkg=com.larus.nova "
+            "mode=observe events=28 first_delta_ms=120.5 cadence_p50_ms=99.0")
+    r = ea.parse_adapter_obs([line])[0]
+    assert r["events"] == 28                      # 老键照常
+    for k in ("rule_matched", "ttft_cluster_ms", "ttft_density_ms",
+              "session_span_ms", "ttft_send_ms"):
+        assert r[k] is None, "%s 应为 None 而不是 %r" % (k, r[k])
+
+
+# ── D-627④：通道 A 零事件时的成因分流 ────────────────────────────────────
+
+def test_no_adapter_events_names_the_cause_class_that_matches_the_scene():
+    """三种现场形状必须分流到**不同**的成因，因为它们的修法不同。
+
+    ⚠ 断言落在**标识符**上不落在措辞上（本文件开篇的规矩）：
+    `enabled_accessibility_services` / `BuildConfig.DEBUG` / `t_boot_ns`
+    只在**诊断本身**变了时才会变，改一句话不会红。
+    """
+    import e1_analyze as ea
+    # ① 一行都没有 ⇒ 服务没在跑／标签不匹配／环缓冲冲净
+    empty = ea._why_no_adapter_events([], [])
+    assert "enabled_accessibility_services" in empty, empty
+    assert "BuildConfig.DEBUG" not in empty, "空日志被归到了 release 构建那一类"
+
+    # ② OBS 有、EVT 无 ⇒ release 构建的签名（OBS 不受 DEBUG 门控）
+    obs_only = ea._why_no_adapter_events(["t ADAPTER_OBS events=3"], [{"n": 1}])
+    assert "BuildConfig.DEBUG" in obs_only, obs_only
+    assert "enabled_accessibility_services" not in obs_only, obs_only
+
+    # ③ 有 EVT 行却无一带时戳 ⇒ 旧构建或格式漂移，别去查服务是否在跑
+    old_build = ea._why_no_adapter_events(["t ADAPTER_EVT type=click cls=X"], [])
+    assert "t_boot_ns" in old_build, old_build
+    assert "enabled_accessibility_services" not in old_build, old_build
+
+    # 三条都要带上现场计数，否则读的人还得自己回去数
+    for txt in (empty, obs_only, old_build):
+        assert "adapter.log" in txt, txt
+
+
+def test_the_two_sentences_that_went_false_in_T27_never_come_back():
+    """**回归钉**（不是承重守卫）：钉住两句自 T27 起逐字为假的话。
+
+    旧文本说服务「只打 click 型 ADAPTER_EVT（无 t_boot_ns）」且「需 :probe 侧
+    一行 additive 扩展后方可判读」——而那个扩展 2026-08-03 就落地了。
+    ⚠ 它的危害不在于文档不准，而在于**它只在分支真触发时被读到**：
+    读到的人正在排障，会被指去**修一件已经修好的事**，真因无人查。
+    """
+    import e1_analyze as ea
+    src = open(ea.__file__, encoding="utf-8").read()
+    # 允许在订正说明里**引用**这两句（那是记录），但不许再作为断言出现在诊断文本里
+    txt = ea._why_no_adapter_events([], []) + ea._why_no_adapter_events(
+        ["t ADAPTER_OBS"], [{"n": 1}]) + ea._why_no_adapter_events(
+        ["t ADAPTER_EVT"], [])
+    assert "需 :probe" not in txt, "旧提案指引又回到了运行时文本里"
+    assert "只打" not in txt, "「服务只打 click 型」这句又回来了"
+    assert "3d31512" in src or "T27" in src, "订正锚不见了，下一个人会以为旧文本是对的"
+
+
+def test_the_production_path_actually_uses_the_new_reason_not_just_the_helper():
+    """走 `analyze()` 这条**生产路径**核，不是只调那个 helper。
+
+    ⚠ 本条是被突变审计逼出来的：上一条回归钉直接调 `_why_no_adapter_events()`，
+    于是把 `analyze()` 里的**调用点**换回旧文本时，套件**照样全绿**（SURVIVED）
+    —— **我守的是函数，不是接线**。旧文本可以从调用点回来而无人报错。
+    「写好了一道门」≠「那道门在承重路径上」。
+    """
+    import e1_analyze as ea
+    res = ea.analyze(_stim_lines(count=4, warmup=0), [], "", "", [])
+    reason = res["channel_a"]["reason"]
+    assert res["channel_a"]["status"] == ea.NOT_EXECUTED, res["channel_a"]
+    assert "enabled_accessibility_services" in reason, reason
+    assert "需 :probe" not in reason, "调用点换回了旧提案指引"

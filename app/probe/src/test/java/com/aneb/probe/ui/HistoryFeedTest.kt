@@ -4,6 +4,7 @@ import com.aneb.probe.data.AdapterObsEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.data.VoiceResultEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -58,7 +59,14 @@ class HistoryFeedTest {
         turnsOk = null,
     )
 
-    private fun adapter(id: Long, tsEpochMs: Long) = AdapterObsEntity(
+    private fun adapter(
+        id: Long,
+        tsEpochMs: Long,
+        // 三形夹具的两个自由度（D-608／D-607：单形态夹具守不住——只喂 null+0 那一形，
+        // 「仅 first_delta>0 才回退」这个错修法会照样全绿）
+        firstDeltaMs: Long? = null,
+        ttftClusterMs: Double? = null,
+    ) = AdapterObsEntity(
         id = id,
         tsEpochMs = tsEpochMs,
         pkg = "com.larus.nova",
@@ -67,13 +75,59 @@ class HistoryFeedTest {
         events = 42,
         ruleMatchedEvents = 7,
         // 指标全部可空字段记 null（R-10：未测不补 0/哨兵值）
-        firstDeltaMs = null,
+        firstDeltaMs = firstDeltaMs,
         cadenceP50Ms = null,
-        ttftClusterMs = null,
+        ttftClusterMs = ttftClusterMs,
         ttftSendMs = null,
         anchorSource = null,
         confidence = "LOW/INCONCLUSIVE",
     )
+
+    // ── D-608：TTFT 展示层的 R-10（三形夹具，缺一形就守不住）─────────────────
+    // 缺陷原状：`ttftClusterMs ?: firstDeltaMs?.toDouble()` 把「未测到」显示成「TTFT 0 ms」。
+    // null 是合并 token（三成因），而 first_delta 锚在观察启动、常态为 0 ⇒ 49.5 s 显示成
+    // 0 ms，误差方向朝「看起来最快」。
+
+    @Test
+    fun `形一 簇为null且首增量为0 —— 必须判未测,绝不吐 0`() {
+        // 本批 290 条 OBS 里 cluster=null 的 104 条，其 first_delta 全是这一形。
+        assertNull(
+            "R-10 延伸到回退层：first_delta=0 证明的是「窗开在流中途、这轮没测到」，" +
+                "不是「0 毫秒出首字」——吐 0 会让 49.5 s 显示成 0 ms",
+            HistoryFeed.obsTtftDisplayMs(adapter(1, 100, firstDeltaMs = 0L)),
+        )
+    }
+
+    @Test
+    fun `形二 簇为null但首增量为正值 —— 仍须判未测（这一形专抓错修法）`() {
+        // ⚠ 三形里唯一能否证「仅 first_delta>0 才回退」那个候选修法的一形：
+        // 窗开在流中途而首增量恰为 300 ms 时，那个修法会显示「TTFT 300 ms」而真值 49.5 s——
+        // 门设在 0 上只挡住最扎眼的那个值，挡不住「跨锚点取值」这个机制。
+        assertNull(
+            "首增量与 TTFT 不同轴（锚在观察启动 vs 发送），正值同样不可冒充 TTFT",
+            HistoryFeed.obsTtftDisplayMs(adapter(2, 200, firstDeltaMs = 300L)),
+        )
+    }
+
+    @Test
+    fun `形三 有簇值 —— 原样透出（证明修法没把好路一起堵死）`() {
+        assertEquals(
+            "落库的 ttftClusterMs 已在采集侧做过同口径择优（簇分割/密度谱），展示层原样透出",
+            49_500.0,
+            HistoryFeed.obsTtftDisplayMs(adapter(3, 300, ttftClusterMs = 49_500.0))!!,
+            0.001,
+        )
+    }
+
+    @Test
+    fun `簇值存在时首增量不参与取值（两者同时有值也不混用）`() {
+        assertEquals(
+            "有簇值就用簇值；first_delta 只在副行以自己的名字出现",
+            1_234.0,
+            HistoryFeed.obsTtftDisplayMs(adapter(4, 400, firstDeltaMs = 0L, ttftClusterMs = 1_234.0))!!,
+            0.001,
+        )
+    }
 
     @Test
     fun `混排按时间降序（跨两类交错）`() {

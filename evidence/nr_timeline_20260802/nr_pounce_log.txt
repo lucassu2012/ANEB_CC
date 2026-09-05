@@ -2,3 +2,68 @@
 2026-08-02T10:29:35  NR pounce armed: poll=20s maxPounces=3 deadline=20h
 2026-08-02T10:29:55  PAUSED by sentinel E:\C Project\ANEB\evidence\nr_timeline_20260802\DEVICE_BUSY -- a manual device window is open
 2026-08-02T10:31:13  NR pounce armed: poll=20s maxPounces=3 deadline=20h
+2026-08-02T14:52:00  PAUSED by sentinel E:\C Project\ANEB\evidence\nr_timeline_20260802\DEVICE_BUSY -- a manual device window is open
+2026-08-02T15:31:37  PAUSED by sentinel E:\C Project\ANEB\evidence\nr_timeline_20260802\DEVICE_BUSY -- a manual device window is open
+2026-08-02T16:00:18  PAUSED by sentinel E:\C Project\ANEB\evidence\nr_timeline_20260802\DEVICE_BUSY -- a manual device window is open
+2026-08-02T16:45:55  NR DETECTED getprop=NR_SA,Unknown ril=NR_SA -- preflight
+2026-08-02T16:45:57  wifi_on before=1
+2026-08-02T16:46:14  RUN STARTED (single run) ratStart=NR_SA
+2026-08-02T16:53:15  RUN_END run_id=019fc1a6-ff97-7c91-843b-a1fa3e1a5118 status=completed
+2026-08-02T16:53:16  ratStart=NR_SA ratEnd=NR_SA
+2026-08-02T16:53:16  CLEAN single-RAT run on NR_SA
+2026-08-02T16:53:26  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_OFF
+2026-08-02T16:53:27  wrap-up: wifi_on=1 stayon=0
+2026-08-02T16:53:27  wrap-up: leftover=(none)
+2026-08-02T16:53:29  pounce 1/3 done
+2026-08-02T19:33:26  window closed; re-arming
+2026-08-03T06:31:17  NR pounce finished (pounces=1)
+2026-08-03T06:45:59  NR pounce armed: poll=20s maxPounces=3 deadline=20h
+2026-08-03T08:57:38  NR DETECTED getprop=NR_SA,Unknown ril=NR_SA -- preflight
+2026-08-03T08:57:38  wifi_on before=1
+2026-08-03T08:57:49  RUN STARTED (single run) ratStart=NR_SA
+2026-08-03T09:04:00  RUN_END run_id=019fc520-7d0d-718f-af85-cc1d8f5ef98a status=completed
+2026-08-03T09:04:00  ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T09:04:00  CLEAN single-RAT run on NR_SA
+2026-08-03T09:04:08  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-03T09:04:08  wrap-up: wifi_on=1 stayon=0
+2026-08-03T09:04:09  wrap-up: leftover=(none)
+2026-08-03T09:04:10  pounce 1/3 done
+2026-08-03T13:31:07  NR pounce armed: poll=20s maxPounces=3 deadline=20h
+2026-08-03T13:31:28  NR DETECTED getprop=NR_SA,Unknown ril=NR_SA -- D-447 second probe: delaying 60s before firing
+2026-08-03T13:31:28  NR STILL PRESENT after 60s delay getprop=NR_SA,Unknown ril=NR_SA -- preflight
+2026-08-03T13:31:29  wifi_on before=1
+2026-08-03T13:31:40  RUN STARTED (single run) ratStart=NR_SA
+2026-08-03T13:38:01  RUN_END run_id=019fc61b-3990-7c44-89f5-3e8bbf46d202 status=completed
+2026-08-03T13:38:01  ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T13:38:01  CLEAN single-RAT run on NR_SA
+2026-08-03T13:38:08  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-03T13:38:08  wrap-up: wifi_on=1 stayon=0
+2026-08-03T13:38:08  wrap-up: leftover=(none)
+2026-08-03T13:38:09  pounce 1/3 done
+2026-08-03T13:40:29  NR pounce armed: poll=20s maxPounces=3 deadline=20h
+2026-08-03T13:40:49  NR DETECTED getprop=NR_SA,Unknown ril=NR_SA -- D-447 second probe: delaying 60s before firing
+2026-08-03T13:41:50  NR STILL PRESENT after 60s delay getprop=NR_SA,Unknown ril=NR_SA -- preflight
+2026-08-03T13:41:50  wifi_on before=1
+2026-08-03T13:42:03  RUN STARTED (single run) ratStart=NR_SA
+2026-08-03T13:48:13  RUN_END run_id=019fc624-b847-7490-994a-25e6fb28a477 status=completed
+2026-08-03T13:48:13  ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T13:48:13  CLEAN single-RAT run on NR_SA
+2026-08-03T13:48:20  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-03T13:48:21  wrap-up: wifi_on=1 stayon=0
+2026-08-03T13:48:21  wrap-up: leftover=(none)
+2026-08-03T13:48:22  pounce 1/3 done
+2026-08-03T22:12:15  window closed; re-arming
+2026-08-03T23:26:35  NR DETECTED getprop=NR_SA,Unknown ril=NR_SA -- D-447 second probe: delaying 60s before firing
+2026-08-03T23:27:36  NR STILL PRESENT after 60s delay getprop=NR_SA,Unknown ril=NR_SA -- preflight
+2026-08-03T23:27:36  resident aneb process, zero services (D-347 benign) -- proceeding
+2026-08-03T23:27:36  wifi_on before=1
+2026-08-03T23:27:49  RUN STARTED (single run) ratStart=NR_SA
+2026-08-03T23:34:09  RUN_END run_id=019fc83d-023c-74e8-ab7a-9acbdbcc5694 status=completed
+2026-08-03T23:34:09  ratStart=NR_SA ratEnd=NR_SA
+2026-08-03T23:34:09  CLEAN single-RAT run on NR_SA
+2026-08-03T23:34:16  wrap-up: focusedApp=launcher OK screenState=SCREEN_STATE_ON
+2026-08-03T23:34:16  wrap-up: wifi_on=1 stayon=0
+2026-08-03T23:34:16  wrap-up: leftover=(none)
+2026-08-03T23:34:16  pounce 2/3 done
+2026-08-04T08:50:44  window closed; re-arming
+2026-08-04T09:40:44  NR pounce finished (pounces=2)

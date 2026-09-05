@@ -1,0 +1,123 @@
+﻿verify_all run at 20260829-104203
+repo: E:\C Project\ANEB
+SKIPPED_SCOPE  server-vet  out of -Scope scripts
+SKIPPED_SCOPE  server-build  out of -Scope scripts
+SKIPPED_SCOPE  server-test  out of -Scope scripts
+SKIPPED_SCOPE  profiles-valid  out of -Scope scripts
+SKIPPED_SCOPE  portraits-redline  out of -Scope scripts
+SKIPPED_SCOPE  adapters-spec  out of -Scope scripts
+SKIPPED_SCOPE  adapters-spec-unit  out of -Scope scripts
+SKIPPED_SCOPE  portraits-redline-unit  out of -Scope scripts
+SKIPPED_SCOPE  portraits-schema  out of -Scope scripts
+SKIPPED_SCOPE  portraits-schema-unit  out of -Scope scripts
+SKIPPED_SCOPE  spec-versions  out of -Scope scripts
+SKIPPED_SCOPE  spec-versions-unit  out of -Scope scripts
+--- evidence-rules (exit 1) ---
+evidence guard: violations=7 stale_exemptions=0 frozen_debt=14
+  VIOLATION E:/C Project/ANEB/evidence/phase0/STATUS.json P0-C07-review-closure 记 PASS 但 evidence_files 为空（README 规则 2：PASS 必须有证据）
+  VIOLATION E:/C Project/ANEB/evidence/phase1/STATUS.json P1-C01-scoring-engine 记 PASS 但 evidence_files 为空（README 规则 2：PASS 必须有证据）
+  VIOLATION E:/C Project/ANEB/evidence/phase1/STATUS.json P1-C02-netguard-radio 记 PASS 但 evidence_files 为空（README 规则 2：PASS 必须有证据）
+  VIOLATION E:/C Project/ANEB/evidence/phase1/STATUS.json P1-C03-server-contract-inject 记 PASS 但 evidence_files 为空（README 规则 2：PASS 必须有证据）
+  VIOLATION E:/C Project/ANEB/evidence/phase1/STATUS.json P1-C04-merged-tree-verify 记 PASS 但 evidence_files 为空（README 规则 2：PASS 必须有证据）
+  VIOLATION E:/C Project/ANEB/evidence/phase2/STATUS.json P2-C01-h3-server 记 PASS 但 evidence_files 为空（README 规则 2：PASS 必须有证据）
+  VIOLATION E:/C Project/ANEB/evidence/phase2/STATUS.json P2-C03-aqs-v02 记 PASS 但 evidence_files 为空（README 规则 2：PASS 必须有证据）
+
+FAIL  evidence-rules  evidence guard: violations=7 stale_exemptions=0 frozen_debt=14
+--- campaign-analysis-unit (exit 0) ---
+gate_count=21
+reflex_tests=741
+corpus_real_runs=110
+written: C:\Users\lucas\AppData\Local\Temp\tmpsbn8fw46\badges.txt
+evidence guard: ABORTED C:/Users/lucas/AppData/Local/Temp/tmpr_quk63a/README.md 里解不出规则 1 的状态表——守卫拒绝在判据缺失时放行（D-511）
+evidence guard: violations=0 stale_exemptions=8 frozen_debt=8
+  STALE_EXEMPTION C:/Users/lucas/AppData/Local/Temp/tmpkxcz7qbv/phase1/STATUS.json C1 已不再违规，请从 LEGACY_PASS_WITHOUT_EVIDENCE 删掉该条（豁免不得长留）
+  STALE_EXEMPTION acceptance_20260820 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION e1_realdevice_20260802 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION e1_realdevice_20260802_run2 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION m2_rerun_20260819 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION spec4_worktree_drill_20260829 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION t39_report_chain_rehearsal_20260803 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION t46_full_corpus_analysis_20260804 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  xref: 豁免(目标不编号) 18，目标未解析 3
+  same-file xref: 豁免(本文不编号) 19
+input records: 1 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default_ng345i0a\batch_quick.jsonl (1)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default_ng345i0a\batch_forensic.jsonl (0)
+rejected: 0 (missing_mode=0, other_mode=0)
+python.exe :   reject run_id=test-5237 reason=missing_mode
+At E:\C Project\ANEB\scripts\verify_all.ps1:327 char:12
++     $out = & $py $campaignTest 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  reject run_id...on=missing_mode:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+skip C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_badpath_z38v1czu\does_not_exist.jsonl: [Errno 2] No such file 
+or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\split_by_run_mode_badpath_z38v1czu\\does_not_exist.jsonl'
+input records: 4 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_7b5dqzpj\q.jsonl (2)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_7b5dqzpj\f.jsonl (1)
+rejected: 1 (missing_mode=1, other_mode=0)
+cannot read schema C:\Users\lucas\AppData\Local\Temp\tmppscqfuua\nope.json: [Errno 2] No such file or directory: 'C:\\U
+sers\\lucas\\AppData\\Local\\Temp\\tmppscqfuua\\nope.json'
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+contract VIOLATIONS: 1 in 1 record(s)
+  - record[0].claim_scope: must be 'application_end_to_end_to_probe_node', got 'wrong'
+campaign-analysis reflex: 772/772 passed
+
+PASS  campaign-analysis-unit  campaign-analysis reflex: 772/772 passed
+--- results-contract-unit (exit 0) ---
+contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+
+PASS  results-contract-unit  contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+SKIPPED_SCOPE  spec-scoring-unit  out of -Scope scripts
+SKIPPED_SCOPE  profiles-deep  out of -Scope scripts
+SKIPPED_SCOPE  voice-plan-parity  out of -Scope scripts
+SKIPPED_SCOPE  app-assembleDebug  out of -Scope scripts
+SKIPPED_SCOPE  app-parity-tests  out of -Scope scripts
+SKIPPED_SCOPE  app-unit-tests-full  out of -Scope scripts
+SKIPPED_SCOPE  app-release-signing  out of -Scope scripts
+
+=== verify_all summary (scope: scripts) ===
+SKIPPED_SCOPE  server-vet  out of -Scope scripts
+SKIPPED_SCOPE  server-build  out of -Scope scripts
+SKIPPED_SCOPE  server-test  out of -Scope scripts
+SKIPPED_SCOPE  profiles-valid  out of -Scope scripts
+SKIPPED_SCOPE  portraits-redline  out of -Scope scripts
+SKIPPED_SCOPE  adapters-spec  out of -Scope scripts
+SKIPPED_SCOPE  adapters-spec-unit  out of -Scope scripts
+SKIPPED_SCOPE  portraits-redline-unit  out of -Scope scripts
+SKIPPED_SCOPE  portraits-schema  out of -Scope scripts
+SKIPPED_SCOPE  portraits-schema-unit  out of -Scope scripts
+SKIPPED_SCOPE  spec-versions  out of -Scope scripts
+SKIPPED_SCOPE  spec-versions-unit  out of -Scope scripts
+FAIL           evidence-rules  evidence guard: violations=7 stale_exemptions=0 frozen_debt=14
+PASS           campaign-analysis-unit  campaign-analysis reflex: 772/772 passed
+PASS           results-contract-unit  contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+SKIPPED_SCOPE  spec-scoring-unit  out of -Scope scripts
+SKIPPED_SCOPE  profiles-deep  out of -Scope scripts
+SKIPPED_SCOPE  voice-plan-parity  out of -Scope scripts
+SKIPPED_SCOPE  app-assembleDebug  out of -Scope scripts
+SKIPPED_SCOPE  app-parity-tests  out of -Scope scripts
+SKIPPED_SCOPE  app-unit-tests-full  out of -Scope scripts
+SKIPPED_SCOPE  app-release-signing  out of -Scope scripts
+checks: 22 total / 1 FAIL / 0 NOT_EXECUTED / 19 SKIPPED_SCOPE
+SKIPPED_SCOPE checks (out of -Scope scripts; 收官/入册前必须补跑 -Scope all):
+  - server-vet
+  - server-build
+  - server-test
+  - profiles-valid
+  - portraits-redline
+  - adapters-spec
+  - adapters-spec-unit
+  - portraits-redline-unit
+  - portraits-schema
+  - portraits-schema-unit
+  - spec-versions
+  - spec-versions-unit
+  - spec-scoring-unit
+  - profiles-deep
+  - voice-plan-parity
+  - app-assembleDebug
+  - app-parity-tests
+  - app-unit-tests-full
+  - app-release-signing

@@ -1,5 +1,106 @@
 # 给 Codex 的 E-01 部署请求单：s4_throughput profile 服务端支持（2026-08-04，D-481/D-483）
 
+> # 🔴 2026-09-04 重大修订（D-699）——请先读本块再读下文
+>
+> **本单的隐含前提「服务端支持了 s4 就能采到 s4 数据」已被实测推翻。范围须扩到客户端。**
+> 下文 §1–§6 写于 2026-08-04，其**服务端部分的技术内容仍然正确且仍然需要**；
+> 但**只做服务端不足以解阻**，且**本单不再主张部署我方编译的二进制**。三条实测：
+>
+> **①「部署我方二进制」这条选项须撤回（不是待商榷，是会造成真停服）。**
+> E-01 线上二进制是贵方血统 `aneb-server/0.8.3`（`vcs.revision=55554d0e…`，在 C 树不存在），
+> 其 unit 传 `-execution-profiles` 与 `-udp-echo-addr` 两个 flag，而 C 树 `server/main.go`
+> 只定义 9 个 flag——Go 的 `flag.Parse()` 遇未定义 flag 直接 `os.Exit(2)`；配 unit 的
+> `Restart=on-failure`/`RestartSec=3` 会进重启循环。且 C 树产物**没有**线上独有的
+> `/api/v1/{impairments,token-sim,realtime-sim,udp-echo}` 四端点与 execution-profiles 机制。
+> ⇒ **原文第 6 行三选项中，「直接合并本文附的 diff」应理解为在贵方树上做等价改动，
+> 而非替换线上二进制。我方明确撤回后者。**
+>
+> **②只把 `s4_throughput.json` 放进 `/opt/aneb/profiles/` 会得到一个静默残废的 profile。**
+> 0.8.3 的 `Phase` 结构体无 `WindowMs` ⇒ 实测该 profile 能加载、能下发，但回传的两个
+> `adaptive_*_window` 相位里 **`window_ms:4000` 被静默丢弃，该相位丧失全部时间信息**，
+> 全程零告警。（这正是 §1.1 请求新增 `WindowMs` 字段的理由——**该请求依然成立且必要**。）
+>
+> **③真正的堵点在客户端，这是本单原先完全没有覆盖的一面。**
+> 设备上跑的 `com.aneb.probe`（versionCode 20 / versionName 0.2.0）经 APK sha256 逐位比对，
+> 匹配 `E:\G Project\ANEB\DevSpace\aneb-prototype-0.1-g3-g4-rc\...\probe-prototypeRelease.apk`
+> （分支 `codex/issue-17-g3-g4-rc`，`HEAD 78de945d`）——**既不是 C 树，也不是 `aneb-probe-codex-v0.2.0`，是第三条血统**。
+> ⚠ **量词与路径两处订正（2026-09-04 自审，D-700⑧）**：初稿写「**全机唯一**匹配」并把路径写成 `G:\...`，两处都不确。
+> 全机 293 个 `.apk` 逐个 sha256 后该哈希实际命中 **5 个文件**——上面那个构建产物，
+> 外加 `E:\ANEB-Release-Candidates\ANEB-Prototype-0.1-rc-20260901-78de945\` 下 4 份发布副本（同属一次构建）。
+> **血统结论不受影响**（5 个命中同源，且均不匹配 C 树任何产物），但「唯一」这个量词当时没有扫描面支撑。
+> 另：本机 `G:` 是一个**真实存在的别的卷**（华为 HiSuite 安装盘），G 树实际在 `E:\G Project\ANEB\`——
+> 按 `G:\` 去找会静默落空而不是报错。贵方若要复核，另有一份更硬的机读凭证可用：
+> `E:\ANEB-Release-Candidates\ANEB-Prototype-0.1-rc-20260901-78de945\artifact-build-receipt.json`
+> （据复核方报告含 `android_sha256` / `android_version_code` / `source_commit`；
+> **此条我方未独立核实，转述自复核方，采信前请自行读一次**）。
+> 该树中 `adaptive_download_window`/`adaptive_upload_window` **零命中**（阳性对照
+> `token_stream` 24 命中 / `clock_sync` 27 命中 / `download_throughput` 3 命中，量法有效）；
+> 而 `download_throughput`/`upload_throughput` 虽然认，其执行路径**只在 `NetworkSpeedEngine` 内，
+> 且该引擎硬绑** `PROFILE_ID = "basic_network"`（`NetworkSpeedEngine.kt:389`）。
+> ⇒ **即便服务端完全就绪，设备侧也不会执行 s4。**
+>
+> ## 修订后的请求（一句话）
+> 🔴 **【2026-09-04 二次订正，D-700②——本段初稿把事实说反了，特此更正并致歉】**
+> 初稿写「我方只有一个 JSON 定义，请贵方实现」——**不确**。复核后的事实是：
+> **我方（C 树）服务端＋客户端整条 s4 链早已实现**（`server/profiles.go:73` 有 `WindowMs`；
+> `app/probe/.../ProfileModels.kt:54/67-68` 有 `window_ms` 字段与两个 TYPE 常量；
+> `ScenarioRunner.kt:125/328/342/349` 有完整执行分支并调 `client.downloadWindow`）。
+> **真正的事实只是「设备上目前装的不是我方的 APK」**，而不是我方没实现。
+>
+> ⇒ **因此本单不再向贵方提出实现请求。** 我方内部即可闭合这条链
+> （装我方 APK ＋ 我方 server 跑在本机），无需占用贵方排期。
+>
+> **仍然递给贵方的只剩两件，且都是「知会」而非「请求」**：
+> 1. **一条兼容性知会**：若贵方 lane 未来也想支持该相位，下面「四条硬子结论」是我方实测所得，
+>    可省贵方一轮试错（尤其 `window_ms` 在 `0.8.3` 上会被静默丢弃这条）。
+> 2. **一条风险知会**：我方**明确撤回**原文中「部署我方二进制到 E-01」的任何主张（理由见上①）——
+>    **请勿据本单旧版对 E-01 做任何变更**。
+>
+> 设计意图见 §2。
+>
+> ## 四条硬子结论（我方实测，可直接用，省贵方一轮试错）
+> 1. **用 `duration_ms`，不要用 `window_ms`。** 在 0.8.3 上 `window_ms` 被静默丢弃且相位丧失全部
+>    时间信息；`duration_ms` 无损往返（两者均在本地 0.8.3 复现环境实测）。若贵方新增字段，
+>    命名沿用 `duration_ms` 可少改一处。
+> 2. **单流请写 `parallel:1`，永远不要写 `parallel:0`。** Go 零值 ＋ `omitempty` 使 `parallel:0`
+>    与「省略该键」的回传**逐字节相同**——「0 条流」这个意图过不了服务端一个来回。
+>    `parallel:1` 与省略则可区分（实测）。
+> 3. **量级安全。** s4 的 512MiB 下行 ceiling 与 48MiB 上行 ceiling 均在 0.8.3 限额内
+>    （`downloadMaxBytes` 1GiB / `uploadMaxBytes` 64MiB；边界 400 与 413 路径实测存在）。
+> 🔴 **先读这条限定（2026-09-04 自审补正）——我方复现环境不是线上的完整复现。**
+> 上述实测跑在**我方按 G 树 `aneb-probe-codex-v0.2.0` 工作树 HEAD `4dac782`（2026-07-29）构建**的二进制上；
+> 而线上二进制自报 `vcs.revision=55554d0e383da7bb83415d9186b19d1bf8997b6b`，
+> 经 `merge-base --is-ancestor` 实测**不是 `4dac782` 的祖先**（属分支 `codex/release-sprint-r1`），
+> 两版 `server/` 相差 13 个文件 / +29 −1750 行。**我方原先认血统只用了「源文件清单吻合＋版本串 `0.8.3`」，
+> 那不足以定位到具体提交——两个不同提交同报 `0.8.3` 完全可能。此处感谢贵方 buildinfo 留了 `vcs.revision`。**
+> **范围划分（已逐条实测，不含推断）**：
+> - `server/profiles.go` 与 `server/handlers_download.go` 在两版之间 **`git diff` 为空（逐字节相同）**
+>   ⇒ **上面第 1、2、3 条以及「`window_ms` 被静默丢弃」「`presentation` 变 `{}` 是 Go `omitempty` 对 struct 无效的通用行为」
+>   这些结论全部不受影响。**
+> - **受影响的只有下面第 4 条所依赖的启动路径**：`55554d0e` 的 `main.go` 比我方构建的那版多两个 flag
+>   （`-result-upload-token-file`、`-harden-result-storage-only`）与一个 `initializeResultUpload` 的
+>   `log.Fatalf` 启动闸——三者均已在**线上二进制**上用 `strings` 直接验到（阳性对照 `execution-profiles` 命中）。
+>   ⇒ 第 4 条描述的 profile 侧 fail-closed 行为仍然成立（机制在 `profiles.go`，两版相同），
+>   但**线上重启时还有一条我方未测到的失败路径**（result upload 初始化失败同样 `log.Fatalf`）。
+>   **贵方重启前请把这条也算进风险面；我方不主张对它的行为下任何结论。**
+>
+> 4. **新增 profile 对线上是安全的加法，但必须重启才生效，且 fail-closed 到整进程。**
+>    实测：往运行中的服务的 profiles 目录 cp 文件是**纯 no-op**（接口仍返回原有条目）；
+>    而截断文件 → `unexpected end of JSON input` 退出码 1，重复 `profile_id` → 退出码 1。
+>    另实测：新增一个 profile 后其余条目的 canonical-JSON **逐条 identical**，
+>    `serverinfo.execution_capabilities` 段两侧 sha256 **byte-identical**（`-profiles` 与
+>    `-execution-profiles` 是独立参数，后者只遍历子目录）——**既有 preflight 不受影响**。
+>
+> ## 我方尚未验证的三件（诚实边界，勿当结论）
+> (i) 贵方客户端是否把 `duration_ms` 实现成「到点 cancel 的硬窗口」——0.8.3 只在
+>     `handlers_download.go:19` 的**注释**里这么说，注释不是被执行面；
+> (ii) `parallel:1` 是否真＝恰好一条流（服务端从不读该字段，无代码依据）；
+> (iii) `download_throughput` 下 `bytes` 是 ceiling 还是 exact，以及 `parallel>1` 时是每流还是
+>     总量（**4 倍差**）。贵方 `basic_network` 用的是 `parallel:4`，这条对读数影响最大。
+>
+> **本修订块的取证方式**：G 树全程只读（源码复制到 scratchpad 后构建，`profiles.go` mtime 未变）；
+> E-01 全程只读（无写入、无重启）；设备全程只读（未 force-stop、未启动 App、未改设置）。
+
 > **性质**：本文是**请求单**，不是部署操作——**E-01 部署所有权=仅 Codex**（D-35/D-37，
 > `docs/launchpad/README.md:34`："P2/E-01：归 Codex（部署权 D-35/D-37），我方不碰。"）。
 > C 树本文全程未对 E-01 做任何写操作，也不会。是否采纳、何时采纳、以何种形式采纳

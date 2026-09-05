@@ -1,0 +1,18 @@
+{
+  "kind": "DEVICE_REAL",
+  "experiments": [
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "pkg": "com.larus.nova",
+  "roi": [
+    400,
+    1800,
+    400,
+    200
+  ],
+  "device_window": "DW-20260905-01",
+  "serial": "8MY0221126002537",
+  "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3"
+}

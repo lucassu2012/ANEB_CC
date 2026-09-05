@@ -225,3 +225,167 @@ def test_simulator_output_is_deterministic_for_a_given_seed():
     b = sim.build("e2_within_one_frame", seed=7)
     assert json.dumps(a["turns"]) == json.dumps(b["turns"])
     assert [e["lag_ms"] for e in a["events"]] == [e["lag_ms"] for e in b["events"]]
+
+
+# ── 拒绝要带诊断（7-5 案 A：硬约束保留，但假拒必须有线索）──────────
+
+def test_a_refused_window_says_what_it_actually_searched():
+    """只报「查无此项」的拒绝，在板面并发编辑/格式漂移时是**无线索假拒**——
+    操作者站在设备旁边，分不清是自己写错了窗号还是板上那行刚被人改过。
+    故拒绝里必须带：实搜的文件、其大小、匹配方式，以及板上现有窗 ID 供比对。
+
+    反例证伪：去掉诊断串，本条即红。
+    """
+    board = "…\n| DW-20260829-01 | 窗 |\n| DW-20260828-02 | 窗 |\n"
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-19990101-99", board)
+    assert ok is False
+    assert "BRAIN_TASKBOARD.md" in why            # 搜的是哪个文件
+    assert "字符" in why                           # 读到多大（空/半截一眼可见）
+    assert "子串精确匹配" in why                   # 用的什么判据
+    assert "DW-20260829-01" in why                 # 板上现有的，供比对
+
+
+def test_a_board_with_no_window_ids_at_all_says_the_format_drifted():
+    """一个窗 ID 都搜不到 ⇒ 多半是板面格式漂了，不是操作者写错——两种成因
+    的处置完全不同，不能用同一句话打发。"""
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01",
+                              "（这份板面没有任何窗 ID）")
+    assert ok is False
+    assert "一个窗 ID 都没搜到" in why and "格式漂" in why
+
+
+def test_the_hint_is_truncated_but_never_silently():
+    """板上窗 ID 有几十个，全列会淹掉关键信息；截断可以，**静默截断不行**。"""
+    board = "\n".join("| DW-202608%02d-01 |" % d for d in range(1, 21))
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-19990101-99", board)
+    assert ok is False
+    assert "DW-20260820-01" in why                 # 最近的在列（倒序取前 5）
+    assert "另有 15 个较早的未列" in why           # 没列的如实说出数量
+
+
+def test_an_unreadable_board_is_not_reported_as_a_wrong_window_id():
+    """读不到板 ⇒ 说清是路径/文件的问题，别让操作者去改一个没错的窗号。"""
+    ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01", "")
+    assert ok is False
+    assert "实搜路径" in why and "不是「你写错了窗号」" in why
+
+
+def test_a_longer_window_id_does_not_authorise_a_shorter_one():
+    """**假放行**才是这道门的真风险（大脑 2026-08-29 裁定，v2 六案实证）：
+    纯子串匹配下 `DW-20260829-01` 会被板上的 `DW-20260829-011` 放行——
+    一个从没被授权过的窗号解锁真机（实测复现过）。故用词边界匹配。
+
+    边界不能只用 `\b`：窗 ID 自带连字符，`\b` 在 `-011` 处判为边界，
+    正好漏掉这一族。反例证伪：改回 `in` 子串匹配，本条即红。
+    """
+    ok, _ = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01",
+                            "| DW-20260829-011 | 某个更长的窗 |")
+    assert ok is False, "被更长的窗号假放行了"
+    # 后缀方向同理
+    ok, _ = e2c.device_gate("ABCD1234", "ELS-AN00", True, "DW-20260829-01",
+                            "| XDW-20260829-01 |")
+    assert ok is False
+
+
+def test_word_boundary_still_accepts_a_genuinely_listed_window():
+    """收紧不能把真授权也挡掉——行中、行首行尾两种位置都要放行。"""
+    for board in ("| DW-20260829-01 | 窗 |", "DW-20260829-01"):
+        ok, why = e2c.device_gate("ABCD1234", "ELS-AN00", True,
+                                  "DW-20260829-01", board)
+        assert ok is True, "真授权被挡：%s" % why
+
+
+# ── T90：通道 C 图层自愈（D-644）─────────────────────────────────────────
+
+def test_a_header_only_latency_response_counts_as_zero_frames():
+    """失效判据必须认「有头无帧」，**不能**认「响应为空」。
+
+    实测（`wifi_f6_b_VOID1` 尾部）：图层被重建后每次 `--latency` 返回的是
+    `16666666` 一行刷新周期 + 一个孤立回车，**退出码 0、stderr 空**。
+    ⇒ 任何「检查有没有报错」的层都看不见它。
+    """
+    dead = "16666666\r\n\r\n"
+    assert e2c._sf_frame_rows(dead) == 0, "把失效响应当成有帧了"
+    alive = "16666666\n1000\t2000\t1500\n1001\t2001\t1501\n\r\n"
+    assert e2c._sf_frame_rows(alive) == 2, e2c._sf_frame_rows(alive)
+    assert e2c._sf_frame_rows("") == 0
+    assert e2c._sf_frame_rows(None) == 0
+
+
+class _FakeAdb(object):
+    """只回答 `--latency` 与 `--list` 两句；图层名切换后才重新出帧。"""
+
+    def __init__(self, live_layer):
+        self.live = live_layer
+        self.lists = 0
+
+    def text(self, *args, **kw):
+        if "--list" in args:
+            self.lists += 1
+            # 真实 `--list` 形态：`pick_layer` 靠 `RequestedLayerState{...}` 取 body。
+            # ⚠ 首版夹具写的是 "handle | <name>"，正则匹配不到时 `pick_layer` 会
+            # **把整行当图层名返回** —— 测试于是在验一个生产代码永远不会走到的分支。
+            return "  RequestedLayerState{%s parentId=5}\n" % self.live
+        if "--latency" in args:
+            asked = args[-1]
+            if asked != self.live:
+                return "16666666\r\n\r\n"          # 死图层：有头无帧
+            return "16666666\n1000\t2000\t1500\n\r\n"
+        return ""
+
+
+def test_the_collector_repicks_the_layer_after_frames_stop():
+    """出过帧之后连续取空 ⇒ 必须重挑图层，并把 `--list` 原文落盘。
+
+    ⚠ 触发判据可以很紧，因为**真静默产生的是重复的满帧，不是空帧**
+    （静默期间不渲染 ⇒ 环缓冲不推进 ⇒ 相邻 dump 内容完全相同）。
+    ⇒ 一旦该图层出过帧，零帧行就永远不合法。
+    ⚠ 落盘 `--list` 那一半不是附赠：`wifi_f6_b_VOID1` 根因至今未定，
+    正因为**没人在失效之后拍过一张 `--list`**。
+    """
+    d = tempfile.mkdtemp(prefix="t90_")
+    try:
+        adb = _FakeAdb("pkg/pkg.Act#100")
+        acct = {"relists": []}
+        new = e2c._relist_layer(adb, "pkg", "pkg/pkg.Act#99", acct,
+                                os.path.join(d, "sf_layer_probe.jsonl"), 7)
+        assert new == "pkg/pkg.Act#100", new
+        assert acct["relists"][0]["switched"] is True, acct["relists"]
+        assert acct["relists"][0]["dump_index"] == 7
+        probe = os.path.join(d, "sf_layer_probe.jsonl")
+        assert os.path.exists(probe), "重挑没有留下 --list 快照 ⇒ 下次照样查不出根因"
+        rec = json.loads(open(probe, encoding="utf-8").read().strip())
+        assert "pkg/pkg.Act#100" in rec["listing"], rec
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_a_relist_that_finds_the_same_layer_does_not_switch():
+    """重挑拿回同一个名字时不许「切换」——否则日志里全是假切换，遮住真的那次。"""
+    d = tempfile.mkdtemp(prefix="t90b_")
+    try:
+        adb = _FakeAdb("pkg/pkg.Act#100")
+        acct = {"relists": []}
+        same = e2c._relist_layer(adb, "pkg", "pkg/pkg.Act#100", acct,
+                                 os.path.join(d, "p.jsonl"), 3)
+        assert same == "pkg/pkg.Act#100"
+        assert acct["relists"][0]["switched"] is False, acct["relists"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_the_relist_trigger_covers_every_branch_it_claims():
+    """三个条件逐条钉住 —— 正例反例都要，否则「永远重挑」与「永不重挑」都能全绿。"""
+    N = e2c.SF_EMPTY_DUMPS_BEFORE_RELIST
+    W = e2c.SF_RELIST_MIN_INTERVAL_S
+    # 正例：出过帧 + 连续空够 + 间隔够
+    assert e2c._should_relist(True, N, W) is True
+    assert e2c._should_relist(True, N + 50, W * 3) is True
+    # 反例①：还没出过帧 —— App 首帧之前的零帧是正常的，不许每格开头白重挑一次
+    assert e2c._should_relist(False, N + 50, W * 3) is False
+    # 反例②：空得还不够 —— 单段空可能是别的抖动
+    assert e2c._should_relist(True, N - 1, W * 3) is False
+    # 反例③：刚重挑过 —— 死图层每段都空，没有这条就是在上面空转
+    assert e2c._should_relist(True, N, W - 0.01) is False
+    # 判据本身要有意义：N 太大就永远救不回来，太小则出帧前就乱挑
+    assert 1 <= N <= 5, "SF_EMPTY_DUMPS_BEFORE_RELIST=%r 偏离标定区间" % N

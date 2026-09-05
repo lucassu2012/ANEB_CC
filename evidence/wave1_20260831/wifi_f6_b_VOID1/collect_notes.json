@@ -1,0 +1,8 @@
+{
+  "device_window": "DW-20260831-01",
+  "pkg": "com.larus.nova",
+  "stim_pre": "evidence/wave1_20260831/wifi_f6_b\\stim_pre.log",
+  "layer": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2756",
+  "screencap_samples": 462,
+  "stim_post": "evidence/wave1_20260831/wifi_f6_b\\stim_post.log"
+}

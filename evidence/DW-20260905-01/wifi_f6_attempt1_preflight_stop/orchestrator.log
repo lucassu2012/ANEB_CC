@@ -1,0 +1,12 @@
+[21:06:09] == 环节 0：P40 五步 + P1a 前置 ==
+[21:06:10] P1a aneb_processes=1 (须=1)
+[21:06:11] focus=mCurrentFocus=Window{51a4d69 u0 com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher}
+[21:06:12] == 环节 0a：条件=wifi，切网并核实生效 ==
+[21:06:18] route_pre=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[21:06:19] gsm.network.type(pre)=NR_SA,Unknown
+[21:06:19] doubao=versionName=14.9.0
+[21:06:19] == 环节 1：起采集器（后台）==
+[21:06:19] collector pid=1491
+[21:06:32] == 环节 1a：sf_latency 在长？==
+[21:06:37] sf_latency bytes 0 -> 0
+[21:06:37] STOP: sf_latency 不长（图层没抓到）

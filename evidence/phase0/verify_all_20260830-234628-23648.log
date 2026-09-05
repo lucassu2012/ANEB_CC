@@ -1,0 +1,415 @@
+﻿verify_all run at 20260830-234628-23648
+repo: E:\C Project\ANEB
+go: C:\Program Files\Go\bin\go.exe
+--- server-vet (exit 0) ---
+
+PASS  server-vet  go vet ./...
+--- server-build (exit 0) ---
+
+PASS  server-build  go build ./...
+--- server-test (exit 0) ---
+ok  	aneb-server	2.446s
+?   	aneb-server/tools/capture	[no test files]
+?   	aneb-server/tools/gencert	[no test files]
+?   	aneb-server/tools/h3check	[no test files]
+?   	aneb-server/tools/mockllm	[no test files]
+
+PASS  server-test  go test -count=1 ./...
+PASS  profiles-valid  4 profiles ok
+--- portraits-redline (exit 0) ---
+Checked 4 portraits: deepseek.yaml, doubao.yaml, kimi.yaml, tongyi.yaml
+  gate[deepseek]: blocked by 3: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist
+  gate[doubao]: blocked by 3: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist
+  gate[kimi]: blocked by 2: downlink_media_bytes_dist, pop_ip_list
+  gate[tongyi]: blocked by 3: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist
+OK: all red-line invariants hold (R1-R20: params gate intact, no caliber overclaim, provenance consistent, per-field capture status backs every filled param).
+
+PASS  portraits-redline  check_redline.py
+--- adapters-spec (exit 0) ---
+Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  key sets derived from AdapterSpec.kt (13 DTOs)
+OK: all adapter-spec invariants hold (A1 no key the strict parser would reject, A2 required keys present, A3 assets mirror byte-identical and carries nothing extra, A4 every value has the type its DTO declares, A5 the parse() require()s hold, R21 version stamp complete-if-present, R22 status recognised).
+
+PASS  adapters-spec  validate_adapters.py
+--- adapters-spec-unit (exit 0) ---
+ran 42 reflex tests: 42 passed, 0 failed
+
+PASS  adapters-spec-unit  ran 42 reflex tests: 42 passed, 0 failed
+--- portraits-redline-unit (exit 0) ---
+ran 46 reflex tests: 46 passed, 0 failed
+
+PASS  portraits-redline-unit  ran 46 reflex tests: 46 passed, 0 failed
+--- spec-versions (exit 0) ---
+OK: 7 个 aqs version_id / 8 张权重表全部登记且双向一致: aqs-token-v0.1, aqs-v0.1, aqs-v0.2, aqs-voice-sim-v0.1, aqs-voice-sim-v0.2, aqs-voice-v0.1, aqs-voice-v0.2
+
+PASS  spec-versions  check_versions.py
+--- spec-versions-unit (exit 0) ---
+...........                                                              [100%]
+11 passed in 0.05s
+
+PASS  spec-versions-unit  11 passed in 0.05s
+--- portraits-schema (exit 0) ---
+OK: 4 portrait(s) conform to portrait.schema.json (shape gate).
+
+PASS  portraits-schema  validate_schema.py
+--- portraits-schema-unit (exit 0) ---
+ran 10 schema reflex tests: 10 passed, 0 failed
+
+PASS  portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+--- corpus-ledger-fresh (exit 0) ---
+corpus ledger check: in sync
+
+PASS  corpus-ledger-fresh  corpus ledger check: in sync
+--- evidence-rules (exit 0) ---
+evidence guard: violations=0 stale_exemptions=0 frozen_debt=14
+
+PASS  evidence-rules  evidence guard: violations=0 stale_exemptions=0 frozen_debt=14
+--- campaign-analysis-unit (exit 1) ---
+python.exe : Exception in thread Thread-128 (_readerthread):
+At E:\C Project\ANEB\scripts\verify_all.ps1:387 char:12
++     $out = & $py $campaignTest 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Exception in th..._readerthread)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Traceback (most recent call last):
+  File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Python314\Lib\threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1613, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x94 in position 33: illegal multibyte sequence
+拒算：扫描根不存在 —— C:\Users\lucas\AppData\Local\Temp\tmpz8lljmlc\not_here
+  这多半意味着你在一个全新的 git worktree 里（`server/data/` 被 .gitignore 挡、零受跟踪文件，故任何新 worktree 里它都不存在）。
+  **别把这里算出的数当台账**：少一个根＝少一批语料，而结果看起来完全正常。
+  处置：回主树跑；或用 --root 显式声明你真正想扫的范围。
+Exception in thread Thread-130 (_readerthread):
+Exception in thread Thread-129 (_readerthread):
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Python314\Lib\threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1613, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "C:\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xa8 in position 26: illegal multibyte sequence
+  File "C:\Python314\Lib\threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\subprocess.py", line 1613, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+UnicodeDecodeError: 'gbk' codec can't decode byte 0x80 in position 40: illegal multibyte sequence
+gate_count=21
+reflex_tests=741
+corpus_real_runs=110
+written: C:\Users\lucas\AppData\Local\Temp\tmp3za2l1zn\badges.txt
+evidence guard: ABORTED C:/Users/lucas/AppData/Local/Temp/tmp53dx3ru0/README.md 里解不出规则 1 的状态表——守卫拒绝在判据缺失时放行（D-511）
+evidence guard: violations=0 stale_exemptions=8 frozen_debt=8
+  STALE_EXEMPTION C:/Users/lucas/AppData/Local/Temp/tmpqm0si_a4/phase1/STATUS.json C1 已不再违规，请从 LEGACY_PASS_WITHOUT_EVIDENCE 删掉该条（豁免不得长留）
+  STALE_EXEMPTION acceptance_20260820 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION e1_realdevice_20260802 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION e1_realdevice_20260802_run2 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION m2_rerun_20260819 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION spec4_worktree_drill_20260829 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION t39_report_chain_rehearsal_20260803 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION t46_full_corpus_analysis_20260804 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+real_runs=3 synthetic=0 files=1 skipped=0 obs_dirs=0
+written: C:\Users\lucas\AppData\Local\Temp\tmpvbcj4w6_\L.md, C:\Users\lucas\AppData\Local\Temp\tmpvbcj4w6_\L.csv
+corpus ledger check: in sync
+corpus ledger check: DRIFT
+  C:\Users\lucas\AppData\Local\Temp\tmpvbcj4w6_\L.md 与现算不一致（落盘 1310 字符 / 现算 1310 字符）
+  处置：跑 `python scripts/corpus_ledger.py` 重算并提交，不要手改这两份文件。
+corpus ledger check: CANNOT_COMPARE —— 落盘文件读不了（2 个）（先确认 cwd 是仓根，本门默认路径是相对路径）
+  C:\Users\lucas\AppData\Local\Temp\tmp_mmzg01x\nope\CORPUS_LEDGER.md 读不了：[Errno 2] No such file or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\tmp_mmzg01x\\nope\\CORPUS_LEDGER.md'
+  C:\Users\lucas\AppData\Local\Temp\tmp_mmzg01x\nope\CORPUS_LEDGER.csv 读不了：[Errno 2] No such file or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\tmp_mmzg01x\\nope\\CORPUS_LEDGER.csv'
+  处置：**先确认工作目录是仓根**（本门的默认路径是相对路径），别急着重算——重算不会让文件出现在一个错的 cwd 下。确认在仓根后仍读不到，才是文件真的缺了。
+corpus ledger check: CANNOT_COMPARE —— 扫描根不存在：C:\Users\lucas\AppData\Local\Temp\tmpz8lljmlc\not_here（多半在 git worktree 里；处置＝回主树跑，或 --root 显式声明范围）
+real_runs=0 synthetic=0 files=0 skipped=0 obs_dirs=0
+written: C:\Users\lucas\AppData\Local\Temp\tmpz8lljmlc\L.md, C:\Users\lucas\AppData\Local\Temp\tmpz8lljmlc\L.csv
+  xref: 豁免(目标不编号) 18，目标未解析 3
+  same-file xref: 豁免(本文不编号) 21
+input records: 1 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default_gcnddr07\batch_quick.jsonl (1)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default_gcnddr07\batch_forensic.jsonl (0)
+rejected: 0 (missing_mode=0, other_mode=0)
+  reject run_id=test-5269 reason=missing_mode
+input records: 4 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_zzwax8bf\q.jsonl (2)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_zzwax8bf\f.jsonl (1)
+rejected: 1 (missing_mode=1, other_mode=0)
+skip C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_badpath_s7pq07nw\does_not_exist.jsonl: [Errno 2] No such file 
+or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\split_by_run_mode_badpath_s7pq07nw\\does_not_exist.jsonl'
+cannot read schema C:\Users\lucas\AppData\Local\Temp\tmpdw0ro1mb\nope.json: [Errno 2] No such file or directory: 'C:\\U
+sers\\lucas\\AppData\\Local\\Temp\\tmpdw0ro1mb\\nope.json'
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+contract VIOLATIONS: 1 in 1 record(s)
+  - record[0].claim_scope: must be 'application_end_to_end_to_probe_node', got 'wrong'
+campaign-analysis reflex: 796/797 passed
+  FAIL test_corpus_ledger.test_the_refusal_prints_a_summary_marker_the_gate_can_actually_find: AttributeError: 'NoneType' object has no attribute 'splitlines'
+
+FAIL  campaign-analysis-unit  reflex test(s) failed; see log
+--- obs-tools-e1-unit (exit 0) ---
+E1 report -> C:\Users\lucas\AppData\Local\Temp\tmpm00wh88n\out.md
+channel_c=NOT_EXECUTED channel_a=NOT_EXECUTED
+E1 report -> C:\Users\lucas\AppData\Local\Temp\tmpcskyiv_i\out.md
+channel_c=PASS channel_a=NOT_EXECUTED
+e1 reflex: 82/82 passed
+
+PASS  obs-tools-e1-unit  e1 reflex: 82/82 passed
+--- obs-tools-e234-unit (exit 0) ---
+e234 reflex: 106/106 passed
+
+PASS  obs-tools-e234-unit  e234 reflex: 106/106 passed
+--- results-contract-unit (exit 0) ---
+contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+
+PASS  results-contract-unit  contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+--- spec-scoring-unit (exit 0) ---
+spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+
+PASS  spec-scoring-unit  spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+--- profiles-deep (exit 0) ---
+profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+
+PASS  profiles-deep  profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+--- voice-plan-parity (exit 0) ---
+voice plan parity OK: 9 constants + 9 plan literals matched
+
+PASS  voice-plan-parity  voice plan parity OK: 9 constants + 9 plan literals matched
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:compileDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:compressDebugAssets UP-TO-DATE
+> Task :probe:desugarDebugFileDependencies UP-TO-DATE
+> Task :probe:dexBuilderDebug UP-TO-DATE
+> Task :probe:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :probe:processDebugJavaRes UP-TO-DATE
+> Task :probe:mergeDebugJavaResource UP-TO-DATE
+> Task :probe:checkDebugDuplicateClasses UP-TO-DATE
+> Task :probe:mergeDebugStartupProfile UP-TO-DATE
+> Task :probe:mergeExtDexDebug UP-TO-DATE
+> Task :probe:mergeLibDexDebug UP-TO-DATE
+> Task :probe:mergeProjectDexDebug UP-TO-DATE
+> Task :probe:mergeDebugJniLibFolders UP-TO-DATE
+> Task :probe:mergeDebugNativeLibs UP-TO-DATE
+> Task :probe:stripDebugDebugSymbols UP-TO-DATE
+> Task :probe:validateSigningDebug UP-TO-DATE
+> Task :probe:writeDebugAppMetadata UP-TO-DATE
+> Task :probe:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :probe:packageDebug UP-TO-DATE
+> Task :probe:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :probe:assembleDebug UP-TO-DATE
+
+BUILD SUCCESSFUL in 21s
+39 actionable tasks: 39 up-to-date
+
+PASS  app-assembleDebug  gradlew :probe:assembleDebug
+--- app-parity-tests ---
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:compileDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:bundleDebugClassesToRuntimeJar UP-TO-DATE
+> Task :probe:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :probe:kspDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:compileDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:preDebugUnitTestBuild UP-TO-DATE
+> Task :probe:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :probe:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :probe:generateDebugUnitTestConfig UP-TO-DATE
+> Task :probe:processDebugJavaRes UP-TO-DATE
+> Task :probe:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :probe:testDebugUnitTest
+
+BUILD SUCCESSFUL in 27s
+30 actionable tasks: 1 executed, 29 up-to-date
+
+PASS  app-parity-tests  gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun
+--- app-unit-tests-full ---
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:compileDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:bundleDebugClassesToRuntimeJar UP-TO-DATE
+> Task :probe:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :probe:kspDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:compileDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:preDebugUnitTestBuild UP-TO-DATE
+> Task :probe:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :probe:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :probe:generateDebugUnitTestConfig UP-TO-DATE
+> Task :probe:processDebugJavaRes UP-TO-DATE
+> Task :probe:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :probe:testDebugUnitTest
+
+BUILD SUCCESSFUL in 51s
+30 actionable tasks: 1 executed, 29 up-to-date
+
+PASS  app-unit-tests-full  gradlew :probe:testDebugUnitTest --rerun (whole suite)
+--- app-release-signing ---
+A: PASS probe-release.apk / CN=ANEB Throwaway (NOT a release identity), OU=Dev, O=ANEB, L=Shenzhen, C=CN
+B: PASS 回落 probe-release-unsigned.apk，构建未中断
+RESULT: PASS
+
+PASS  app-release-signing  scripts/verify_signing_fallback.ps1 (signed + unsigned-fallback)
+
+=== verify_all summary (scope: all) ===
+PASS           server-vet  go vet ./...
+PASS           server-build  go build ./...
+PASS           server-test  go test -count=1 ./...
+PASS           profiles-valid  4 profiles ok
+PASS           portraits-redline  check_redline.py
+PASS           adapters-spec  validate_adapters.py
+PASS           adapters-spec-unit  ran 42 reflex tests: 42 passed, 0 failed
+PASS           portraits-redline-unit  ran 46 reflex tests: 46 passed, 0 failed
+PASS           spec-versions  check_versions.py
+PASS           spec-versions-unit  11 passed in 0.05s
+PASS           portraits-schema  validate_schema.py
+PASS           portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+PASS           corpus-ledger-fresh  corpus ledger check: in sync
+PASS           evidence-rules  evidence guard: violations=0 stale_exemptions=0 frozen_debt=14
+FAIL           campaign-analysis-unit  reflex test(s) failed; see log
+PASS           obs-tools-e1-unit  e1 reflex: 82/82 passed
+PASS           obs-tools-e234-unit  e234 reflex: 106/106 passed
+PASS           results-contract-unit  contract OK: 2 record(s) across 2 file(s) — structural + R-10 cross-field invariants hold
+PASS           spec-scoring-unit  spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+PASS           profiles-deep  profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+PASS           voice-plan-parity  voice plan parity OK: 9 constants + 9 plan literals matched
+PASS           app-assembleDebug  gradlew :probe:assembleDebug
+PASS           app-parity-tests  gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun
+PASS           app-unit-tests-full  gradlew :probe:testDebugUnitTest --rerun (whole suite)
+PASS           app-release-signing  scripts/verify_signing_fallback.ps1 (signed + unsigned-fallback)
+checks: 25 total / 1 FAIL / 0 NOT_EXECUTED / 0 SKIPPED_SCOPE

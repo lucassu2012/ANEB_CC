@@ -1,0 +1,20 @@
+=== D-581 重验（装机后,新实据链）2026-08-30 16:47:09 ===
+设备现载: lastUpdateTime=2026-08-30 16:20:30  versionName=0.1.0-phase0
+⚠ versionName 两个构建同名(0.1.0-phase0) ⇒ 唯一判别量是 lastUpdateTime
+
+--- ① adapter/ 自新 lastUpdateTime 起的提交数 ---
+  = 0  (0 = 源码与设备构建一致)
+--- 三个承重文件的末次改动 ---
+  AnebAccessibilityService.kt      224326c 2026-08-03
+  ObsStats.kt                      9122ee2 2026-07-19
+  AdapterSpec.kt                   c4170b8 2026-08-02
+--- ② spec ↔ assets 镜像 ---
+  doubao    spec=da5b3f4 assets=da5b3f4  同提交
+  deepseek  spec=da5b3f4 assets=da5b3f4  同提交
+  kimi      spec=3519b36 assets=3519b36  同提交
+  tongyi    spec=3519b36 assets=3519b36  同提交
+--- ③ 设备实载那一份（APK 内 vs 仓内,逐字节）---
+  已核: 四份 adapter 资源 APK 内与仓内 md5 逐一相同, doubao.json 含 D-596 的 [RULED-OUT]
+
+⇒ 三层全通,新实据链对 2026-08-30 16:20:30 这个构建成立。
+⇒ 按 D-581,下一次 T78 型采集窗开窗前不得再重装。

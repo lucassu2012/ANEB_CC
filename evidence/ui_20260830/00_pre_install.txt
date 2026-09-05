@@ -1,0 +1,13 @@
+=== 装机前状态快照 (D-581 步①) 2026-08-30 16:20:01 ===
+--- 设备上的 probe ---
+    versionCode=1 minSdk=29 targetSdk=35
+    versionName=0.1.0-phase0
+    firstInstallTime=2026-08-19 15:27:11
+    lastUpdateTime=2026-08-20 11:17:40
+--- 无障碍服务绑定（装机的主要风险面）---
+enabled_accessibility_services = com.aneb.probe/com.aneb.probe.adapter.AnebAccessibilityService
+accessibility_enabled          = 1
+--- probe 进程已跑多久 ---
+22981  5-04:34:54 com.aneb.probe
+--- 待装 APK ---
+2026-08-30 13:07  61094262 字节

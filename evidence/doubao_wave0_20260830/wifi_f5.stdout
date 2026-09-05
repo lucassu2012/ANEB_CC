@@ -1,0 +1,3 @@
+device: serial=8MY0221126002537 model=ELS-AN00 -> ALLOW (型号在 denylist，但排窗授权 DW-20260830-02 已在任务板上核到)
+collected -> evidence/doubao_wave0_20260830/wifi_f5
+{"device_window": "DW-20260830-02", "pkg": "com.larus.nova", "stim_pre": "evidence/doubao_wave0_20260830/wifi_f5\\stim_pre.log", "layer": "com.larus.nova/com.larus.home.impl.alias.AliasActivity1#2216", "screencap_samples": 343, "stim_post": "evidence/doubao_wave0_20260830/wifi_f5\\stim_post.log"}
