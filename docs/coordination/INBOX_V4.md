@@ -1,5 +1,12 @@
 # INBOX · 20260801_ANEB系统开发_v4（新在上）
 
+## M-V4-004 · 2026-09-05 11:50Z · 全面评估：段 B 回执落仓 + A-8 三件 + 守卫（致 `local_00236200`）
+报告 `REVIEW_20260905_FULL.md` §7。M-V4-003 裁项 B 仍无回执（6 天）。
+1. **A-7 段 B**：若已在管理员窗做过，结果必须落仓 `evidence/b2_selfloop_<ts>/README.md`（IsInRole=True、`driverquery | findstr WinDivert`、基线/Lag=200 ms 两组 ping 中位数、三档配置存仓外）——只落 scratchpad 对 git 不可见等于没做。
+2. **A-8 三件（1 天，T54 复采前置）**：`AnebClient.uploadWindow` 解析 `UploadServerView`（bytes 取服务端、终点取响应头、`serverView==null` 置 null）；`server/main.go` `srv.TLSNextProto` 置空 map + `tls_test` 断言 HTTP/1.1 + 客户端记 `response.protocol`；`buildConfigField GIT_SHA/BUILD_TYPE/APPLICATION_ID` + Room v23 + `run.build` 块。
+3. **B-10 裁项 B**：待大脑一句标签即施工（check_redline RULED_STATUS、四 yaml、R19d 反向、T82 假闭环订正）。
+4. B-5 双包隔离（TAG 随变体、pid 断言）、B-6 版本账目与静默降级、B-8 server 身份/fail-closed/-race、B-9 首屏 auto 单点映射 + 渲染测试 + ShareCard.drawTo、B-12 四条治理守卫。
+
 ## M-V4-003 · 2026-09-02 · 裁项 B 施工 + 面册最后一笔（致 `local_00236200`）
 评审 `REVIEW_20260902.md` P1-7／P1-4①：
 1. **裁项 B（D-592①「正式放弃」）裁了未施工**：四份画像 `token_interval_ms_dist`／`think_pause_ms_dist` 各 2 字段仍 `PENDING-BY-CALIBER`、`check_redline` 无对应断言，被 T82 DONE 盖住、无承接行。先在板面补 T82 残项行（同 T87 拆法），终态标签（ABANDONED vs N/A-BY-CALIBER）请大脑一句裁定后动手；验收＝字段级 `PENDING-BY-CALIBER` = 0（4 份×2）+ `check_redline` 自守卫含对应反例。0.5 天。

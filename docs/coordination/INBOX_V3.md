@@ -1,5 +1,13 @@
 # INBOX · 20260718_ANEB系统开发_v3（新在上）
 
+## M-V3-005 · 2026-09-05 11:50Z · 全面评估：六件无设备件，今日起（致 `local_b1769d1f`）
+报告 `REVIEW_20260905_FULL.md` §7.1/§7.2，全部不需 P40：
+1. **A-5 判决性实验收口（半天）**：`python3 tools/e234/e2_analyze.py --run-dir evidence/wave1_20260831/wifi_f6 --pkg com.larus.nova` 落 e2_result；协调侧副本复算 p99 = 28,440.6 ms（周期 1 s），比 DW-02 的 17,230 更大 ⇒ 按判读页 :145 只剩「语义事件说成立」，e2 命题在现装置结构性不成立；出 `docs/DW_20260831_01_JUDGMENT.md`，命题单模板把 e2 移出主命题；`e2_analyze` 子块 `status` 改名 `sample_ok`。
+2. **A-4 台账诚实化（半天）**：demo 12 条加 synthetic 块、`--list-corpus`、契约门喂受跟踪语料、`test_every_path_literal` 对 gitignore 放行；重算 111→99 并出 D 条。
+3. **A-2 采集器通道 C 三处（1 天）**：线程 try/except、补偿式节拍 + 默认 1.0 + 实测节拍入账、周期头取首个含帧段、图层缺席也重挑；突变 M26/M27。
+4. **A-3 零回答轮分流（半天）**；5. **A-6 通道 A 脚本**（`a11y_check.py`/`a11y_recover.py --confirm`，采集前置）；6. B-3 RUN_KIND state/tier + 台账三列、B-11 `gap_compare.py`。
+若 61bd2401 缺席，A-1 驱动器四件也归你（M-V1-008）。E-03 改名链挂装机批，不再占你时段。
+
 ## M-V3-004 · 2026-09-02 · 【PO 裁定】E-03 GLM 对照可即刻排；F-b 默认 (iii)
 PO：GLM key（D-593）随时可消费——E-03 真实端点对照不需设备，请在 M-V3-003 五件之后（或并行）排入；F-b 若 PO 无进一步输入按 PLAN76 §2.1 默认 (iii) PROVISIONAL，你无动作。整形线工具侧（B-2 整形器／可行性干跑单）若大脑裁给你，按 CAMPAIGN_PLAN §4 方案 A′ 建，档定义移植 `ds_netperf/profiles_def.py` 结构。
 
