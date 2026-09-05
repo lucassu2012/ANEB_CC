@@ -714,6 +714,7 @@
 | D-709 | 2026-09-05 | **PR #4：协调侧 `docs/coordination/` 一次性并入主线作归档**（M-B-011⑤）。它是另一条 lane 的文档，跨文件行号引用与 D 号自成体系，故 rule 6 与 D 号解析两守卫对该目录排除（`_EXTERNAL_LANE_DIRS`，仅此一目录不通配）；本仓不改其内容。 | `origin/claude/aneb-project-progress-analysis-x2wn7x` b5be7ad；test_docs_commands 排除常量；M-B-011⑤ |
 | D-710 | 2026-09-05 | **A-1 驱动器四件合入 `99d07b2`**（61bd2401/v3 缺席，大脑按 PO 令做）：pin_console 作 main 首条；focus 精确包名＋Awake；`adb -s $ANEB_SERIAL`＋单引号包裹＋SH 注入点；prompt 须 ASCII 并作账目首行。新增 8 测试（122→130），15 突变全 CAUGHT，时序代码零改动。 | `99d07b2`；wf_da542748 两份报告；REVIEW §7.1 A-1 机检 |
 | D-711 | 2026-09-05 | **DW-20260905-01 收窗**：P2 两腿各 6 轮 DONE（rc 全 0）；`e2_precheck` 终态两格均 WORTH_RUNNING；E2 判词两格 FAIL（A 早于 C 约 12s，假设被拒非故障）；attempt1 反序教训固化为编排步 0b；T54 两条 quick run 诊断口径入 evidence，台账按结构 111→113。 | PO 令 09-05；D-655；M-B-011①④；`evidence/DW-20260905-01/README.md`；`evidence/t54_ctree_quick_20260904/README.md` |
+| D-712 | 2026-09-05 | **§7.4 四项 PO 亲裁**：(1) E-2 提权取 (b) `schtasks /RL HIGHEST` 常态化，脚本可写即常开提权通道，落地须收紧 ACL、创建归 PO 手；(2) T78 取 (a) 缩小版（豆包 F1/F6×三档，标题带「缩小版」）；(3) 时段按默认 T78 先、T54 A-8 后窗隙；(4) E-01 server 取 (a) 不替换，D-695③ 维持。 | PO 令 2026-09-05 晚；REVIEW §7.4；D-695③；D-702③ |
 
 ## 否决记录（评估后明确不采纳）
 
