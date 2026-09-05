@@ -1,0 +1,2 @@
+{"kind": "prompt", "text": "What is 5G in one sentence", "pkg": "com.deepseek.chat", "serial": "8MY0221126002537"}
+{"round": 1, "answer_wait_intended_s": 60.0, "answer_wait_actual_s": 60.03, "quiet_intended_s": 20.0, "quiet_actual_s": 20.03, "prep_before_send_s": 8.562, "round_total_s": 88.696}

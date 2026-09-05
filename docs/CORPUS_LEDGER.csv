@@ -35,7 +35,7 @@ validity_scenarios,invalid,5
 validity_scenarios,degraded,4
 observation,api_cmp_rejected_dirs,0
 observation,unknown_kind_dirs,0
-observation,device_real_dirs,27
+observation,device_real_dirs,34
 observation,api_cmp_dirs,12
 observation,dry_run_dirs,6
 field_point_max,SZ-PILOT-01,57

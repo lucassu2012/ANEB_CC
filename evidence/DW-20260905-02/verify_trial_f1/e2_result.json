@@ -1,0 +1,71 @@
+{
+  "experiment": "E2",
+  "run_dir": "E:/C Project/ANEB/evidence/DW-20260905-02/verify_trial_f1",
+  "pkg": "com.deepseek.chat",
+  "dry_run": false,
+  "run_kind": "DEVICE_REAL",
+  "spec": "INSTRUMENTATION_SPEC.md §3.3 E2 / §3.4 G-3",
+  "events_used": 232,
+  "events_other_pkg": 0,
+  "events_bad_dimension": 0,
+  "wall_to_boot": {
+    "status": "PASS",
+    "offset_ns": -20656830968451724,
+    "n": 232,
+    "residual_ms_p50": 0.241667,
+    "residual_ms_max": 0.976562
+  },
+  "clock_pin": {
+    "status": "PASS",
+    "offset_ns": 137288516790581,
+    "drift_ns": -521,
+    "frame_ms": 16.667,
+    "pre_n": 5,
+    "post_n": 5,
+    "pre_spread_ns": 2084,
+    "post_spread_ns": 1562
+  },
+  "turn_method": "operator-marks",
+  "turns_total": 1,
+  "frames_total": 18142,
+  "frames_duplicate_dropped": 13821,
+  "frame_ms": 16.666666,
+  "channel_b": {
+    "status": "PASS",
+    "n": 200,
+    "period_ms_p50": 1500.5132,
+    "period_ms_p90": 1500.8163,
+    "period_ms_p99": 1500.9474,
+    "period_ms_min": 1500.0801,
+    "period_ms_max": 1870.4509,
+    "transitions_detected": 2
+  },
+  "per_turn": [
+    {
+      "turn": 0,
+      "a_clusters": 1,
+      "c_clusters": 1,
+      "frames": 3620
+    }
+  ],
+  "drop_reasons": {
+    "通道 A 该轮不足两簇（A2 无判据）": 1
+  },
+  "signed": {
+    "status": "NOT_EXECUTED",
+    "n": 0,
+    "dropped": 1,
+    "reason": "无可用样本"
+  },
+  "channel_a_vs_c": {
+    "status": "NOT_EXECUTED",
+    "n": 0,
+    "dropped": 1,
+    "reason": "无可用样本"
+  },
+  "verdict": [
+    "NOT_EXECUTED",
+    "缺分布或缺实测刷新率"
+  ],
+  "gate_caveat": "该判定**已设**最小 n（e1_analyze.GATE_MIN_N，n 不足即 NOT_EXECUTED），但**不看 dropped**（T14 C-2 余半）；本次 n=0 dropped=1"
+}

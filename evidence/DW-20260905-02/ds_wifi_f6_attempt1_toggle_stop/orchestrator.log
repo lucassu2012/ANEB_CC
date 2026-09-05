@@ -1,0 +1,18 @@
+[00:48:11] == 环节 -1：格间连续性（D-640③④：与上一格 DONE 相差 >30 分钟即停）==
+[00:48:11] since_prev_done_min=4
+[00:48:11] == 环节 0：P40 五步 + P1a 前置 ==
+[00:48:12] P1a aneb_processes=1 (须=1)
+[00:48:13] focus=mCurrentFocus=Window{51a4d69 u0 com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher}
+[00:48:13] == 环节 0a：条件=wifi，切网并核实生效 ==
+[00:48:22] route_pre=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[00:48:22] gsm.network.type(pre)=NR_SA,Unknown
+[00:48:23] deepseek=versionName=2.2.2 lastUpdateTime=2026-07-19 15:02:06
+[00:48:23] probe_ctree lastUpdateTime=2026-09-04 09:02:32 (P2 判据须=2026-09-04 09:02:32)
+[00:48:23] driver=tools/e234/drive_cell_ds.py@99d07b2 dirty_lines=0
+[00:48:23] == 环节 0b：被测 App 先前台出一屏（monkey 启动），核焦点与同包窗口数，截图落仓外 ==
+[00:48:33] focus_after_launch=mCurrentFocus=Window{125fe4 u0 com.deepseek.chat/com.deepseek.chat.MainActivity}
+[00:48:34] pkg_windows=1 (须=1；>1 疑弹窗)
+[00:48:34] screenshot_pre=/c/Users/lucas/AppData/Local/Temp/claude/E--C-Project-ANEB/6d3a133e-db52-461a-91c8-97d6a12e1e63/scratchpad/ds_wifi_f6_pre.png (仓外，自读后即删)
+[00:48:34] toggles_declared=深度思考ON+智能搜索OFF（冷启默认双ON，脚本钩子点 (545,2525) 关搜索并像素核对）；模式选择器=快速模式(默认未动)
+[00:48:41] toggle_pixels=think=(156, 156, 156) OFF(achromatic) search=(158, 158, 158) OFF(achromatic) 
+[00:48:41] STOP: 开关态不符（期望 think=ON search=OFF）
