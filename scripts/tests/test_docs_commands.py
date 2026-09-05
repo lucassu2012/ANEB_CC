@@ -1493,6 +1493,17 @@ _FROZEN_LINE_REFS = frozenset([
 _LINE_REF = re.compile(r"([\w./\-]+\.md):(\d+)")
 
 
+
+# 外部 lane 的归档件：`docs/coordination/` 是协调侧（另一条 lane）的文档，按 M-B-011⑤ 一次性并入主线作归档，
+# **不是本仓起草的文档**——其跨文件行号引用与 D 号引用都指向协调侧自己的语境（它有自己的裁定编号体系），
+# 故 rule 6 与「每个被引 D 号须在 DECISION_LOG 解析」两条守卫对它不适用（裁定见 DECISION_LOG 2026-09-05 PR #4 条）。仅此一目录，不做通配。
+_EXTERNAL_LANE_DIRS = ("docs" + os.sep + "coordination",)
+
+
+def _under_external_lane(path):
+    rel = os.path.relpath(path, REPO).replace("/", os.sep)
+    return any(rel == d or rel.startswith(d + os.sep) for d in _EXTERNAL_LANE_DIRS)
+
 def _all_line_refs():
     """全仓 .md 的跨文件行号引用集合。
 
@@ -1503,6 +1514,9 @@ def _all_line_refs():
     """
     found = set()
     for root, dirs, files in os.walk(REPO):
+        if _under_external_lane(root):
+            dirs[:] = []
+            continue
         dirs[:] = [d for d in dirs if d != ".git"]
         for f in files:
             if not f.endswith(".md"):
@@ -1752,7 +1766,7 @@ _D_REF_EXEMPT = {
     #    这些示例号出自 worktree 隔离提案的「**如**按百位分段 v2=D-700..799」——「如」字表明是举例、
     #    是虚指；真实编号单调推进，被追上是必然的。后来人照此处理：真实条目一入册就删掉对应行
     #    （test_decision_number_exemptions_are_still_needed 会当场点名要求删，不必自己记）。
-    "D-705": "worktree 隔离提案里**为未来裁定预留的示例号**（举例用，虚指；被真实编号追上时删本行）",
+    # D-705 已于 2026-09-05 被真实编号追上（A-6 通道 A 开回），示例号豁免撤销；后续 D-800/803/900 同理。
     "D-800": "同上",
     "D-803": "同上",
     "D-900": "同上",
@@ -1785,6 +1799,9 @@ def test_every_cited_decision_number_resolves():
 
     cited = {}
     for root, dirs, files in os.walk(REPO):
+        if _under_external_lane(root):
+            dirs[:] = []
+            continue
         dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "build")]
         for f in files:
             if not f.endswith(_D_SCAN_EXT):
