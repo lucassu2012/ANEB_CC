@@ -765,14 +765,22 @@ def test_the_repo_has_no_unregistered_observation_state_right_now():
     """真树现态：回填之后**不该再有 `unknown`**（D-718 B-3 回填的验收面）。
 
     ⚠ 将来新采一格若忘了写 `state`，本条会红——**那是对的**：
-    去让采集器写上，别改本条。（新采集器默认就写 `valid`，忘不了才对。）
+    去让写目录的那一方补上，别改本条。（`e234_collect` 默认就写 `valid`。）
+    🔴 **最可能的红法已知**（2026-09-06 对抗复核指出）：`tools/e234/sim_session.py`
+    建 `RUN_KIND.json` 时**不写 `state`** ⇒ 谁用它往 `evidence/` 里生成目录，
+    本条就会红。**那时该改的是 `sim_session`，不是本条**——失败信息里点名它，
+    是因为「守卫红了就去改守卫」是这一步最省事也最错的做法。
     """
     import pytest
     if cl.missing_roots(cl.DEFAULT_ROOTS):
         pytest.skip("语料根不全（鲜克隆/worktree）")
     c = cl.classify_state(cl.observation_runs(cl.DEFAULT_ROOTS))
     assert c["unknown"] == 0, (
-        "有观察目录没登记 state：%r —— 采集器应写 valid，历史目录按 README 回填" % c)
+        "有观察目录没登记 state：%r\n"
+        "⇒ **该改的是写目录的那一方，不是本守卫**。最可能的成因："
+        "`tools/e234/sim_session.py` 的 `write_run_kind` 不写 `state`（实测），"
+        "谁用它往 evidence/ 生成目录就会命中这里；`e234_collect` 默认写 `valid`，"
+        "历史目录按各批 README 回填。" % c)
 
 
 def test_a_demo_run_id_without_a_synthetic_block_still_cannot_enter_real():

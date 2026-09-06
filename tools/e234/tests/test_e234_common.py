@@ -366,6 +366,14 @@ def test_setting_a_run_state_touches_only_that_key():
         assert body["void_reason"] == "attempt_aborted"
         for k, v in orig.items():
             assert body[k] == v, (k, body.get(k), v)   # 别的键一个都没动
+        # 🔴 **必须回读磁盘**（2026-09-06 对抗复核咬出）：上面几条断言的全是
+        # **返回值**——`set_run_state` 哪怕一个字节都没写，它们照样通过。
+        # 「函数说它改了」与「文件真的改了」是两件事，而下游读的是文件。
+        with open(os.path.join(d, ec.RUN_KIND_FILE), encoding="utf-8-sig") as fh:
+            on_disk = _json.load(fh)
+        assert on_disk == body, (on_disk, body)
+        for k, v in orig.items():
+            assert on_disk[k] == v, ("落盘后别的键被动了", k, on_disk.get(k), v)
 
         # 改回 valid 时把作废原因清掉，别留「valid 但带作废原因」的自相矛盾行
         body2 = ec.set_run_state(d, ec.STATE_VALID)
