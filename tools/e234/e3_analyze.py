@@ -114,11 +114,11 @@ def analyze(run_dir, pkg, allow_proxy=False):
     }
 
     if method is None:
-        res["interval"] = {"status": ec.NOT_EXECUTED, "n": 0, "reason": why}
+        res["interval"] = {"sample_ok": False, "n": 0, "reason": why}
         res["verdict"] = (ec.NOT_EXECUTED, "A0 无判据：%s" % why)
         return res
     if pin.get("status") != ec.PASS:
-        res["interval"] = {"status": ec.NOT_EXECUTED, "n": 0,
+        res["interval"] = {"sample_ok": False, "n": 0,
                            "reason": "时钟钉桩不可用：%s" % pin.get("reason")}
         res["verdict"] = (ec.NOT_EXECUTED, "跨基比较缺时钟钉桩")
         return res
@@ -163,13 +163,21 @@ def analyze(run_dir, pkg, allow_proxy=False):
 
     res["drop_reasons"] = drops
     res["interval"] = ec.summarize(vals, dropped=sum(drops.values()))
+    # `summarize` 的 `status` 回答的是「**样本够不够**」（空样本 NOT_EXECUTED，
+    # 非空 PASS），不是「判据过没过」。它与 `verdict` 并排落盘时会被读成后者。
+    # 改名 `sample_ok` 并给布尔（D-726 ②，与 e2 同法）。
+    # ⚠ **只改存进 res 的这一份**，共用助手 `summarize`（在 tools/e1，e1/e3/e4
+    # 共用）不动；e4 的 `t_quiet.status` 也不动——那个是**判词**（给不给得出
+    # T_quiet），不是样本充分性，把它改成布尔名才是反向犯错。
+    _st = res["interval"].pop("status", None)
+    res["interval"]["sample_ok"] = (_st == ec.PASS)
     # E3 没有"门"：spec 逐字说它「不是误差，是被测 App 的输入处理耗时」。
     # 硬给它安一个 PASS/FAIL 就是把一个被测对象的性质说成我们打点的性质。
     res["verdict"] = (
         (ec.PASS, "已给出 A0→A0′ 分布（method=%s，n=%s）" % (method, res["interval"].get("n")))
-        if res["interval"]["status"] == ec.PASS
+        if res["interval"]["sample_ok"]
         else (ec.NOT_EXECUTED, "无可用轮次"))
-    if res["interval"]["status"] == ec.PASS:
+    if res["interval"]["sample_ok"]:
         # §6-6 的解阻条件在这里被机器化：拿到分布之后，`ttft_ui_ms` 的文案
         # 要么改成 A0′→A2，要么把这个间隔加上。数字给出来，裁定仍归大脑。
         res["for_6_6"] = {

@@ -179,6 +179,15 @@ def analyze(run_dir, pkg, a2_method=A2_METHOD_V3):
     res["post_silences"] = ec.summarize(post_all)
     res["mark_lag"] = ec.summarize([r["mark_lag_ms"] for r in res["per_turn"]
                                     if "mark_lag_ms" in r])
+    # `summarize` 的 `status` 回答的是「**样本够不够**」，不是「判据过没过」；
+    # 它与本页别处的判词并排落盘时会被读成后者。改名 `sample_ok` 并给布尔
+    # （D-726 ②，与 e2/e3 同法）。
+    # ⚠ **只改这三块**：`res["t_quiet"]["status"]` 是**判词**（给不给得出
+    # T_quiet，四条测试在读它），把判词改成布尔名是反向犯错；共用助手
+    # `summarize`（在 tools/e1，e1/e3/e4 共用）也不动。
+    for _k in ("intra_gaps", "post_silences", "mark_lag"):
+        _st = res[_k].pop("status", None)
+        res[_k]["sample_ok"] = (_st == ec.PASS)
     sep = separation(intra_all, post_all)
     res["separation"] = sep
     res["c1_usable"] = (None if sep["verdict"] == ec.NOT_EXECUTED
