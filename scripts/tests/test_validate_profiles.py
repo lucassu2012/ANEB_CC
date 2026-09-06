@@ -171,3 +171,88 @@ def test_real_profiles_pass():
         return
     errs = vp.validate_dirs(vp.DEFAULT_SPEC, vp.DEFAULT_RUNTIME)
     assert errs == [], f"real profiles violate parity/structure: {errs}"
+
+
+# ------------------------------------------------ expected_n（D-707／D-740／D-751）
+
+def _profile(phases):
+    return {"profile_id": "p", "version": "0.0.0", "kpi_set": "k", "phases": phases}
+
+
+def test_expected_n_derives_per_kpi_from_the_right_field():
+    """六族各读相位的**不同字段**——这正是 D-740 §1 要求写成具名映射而非二分的理由。"""
+    p = _profile([
+        {"type": "clock_sync", "samples": 20},
+        {"type": "clock_sync", "samples": 20},
+        {"type": "token_stream", "tokens": 300},
+        {"type": "token_stream", "tokens": 300},
+        {"type": "upload_burst", "bytes": 1, "chunk_kb": 1},
+        {"type": "tool_loop", "rounds": 8, "up_bytes": 1, "down_bytes": 1,
+         "server_proc_ms": 1},
+    ])
+    got = vp.derive_expected_n(p)
+    assert got["N1"] == 40 and got["N2"] == 40, got     # sum:samples
+    assert got["T1"] == 2, got                          # count
+    assert got["T2"] == 598 and got["T3"] == 598, got   # sum:tokens-1
+    assert got["U1"] == 1, got                          # count
+    assert got["U2"] == 8, got                          # sum:rounds
+
+
+def test_expected_n_omits_kpis_with_no_source_phase():
+    """无来源相位 ⇒ **该 KPI 缺席**，不是期望 0。
+
+    缺席说「这份 profile 不产出它」，0 说「该产出却一个都没有」——
+    压成同一个值，下游就分不出「不适用」与「全丢了」。
+    """
+    got = vp.derive_expected_n(_profile([{"type": "clock_sync", "samples": 10}]))
+    assert "D1" not in got and "U1" not in got and "T1" not in got, got
+    assert got == {"N1": 10, "N2": 10}, got
+
+
+def test_declared_expected_n_must_equal_derived():
+    """声明只作覆盖，不等即红——手写是同一事实的第二份副本，**漂了不报错**。"""
+    p = _profile([{"type": "upload_burst", "bytes": 1, "chunk_kb": 1}])
+    p["expected_n"] = {"U1": 1}
+    assert vp.check_expected_n(p, "p") == []            # 相等 ⇒ 放行（正对照）
+    p["expected_n"] = {"U1": 3}
+    errs = vp.check_expected_n(p, "p")
+    assert any("U1" in e and "3" in e for e in errs), errs
+
+
+def test_excluded_kpis_may_not_be_declared_and_the_reason_is_named():
+    """S1／C1／C2 显名排除（D-751）；报错文案必须带上**为什么**。
+
+    只报「不许声明」而不给理由，下一个人只会把它从清单里删掉——
+    而理由（样本单位不是相位）才是它不该在这里的原因。
+    """
+    for kpi in ("S1", "C1", "C2"):
+        p = _profile([{"type": "clock_sync", "samples": 10}])
+        p["expected_n"] = {kpi: 3}
+        errs = vp.check_expected_n(p, "p")
+        assert errs and kpi in errs[0], (kpi, errs)
+        assert vp.EXPECTED_N_EXCLUDED[kpi] in errs[0], (kpi, errs)
+
+
+def test_real_profiles_derivation_matches_measured_corpus():
+    """真实 profile 的推导值必须与**语料实测**对得上（承 D-746：s1 599／s3 397–398）。
+
+    ⚠ 这条钉的是「规则没写反」，**不是「规则唯一正确」**——推导规则本身是单源的
+    （由裁定给出、未经第二方独立推导），故只与**已实测过的那一族**比对。
+    """
+    if not os.path.isdir(vp.DEFAULT_RUNTIME):
+        return
+    got = {}
+    for fn in sorted(os.listdir(vp.DEFAULT_RUNTIME)):
+        if not fn.endswith(".json"):
+            continue
+        with open(os.path.join(vp.DEFAULT_RUNTIME, fn), encoding="utf-8") as fh:
+            prof = json.load(fh)
+        got[prof.get("profile_id")] = vp.derive_expected_n(prof)
+    assert got.get("s1_chat", {}).get("T2") == 599, got.get("s1_chat")
+    assert got.get("s3_multimodal", {}).get("T2") == 398, got.get("s3_multimodal")
+    # T1／U1／D1 三族对门限 3 **结构性不可达**（D-740 实测结论）——推导值全 < 3。
+    for pid in ("s1_chat", "s2_coding_agent", "s3_multimodal"):
+        for kpi in ("T1", "U1", "D1"):
+            n = got.get(pid, {}).get(kpi)
+            if n is not None:
+                assert n < 3, (pid, kpi, n)
