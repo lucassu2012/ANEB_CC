@@ -2,7 +2,7 @@
 
 > **给 PO 照抄的单子。只需在「管理员 PowerShell」里跑一次 §2；此后编队任何非提权会话都能起／停整形器，不再需要您开窗。**
 > 设计目标＝把 D-712(1) 点名的代价「脚本对本用户可写＝常开提权通道」**堵掉**：被提权执行的可执行文件与包装脚本放**仅 Administrators/SYSTEM 可写**的目录；非提权侧只能改「档位参数」一行文本，且包装脚本按**白名单**校验后才传给 clumsy（clumsy 的参数只影响过滤与整形，不含任何代码执行面）。
-> 依据：D-702③（schtasks 替代方案）、D-712(1)、D-656③／D-657（供应链双源 sha256：`clumsy-0.3-win64-a.zip` ＝ `f50dc734148815831c67d9fc2c246c22d421c53dcea51e26eee905b0b2806c27`，本机实测一致，GitHub 该资产大小 536789 一致）；clumsy 命令行旗标核自上游源码 `src/utils.c`（`--key value` 形态）、`src/lag.c`／`drop.c`／`bandwidth.c`（`<模块>-inbound/-outbound/-time/-chance/-bandwidth`）、`src/main.c`（`--filter`，带参启动即开始过滤）。
+> 依据：D-702③（schtasks 替代方案）、D-712(1)、D-656③／D-657（`clumsy-0.3-win64-a.zip` sha256 ＝ `f50dc734148815831c67d9fc2c246c22d421c53dcea51e26eee905b0b2806c27`，与 D-657 登记值一致；**范围限定**：clumsy 上游 release 不发布校验和、GitHub 资产 digest 为空，第二源只有资产大小 536789 一致——本比对只证「登记→解压之间未被改」，**不证溯源**（cd5239ba 09-06 指出，采纳））；clumsy 命令行旗标核自上游源码 `src/utils.c`（`--key value` 形态）、`src/lag.c`／`drop.c`／`bandwidth.c`（`<模块>-inbound/-outbound/-time/-chance/-bandwidth`）、`src/main.c`（`--filter`，带参启动即开始过滤）。
 
 ## 1. 现状（2026-09-06 11:2x，大脑核）
 
