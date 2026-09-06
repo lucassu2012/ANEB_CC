@@ -53,6 +53,37 @@ func withServerHeader(next http.Handler) http.Handler {
 	})
 }
 
+// newTCPServer 构造 TCP（h1/h2 侧）的 http.Server。
+//
+// 从 main() 抽出来只为一件事：**让 TLSNextProto 那条能被测试拿到**。
+// 内联在 main() 里时它不可测——test 起不了 main()，于是「有没有真的禁掉 h2」
+// 只能靠读代码确认，而读代码确认不了协商结果。
+//
+// **为什么必须禁 h2（A-8／REVIEW §7.1，S3-02）**：本服务端是**测量端点**，
+// 不是普通业务服务端。Go 在 TLS 上默认协商 h2，而 h2 的流控与多路复用会让
+// 上行样本的「写完时刻」与「服务端收完时刻」之间多出一层与网络无关的排队
+// ——D-703 首样本的 `u3 excl<incl` 就有「本地写缓冲伪影」与「h2 流控」两种
+// 互斥解释，单样本分辨不了。钉死 HTTP/1.1 是把这个混淆量从测量里拿掉。
+//
+// 置**空映射**而不是 nil：nil 表示「用默认」（即启用 h2），空映射才表示
+// 「显式地没有下一协议」。这两者在代码里只差一个字面量，行为完全相反。
+func newTCPServer(a *app, addr, altSvc string, tlsConf *tls.Config) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           a.tcpHandler(altSvc),
+		TLSConfig:         tlsConf,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// P3-C05：把底层连接塞进每请求 context，供 /stream 流末尾对同一条
+		// 连接读 TCP_INFO（tcpinfo.go）。h3 侧无此机制（QUIC 无 TCP_INFO），
+		// summary 的 retrans_total 在 h3 上天然缺省（n/a）。
+		ConnContext: connContext,
+		// A-8：测量端点钉死 HTTP/1.1（见上方注释）。h3 走独立的 http3.Server，
+		// 不受这里影响——本项只关掉 **TLS-over-TCP 上的 h2**。
+		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
+	}
+}
+
 func main() {
 	addr := flag.String("addr", ":8443", "listen address")
 	// 默认路径用正斜杠：Go 在 Windows 同样接受，目标部署环境（Linux VM）
@@ -128,17 +159,7 @@ func main() {
 		tlsConf = tc
 	}
 
-	srv := &http.Server{
-		Addr:              *addr,
-		Handler:           a.tcpHandler(altSvc),
-		TLSConfig:         tlsConf,
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       120 * time.Second,
-		// P3-C05：把底层连接塞进每请求 context，供 /stream 流末尾对同一条
-		// 连接读 TCP_INFO（tcpinfo.go）。h3 侧无此机制（QUIC 无 TCP_INFO），
-		// summary 的 retrans_total 在 h3 上天然缺省（n/a）。
-		ConnContext: connContext,
-	}
+	srv := newTCPServer(a, *addr, altSvc, tlsConf)
 
 	log.Printf("%s listening on %s (profiles=%s data=%s, mono-anchor wall=%d)",
 		serverVersion, *addr, *profilesDir, *dataDir, anchorWallUnixNs)
