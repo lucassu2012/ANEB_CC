@@ -115,6 +115,54 @@ def m1():
     return _mut(e2, "analyze", patched)
 
 
+@mutation("M27 刷新周期头退回取文件第一行（A-2 口径被撤销）", "CAUGHT")
+def m27():
+    """把周期头改回「文件第一行」——即 A-2 之前的口径。
+
+    危险处不是它取错了一个数，而是**那个数会一路传进环覆盖上界**：
+    实测 `evidence/e234/20260802-172614` 五段的头全是 11111111（90Hz）而一帧
+    都没渲染出来，旧口径照样把 90Hz 印出去。两处同改，避免只堵一半。
+    """
+    import e2_precheck as ep
+
+    def _first_line_period(text):
+        for line in (text or "").splitlines():
+            s = line.strip()
+            if s:
+                try:
+                    return int(s.split()[0])
+                except ValueError:
+                    return None
+        return None
+
+    real_ring, real_sf = ep.parse_ring_shape, ea.parse_sf_latency
+
+    def patched_ring(text):
+        _p, depth = real_ring(text)
+        return _first_line_period(text), depth
+
+    def patched_sf(text):
+        _p, frames = real_sf(text)
+        return _first_line_period(text), frames
+
+    undo_ring = _mut(ep, "parse_ring_shape", patched_ring)
+    undo_sf = _mut(ea, "parse_sf_latency", patched_sf)
+    return lambda: (undo_sf(), undo_ring())
+
+
+@mutation("M28 覆盖率闸门限归零（看不见也照样放行）", "CAUGHT")
+def m28():
+    """把 `SF_COVERAGE_FLOOR` 调成 0 —— 闸还在，但永远不触发。
+
+    这正是「写好了一道门 ≠ 那道门在承重」的可执行版本：门限归零之后
+    所有量、所有判词的**数字一个都不变**，只有那条 CANNOT_TELL 不再出现。
+    """
+    import e2_precheck as ep
+    old = ep.SF_COVERAGE_FLOOR
+    ep.SF_COVERAGE_FLOOR = 0.0
+    return lambda: setattr(ep, "SF_COVERAGE_FLOOR", old)
+
+
 @mutation("M26 零事件与不足两簇合回一个判词（A-3 分流被撤销）", "CAUGHT")
 def m26():
     """撤销 D-718 A-3 的分流：把「零事件」并回「不足两簇」。

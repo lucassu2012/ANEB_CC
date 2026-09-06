@@ -251,6 +251,70 @@ def test_channel_a_actually_runs_on_a_whole_session():
     assert 0 <= a["turns_with_anchor"] <= a["turns"], a
 
 
+def test_the_refresh_period_comes_from_the_first_segment_with_a_usable_frame():
+    """反例（D-718 A-2）：周期头取**首个含可用帧的段**，不是文件第一行。
+
+    实测 `evidence/e234/20260802-172614`：五段的头全是 `11111111`（90Hz）而
+    **一帧都没渲染出来** —— 旧口径照样把 90Hz 印出去，那个数来自一个什么都
+    没画的 dump，还会一路传进环覆盖上界。
+    ⚠ 判据必须用**可用**帧：`0 0 0` 占位行满地都是，按「三整数行」数则每段
+    都算「含帧」，这条改动会**静默失效**（本条第二个断言专防这一点）。
+    反例证伪：改回 `period = 第一行`，本条即红。
+    """
+    text = ("11111111\n0\t0\t0\n0\t0\t0\n"          # 段一：只有占位帧
+            "16666666\n100\t200\t150\n")            # 段二：第一条可用帧在这里
+    period, depth = ep.parse_ring_shape(text)
+    assert period == 16666666, period
+    assert depth == 2, depth                        # 环深仍按**原始行数**取，口径不变
+    # 一帧可用的都没有 ⇒ 周期是**未知**，不是沿用第一行的 11111111
+    none_text = "11111111\n0\t0\t0\n11111111\n0\t0\t0\n"
+    assert ep.parse_ring_shape(none_text)[0] is None, ep.parse_ring_shape(none_text)
+
+
+def test_a_frozen_ring_is_CANNOT_TELL_even_when_every_dump_returned_frames():
+    """反例（D-718 A-2）：**存活率过关不等于看得见**。
+
+    实测原型 `t90_verify_20260901/relist1`：133 次 dump 全都取到帧（存活 95.7%，
+    过存活闸），可它们只落在 **4 个不同窗口**上（环冻住），实际覆盖 **4.6%**。
+    没看过的那段里，「静默」与「丢帧」不可区分 ⇒ 只能 CANNOT_TELL。
+    本条用合成语料复现该形状：12 段、段段同一窗口，中间跨度很长。
+    反例证伪：把 `SF_COVERAGE_FLOOR` 调成 0，或删掉该闸，本条即红。
+    """
+    d = tempfile.mkdtemp(prefix="dryrun_e2pre_frozen_")
+    try:
+        # 冻住的环：每次 dump 都返回同一批帧（时刻一模一样）
+        frozen = "16666666\n1000000000\t1100000000\t1050000000\n" \
+                 "1000000000\t1200000000\t1150000000\n"
+        tail = "16666666\n90000000000\t90100000000\t90050000000\n" \
+               "90000000000\t90200000000\t90150000000\n"
+        with open(os.path.join(d, "sf_latency.txt"), "w", encoding="utf-8") as fh:
+            fh.write(frozen * 11 + tail)          # 12 段 ≥ SF_COVERAGE_MIN_DUMPS
+        res = ep.precheck(d, "com.larus.nova")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    assert res["dump_survival"] == 1.0, res["dump_survival"]      # 存活满分
+    assert res["sf_coverage"] is not None and res["sf_coverage"] < 0.9, res["sf_coverage"]
+    assert res["verdict"][0] == ep.CANNOT_TELL, res["verdict"]
+    assert "覆盖" in res["verdict"][1], res["verdict"][1]
+
+
+def test_coverage_counts_the_union_not_the_sum_of_overlapping_dumps():
+    """反例（D-718 A-2）：覆盖率取各段**并集**，重叠只算一次。
+
+    相邻 dump 读的是同一只环缓冲，内容天然重复；把各段长度直接相加会得到
+    **大于 1** 的「覆盖率」——一个看起来很好的假数。
+    反例证伪：把并集换成求和，第一个断言即红（会得到 2.0）。
+    """
+    s = 1_000_000_000                                # 1s，纳秒
+    overlapped = [[0, 2 * s], [1 * s, 3 * s], [2 * s, 4 * s]]
+    assert ep._coverage_ratio(overlapped) == 1.0, ep._coverage_ratio(overlapped)
+    # 稀疏排期：两段各 1s，跨度 11s ⇒ 中间 9 秒**一眼都没看过**
+    sparse = [[0, 1 * s], [10 * s, 11 * s]]
+    assert abs(ep._coverage_ratio(sparse) - 2 / 11.0) < 1e-4, ep._coverage_ratio(sparse)
+    assert ep._coverage_ratio([]) is None
+    assert ep._coverage_ratio([[5, 5], [5, 5]]) is None      # 跨度 0 不硬算
+
+
 def test_zero_event_turns_are_split_out_of_the_denominator():
     """反例（D-718 A-3）：零事件轮**不进分母**，且要能单独数出来。
 
