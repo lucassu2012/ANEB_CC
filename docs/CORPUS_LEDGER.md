@@ -143,7 +143,7 @@
 | evidence/glm_e03_20260903/t800_2 | api_cmp | E-03 | — | 3 |
 | evidence/glm_e03_20260903/t800_3 | api_cmp | E-03 | — | 3 |
 | evidence/t90_verify_20260901/relist1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 9 |
-| evidence/wave1_20260831/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 8 |
-| evidence/wave1_20260831/wifi_f6_b_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 8 |
+| evidence/wave1_20260831/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/wave1_20260831/wifi_f6_b_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
 
 > 这些目录**产出 0 条 wire run**——产物喂 `validate_results.py` 即 contract VIOLATIONS。列在这里是为了让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。判据＝目录里有 `RUN_KIND.json`（采集器自己写的标记，非文件名清单）；早于该标记的采集目录不在此表，仍落在第三节的通用桶里。
