@@ -731,6 +731,7 @@
 | D-726 | 2026-09-06 | **A-5 核收＋e2 FAIL 成因入册（承 v3 7bad6ad）**：wave1/wifi_f6 n=6 p99 28.4s，判读页三格并排；成因＝A/C 两侧簇分割做在不同物理量上，「1 帧」判据问错了问题。追认 `status`→`sample_ok` 收窄改法。勘误：REVIEW「DW-02 wifi_f6 17,230」＝wave0 旧子批标签下的 wifi_f6，数存在。 | v3 交付 7bad6ad；`docs/DW_20260831_01_JUDGMENT.md`；D-715；D-717③；REVIEW §7.1 A-5 |
 | D-727 | 2026-09-06 | **`-race` 补记（承 M-B-015①）**：协调侧 Linux 鲜克隆对 `3235779` 跑 `go test -race -count=1 ./...` 全绿；D-719③「本机无 gcc 未跑」补为「协调侧代跑绿」。此后需 `-race` 即在 INBOX 点名代跑；撤回装 Go/mingw 的 PO 请求。 | M-B-015①；D-719③；v4 9c646cd |
 | D-728 | 2026-09-06 | **A-3 核收（承 v3 983e677）**：零事件轮与「不足两簇」分流两句判词；`segment_turns` 有标记无事件按标记切；precheck 分母改可判轮数。VOID1 格三键 2/2/2 亲核；reflex 134 绿；突变 26 CAUGHT。裁：突变取连续号 M26，总数以实际为准。 | v3 交付 983e677；REVIEW §7.1 A-3；M-B-014①；T91 |
+| D-729 | 2026-09-06 | **`inject_used` 来源裁 (a)（承 v4 cf547e6）**：`inject` 只活在内存与 logcat ⇒ `test_run` 加 `injectUsed` 列并入 v23（前提＝v23 未装到任何设备，现成立；迁移测试与 schema 同步）；REVIEW 三列/四键不自洽，以四键为准。「缺席钉」测试保留，改它与改实现同一提交。 | v4 回执 cf547e6／7a21a53；D-719②；REVIEW §7.1 A-8 |
 
 ## 否决记录（评估后明确不采纳）
 
