@@ -733,6 +733,7 @@
 | D-728 | 2026-09-06 | **A-3 核收（承 v3 983e677）**：零事件轮与「不足两簇」分流两句判词；`segment_turns` 有标记无事件按标记切；precheck 分母改可判轮数。VOID1 格三键 2/2/2 亲核；reflex 134 绿；突变 26 CAUGHT。裁：突变取连续号 M26，总数以实际为准。 | v3 交付 983e677；REVIEW §7.1 A-3；M-B-014①；T91 |
 | D-729 | 2026-09-06 | **`inject_used` 来源裁 (a)（承 v4 cf547e6）**：`inject` 只活在内存与 logcat ⇒ `test_run` 加 `injectUsed` 列并入 v23（前提＝v23 未装到任何设备，现成立；迁移测试与 schema 同步）；REVIEW 三列/四键不自洽，以四键为准。「缺席钉」测试保留，改它与改实现同一提交。 | v4 回执 cf547e6／7a21a53；D-719②；REVIEW §7.1 A-8 |
 | D-730 | 2026-09-06 | **A-8 `non_forensic` 改名＋改派**：仓内 `forensic`＝`run.mode` 采样密度，A-8 指「debug∧inject⇒不可作证据」，共用词会出自相矛盾行且不报错 ⇒ 取 `evidence_admissible`（布尔）＋`admissibility_reason`；判定在 scripts/ 八处，改派 v3 作 A-8④，A-8 核收待其一起出。 | v4 回执（cf547e6 后）；REVIEW §7.1 A-8；`scripts/split_by_run_mode.py`；D-729 |
+| D-731 | 2026-09-06 | **C-1 v0.1 四态复核**：52 确认／3 反驳，去重 6 高 8 中 9 低，记录 `docs/DOUBAO_NETPERF_REPORT_20260906_REVIEW_v01.md`。V2 锚：①wave0 README 过期只登记不代改；②DeepSeek 分栏只作对照；③TTFT 组数标待交叉核。v0.1.1 修完 H/M 再交 PO。 | 工作流 wf_c7ed39ac；`docs/DOUBAO_NETPERF_REPORT_20260906_REVIEW_v01.md`；D-720；D-723；D-724；D-726 |
 
 ## 否决记录（评估后明确不采纳）
 
