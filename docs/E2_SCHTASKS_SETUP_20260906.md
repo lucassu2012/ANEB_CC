@@ -4,7 +4,7 @@
 > 设计目标＝把 D-712(1) 点名的代价「脚本对本用户可写＝常开提权通道」**堵掉**：被提权执行的可执行文件与包装脚本放**仅 Administrators/SYSTEM 可写**的目录；非提权侧只能改「档位参数」一行文本，且包装脚本按**白名单**校验后才传给 clumsy（clumsy 的参数只影响过滤与整形，不含任何代码执行面）。
 > 依据：D-702③（schtasks 替代方案）、D-712(1)、D-656③／D-657（供应链双源 sha256：`clumsy-0.3-win64-a.zip` ＝ `f50dc734148815831c67d9fc2c246c22d421c53dcea51e26eee905b0b2806c27`，本机实测一致，GitHub 该资产大小 536789 一致）；clumsy 命令行旗标核自上游源码 `src/utils.c`（`--key value` 形态）、`src/lag.c`／`drop.c`／`bandwidth.c`（`<模块>-inbound/-outbound/-time/-chance/-bandwidth`）、`src/main.c`（`--filter`，带参启动即开始过滤）。
 
-## 1. 现状（2026-09-06 03:0x，大脑核）
+## 1. 现状（2026-09-06 11:2x，大脑核）
 
 - 绿色包已按批准下载并校验：`E:\tools\aneb-shaper\clumsy-0.3-win64-a.zip`、`gnirehtet-rust-win64-v2.5.1.zip`（`SHA256SUMS.txt` 为 gnirehtet 官方值，`sha256sum -c` OK）；已解包到 `E:\tools\aneb-shaper\clumsy\`（`clumsy.exe`、`WinDivert.dll`、`WinDivert64.sys`、`config.txt`）与 `E:\tools\aneb-shaper\gnirehtet\`。
 - 本机 Claude 桌面会话不带管理员令牌（D-702③ 实测 `IsInRole(Administrator)=False`）；`WinDivert.sys` 尚未加载过（`driverquery` 无 WinDivert）。
