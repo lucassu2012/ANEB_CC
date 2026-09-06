@@ -742,7 +742,8 @@
 | D-737 | 2026-09-06 | **B-11 核收＋P3 定性（承 v3 b9f4fc9）**：A 侧「0/12」是 400ms 绝对阈口径效应（相对门限 24/24 可切），但 C 侧四口径 0/24 不闭合 ⇒ e2 对 DeepSeek 不可用不变，理由改「A 侧尺度不匹配＋C 侧不静默」；A 侧中位间隔 0.1–0.2ms 对豆包 99–109ms，换口径豆包 7/14→0/14 ⇒ 口径不换。 | v3 交付 b9f4fc9；`tools/e234/gap_compare.py`；D-715；D-716；README §4.1⑤⑥；M-B-014① |
 | D-738 | 2026-09-06 | **B-12② 核收＋D-708 闭合（承 v4 283d8c9）**：计数棘轮另起正则不扩 `_LINE_REF`，基线 40 文件脚本生成，上升即红、记录高于实际即红、未登记基线 0，双向反例证伪；盲点「一换一替换」写进注释。D-708 文档半已在 anchors.yaml 头部（260f05c）。v4 余 D-707→C-3。 | v4 交付 283d8c9；D-733；D-736；REVIEW §7.2 B-12 |
 | D-739 | 2026-09-06 | **D-707 施工裁 (a)**：profile 按相位组织，KPI 的 `expected_n`＝产出它的相位个数，可推——手写是第二份副本 ⇒ 从 `phases` 推导；显式声明只作覆盖，同在必须相等（守卫）。原缺陷＝门槛硬编码 3 而 profile 最多产出 2。拆两笔：先契约＋推导，再回放出比例。 | v4 回执（283d8c9 后）；D-707；REVIEW §7.2 B-7、L1-F2；`spec/profiles/*.yaml` |
-| D-740 | 2026-09-06 | **D-707 笔① 改裁：`expected_n` 逐 KPI 从相位具名字段推导，非相位个数**（一刀切会把 ITL 门限 100 换成 1–2，且不报错）。实算 T1 1–2／U1 1–2／D1 2 对门限 3 结构性不可达（D1 为第三族）。expected_n 只作完备性信号、不替换门限；`threshold_source` 不设。 | v4「停下报」（D-707 笔①）；`KpiCalculator.kt` 370-377/440-516；`AqsInputMapper.kt` 183-193；`validate_profiles.PHASE_SPEC`；`profiles/s1..s4`；D-739；D-707 |
+| D-740 | 2026-09-06 | **D-707 笔① 改裁：`expected_n` 逐 KPI 从相位具名字段推导，非相位个数**（一刀切会把 ITL 门限 100 换成 1–2，且不报错）。实算 T1 1–2／U1 1–2／D1 2 对门限 3 结构性不可达（D1 为第三族）。expected_n 只作完备性信号、不替换门限；`threshold_source` 不设。 | v4「停下报」（D-707 笔①）；`KpiCalculator` 的 `MIN_*_SAMPLES`／`MIN_DOWNLOAD` 常量块与 `computeKpis`；`AqsInputMapper.medianKpi`；`validate_profiles.PHASE_SPEC`；`profiles/s1..s4`；D-739；D-707 |
+| D-741 | 2026-09-06 | **D-731 H2 作用面收窄（承 V2 反查）**：4303 与 4171.9 均可由 V2 已发表的 PREP 逐轮表算出，复核页头自述读过 `a135152` ⇒ 取消「必然查过日志」的推断；H2 验统计量、**未验提取层**。TTFT 标改「提取待交叉核（统计量已核）」，cadence 更保守。撤标＝从 `adapter.log` 独立重跑提取。 | V2 反查（`30d14dc` 后）；`DOUBAO_NETPERF_REPORT_20260906_REVIEW_v01.md` 页头与 H2；PREP `a135152`；D-731；「两种量法一致须不共享任何一层」 |
 
 ## 否决记录（评估后明确不采纳）
 
