@@ -7,7 +7,10 @@
 # 表名与 AqsScorer 字段名去 "_ANCHORS" 后缀一一对应(对拍单测按此映射)。
 # 对拍守护: SpecScoringParityTest —— 锚点逐点 + 相邻中点插值 + 越界 clamp 三重对拍。
 schema_version: "1.0.0"
-kpi_set_version: "agent-qoe-kpi-v0.1"
+# D-708：与 KpiCalculator.KPI_SET_VERSION 对齐。
+# ⚠ 这不是版本升级而是**订正**——run JSONL 的 kpi_set 实测 336 条全为 v0.2、
+# v0.1 一条都没有；滞后的是这一行与那个 Kotlin 常量，不是数据。既有语料不因此分裂。
+kpi_set_version: "agent-qoe-kpi-v0.2"
 anchors:
   T1:
     # TTFT 首字响应

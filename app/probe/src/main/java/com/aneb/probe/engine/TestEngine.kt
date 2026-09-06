@@ -1157,7 +1157,15 @@ class TestEngine(private val context: Context) {
     }
 
     companion object {
-        const val KPI_SET = "agent-qoe-kpi-v0.2"
+        /**
+         * D-708：改为**引用**而非第二份字面量。
+         *
+         * 这里此前硬编码 `"agent-qoe-kpi-v0.2"`，而 `KpiCalculator.KPI_SET_VERSION` 写着
+         * `v0.1`——**两份副本长期不一致，且没有任何东西报错**：run JSONL 的 `kpi_set`
+         * 取的是这一份（实测 336 条全为 v0.2），打分侧自报的却是另一份。
+         * 指向单一事实源后，这种分歧不再可能。
+         */
+        const val KPI_SET = com.aneb.probe.scoring.KpiCalculator.KPI_SET_VERSION
 
         /** 实时遥测采样节流间隔（ms）：观测通道节流上限，不影响任何测量计时 */
         private const val TELEMETRY_SAMPLE_MS = 100L
