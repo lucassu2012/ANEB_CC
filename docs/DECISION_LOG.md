@@ -735,6 +735,7 @@
 | D-730 | 2026-09-06 | **A-8 `non_forensic` 改名＋改派**：仓内 `forensic`＝`run.mode` 采样密度，A-8 指「debug∧inject⇒不可作证据」，共用词会出自相矛盾行且不报错 ⇒ 取 `evidence_admissible`（布尔）＋`admissibility_reason`；判定在 scripts/ 八处，改派 v3 作 A-8④，A-8 核收待其一起出。 | v4 回执（cf547e6 后）；REVIEW §7.1 A-8；`scripts/split_by_run_mode.py`；D-729 |
 | D-731 | 2026-09-06 | **C-1 v0.1 四态复核**：52 确认／3 反驳，去重 6 高 8 中 9 低，记录 `docs/DOUBAO_NETPERF_REPORT_20260906_REVIEW_v01.md`。V2 锚：①wave0 README 过期只登记不代改；②DeepSeek 分栏只作对照；③TTFT 组数标待交叉核。v0.1.1 修完 H/M 再交 PO。 | 工作流 wf_c7ed39ac；`docs/DOUBAO_NETPERF_REPORT_20260906_REVIEW_v01.md`；D-720；D-723；D-724；D-726 |
 | D-732 | 2026-09-06 | **A-2 核收（承 v3 64fe9f0）**：通道 C 三处（异常计数／补偿式等待记实测节拍／layer 缺席重挑）；周期头取首个含可用帧段；新量 `sf_coverage`、`ring_margin`——relist1 存活 95.7% 却覆盖 4.6%，存活率对环冻住无感。追认覆盖闸 dump≥10 前提、三量算在早退前、e1_analyze 按原文动。突变 28/28。 | v3 交付 64fe9f0；REVIEW §7.1 A-2；D-599/D-600；T91 |
+| D-733 | 2026-09-06 | **B-12 ①③ 核收＋② 裁 (a)**：①D 条 ≤200 门（按格取正文、双向突变）；③冲突标记直查（787 文件 0 命中，反例证伪后清除）。②`.md` 引代码行号存量 398 处，显名清单没人读＝静默放行 ⇒ 改逐文件计数棘轮：上升即红、记录高于实际亦红；盲点「一换一替换」写明。 | v4 交付 79b32a8／d14406b；REVIEW §7.2 B-12；cd5239ba 建议（09-06） |
 
 ## 否决记录（评估后明确不采纳）
 
