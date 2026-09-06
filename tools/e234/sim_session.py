@@ -325,6 +325,12 @@ def write(out_dir, scenario, seed=20260802):
         "purpose": p["purpose"],
         "injected_truth": sim["truth"],
         "params": {k: v for k, v in p.items() if k != "purpose"},
+        # 状态轴（D-718 B-3 / D-755）：**每条建 `RUN_KIND.json` 的路径都要写它**，
+        # 否则台账把这些目录记成 `unknown`，而「未登记」不是「实格」。
+        # 取 `valid`＝**未作废、非验证**——注意它**不表示「进统计」**：
+        # 干跑语料排除在统计之外由 `kind=DRY_RUN_SIMULATED` 管，不由本字段管
+        # （D-755 订正的正是这半含义）。与已入库的六个 `e234_dryrun_*` 回填一致。
+        "state": ec.STATE_VALID,
         "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3",
         "warning": ec.DRY_RUN_BANNER,
     })
