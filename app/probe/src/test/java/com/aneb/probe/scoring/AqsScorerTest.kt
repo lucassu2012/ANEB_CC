@@ -228,7 +228,10 @@ class AqsScorerTest {
     fun `result carries aqs and kpi set versions`() {
         val r = AqsScorer.score(kpiResult())
         assertEquals("aqs-v0.1", r.aqsVersion)
-        assertEquals("agent-qoe-kpi-v0.1", r.kpiSetVersion)
+        // D-708 订正：此前钉 v0.1。⚠ 值得记一笔——**这条断言一直钉着两份副本里错的那份**：
+        // 打分侧常量写 v0.1，而 `TestEngine` 的硬编码副本写 v0.2，run JSONL 取的是后者
+        // （实测 336 条全为 v0.2）。**测试全绿，两份副本的分歧照样活了很久。**
+        assertEquals("agent-qoe-kpi-v0.2", r.kpiSetVersion)
     }
 
     @Test

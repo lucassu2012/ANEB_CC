@@ -343,7 +343,19 @@ data class KpiResult(
  */
 object KpiCalculator {
 
-    const val KPI_SET_VERSION: String = "agent-qoe-kpi-v0.1"
+    /**
+     * KPI 集版本戳（D-708）。
+     *
+     * ⚠ **改成 v0.2 不是一次版本升级，是一次订正**：`TestEngine` 里另有一份**硬编码副本**
+     * 长期写着 `v0.2`，而 run JSONL 的 `kpi_set` 取的正是那一份——实测**全部 336 条语料
+     * 记的都是 `agent-qoe-kpi-v0.2`，v0.1 一条都没有**。滞后的是这个常量与 `anchors.yaml`，
+     * 不是数据。本改让三处对齐到语料**一直在记的那个值**：
+     * **既有 `kpi_set` 取值不变，语料不因此分裂。**
+     *
+     * ⇒ 顺带说明本仓为什么要求「同一事实别写两处」：这三处一旦分头写，
+     * **打分侧自报的版本可以与数据里记的版本不一致，而没有任何东西会报错**。
+     */
+    const val KPI_SET_VERSION: String = "agent-qoe-kpi-v0.2"
 
     /** stall 判定线（ms），KPI 文档 5.1 T3（Eloquent 定义） */
     const val STALL_THRESHOLD_MS: Double = 200.0
