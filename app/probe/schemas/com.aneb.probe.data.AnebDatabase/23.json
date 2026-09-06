@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 23,
-    "identityHash": "1e8bbe0b7726e5851828510b8169c75a",
+    "identityHash": "687dd9a98526311d78c07ebf2f6dda82",
     "entities": [
       {
         "tableName": "test_run",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`runId` TEXT NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `serverBase` TEXT NOT NULL, `mode` TEXT NOT NULL, `scenarioOrder` TEXT NOT NULL, `transport` TEXT NOT NULL, `kpiSet` TEXT NOT NULL, `aqsVersion` TEXT NOT NULL, `profileVersions` TEXT NOT NULL, `schemaVersion` TEXT NOT NULL, `profileSource` TEXT NOT NULL, `appVersionName` TEXT, `appVersionCode` INTEGER, `guardMetadata` TEXT, `aqsScore` REAL, `aqsLowConfidence` INTEGER, `aqsVetoApplied` INTEGER, `aqsNotComputableReason` TEXT, `status` TEXT, `reportStatus` TEXT, `aqsV02Score` REAL, `aqsV02LowConfidence` INTEGER, `aqsV02VetoApplied` INTEGER, `aqsV02NotComputableReason` TEXT, `aqsV02ContinuityRunId` TEXT, `aqsV02ContinuityStartedAtEpochMs` INTEGER, `aqsV02C1DropRate` REAL, `aqsV02C2RecoveryMs` REAL, `sniReachable` TEXT, `sniReachMs` INTEGER, `ipReachable` TEXT, `ipReachMs` INTEGER, `skippedProfiles` TEXT, `buildGitSha` TEXT, `buildType` TEXT, `buildApplicationId` TEXT, PRIMARY KEY(`runId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`runId` TEXT NOT NULL, `startedAtEpochMs` INTEGER NOT NULL, `serverBase` TEXT NOT NULL, `mode` TEXT NOT NULL, `scenarioOrder` TEXT NOT NULL, `transport` TEXT NOT NULL, `kpiSet` TEXT NOT NULL, `aqsVersion` TEXT NOT NULL, `profileVersions` TEXT NOT NULL, `schemaVersion` TEXT NOT NULL, `profileSource` TEXT NOT NULL, `appVersionName` TEXT, `appVersionCode` INTEGER, `guardMetadata` TEXT, `aqsScore` REAL, `aqsLowConfidence` INTEGER, `aqsVetoApplied` INTEGER, `aqsNotComputableReason` TEXT, `status` TEXT, `reportStatus` TEXT, `aqsV02Score` REAL, `aqsV02LowConfidence` INTEGER, `aqsV02VetoApplied` INTEGER, `aqsV02NotComputableReason` TEXT, `aqsV02ContinuityRunId` TEXT, `aqsV02ContinuityStartedAtEpochMs` INTEGER, `aqsV02C1DropRate` REAL, `aqsV02C2RecoveryMs` REAL, `sniReachable` TEXT, `sniReachMs` INTEGER, `ipReachable` TEXT, `ipReachMs` INTEGER, `skippedProfiles` TEXT, `buildGitSha` TEXT, `buildType` TEXT, `buildApplicationId` TEXT, `injectUsed` INTEGER, PRIMARY KEY(`runId`))",
         "fields": [
           {
             "fieldPath": "runId",
@@ -222,6 +222,12 @@
             "fieldPath": "buildApplicationId",
             "columnName": "buildApplicationId",
             "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "injectUsed",
+            "columnName": "injectUsed",
+            "affinity": "INTEGER",
             "notNull": false
           }
         ],
@@ -2060,7 +2066,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1e8bbe0b7726e5851828510b8169c75a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '687dd9a98526311d78c07ebf2f6dda82')"
     ]
   }
 }

@@ -612,9 +612,17 @@ abstract class AnebDatabase : RoomDatabase() {
         }
 
         /**
-         * v22 → v23 的六条 additive 列（**两件任务合并成一版**，D-719②）：
+         * ⚠ **本版定义被修订过一次（D-729，加第 7 条 `injectUsed`），而当时的前提是
+         * 「无任何设备装过 v23」**——`.ctree` 上仍是 v22 库、无人重装，故改迁移定义本身
+         * 是安全的。**这个前提必须连同事实一起记住**：一旦有设备已按旧定义迁到 v23，
+         * 再改本列表就**不是修订而是伪造**——那些设备的库里少一列，而版本号说它是 v23，
+         * Room 会在下次打开时抛 schema 不匹配，且**没有任何迁移路径能补救**。
+         * 届时正确做法是发 v24，不是动这里。
          *
-         * - `test_run` 三列＝**构建指纹**（A-8③）：回答「这条 run 是哪份代码采的」；
+         * v22 → v23 的七条 additive 列（**两件任务合并成一版**，D-719②）：
+         *
+         * - `test_run` 四列＝**构建指纹＋注入标记**（A-8③，D-729 补第四列）：
+         *   前三列回答「这条 run 是哪份代码采的」，`injectUsed` 回答「它能不能作证据」；
          * - `adapter_obs` 三列＝**溯源列**（C-6）：TTFT 取值来源／事件密度／被观察 App 版本号。
          *
          * **为什么合并而不发两版**：两件同期落地，各发一版会让设备经历两次迁移，
@@ -629,6 +637,7 @@ abstract class AnebDatabase : RoomDatabase() {
             "ALTER TABLE `test_run` ADD COLUMN `buildGitSha` TEXT",
             "ALTER TABLE `test_run` ADD COLUMN `buildType` TEXT",
             "ALTER TABLE `test_run` ADD COLUMN `buildApplicationId` TEXT",
+            "ALTER TABLE `test_run` ADD COLUMN `injectUsed` INTEGER",
             // 溯源列（C-6）
             "ALTER TABLE `adapter_obs` ADD COLUMN `ttftSource` TEXT",
             "ALTER TABLE `adapter_obs` ADD COLUMN `ttftDensityMs` REAL",
