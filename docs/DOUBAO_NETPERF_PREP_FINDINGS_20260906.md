@@ -27,7 +27,7 @@
 
 > 本小节 2026-09-06 订正。原写「③ 号待处置作废：wave0 自述与 D-717③ 不矛盾」，**那是把一个真结论削掉了**。
 
-wave0 `README.md:6` 逐字：「计划 4 功能 × 2 条件 + 锚格，**实际完成 5 格**
+wave0 `README.md` 开头「本批未完成」那段逐字：「计划 4 功能 × 2 条件 + 锚格，**实际完成 5 格**
 （`wifi_f1`／`wifi_f2`／`cell_f1`／`cell_f2`／`cell_f1b`）。**锚格仍未跑。**」
 
 —— **这五格里一个 f5／f6 都没有**，而磁盘上 f5／f6 四格均有 `e2_result.json`、
@@ -58,7 +58,7 @@ wave0 `README.md:6` 逐字：「计划 4 功能 × 2 条件 + 锚格，**实际�
 | `wifi_f2` | 通道 A 该轮不足两簇 × 4 |
 | `wifi_f1` | 通道 C 该轮不足两簇（帧序列未分出思考静默）× 2 |
 
-**14 条掉轮里 12 条在通道 A。** 判据见 `tools/e234/e2_analyze.py:98-107`（逐字核过）：
+**14 条掉轮里 12 条在通道 A。** 判据见 `tools/e234/e2_analyze.py` 逐轮循环里的两个 `_drop(...)` 分支（逐字核过）：
 一轮可用须 A 与 C **各自**切出 ≥2 簇，任一不足即掉。
 
 ⇒ **F1 的 `NOT_EXECUTED` 是装置边界，不是采样不足**：A2 锚点（「答完」）在豆包 F1 的
@@ -102,7 +102,7 @@ wave0 `README.md:6` 逐字：「计划 4 功能 × 2 条件 + 锚格，**实际�
 佐证：`anchor_source` 全批 **220/220 = null**（一个发送锚都没建立）。
 
 ⚠ **一个键名差点骗到我**：`reason=throttle` 出现在 401/401 行上，读起来像「适配器被限流降级」。
-去源码核（`AnebAccessibilityService.kt:213`）：它是**定时播报的触发原因**
+去源码核（`AnebAccessibilityService.kt` 里 `emit(now, reason = "throttle")` 那一句）：它是**定时播报的触发原因**
 （`if (now - lastEmitNanos >= EMIT_INTERVAL_NANOS) emit(now, reason = "throttle")`），
 **不是降级信号**。正文引用 `confidence=LOW/INCONCLUSIVE` 时不可把它归因于 throttle。
 
