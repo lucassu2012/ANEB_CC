@@ -2284,3 +2284,67 @@ def test_decision_length():
     assert not settled, (
         "这些条目已缩短到限内，请从 _DECISION_OVERLONG_PENDING_TRIM 删除：%s" % sorted(settled)
     )
+
+
+# ------------------------------------------ 冲突标记直查（B-12，承 2026-09-06 板面事故）
+#
+# **为什么要一条正面判据**：那次事故里，一份带 `<<<<<<<` 的板面被推上了远端，
+# 而当时**只有表格结构守卫间接报红**——它报的是「这一行格数不对」，读的人得先想到
+# 「格数为什么不对」才追得到冲突标记。**间接信号会把人引向错误的第一嫌疑**。
+# 直查一句就说清楚：哪个文件、第几行、什么标记。
+#
+# ⚠ **`=======` 单独一行也是合法的 Markdown**（setext 二级标题下划线／分隔线），
+# 故它**只在同一文件里同时出现 `<<<<<<<` 时**才算冲突标记。不这么收窄的话，
+# 日后一条正常的分隔线就能把门弄红——而**失信的守卫等于没有**（本文件 §2.10 同族）。
+_CONFLICT_SCAN_DIRS = ("docs", "evidence", "scripts", "tools")
+_CONFLICT_SCAN_EXTS = frozenset(
+    [".md", ".py", ".ps1", ".txt", ".json", ".jsonl", ".yaml", ".yml", ".kt", ".go"]
+)
+
+
+def _conflict_marker_hits():
+    """→ [(路径, 行号, 该行前 40 字)]；空列表＝干净。"""
+    # ⚠ 读 git 输出用**字节模式**再显式 decode（同本文件既有写法）：`text=True`
+    # 不带 `encoding=` 时，子进程按 utf-8 写而父进程按系统代码页解，
+    # `UnicodeDecodeError` 抛在读取线程里被吞掉，**stdout 静默变 None**——
+    # 那样本条会以「一个文件都没扫到」的姿态变绿。这条守卫自己不能踩它要防的坑。
+    import subprocess
+    proc = subprocess.run(
+        ["git", "ls-files"] + list(_CONFLICT_SCAN_DIRS),
+        cwd=REPO, capture_output=True,
+    )
+    assert proc.returncode == 0, "git ls-files 跑不动，本条的绿不说明任何事"
+    listed = [
+        ln for ln in proc.stdout.decode("utf-8", errors="replace")
+        .replace(chr(13), "").split(chr(10)) if ln.strip()
+    ]
+    assert listed, "git ls-files 没给出任何文件——先怀疑量法坏了，别当成树是干净的"
+    hits = []
+    for rel in listed:
+        if os.path.splitext(rel)[1].lower() not in _CONFLICT_SCAN_EXTS:
+            continue
+        path = os.path.join(REPO, rel)   # 与上面 cwd=REPO 同一基准，不混用
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            continue
+        has_open = any(ln.startswith("<<<<<<< ") for ln in lines)
+        for i, ln in enumerate(lines, 1):
+            if ln.startswith("<<<<<<< ") or ln.startswith(">>>>>>> "):
+                hits.append((rel, i, ln[:40]))
+            elif has_open and ln.rstrip() == "=======":
+                hits.append((rel, i, ln[:40]))
+    return hits
+
+
+def test_no_conflict_markers_in_tracked_text():
+    """受跟踪文本文件里不得留下 git 冲突标记。
+
+    反例证伪：在任一受扫描的 `.md` 里新写一行 `<<<<<<< HEAD`，本条即红并打印行号。
+    """
+    hits = _conflict_marker_hits()
+    assert not hits, (
+        "受跟踪文件里残留 git 冲突标记（共 %d 处）：\n%s"
+        % (len(hits), "\n".join("  %s:%d  %s" % h for h in hits[:20]))
+    )
