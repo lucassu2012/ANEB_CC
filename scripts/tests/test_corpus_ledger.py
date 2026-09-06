@@ -648,3 +648,115 @@ def test_the_repo_has_no_mislabelled_observation_cells_right_now():
     assert c["api_cmp_rejected"] == 0 and c["unknown_kind"] == 0, (
         "有观察格的标签与判据对不上：%r —— api_cmp 判据＝%s 在场且非空"
         % (c, "、".join(cl.API_CMP_REQUIRED)))
+
+
+def test_a_demo_run_id_without_a_synthetic_block_still_cannot_enter_real():
+    """反例（D-718 A-4）：`demo-` 前缀 ＋ **没有** additive 块 ⇒ 仍须判合成。
+
+    这正是 `evidence/phase3/demo_results.jsonl` 那 12 条捏造记录在台账里冒充
+    「真实 run」的形状：additive 块与 `SYNTH-` 战役前缀两条判据**都咬不住**它，
+    而它的 run_id 从头到尾写着 `demo-`。111 里的 12 条因此被当成实测数据。
+    反例证伪：删掉 `cc.SYNTHETIC_RUN_ID_PREFIXES` 那条判据，本条即红。
+    """
+    import json as _json
+    import tempfile as _tf
+
+    fake = {"run": {"run_id": "demo-999"}}
+    assert "synthetic" not in fake, "前提：块确实不在（否则验的是另一条判据）"
+    assert cc.is_synthetic(fake)
+    # 正对照：没有 demo- 前缀、也没有块的记录必须仍判**真实**——否则本条在
+    # 「is_synthetic 恒 True」这种坏实现下也会绿（判据要能分开两侧，不只认一侧）。
+    assert not cc.is_synthetic({"run": {"run_id": "wire-001"}})
+
+    # 走台账那条**被执行**的路径再确认一次：谓词对了不等于台账口径也对。
+    with _tf.TemporaryDirectory() as d:
+        p = os.path.join(d, "x.jsonl")
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(_json.dumps(fake) + "\n")
+            fh.write(_json.dumps({"run": {"run_id": "wire-001"}}) + "\n")
+        real, synth, _st = cl.summarize([p])
+    assert [cc.run_obj(r).get("run_id") for r in real] == ["wire-001"]
+    assert [cc.run_obj(r).get("run_id") for r in synth] == ["demo-999"]
+
+
+def test_the_contract_leg_runs_on_the_default_roots(monkeypatch, capsys):
+    """作用域收窄的配套守卫：契约腿在**默认语料根**上必须真的跑。
+
+    收窄一个判据的作用域，最容易的失手是收到「哪儿都不跑」——而「跑了且通过」
+    与「压根没跑」在退出码上完全同形。本条做**联合观测**：注入一条假违约，
+    只有那条腿确实被调用，`--check` 才会退 1 并打出 CONTRACT_VIOLATION。
+    （注入的是假违约而不是真的改语料：真违约要靠改数据制造，而改数据本身
+    会顺带改掉别的量——判据要一次只动一个量。）
+    反例证伪：把 main() 里的契约腿删掉、或让它对默认根也跳过，本条即红。
+    """
+    import pytest
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
+        pytest.skip("语料根不全（鲜克隆/worktree）")
+    monkeypatch.chdir(repo)          # --md/--csv 默认是相对路径
+    monkeypatch.setattr(cl, "real_contract_violations",
+                        lambda real: (["injected: 假违约（本条注入）"], None))
+    rc = cl.main(["--check"])
+    out = capsys.readouterr().out
+    assert "CONTRACT_VIOLATION" in out, (
+        "默认根下契约腿没有生效——注入的违约没能改变判词：\n%s" % out[:400])
+    assert rc == 1, "契约违约必须让 --check 退 1"
+
+
+def test_no_corpus_file_mixes_real_and_synthetic():
+    """`--list-corpus` 按**文件**粒度交付，而这只在 real/synth 不混同一文件时精确。
+
+    2026-09-06 实测：33 份纯真实、9 份纯合成、**混合 0**。本条把那个「0」从
+    一句当日观察变成一条持续判据——**它是 `real_corpus_files` 正确性的前提**，
+    而前提不写成守卫就会在某次新增语料时无声失效（那时契约门会突然吃进
+    合成记录并红在「造的数据不合规」上，读起来却像真实语料出了问题）。
+    反例证伪：往任一真实语料文件里追加一条 `demo-` 记录，本条即红。
+    """
+    import pytest
+    if cl.missing_roots(cl.DEFAULT_ROOTS):
+        pytest.skip("语料根不全（鲜克隆/worktree）——本条要全量语料才有意义")
+    corpus, _skipped = cl.discover(cl.DEFAULT_ROOTS)
+    if not corpus:
+        pytest.skip("本 checkout 里没有语料文件")
+    mixed = []
+    for path, _n, _lines in corpus:
+        recs, _ = cc.load_records([path], dedupe=False, quiet=True)
+        n_real = sum(1 for r in recs if not cc.is_synthetic(r))
+        if n_real and n_real != len(recs):
+            mixed.append((path, n_real, len(recs) - n_real))
+    assert not mixed, (
+        "以下语料文件同时含真实与合成记录：%r\n"
+        "——`--list-corpus` 是按文件交付的，混合文件会把合成记录一并送进契约门。"
+        % mixed)
+
+
+def test_list_corpus_emits_lf_only_so_the_shell_can_split_it():
+    """`--list-corpus` 的调用姿势是 `validate_results.py $(corpus_ledger.py --list-corpus)`，
+    而 `$(...)` 只按换行切词、**不吃 CR**。
+
+    实测（2026-09-06，本条的由来）：Windows 默认 CRLF ⇒ 每个路径尾巴挂一个 CR
+    ⇒ `open()` 全数失败 ⇒ 校验器照样打 **「contract OK: 1 record(s) across 42
+    file(s)」并退 0**。一道什么都没验到的门，看起来和全绿一模一样。
+    ⚠ 本条**故意不用 `text=True`**：通用换行会把 CRLF 归一成 LF，
+    那正好把要测的东西抹掉——量法自己不能销毁被测量。
+    反例证伪：去掉 `sys.stdout.reconfigure(newline=LF)`，本条在 Windows 上即红。
+    """
+    import subprocess
+    import pytest
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
+        pytest.skip("语料根不全（鲜克隆/worktree）")
+    r = subprocess.run(
+        [sys.executable, os.path.join(repo, "scripts", "corpus_ledger.py"),
+         "--list-corpus"],
+        cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert r.returncode == 0, r.stderr[:400]
+    assert b"\r" not in r.stdout, (
+        "--list-corpus 的输出里有 CR：shell 的 $(...) 不会去掉它，"
+        "每个路径都会带着尾巴被 open()，而校验器仍会打 contract OK")
+    paths = [ln for ln in r.stdout.decode("utf-8").split("\n") if ln.strip()]
+    assert paths, "清单为空——空清单喂给契约门＝什么都没验却退 0"
+    assert all("/" in p and "\\" not in p for p in paths), (
+        "路径应为正斜杠形态（跨壳可用）：%r" % paths[:3])

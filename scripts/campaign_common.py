@@ -586,6 +586,12 @@ def run_server_started_ms(rec):
 # block still carries the campaign_id prefix. Fabricated numbers must never be
 # able to launder themselves into looking like field measurements.
 SYNTHETIC_CAMPAIGN_PREFIX = "SYNTH-"
+# 第三条判据（D-718 A-4）：`evidence/phase3/gen_demo_jsonl.py` 造的仪表盘演示语料
+# 用 `demo-NNN` 作 run_id，却**既没有 additive 块、也没有战役前缀** ⇒ 上面两条一条都
+# 咬不住，12 条捏造记录因此在台账里当了两个月「真实 run」（113 里的 12）。
+# ⚠ 三条判据是**或**关系，且**各自必须独立够用**：块可被剥（重标注链路）、战役 id 可
+# 被改名、run_id 可被保留——一条洗白路径对应一条判据。少一条就多一条洗白通道。
+SYNTHETIC_RUN_ID_PREFIXES = ("demo-",)
 
 
 def is_synthetic(rec):
@@ -593,7 +599,10 @@ def is_synthetic(rec):
     if isinstance(rec.get("synthetic"), dict):
         return True
     cid = (run_obj(rec).get("campaign") or {}).get("campaign_id")
-    return isinstance(cid, str) and cid.startswith(SYNTHETIC_CAMPAIGN_PREFIX)
+    if isinstance(cid, str) and cid.startswith(SYNTHETIC_CAMPAIGN_PREFIX):
+        return True
+    rid = run_obj(rec).get("run_id")
+    return isinstance(rid, str) and rid.startswith(SYNTHETIC_RUN_ID_PREFIXES)
 
 
 def count_synthetic(records):

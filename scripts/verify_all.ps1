@@ -475,17 +475,61 @@ foreach ($obsSuite in $obsSuites) {
 # aqs.score<->reason, histogram counts==edges+1). Guards the analysis layer's inputs.
 # exit: 0=contract holds -> PASS / 2=no corpus or schema unreadable -> NOT_EXECUTED /
 # else=violations -> FAIL. Validity CASE drift is a non-fatal advisory, not a failure.
+# ⚠ **喂什么，决定了这道门在验谁**（D-718 A-4，2026-09-06）：本门原先喂
+# `server\data\results\*.jsonl` 一个通配符——那是服务端落盘的**一个**落点，
+# 而台账认定的语料面是 42 份文件（33 份含真实记录）。两个面各自都绿，
+# 于是 `evidence/` 下的真实语料**从来没有被契约验过一次**，且没人会发现：
+# 「我验的对象与台账数的对象是不是同一个」这句话没人问过。改喂
+# `corpus_ledger.py --list-corpus`（台账认定谁是语料，就把谁交出来）。
+# ⚠ 只列**含真实记录**的文件：合成侧本就不满足结果契约（实测 40 条违约），
+# 拿造的数据去红一道验真实语料的门是错配。
 $contractScript = Join-Path $repo 'scripts\validate_results.py'
-$resultsGlob = Join-Path $repo 'server\data\results\*.jsonl'
-if ($py -and (Test-Path $contractScript)) {
-    $out = & $py $contractScript $resultsGlob 2>&1 | Out-String
-    $code = $LASTEXITCODE
-    $log += "--- results-contract-unit (exit $code) ---"
+$ledgerForList  = Join-Path $repo 'scripts\corpus_ledger.py'
+# 判词门限＝**地板不是等号**（2026-09-06 实测 33 file(s) / 101 record(s)）。
+# 语料只会增不会减 ⇒ 掉到门限以下意味着**喂进去的东西坏了**，不是语料变少了。
+$CONTRACT_MIN_FILES   = 31
+$CONTRACT_MIN_RECORDS = 99
+if ($py -and (Test-Path $contractScript) -and (Test-Path $ledgerForList)) {
+    Push-Location $repo          # --list-corpus 打的是相对路径，cwd 必须是仓根
+    $listOut  = & $py $ledgerForList '--list-corpus' 2>&1 | Out-String
+    $listCode = $LASTEXITCODE
+    $corpusFiles = @($listOut -split "`r?`n" | ForEach-Object { $_.Trim() } |
+                     Where-Object { $_ -ne '' })
+    if ($listCode -eq 0 -and $corpusFiles.Count -gt 0) {
+        $out = & $py $contractScript $corpusFiles 2>&1 | Out-String
+        $code = $LASTEXITCODE
+    } else {
+        $out = $listOut
+        $code = 2
+    }
+    Pop-Location
+    $log += "--- results-contract-unit (exit $code; fed $($corpusFiles.Count) corpus file(s) from --list-corpus) ---"
     $log += $out
+    $okLine = ($out -split "`n" | Where-Object { $_ -match 'contract OK' } |
+               Select-Object -First 1)
+    if ($okLine) { $okLine = $okLine.Trim() }
     if ($code -eq 0) {
-        $log += Add-Result 'results-contract-unit' 'PASS' (($out -split "`n" | Where-Object { $_ -match 'contract OK' } | Select-Object -First 1).Trim())
+        # ⚠ **一句「contract OK」证明不了它验过什么**：首版把 CRLF 行尾的路径喂
+        # 进去，42 个路径每个尾巴挂一个 `\r`，open() 全数失败，而校验器照样打
+        # 「contract OK: 1 record(s) across 42 file(s)」并退 0。⇒ PASS 必须**读出
+        # 它自己报的两个数**并对门限，否则这道门可以在什么都没验的情况下全绿。
+        $m = [regex]::Match($out, 'contract OK:\s*(\d+)\s*record\(s\)\s*across\s*(\d+)\s*file\(s\)')
+        if (-not $m.Success) {
+            $log += Add-Result 'results-contract-unit' 'FAIL' `
+                '退 0 却读不出「contract OK: N record(s) across M file(s)」——判词无法核实，不当 PASS'
+        } elseif ([int]$m.Groups[1].Value -lt $CONTRACT_MIN_RECORDS -or
+                  [int]$m.Groups[2].Value -lt $CONTRACT_MIN_FILES) {
+            $log += Add-Result 'results-contract-unit' 'FAIL' `
+                ("契约退 0 但验到的量不足：{0} record(s) / {1} file(s)，门限 {2}/{3}——多半是喂进去的清单坏了（行尾/路径/cwd），不是语料变少" -f `
+                    $m.Groups[1].Value, $m.Groups[2].Value, $CONTRACT_MIN_RECORDS, $CONTRACT_MIN_FILES)
+        } else {
+            $log += Add-Result 'results-contract-unit' 'PASS' $okLine
+        }
     } elseif ($code -eq 2) {
-        $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' 'no result corpus to validate'
+        $why = if ($listCode -ne 0) { "corpus_ledger --list-corpus 退 $listCode（清单取不到）" }
+               elseif ($corpusFiles.Count -eq 0) { '--list-corpus 返回空清单' }
+               else { 'no result corpus to validate' }
+        $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' $why
     } else {
         $log += Add-Result 'results-contract-unit' 'FAIL' 'contract violation(s); see log'
     }
@@ -493,6 +537,7 @@ if ($py -and (Test-Path $contractScript)) {
     $missing = @()
     if (-not $py) { $missing += 'python' }
     if (-not (Test-Path $contractScript)) { $missing += 'scripts/validate_results.py' }
+    if (-not (Test-Path $ledgerForList)) { $missing += 'scripts/corpus_ledger.py' }
     $log += Add-Result 'results-contract-unit' 'NOT_EXECUTED' ("missing: " + ($missing -join ', '))
 }
 

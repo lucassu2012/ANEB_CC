@@ -1717,6 +1717,32 @@ def test_frozen_line_reference_exemptions_expire_when_paid_off():
         % stale)
 
 
+def _git_ignored(path):
+    """该路径是否被 `.gitignore` 挡住（产物目录在鲜克隆里**合法**缺席）。
+
+    只看返回码，**不解码输出**：`subprocess.run(text=True)` 不给 `encoding` 会在
+    本机 cp936 下把 stdout 静默吞成 None（本仓踩过，害主树红过一次），而这里
+    根本不需要输出。git 不可用时返回 False——**宁可红，不放行**：放行一条本该
+    存在却缺席的路径，会让一道门静默跳过。
+    """
+    import subprocess
+    try:
+        return subprocess.run(
+            ["git", "check-ignore", "-q", path], cwd=REPO,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    except OSError:
+        return False
+
+
+# `verify_all.ps1` 里**允许指不到东西**的路径字面量：仅限被 `.gitignore` 挡住的
+# 产物目录（鲜克隆里合法缺席）。每条都要写清「它为什么合法」。
+# 目前为空——D-718 A-4 把 `server\data\results\*.jsonl` 从 verify_all 移除（契约门
+# 改喂 `corpus_ledger.py --list-corpus`）之后，没有任何字面量落在被忽略的目录下。
+# **机制留着**：下一个人加回一个产物目录字面量时，鲜克隆会红，而那个红看起来
+# 像「路径写错了」——那正是本机制要区分开的两件事。
+_VERIFY_ALL_GITIGNORE_EXEMPT = set()
+
+
 def test_every_path_literal_in_verify_all_resolves():
     """`verify_all.ps1` 里每个仓相对路径字面量都必须真指得到东西。
 
@@ -1739,18 +1765,30 @@ def test_every_path_literal_in_verify_all_resolves():
         "verify_all.ps1 含不可见控制字符 %s——它们在 grep/编辑器里看不见，"
         "却能把路径字面量悄悄改掉（0x08 实例见本条 docstring）" % ctrl)
 
-    bad = []
+    bad, exempt = [], []
     for lit in re.findall(r"Join-Path \$repo '([^']+)'", src):
         rel = lit.replace("\\", os.sep).replace("/", os.sep)
         target = os.path.join(REPO, rel)
         if "*" in rel:                      # glob：查它的父目录在不在
             target = os.path.dirname(target)
         if not os.path.exists(target):
-            bad.append(lit)
+            # 被 `.gitignore` 挡住的产物目录（如 server/data/results）在**鲜克隆**
+            # 里合法地不存在——那不是「路径写错了」，且两者处置相反：一个要改
+            # 字面量，一个什么都不用做。放行，但**必须显名**（见下方断言）：
+            # 一条无名放行会把这两桶悄悄合成一桶（D-718 A-4）。
+            (exempt if _git_ignored(target) else bad).append(lit)
     assert not bad, (
         "verify_all.ps1 里这些路径字面量指不到东西：%s\n"
         "——一条指不到脚本的门会静默跳过，而静默跳过与「跑过且通过」"
         "在输出上一模一样（D-532）。" % bad)
+    # 显名：豁免集**两个方向都推红**——新增未申报的豁免要红（否则放行是隐形的），
+    # 已清偿的申报也要红（否则清单只长不缩，读者无从知道还欠几条，D-275）。
+    assert set(exempt) == _VERIFY_ALL_GITIGNORE_EXEMPT, (
+        "被 .gitignore 放行的路径字面量与申报清单对不上：\n"
+        "  本次实际放行：%s\n  清单申报：%s\n"
+        "——新增请连同「它为什么合法缺席」一起写进 _VERIFY_ALL_GITIGNORE_EXEMPT；"
+        "已不再出现的请从清单删掉。"
+        % (sorted(exempt), sorted(_VERIFY_ALL_GITIGNORE_EXEMPT)))
 
 
 # DECISION_LOG 开篇：「推翻旧决策时新增条目并**引用被推翻的 D-xx**」。

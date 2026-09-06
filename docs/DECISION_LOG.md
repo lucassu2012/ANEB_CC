@@ -724,6 +724,7 @@
 | D-719 | 2026-09-06 | **A-8 三裁（承 v4 d944fd2）**：①派单以 REVIEW §7.1 原文为准（我的摘要少五项），此后派单引原文不摘要；②Room v23 取 (a)：C-6 三列并入同一版迁移；③`git_sha` 一致与 `negotiated_protocol` 全 h1 须真机打 C 树 server，挂 C-2 显名「未验」；`-race` 本机无 gcc 亦如实记未跑。 | v4 回执 d944fd2／9c646cd；REVIEW §7.1 A-8、§7.3 C-6；T91 |
 | D-720 | 2026-09-06 | **C-1 三裁（承 cd5239ba 目录候核）**：①「A/B/E/G/I 可测…」出处＝REVIEW §7.4-2 (a) 原文（PO 取 (a)，D-712(2)）；②D 单元改标 NOT_EXECUTED·范围外（F3/F4 未采），NOT_MEASURABLE-BY-REDLINE 只留 H 与 F 的 ms/KB；③v0.1 文件名用起稿日 20260906。目录 v0.1 核过。 | cd5239ba 回执 7f13b8f；REVIEW §7.3 C-1、§7.4-2；D-712(2)；CAMPAIGN_PLAN §1 |
 | D-721 | 2026-09-06 | **A-8 U1 半作废（承 v4 50df3e7）**：`serverView==null` 时只置 U3 为 null——U3 按窗截断，本地缓冲尾巴服务端未读，字节须服务端视角；U1 是完整请求，2xx 即整体已收、时长锚在响应头，不依赖 serverView。既有测试「serverView 缺失不判死 U1」正确，A-8 原文 U1 半作废；解析失败记诊断字段。 | v4 回执 50df3e7；REVIEW §7.1 A-8；R-10；`ScenarioKpiUploadBytesTest` |
+| D-722 | 2026-09-06 | **A-4 台账诚实化：12 条 demo 出真实面**。`is_synthetic` 加第三判据「`run_id` 以 `demo-` 开头」（additive 块与 `SYNTH-` 前缀都咬不住它）；生成器与数据同带 `synthetic` 块（重生成，除该块外逐字段不变）。**两个数不可混用**：真实 run 总数 113→**101**，带 AQS 分数的 run 111→**99**——分派令把后者的数配到了前者的 grep 上。**「10 条高置信 run 全为合成」已独立复核为真**：demo 恰 10 条 `low_confidence:false`，改后真实侧 99/99 全 low_confidence，即此前高置信证据面 100% 是造的。契约门改喂 `--list-corpus`（33 份含真实记录的文件、101 条、0 违约），PASS 判词加量的下限——首版 CRLF 使 42 条路径全部打不开，却照报 `contract OK: 1 record`。`SYNTHETIC_RUN_ID_PREFIXES` 判豁免非入册：它在报告语料上不动任何数字，咬的是台账。 | REVIEW §7.1 A-4；D-718 ⑤；实测 `contract OK: 101 record(s) across 33 file(s)`；`pytest scripts/tests` 817 passed |
 
 ## 否决记录（评估后明确不采纳）
 

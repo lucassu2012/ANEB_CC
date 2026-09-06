@@ -11,21 +11,21 @@
 
 ## 一、wire 语料（真实测量，run_id 去重后）
 
-- **真实 run 总数：113**（场景 634；文件 42 份、原始行 3513、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
-- 合成记录（`is_synthetic`）：**560 条，单列不计入上行**
+- **真实 run 总数：101**（场景 598；文件 42 份、原始行 3513、跨文件重复 2840 条已去、body 冲突 123 条单记、坏行 0、无 run_id 0）
+- 合成记录（`is_synthetic`）：**572 条，单列不计入上行**
 - 观察通道另有 **34 个真机采集目录**（dry-run 6 个、API 对照批 12 个，**三者各自单列、均不计入上行**；第四节）——其产物结构上进不了 wire 池
-- 带 AQS **分数**的 run（`run.aqs.score` 非空）：111；其中 low_confidence：101/111（91%）｜顶层 `aqs_version` 版本戳共 113 条，其中 **2 条只有版本戳、没有分数**（两个量不可混用）
+- 带 AQS **分数**的 run（`run.aqs.score` 非空）：99；其中 low_confidence：99/99（100%）｜顶层 `aqs_version` 版本戳共 101 条，其中 **2 条只有版本戳、没有分数**（两个量不可混用）
 
-- **单点位最大样本：`SZ-PILOT-01` 57 条**（其余具名外场点位：无）｜**已排除**：`PENDING-PO-01` 16（占位符，真名待回填，**不是第二个点位的证据**）；`home_indoor` 10（非外场）；无点位标签 30（不是一个点位）
+- **单点位最大样本：`SZ-PILOT-01` 57 条**（其余具名外场点位：无）｜**已排除**：`PENDING-PO-01` 16（占位符，真名待回填，**不是第二个点位的证据**）；`home_indoor` 10（非外场）；无点位标签 18（不是一个点位）
   > 引用「（外场）单点位有多少」**直接引本行**，不要自己从下方维度表里挑——能自己挑就能挑错。
 | 维度 | 分布（run 计） |
 |---|---|
-| 战役 | unlabeled×30、m3-expansion-wave0×20、t39-rehearsal-nr-20260803×16、m2-pilot-20260731×12、acceptance_20260820×10、m2-afternoonradio-20260801×4、m2-busyradio-20260801×4、m2-idlenight-20260801×4、m2-idleprobe-20260731×4、m2-pilot-forensic-20260731×4、warmup-transport-probe×4、radiowire-verify-20260801×1 |
-| 点位 | SZ-PILOT-01×57、unlabeled×30、PENDING-PO-01×16、home_indoor×10（**PENDING-PO-01 是占位符不是点位**：真名待回填，不可当作一个真实站点计入覆盖） |
-| 运营商 | ctcc×83、unknown×30 |
-| 时窗 | busy×43、idle×40、unknown×30 |
-| RAT（**场景**计——一 run 可跨 RAT，不折单值） | NR×268、no_radio_block×255、LTE×111 |
-| 场景有效性 | valid_low_confidence×592、valid×33、invalid×5、degraded×4 |
+| 战役 | m3-expansion-wave0×20、unlabeled×18、t39-rehearsal-nr-20260803×16、m2-pilot-20260731×12、acceptance_20260820×10、m2-afternoonradio-20260801×4、m2-busyradio-20260801×4、m2-idlenight-20260801×4、m2-idleprobe-20260731×4、m2-pilot-forensic-20260731×4、warmup-transport-probe×4、radiowire-verify-20260801×1 |
+| 点位 | SZ-PILOT-01×57、unlabeled×18、PENDING-PO-01×16、home_indoor×10（**PENDING-PO-01 是占位符不是点位**：真名待回填，不可当作一个真实站点计入覆盖） |
+| 运营商 | ctcc×83、unknown×18 |
+| 时窗 | busy×43、idle×40、unknown×18 |
+| RAT（**场景**计——一 run 可跨 RAT，不折单值） | NR×268、no_radio_block×219、LTE×111 |
+| 场景有效性 | valid_low_confidence×592、invalid×4、valid×2 |
 
 ## 二、设备侧 Room 库（与第一节**不可相加**——同 run 两面）
 

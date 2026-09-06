@@ -267,6 +267,47 @@ def summarize(paths):
     return real, synth, st
 
 
+def real_corpus_files(corpus):
+    """语料文件中含**至少一条真实记录**的那批（路径原样，顺序同 discover）。
+
+    为什么不是「全部语料文件」：合成侧（`gen_demo_jsonl.py` / `synth_campaign.py`）
+    本就不满足结果契约——2026-09-06 实测 40 条违约（如 `scenarios[0]` 缺 `buffering`）。
+    把它们喂进契约门＝拿「造的数据不合规」去红一道**验真实语料**的门。
+    文件粒度在此精确的**前提**是 real 与 synth 不混同一文件（同日实测 mixed=0），
+    该前提由 `test_no_corpus_file_mixes_real_and_synthetic` 守着，不靠记性。
+    """
+    out = []
+    for path, _n, _lines in corpus:
+        recs, _ = cc.load_records([path], dedupe=False, quiet=True)
+        if any(not cc.is_synthetic(r) for r in recs):
+            out.append(path)
+    return out
+
+
+def real_contract_violations(real):
+    """对 real 集跑结果契约校验 → (errors, 验不了的原因)。
+
+    **台账为什么要管契约**：台账数的是「真实 run 有几条」，而一条**违约**记录照样
+    会被数进去——「数得对」与「内容合法」是两个问题。此前只有 `results-contract-unit`
+    门在验契约，而它喂的是 `server/data/results/*.jsonl` 这个**通配符**
+    ⇒ `evidence/` 下的几十份语料**从来没被契约验过**，而两个门各自都绿。
+    这里补上：**台账认定谁是语料，就由台账把谁交给校验器**（与 --list-corpus 同源）。
+
+    ⚠ 三态而非二值：schema 读不了/导不进时返回 `(None, 原因)`——
+    **「验不了」不是「验过了」**，调用方须据此退 2，不得当成通过。
+    """
+    try:
+        import validate_results as vr          # noqa: E402  同目录，见文件头 sys.path
+    except ImportError as e:
+        return None, "导不进 validate_results：%s" % e
+    try:
+        sch = vr.load_schema(vr.DEFAULT_SCHEMA)
+    except (OSError, ValueError) as e:         # JSONDecodeError 是 ValueError 子类
+        return None, "读不了 schema %s：%s" % (vr.DEFAULT_SCHEMA, e)
+    errors, _warnings = vr.validate_records(real, sch)
+    return errors, None
+
+
 def buckets(real):
     """run 级标签桶 + 场景级 RAT/有效性桶 + low_confidence 比例。"""
     by = {k: Counter() for k in ("campaign_id", "point_id", "carrier",
@@ -487,6 +528,9 @@ def main(argv=None):
     ap.add_argument("--csv", default=os.path.join("docs", "CORPUS_LEDGER.csv"))
     ap.add_argument("--check", action="store_true",
                     help="只比不写：落盘的两面与现算是否一致（exit 1=不一致）")
+    ap.add_argument("--list-corpus", action="store_true",
+                    help="只打印被本台账认定为语料的 jsonl 路径（每行一个），不写两面；"
+                         "供门禁把**台账认定的那批文件**喂给契约校验器")
     a = ap.parse_args(argv)
     roots = a.root or DEFAULT_ROOTS
     # **前提检查排在「算」之前**：根不存在时算出来的是一个**更小但看起来正常**的数，
@@ -516,6 +560,26 @@ def main(argv=None):
             % ", ".join(gone))
         return 2
     corpus, skipped = discover(roots)
+    if a.list_corpus:
+        # 这条路径的存在理由：契约门此前喂的是 `server/data/results/*.jsonl` 一个
+        # **通配符**，它与台账认定的语料面**不是同一批**（evidence/ 下那几十份根本
+        # 不在里面）。「我验的对象与台账数的对象是不是同一个」——不是，而且没人会
+        # 发现，因为两边各自都绿。改喂本清单后，两个门看的是同一批文件。
+        # 只打印、不写两面：写盘是另一条路的事，两者不该互相牵连。
+        #
+        # ⚠ **行尾必须是 LF**：调用方是 `validate_results.py $(corpus_ledger.py
+        # --list-corpus)`，而 `$(...)` 只按换行切词、**不吃 `\r`** ⇒ Windows 默认
+        # CRLF 会给每个路径尾巴挂一个 `\r`，open() 全部失败，**而校验器照样打印
+        # 「contract OK」**——首版实测「42 个文件只验出 1 条记录」也叫 OK。
+        # 这就是门的 PASS 判词必须要求 record(s)≥99 的理由：一句「OK」证明不了
+        # 它验过什么。（路径同时转成正斜杠：跨壳都能用，Windows 侧照常打得开。）
+        try:
+            sys.stdout.reconfigure(newline="\n")
+        except (AttributeError, ValueError):   # 老解释器或被包装过的流
+            pass
+        for p in real_corpus_files(corpus):
+            print(p.replace(os.sep, "/"))
+        return 0
     real, synth, st = summarize([p for p, _, _ in corpus])
     bk = buckets(real)
     # Room 库只在 evidence 侧（server 落盘没有），扫描根仍取第一个
@@ -567,6 +631,39 @@ def main(argv=None):
                   "别急着重算——重算不会让文件出现在一个错的 cwd 下。"
                   "确认在仓根后仍读不到，才是文件真的缺了。")
             return 2
+        # 契约校验（D-718 A-4）：两面一致**不等于**内容合法——台账把「谁是语料」
+        # 认定完，就该由它把这批文件交给契约校验器，否则 evidence/ 侧永远没人验。
+        #
+        # ⚠ **作用域限于仓自身的语料面**（roots 为默认）：`--root <别处>` 是在审另一
+        # 批语料（测试夹具、临时导出…），那批合不合结果契约不归「台账新不新鲜」这
+        # 道门管。把两个问题合进一个退出码，会让一条契约违约冒充「台账被手改」——
+        # 本仓最贵的那类合并 token（实测：它当场顶红了 `test_a_hand_edit…` 那条
+        # **正确**的守卫）。
+        # ⚠ 但**跳过必须出声**：静默跳过与「跑过且通过」在输出上一模一样。
+        # 「它在默认根上确实会跑」由 `test_the_contract_leg_runs_on_the_default_roots`
+        # 钉着——否则这个作用域收窄会慢慢变成「哪儿都不跑」。
+        if tuple(roots) != tuple(DEFAULT_ROOTS):
+            print("  （契约腿未跑：--root 非默认语料根，本次只比两面新鲜度）")
+            viol, why = [], None
+        else:
+            viol, why = real_contract_violations(real)
+        if viol is None:
+            # 与上面 unreadable 同族的第三态：**没验成**，不冒充「验过了」。
+            print("corpus ledger check: CANNOT_COMPARE —— 真实语料的契约没验成：%s"
+                  "（处置＝先修可读性/导入，别把「没验成」记成通过）" % why)
+            return 2
+        if viol:
+            # 判词与成因必须在**同一行**：门只把这一行当判词（verify_all 捞前缀行）。
+            print("corpus ledger check: CONTRACT_VIOLATION —— 真实语料 %d 条违约%s"
+                  % (len(viol), "；且落盘两面与现算不一致" if drift else ""))
+            for line in viol[:5]:
+                print("  " + line)
+            if len(viol) > 5:
+                print("  …共 %d 条；全量＝`python scripts/validate_results.py "
+                      "$(python scripts/corpus_ledger.py --list-corpus)`" % len(viol))
+            for d in drift:
+                print("  " + d)
+            return 1
         print("corpus ledger check: %s" % ("DRIFT" if drift else "in sync"))
         for d in drift:
             print("  " + d)

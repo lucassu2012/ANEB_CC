@@ -5,7 +5,9 @@ import json
 import random
 import sys
 
-random.seed(42)
+SEED = 42
+GENERATOR = "gen_demo_jsonl.py"
+random.seed(SEED)
 
 EDGES = sorted(set([2 ** i for i in range(14)] + [100, 200, 400, 1000]))  # 1..8192
 GRADE = lambda v, a, b, c: "excellent" if v < a else "good" if v < b else "fair" if v <= c else "poor"
@@ -85,6 +87,10 @@ def run(i, t0):
         "claim_scope": "application_end_to_end_to_probe_node",
         "kpi_set": "agent-qoe-kpi-v0.2", "aqs_version": "aqs-v0.1",
         "profile_versions": "0.2.0", "schema_version": "1.0",
+        # additive marker (schema 顶层 additionalProperties: true)：这些数是**造的**。
+        # 与 synth_campaign.py 同款，位置也同款；`cc.is_synthetic` 第一条判据认它。
+        # 只有生成器和数据**同时**带它才算数——数据带、生成器不带，下次重生成就洗白了。
+        "synthetic": {"generator": GENERATOR, "seed": SEED},
         "run": {
             "run_id": f"demo-{i:03d}", "started_at_epoch_ms": t0 + i * 3_600_000,
             "mode": "standard", "scenario_order": "latin_square",
