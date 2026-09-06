@@ -343,12 +343,22 @@ def channel_a_anchors(run_dir, pkg, gap_ns):
     fit = ec.fit_wall_to_boot(lines)
     marks = es.parse_marks(lines, fit)
     turns, method = es.segment_turns(evts, marks)
-    with_anchor = 0
+    with_anchor = zero_events = 0
     for t in turns:
-        _a0p, a2, _cl = ec.v3_anchors([e["t_boot_ns"] for e in t["events"]], gap_ns)
+        ts = [e["t_boot_ns"] for e in t["events"]]
+        if not ts:
+            # **零事件轮不该进分母**（D-718 A-3）：它不是「切不出次簇」，是
+            # 压根没有可切的东西。混进分母会让「A 侧 2/6 轮可用」读起来像
+            # 「有 4 轮试过但结构不足」——而实情可能是那 4 轮 A 侧全哑。
+            # 两者处置相反：前者调 gap／换负载，后者去查无障碍服务与包名过滤。
+            zero_events += 1
+            continue
+        _a0p, a2, _cl = ec.v3_anchors(ts, gap_ns)
         if a2 is not None:
             with_anchor += 1
     return {"status": ec.PASS, "turn_method": method, "turns": len(turns),
+            "turns_zero_events": zero_events,
+            "turns_judgeable": len(turns) - zero_events,
             "turns_with_anchor": with_anchor, "events_used": len(evts)}
 
 
@@ -387,9 +397,13 @@ def _verdict(counts, ver, unj, b, a=None):
                 % (len(ver), (a or {}).get("reason", "无 channel_a 结果")))
     if a.get("turns") and a["turns_with_anchor"] < MIN_OBSERVED_GAPS:
         return (CANNOT_TELL,
-                "C 侧够了（已观测间隔 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇** "
-                "< %d ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解"
-                % (len(ver), a["turns_with_anchor"], a["turns"],
+                "C 侧够了（已观测间隔 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇**"
+                "%s < %d ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解"
+                % (len(ver), a["turns_with_anchor"],
+                   a.get("turns_judgeable", a["turns"]),
+                   ("（另有 %d 轮**零事件**，已从分母分列——那几轮要查的是"
+                    "无障碍服务与包名过滤，不是 gap 门限）"
+                    % a["turns_zero_events"]) if a.get("turns_zero_events") else "",
                    MIN_OBSERVED_GAPS))
     return (WORTH_RUNNING,
             "已观测间隔 %d 次（>=%d）、不可判间隔 %d 不占多数，A 侧 %s 轮可用 ⇒ 值得开 e2"
@@ -529,12 +543,14 @@ def render_line(res):
     if rw and rw["min"] != rw["max"]:
         warn += " 逐段行数=%d/%d/%d(min/p50/max)" % (rw["min"], rw["p50"], rw["max"])
     return ("e2_precheck %s: %s - %s%s | dump=%d(同=%d 叠=%d 断=%d) "
-            "C侧已观测间隔=%d 不可判=%d | A侧可用轮=%s/%s | B动率=%s "
+            "C侧已观测间隔=%d 不可判=%d | A侧可用轮=%s/%s（零事件轮 %s 已分列） | B动率=%s "
             "建议 --framestats-period-s=%s"
             % (os.path.basename(res["run_dir"]), v, why, warn, res["dumps"],
                ps["identical"], ps["overlap"], ps["disjoint"],
                res["observed_gaps"], res["unjudgeable_gaps"],
-               a.get("turns_with_anchor", "?"), a.get("turns", "?"),
+               a.get("turns_with_anchor", "?"),
+               a.get("turns_judgeable", a.get("turns", "?")),
+               a.get("turns_zero_events", "?"),
                _f(res["channel_b"].get("motion_rate"), 3),
                res["recommended_framestats_period_s"]))
 

@@ -251,6 +251,31 @@ def test_channel_a_actually_runs_on_a_whole_session():
     assert 0 <= a["turns_with_anchor"] <= a["turns"], a
 
 
+def test_zero_event_turns_are_split_out_of_the_denominator():
+    """反例（D-718 A-3）：零事件轮**不进分母**，且要能单独数出来。
+
+    混进分母，「A 侧 2/6 轮可用」读起来像「有 4 轮试过但结构不足」——
+    而实情可能是那 4 轮 A 侧全哑。两者的处置相反（查服务/过滤 vs 调 gap/换负载）。
+    反例证伪：把 `if not ts: zero_events += 1; continue` 删掉，
+    `turns_judgeable` 会退回等于 `turns`，本条即红。
+    """
+    import sim_session as sim
+    d = tempfile.mkdtemp(prefix="dryrun_e2pre_zero_")
+    try:
+        sim.write(d, "e2_zero_event_turns")
+        res = ep.precheck(d, sim.SIM_PKG)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    a = res["channel_a"]
+    assert a["status"] == ec.PASS, a
+    injected = len(sim.SCENARIOS["e2_zero_event_turns"]["zero_event_turns"])
+    assert a["turns_zero_events"] == injected, a
+    # 分母确实**分列**了，不是把同一个数换了个名字
+    assert a["turns_judgeable"] == a["turns"] - injected, a
+    assert a["turns_judgeable"] < a["turns"], a
+    assert a["turns_with_anchor"] <= a["turns_judgeable"], a
+
+
 def test_channel_a_shortfall_names_A_as_the_bottleneck():
     """A 侧可用轮数不足时，理由必须点名**瓶颈在 A 不在 C**。
 

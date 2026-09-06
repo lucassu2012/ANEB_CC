@@ -97,7 +97,15 @@ def analyze(run_dir, pkg):
         _a0p_c, a2_mono, cl_c = ec.v3_anchors([f["actual_ns"] for f in fr], gap)
         row = {"turn": t["idx"], "a_clusters": len(cl_a), "c_clusters": len(cl_c),
                "frames": len(fr)}
-        if a2_boot is None:
+        if not ts:
+            # 「零事件」与「有事件但切不出两簇」是**两种病**（D-718 A-3）：
+            # 前者 A 侧根本没有数据（无障碍服务掉线／包名过滤过严／该轮真没答），
+            # 后者是有数据而结构不足（多为 gap 门限或答复太短）。合成一句判词，
+            # 读的人会照后者的处置去查（调 gap、加轮数），而那对前者**完全无效**。
+            # ⚠ 判词分开了，但 C 侧照算不误：`a_clusters=0` 与该轮的 `frames`
+            # 都留在 per_turn 里——分流是为了把病因说准，不是为了少算一个量。
+            _drop("该轮窗内零事件（A 侧无任何内容事件）")
+        elif a2_boot is None:
             _drop("通道 A 该轮不足两簇（A2 无判据）")
         elif a2_mono is None:
             _drop("通道 C 该轮不足两簇（帧序列未分出思考静默）")

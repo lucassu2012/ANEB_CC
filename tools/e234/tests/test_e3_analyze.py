@@ -55,6 +55,32 @@ def test_the_injected_a0_to_a0p_interval_is_recovered():
         assert abs(res["interval"]["p50_ms"] - truth) < 1.0
 
 
+def test_a_turn_with_zero_events_gets_its_own_drop_reason_not_the_compose_one():
+    """反例（D-718 A-3）：e3 侧同款分流。
+
+    「不足两簇」那句判词点名 §1.4 的 Compose 形状，会把读者引向「换锚／换负载」；
+    而零事件多半是无障碍服务掉线或包名过滤过严——**处置完全不同**。
+    反例证伪：删掉 `if not ts` 那一支，本条即红（两类合并成一个键）。
+    """
+    # ⚠ 注入项本体是给 e2 用的（`framestats="new"`），而 e3 在**没有输入时戳列**时
+    # 会在进逐轮循环之前就 NOT_EXECUTED —— 那样本条测的是「提前退出」，不是分流。
+    # 故派生一个 `old` 变体（沿用本文件的 try/finally 改场景习惯）。
+    name = "e3_zero_event_turns"
+    sim.SCENARIOS[name] = dict(sim.SCENARIOS["e2_zero_event_turns"],
+                               framestats="old")
+    try:
+        with _Run(name) as d:
+            res = e3.analyze(d, PKG)
+    finally:
+        sim.SCENARIOS.pop(name, None)
+    assert res["a0_method"] == e3.METHOD_PRIMARY, "前提：本变体的 A0 可锚"
+    drops = res["drop_reasons"]
+    zero = [k for k in drops if "零事件" in k]
+    assert len(zero) == 1 and drops[zero[0]] == 2, drops
+    # 正对照：注入项只掐了 2 轮，其余轮不得也落进同一个桶（否则「全丢」也会绿）
+    assert drops[zero[0]] < 6, drops
+
+
 def test_the_first_turn_is_not_dropped_by_a_window_that_starts_at_its_own_first_event():
     """首跑实测的那条 off-by-window：A0（手指离屏）在首条事件**之前**。
 

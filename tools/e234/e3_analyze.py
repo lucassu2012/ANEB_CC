@@ -133,6 +133,13 @@ def analyze(run_dir, pkg, allow_proxy=False):
         ts = [e["t_boot_ns"] for e in t["events"]]
         a0p_boot, _a2, cl = ec.v3_anchors(ts, gap)
         row = {"turn": t["idx"], "clusters": len(cl)}
+        if not ts:
+            # 与 e2 同款分流（D-718 A-3）：**零事件**不是「不足两簇」。
+            # 后者那句判词点名 §1.4 的 Compose 形状，会把读者引向「换锚/换负载」；
+            # 而零事件多半是无障碍服务掉线或包名过滤过严——处置完全不同。
+            _drop("该轮窗内零事件（A 侧无任何内容事件）")
+            res["per_turn"].append(row)
+            continue
         if a0p_boot is None:
             _drop("该轮不足两簇：A0′ 无判据（§1.4 的 Compose 形状即如此）")
             res["per_turn"].append(row)
