@@ -78,6 +78,9 @@ def load_schema(path):
         # required/type 提取，enforcement 走 _check_block（提取逻辑与 env/voice 一字不差）。
         "aqs_v02_spec": run_schema.get("properties", {}).get("aqs_v02", {}),
         "aqs_token_spec": run_schema.get("properties", {}).get("aqs_token", {}),
+        # 构建指纹（A-8③）：提取逻辑与 env/voice/aqs_* 一字不差——**契约只写在 schema
+        # 里一份**。老 schema 无 build 键时为 {}，validate_record 侧整段跳过（同 env 先例）。
+        "build_spec": run_schema.get("properties", {}).get("build", {}),
     }
 
 
@@ -246,7 +249,13 @@ def validate_record(rec, sch, idx):
         # findings 过门）。「生产端单一来源」是缓释不是豁免——合同门防的正是未来第二生产者
         # 与损坏语料。additionalProperties 非 false 故无未知键检查；score↔reason 的 R-10
         # cross-field 仅主 aqs 有裁定与测试，两并列块不在本单擅自外推（D-337）。
-        for blk_key, spec_key in (("aqs_v02", "aqs_v02_spec"), ("aqs_token", "aqs_token_spec")):
+        # build（A-8③）并进同一循环而不另起分支：它与 aqs_v02/aqs_token 的语义完全同形
+        # ——**块可缺席（早于字段上线），块在则 schema 的 required 钉住四键齐**。
+        # 另起分支等于把同一条规则写第二份，而两份必有一处先漂。
+        for blk_key, spec_key in (
+            ("aqs_v02", "aqs_v02_spec"), ("aqs_token", "aqs_token_spec"),
+            ("build", "build_spec"),
+        ):
             blk = run.get(blk_key)
             blk_spec = sch.get(spec_key) or {}
             if isinstance(blk, dict) and blk_spec:
