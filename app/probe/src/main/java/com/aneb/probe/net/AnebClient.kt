@@ -208,29 +208,16 @@ class AnebClient(bound: BoundNetwork? = null) {
                     )
                     val timing = timingFactory.recordFor(call)
 
-                    // R-08：按 seq join 校验连续性，禁数组位置配对
-                    val seen = HashSet<Long>(stream.events.size * 2)
-                    var duplicates = 0
-                    for (e in stream.events) {
-                        if (!seen.add(e.seq)) duplicates++
-                    }
-                    val maxSeq = seen.maxOrNull()
-                    var gaps = 0
-                    if (maxSeq != null) {
-                        var s = 0L
-                        while (s <= maxSeq) {
-                            if (s !in seen) gaps++
-                            s++
-                        }
-                    }
-                    // R-08 截断漏检补丁：流干净结束但 maxSeq+1 < expectedTokens 时，
-                    // 尾部整体缺失也计入 gapCount（否则 gapVerdict 会误判 ok）。
-                    val received = maxSeq?.plus(1L) ?: 0L
-                    val tailMissing = (expectedTokens - received).coerceAtLeast(0L).toInt()
-                    gaps += tailMissing
+                    // R-08 连续性审计（join 校验 + 尾部整体截断补计）判据集中在
+                    // [SeqJoinAudit]，与 engine/AbRunner.sampleKpi **共用同一份实现**：
+                    // 此前两处逐行同构、各自内联，且都要起一条真实 SSE 流才跑得到，
+                    // 于是**服务端那三种故障注入（dupseq/malformed/truncate）冲着的这段逻辑
+                    // 一行都没被单测覆盖过**，而两份之中任一方改了，另一方不会有任何提示。
+                    val audit = SeqJoinAudit.audit(stream.events, expectedTokens)
                     StreamResult(
-                        requestStartNanos, stream, gaps, duplicates, maxSeq, resp.code, null, timing,
-                        truncatedEarly = tailMissing > 0,
+                        requestStartNanos, stream, audit.gapCount, audit.duplicateCount,
+                        audit.maxSeq, resp.code, null, timing,
+                        truncatedEarly = audit.truncatedEarly,
                     )
                 }
             }
