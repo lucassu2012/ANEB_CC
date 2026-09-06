@@ -113,11 +113,82 @@ PO 就「T78 报告的可答范围」取 **(a)**（REVIEW §7.4-2(a)，PO 裁 D-
 
 ---
 
-## §3–§8 正文（续写中）
+## §3 证据面清点（**按 App 分栏，不混写**，D-720④）
 
-> 底数已由**前置复核**取实，见 `docs/DOUBAO_NETPERF_PREP_FINDINGS_20260906.md`（`f2dfc6c`，其 §1a 已按 D-720③ 订正）。
-> **待写**：§3 证据面清点（含 wave0 README 自述过期登记行）／§4 每功能一行／§5 装置边界结论／
-> §6 P3 口径边界／§7 台账口径句／§8 不回答什么＋诚实边界。
+### 3.1 豆包（`com.larus.nova`，versionName 14.9.0）—— 三批
+
+| 批 / 格 | 条件 | 功能 | 轮 | 可用轮 n | 掉轮 | p99 (ms) | e2 四态 |
+|---|---|---|---|---|---|---|---|
+| wave0 `cell_f1` | 蜂窝 | F1 文本对话 | 8 | 3 | 5 | — | `NOT_EXECUTED` |
+| wave0 `cell_f1b` | 蜂窝 | F1 | 6 | 4 | 2 | — | `NOT_EXECUTED` |
+| wave0 `wifi_f1` | WiFi | F1 | 6 | 4 | 2 | — | `NOT_EXECUTED` |
+| wave0 `wifi_f1_anchor` | WiFi | F1（漂移锚格） | 6 | 3 | 3 | — | `NOT_EXECUTED` |
+| wave0 `cell_f2` | 蜂窝 | F2 深度思考 | 6 | 6 | 0 | 19805.8 | `FAIL` |
+| wave0 `wifi_f2` | WiFi | F2 | 6 | **2** | 4 | — | `NOT_EXECUTED` |
+| wave0 `cell_f5` | 蜂窝 | F5 联网搜索 | 6 | 6 | 0 | 11455.5 | `FAIL` |
+| wave0 `wifi_f5` | WiFi | F5 | 6 | 6 | 0 | 10431.6 | `FAIL` |
+| wave0 `cell_f6` | 蜂窝 | F6 图像生成 | 6 | 6 | 0 | 12289.1 | `FAIL` |
+| wave0 `wifi_f6` | WiFi | F6 | 6 | 6 | 0 | 17230.2 | `FAIL` |
+| wave1 `wifi_f6` | WiFi | F6 | 6 | 6 | 0 | **28440.6** | `FAIL` |
+| DW-01 `cell_f6` | 蜂窝 | F6 | 6 | 6 | 0 | 15252.7 | `FAIL` |
+| DW-01 `wifi_f6` | WiFi | F6 | 6 | 6 | 0 | 15071.8 | `FAIL` |
+
+**逐格合计（13 格有 e2 判词）**：**8 格 `FAIL`**（wave0 五：`cell_f2`／`cell_f5`／`wifi_f5`／`cell_f6`／`wifi_f6`；
+wave1 一：`wifi_f6`；DW-01 二：`cell_f6`／`wifi_f6`）＋ **5 格 `NOT_EXECUTED`**（F1 四格 ＋ `wifi_f2`）。
+
+⚠ **F6／WiFi 同功能同条件跨三批极差 13.4s**（wave0 17230.2、wave1 **28440.6**、DW-01 15071.8）。
+本报告**不把它读作时间趋势**——三批的答窗、采样周期与设备热态均不同，且无漂移锚可依（wave0 锚格 `NOT_EXECUTED`）。
+它只说明：**该量在本批条件下的批间离散度，大于任何两条件之差**，故 §4 的 WiFi／蜂窝比较**不得当作差异证据**。
+
+> 上句「批间离散 > 任何两条件之差」已实算：批间极差 **13368.8ms**；同批两条件之差最大 **4941.1ms**
+> （wave0 F6 12289.1 vs 17230.2），其余为 F5 1023.9、DW-01 F6 180.9。**13.4s > 4.9s，成立。**
+
+### 3.2 DeepSeek（DW-20260905-02）—— **仅作跨 App 对照，不并入豆包结论**（D-720④）
+
+| 格 | 条件 | 功能 | 轮 | 可用轮 n | 掉轮原因 | e2 四态 |
+|---|---|---|---|---|---|---|
+| `ds_cell_f1` | 蜂窝 | F1 | 6 | **0** | 通道 A 不足两簇 × 6 | `NOT_EXECUTED` |
+| `ds_wifi_f1` | WiFi | F1 | 6 | **0** | 通道 A 不足两簇 × 6 | `NOT_EXECUTED` |
+| `ds_cell_f6` | 蜂窝 | F6 | 6 | **0** | 通道 A 不足两簇 × 6 | `NOT_EXECUTED` |
+| `ds_wifi_f6` | WiFi | F6 | 6 | **0** | 通道 A 不足两簇 × 6 | `NOT_EXECUTED` |
+
+**24 个正式轮 100% 掉在通道 A**（A2 无判据）。⚠ 按 **D-717⑤** 这只写「**口径内不同型**」
+（400ms 绝对簇阈 `cluster_gap_nanos` 口径内的判词），**不写成 App 差异**——Compose 栈的 A 侧事件流上
+该阈可能切在分布尾巴，是口径效应还是事实**待 B-11 `gap_compare.py` 离线复算**
+（出处：`evidence/DW-20260905-02/README.md` §4.1⑤，逐字核过）。
+
+**P1 成立是 DeepSeek 的结论**（D-716），豆包侧无同等证据：豆包为 e2 `FAIL` ＋ P2 WiFi 腿 `NOT_EXECUTED`（D-713）。
+
+### 3.3 **登记：wave0 README 自述过期**（D-720③，以产物为准、只登记不代改）
+
+`evidence/doubao_wave0_20260830/README.md:6` 逐字：「计划 4 功能 × 2 条件 + 锚格，**实际完成 5 格**
+（`wifi_f1`／`wifi_f2`／`cell_f1`／`cell_f2`／`cell_f1b`）。**锚格仍未跑。**」（§147 同口径写「5/9 格」。）
+
+**与产物不符两处**：① 该五格名单里**无 f5／f6**，而 `cell_f5`／`wifi_f5`／`cell_f6`／`wifi_f6` **四格均有
+`e2_result.json`**；② 「锚格仍未跑」过期——`wifi_f1_anchor` 有完整产物。**产物面实为 9 格 ＋ 锚格。**
+
+**处置**：本报告一切数字**以产物为准**；README 属 wave0 属主的文档，**只登记不代改**，待属主订正。
+（⚠ 起草者自记：我曾判此条「不矛盾」——那是核了「5＋2＝7」的算术、**没读它说的是哪五格**；
+两个 5 是**不同口径碰巧相等**。已撤回，见 `docs/DOUBAO_NETPERF_PREP_FINDINGS_20260906.md` §1a。）
+
+### 3.4 作废格与未采格（**显名，不留白**）
+
+| 项 | 归属 | 状态 |
+|---|---|---|
+| `cell_f2_VOID1`／`wifi_f1_VOID1`／`wifi_f1_VOID2`／`wifi_f1_VOID3` | wave0 | **作废格**，不参与任何结论；`VOID2` 无 `e2_result.json` |
+| `wifi_f6_b_VOID1` | wave1 | **作废格** |
+| `wifi_f6_attempt1_preflight_stop` | DW-01 | **前置检查 STOP 留痕**（非数据格） |
+| `ds_wifi_f6_attempt1_toggle_stop` | DW-02 | **开关钩子 STOP 留痕**（非数据格） |
+| `verify_trial_f1`／`f2`／`f6` | DW-02 | **试水格各 1 轮**，宽答窗只为观察，**均 `NOT_EXECUTED`** |
+| **F3 识图**／**F4 文件上传** | —— | **从未开跑**（缩小版格阵不含）⇒ D 单元 `NOT_EXECUTED · 范围外` |
+| **F7 实时语音** | —— | 本批**明确排除**（观测难，CAMPAIGN_PLAN §6.3） |
+
+---
+
+## §4–§8 正文（续写中）
+
+> 底数已由前置复核取实：`docs/DOUBAO_NETPERF_PREP_FINDINGS_20260906.md`（`f2dfc6c`，§1a 已按 D-720③ 订正）。
+> **待写**：§4 每功能一行（待 ⑦ 裁）／§5 装置边界结论／§6 P3 口径边界／§7 台账口径句／§8 不回答什么＋诚实边界。
 
 ---
 
