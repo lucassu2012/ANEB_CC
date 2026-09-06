@@ -53,9 +53,16 @@ icacls $bin | Select-String 'Users'
 
 > 若 `/RU` 那行报「无法创建，需要密码」：改用 `/RU "$env:USERDOMAIN\$env:USERNAME" /IT` 或删去 `/RU`（默认当前用户）。**不要**改成 `SYSTEM` 帐户——clumsy 有 GUI，须在您的桌面会话里运行才能被看到与停掉。
 
-## 3. 首次验证（仍在管理员窗，≈1 分钟；也可交给 v4 在非提权窗做）
+## 3. 首次验证（🔴 **必须在非提权窗跑，不要在管理员窗跑**；≈1 分钟）
+
+> 🔴 **这一步不只是验证，它是整套设计的判决性检验，所以跑的地方比跑本身更重要。**
+> 本单的全部价值压在一条**至今无实证**的假设上：**非提权会话能否触发一个 `/RL HIGHEST` 的任务**（V1 在 `docs/E2_WINDOW_FIRST_HOUR_20260906.md` §5-4 点出，全项目查无实证）。
+> **在管理员窗里跑这段，它一定会过，而它证明不了任何我们要证明的事**——管理员窗本来就能起 clumsy，根本不需要计划任务。**验的不是要验的那个东西。**
+> ⇒ **PO 只跑 §2；§3 交给 v4（或任一非提权会话）跑**，实录里写明**跑它的那个窗不带管理员令牌**。
+> ⚠ 若 §3 在非提权窗**报拒绝**（access denied／任务不运行），**那不是配置错，是本方案的前提不成立**——停下报大脑换方案，**不要试图给那个会话提权**。
 
 ```powershell
+# 非提权 PowerShell（Git Bash 写法见 §4.1）。下面第一条 schtasks /Run 就是那条判决性检验。
 Set-Content -LiteralPath 'E:\tools\aneb-shaper\profiles\current.args' -Value '--filter "outbound and ip.DstAddr == 223.5.5.5" --lag on --lag-outbound on --lag-time 200' -Encoding ASCII
 ping -n 5 223.5.5.5                      # 基线 RTT
 schtasks /Run /TN 'ANEB-Shaper-Start'; Start-Sleep 4
