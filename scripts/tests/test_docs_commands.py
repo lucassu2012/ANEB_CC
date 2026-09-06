@@ -2348,3 +2348,117 @@ def test_no_conflict_markers_in_tracked_text():
         "受跟踪文件里残留 git 冲突标记（共 %d 处）：\n%s"
         % (len(hits), "\n".join("  %s:%d  %s" % h for h in hits[:20]))
     )
+
+
+# ------------------------------- 代码文件行号引用 · 逐文件计数棘轮（B-12②，D-733）
+#
+# 规则同 `_FROZEN_LINE_REFS` 那条：引他文给节号+锚文字，**不给行号**（行号会悄悄漂）。
+# 差别只在**存量规模**：`.md` 引用存量 31 条，显名清单读得完；**代码文件引用存量
+# 398 处、40 个文件**——显名清单没人会读，**而没人读的清单就是静默放行**，
+# 恰好废掉这条守卫要防的东西。故改**逐文件计数棘轮**（D-733 裁 (a)）：
+#   · 任一文件计数**上升** ⇒ 红（挡新增，这是原意）；
+#   · 记录值**高于实际** ⇒ 红（清偿后必须下调，与 `_FROZEN_LINE_REFS` 的「清偿即推红」同形）；
+#   · 未登记的文件基线视作 0 ⇒ 新建文件里写行号自然被拦。
+#
+# ⚠ **已知盲点，写在这里以免被当成显名清单的等价物**：
+# **计数不变的「一换一」替换它看不见**（删一处旧的、加一处新的）。显名清单看得见。
+# 这是用「可读」换来的，**不是它也能做到**。若将来某类文件确实需要精确到条，
+# 那类文件该单独进 `_FROZEN_LINE_REFS`，而不是把这张表变成 398 行。
+#
+# ⚠ **不缩适用面**（D-733）：缩了会把「哪些文件被守着」变成又一张没人读的清单。
+#
+# 排除 `docs/coordination/`：沿用 `_EXTERNAL_LANE_DIRS` 的同一理由（外部 lane 归档件）。
+_CODE_LINE_REF = re.compile(r"([\w./\-]+\.(?:py|kt|go|ps1|kts)):(\d+)")
+
+# 基线由脚本生成、非手抄（手抄 40 个数必错一个，而错了不报错）。采集于 2026-09-06。
+_CODE_LINE_REF_BASELINE = {
+    "docs/ANALYSIS_LAYER_HANDOVER.md": 2,
+    "docs/BRAIN_TASKBOARD.md": 23,
+    "docs/CAMPAIGN_LABELS_WIRING_SPEC.md": 4,
+    "docs/DECISION_LOG.md": 119,
+    "docs/DECISION_REQUEST_2026-08-02.md": 1,
+    "docs/DECISION_REQUEST_2026-08-20.md": 3,
+    "docs/DECISION_REQUEST_20260829.md": 4,
+    "docs/DELIVERY_PACKAGE_AUDIT_FINDINGS_20260820.md": 2,
+    "docs/DW_NEXT_OPERATOR_CARD_v2_DRAFT_20260830.md": 1,
+    "docs/E01_DEPLOY_REQUEST_FOR_CODEX_20260804.md": 5,
+    "docs/GATE_VERDICT_MIN_N_PROPOSAL_20260829.md": 6,
+    "docs/GOVERNANCE_SLIMDOWN_PROPOSAL_20260829.md": 3,
+    "docs/M2_CAMPAIGN_RUNBOOK.md": 1,
+    "docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md": 4,
+    "docs/M7_FIRST_BATCH_REGISTRATION_20260805.md": 1,
+    "docs/M7_RECALIBRATION_INDEPENDENT_VERIFICATION_20260819.md": 9,
+    "docs/PLAN_ALIGNMENT_2026-07-17.md": 5,
+    "docs/PROFILE2_THROUGHPUT_PROBE_INTERFACE.md": 3,
+    "docs/PROFILE2_THROUGHPUT_PROBE_SPEC.md": 42,
+    "docs/PROFILE4_VOICE_LOOPBACK_SPEC.md": 13,
+    "docs/REQUIREMENTS_BASELINE_v2.0.md": 4,
+    "docs/T14_CROSS_AUDIT_20260801.md": 3,
+    "docs/T21_SPLIT_BY_RUN_MODE_REVIEW.md": 2,
+    "docs/T23_RADIO_SAMPLER_LIFECYCLE_REVIEW.md": 19,
+    "docs/T29_E2_CROSS_CHANNEL_MATCHING_PLAN.md": 4,
+    "docs/T45_APP_DEV_AUDIT_20260804.md": 20,
+    "docs/T46_FULL_CORPUS_ANALYSIS_REPORT_20260804.md": 1,
+    "docs/T48_UI_REDESIGN_PROPOSAL_20260804.md": 4,
+    "docs/T50_VOICE_FIRST_COLLECTION_PROTOCOL_20260804.md": 21,
+    "docs/T55_M7_SCORING_CHAIN_VERIFICATION_20260805.md": 4,
+    "docs/T56_AQS_SCORE_FACE_AUDIT_20260805.md": 4,
+    "docs/T58_RELEASE_PREFLIGHT_20260819.md": 7,
+    "docs/T59_SCORING_DECISION_PACKAGE_20260819.md": 8,
+    "docs/T64_WALL_CLOCK_BLINDSPOT_20260819.md": 6,
+    "docs/T65_M7_RECALIBRATION_DISTRIBUTION_20260819.md": 2,
+    "docs/VOICE_ANALYSIS_LAYER_INVENTORY.md": 5,
+    "docs/VOICE_STALL_KPI_PROPOSAL.md": 6,
+    "docs/launchpad/crosscut-device-unlock-udp-contend-runbook.md": 11,
+    "docs/launchpad/spine1-api-agent-calibration.md": 4,
+    "docs/launchpad/spine4-speedtest-dynamism-blueprint.md": 12,
+}
+
+
+def _code_line_ref_counts():
+    """→ {相对路径: 唯一引用数}；只统计有命中的文件。"""
+    docs = os.path.join(REPO, "docs")
+    excluded = os.path.join(docs, "coordination")
+    counts = {}
+    for root, _dirs, files in os.walk(docs):
+        if root.startswith(excluded):
+            continue
+        for fn in sorted(files):
+            if not fn.endswith(".md"):
+                continue
+            path = os.path.join(root, fn)
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                refs = {m.group(0) for m in _CODE_LINE_REF.finditer(fh.read())}
+            if refs:
+                rel = os.path.relpath(path, REPO).replace(chr(92), "/")
+                counts[rel] = len(refs)
+    return counts
+
+
+def test_code_line_refs_do_not_grow():
+    """代码文件行号引用**只减不增**（逐文件计数棘轮，D-733）。"""
+    actual = _code_line_ref_counts()
+    assert actual, "一个代码行号引用都没扫到——先怀疑量法坏了，别当成清零了"
+
+    grew = {
+        f: (_CODE_LINE_REF_BASELINE.get(f, 0), n)
+        for f, n in actual.items()
+        if n > _CODE_LINE_REF_BASELINE.get(f, 0)
+    }
+    assert not grew, (
+        "这些文件新增了代码文件行号引用（基线→现值）：%s\n"
+        "改成「节号 + 可搜索的锚文字」；行号会随他人编辑悄悄漂掉。"
+        % sorted((f, b, n) for f, (b, n) in grew.items())
+    )
+
+    # 反向：清偿后基线必须下调，否则这张表会变成**只增不减的免罪符**，
+    # 日后没人知道还欠着多少。缺了这半，守卫只会越来越松。
+    stale = {
+        f: (b, actual.get(f, 0))
+        for f, b in _CODE_LINE_REF_BASELINE.items()
+        if b > actual.get(f, 0)
+    }
+    assert not stale, (
+        "这些文件的引用已减少，请把 _CODE_LINE_REF_BASELINE 里的数下调（基线→现值）：%s"
+        % sorted((f, b, n) for f, (b, n) in stale.items())
+    )
