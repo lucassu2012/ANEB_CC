@@ -745,6 +745,7 @@
 | D-740 | 2026-09-06 | **D-707 笔① 改裁：`expected_n` 逐 KPI 从相位具名字段推导，非相位个数**（一刀切会把 ITL 门限 100 换成 1–2，且不报错）。实算 T1 1–2／U1 1–2／D1 2 对门限 3 结构性不可达（D1 为第三族）。expected_n 只作完备性信号、不替换门限；`threshold_source` 不设。 | v4「停下报」（D-707 笔①）；`KpiCalculator` 的 `MIN_*_SAMPLES`／`MIN_DOWNLOAD` 常量块与 `computeKpis`；`AqsInputMapper.medianKpi`；`validate_profiles.PHASE_SPEC`；`profiles/s1..s4`；D-739；D-707 |
 | D-741 | 2026-09-06 | **D-731 H2 作用面收窄（承 V2 反查）**：4303 与 4171.9 均可由 V2 已发表的 PREP 逐轮表算出，复核页头自述读过 `a135152` ⇒ 取消「必然查过日志」的推断；H2 验统计量、**未验提取层**。TTFT 标改「提取待交叉核（统计量已核）」，cadence 更保守。撤标＝从 `adapter.log` 独立重跑提取。 | V2 反查（`30d14dc` 后）；`DOUBAO_NETPERF_REPORT_20260906_REVIEW_v01.md` 页头与 H2；PREP `a135152`；D-731；「两种量法一致须不共享任何一层」 |
 | D-742 | 2026-09-06 | **A-9 核收＋三处「无主」缝亲裁（承 V1 `d2d7d63`）**：G1 首次验证归 **v4 非提权窗**——本方案压在「非提权能否触发 `/RL HIGHEST`」这条**无实证**假设上，管理员窗跑必过却证不了它；G2 若失败指向该假设即前提不成立，停下报大脑换方案、**不得给会话提权**；G5 每跑收尾归 v4，判据＝RTT 回基线。E-2 §3 据此改写。 | V1 A-9 `d2d7d63` §5-4／§2 G1/G2/G5；`docs/E2_SCHTASKS_SETUP_20260906.md` §3（本批改写）；D-712(1)；D-702③ |
+| D-743 | 2026-09-06 | **真实 run「低置信 99/99」是结构性 artifact，非数据质量信号**：每场景至多 2 个 `token_stream` ⇒ `T1.lowConfidence`（n<3 且非空）恒真，经 `medianKpi` 或运算上抛。实测 99/99 零反例、591/593 场景 TTFT 非空；合成仅 5/572。⇒ **加轮永远摘不掉帽**，只能改相位数或门限。 | `AqsInputMapper` 的 `medianKpi` 与 `anyLowConf`；`KpiCalculator.MIN_TTFT_SAMPLES`；`profiles/s1..s3`；全语料去重扫描（673 run，真实 101）；D-740；M-B-003 验收锚② |
 
 ## 否决记录（评估后明确不采纳）
 
