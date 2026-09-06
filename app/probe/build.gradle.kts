@@ -9,6 +9,28 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+/**
+ * 构建指纹：当前工作树的 git 短哈希（A-8③／REVIEW §7.1，L1-F4）。
+ *
+ * **为什么要它**：run JSONL 里此前没有任何东西能回答「这条数据是哪份代码采的」。
+ * 语料跨越多次口径修正（U3 服务端权威计数、TLS 钉死 h1…），没有指纹就**无法把旧口径
+ * 的样本从池子里摘出来**——而混池不报错，只让结论悄悄建立在两套口径上。
+ *
+ * ⚠ **取不到时写 `NO_GIT`，不写空串、更不写假哈希**：验收判据是「JSONL 的 git_sha 与
+ * `git rev-parse --short HEAD` 一致」，一个**长得像哈希**的兜底值会让这条判据
+ * 在最该报警的时候通过。
+ */
+val anebGitSha: String = try {
+    val p = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    val out = p.inputStream.bufferedReader().readText().trim()
+    if (p.waitFor() == 0 && out.isNotEmpty()) out else "NO_GIT"
+} catch (e: Exception) {
+    "NO_GIT"
+}
+
 android {
     namespace = "com.aneb.probe"
     compileSdk = 35
@@ -19,7 +41,21 @@ android {
         //   装机构建：./gradlew :probe:assembleDebug -PanebAppIdSuffix=.ctree  => com.aneb.probe.ctree
         //   ⚠ namespace 不变（R 类与 Kotlin 包名不动）；无障碍服务组件 id 前缀随 applicationId 变，
         //   启用时须写 com.aneb.probe.ctree/com.aneb.probe.adapter.AnebAccessibilityService（D-611 相关）。
-        applicationId = "com.aneb.probe" + (project.findProperty("anebAppIdSuffix")?.toString() ?: "")
+        val anebAppIdSuffix = project.findProperty("anebAppIdSuffix")?.toString() ?: ""
+        // A-8③：后缀必须以点开头。漏点会拼出 `com.aneb.probectree` —— 一个**合法但错误**的
+        // 包名：装得上、跑得起来、与 `.ctree` 是两个不同的应用，而设备上要到装完才看得出。
+        // 构建期响亮失败，好过带着一个错包名跑完一整窗。
+        require(anebAppIdSuffix.isEmpty() || anebAppIdSuffix.startsWith(".")) {
+            "anebAppIdSuffix 必须以 '.' 开头（收到：'$anebAppIdSuffix'）；" +
+                "例：-PanebAppIdSuffix=.ctree。漏点会拼出 com.aneb.probe$anebAppIdSuffix，" +
+                "那是另一个包，装机后才会暴露。"
+        }
+        applicationId = "com.aneb.probe$anebAppIdSuffix"
+        // 构建指纹（A-8③）：三者都进 BuildConfig，由 ResultReporter 写入 run.build。
+        // APPLICATION_ID 单列而不靠读运行时包名：**装了 .ctree 变体的设备上两者仍相同**，
+        // 但把「构建时声明的」与「运行时观察到的」分开记，才分得出重打包/改名这类情况。
+        buildConfigField("String", "GIT_SHA", "\"$anebGitSha\"")
+        buildConfigField("String", "APPLICATION_ID_DECLARED", "\"com.aneb.probe$anebAppIdSuffix\"")
         minSdk = 29 // CellInfoNr / 5G API 需要（设计文档 §5）
         targetSdk = 35
         versionCode = 1
@@ -61,6 +97,10 @@ android {
 
     buildTypes {
         release {
+            // A-8③：变体名进 BuildConfig。AGP 只给 `DEBUG` 布尔，没有现成的 BUILD_TYPE 字符串，
+            // 故逐变体显式声明——取证判别要的是**变体名本身**（debug∧inject 会被 scripts 标
+            // non_forensic），一个布尔表达不了将来可能出现的第三种变体。
+            buildConfigField("String", "BUILD_TYPE", "\"release\"")
             // 阶段 0 不混淆（D-500②：R8 现关零影响，开启前置=keep 规则 + 12 个 MigrationVxTest 全量）
             if (signingReady) signingConfig = signingConfigs.getByName("aneb")
             isMinifyEnabled = false
@@ -70,6 +110,7 @@ android {
             )
         }
         debug {
+            buildConfigField("String", "BUILD_TYPE", "\"debug\"") // A-8③，理由见 release 块
             // 明文流量仅经 src/debug/res/xml/network_security_config.xml 允许（仿真服务器联调）
             // release 变体不带该配置，targetSdk>=28 默认禁明文
         }
