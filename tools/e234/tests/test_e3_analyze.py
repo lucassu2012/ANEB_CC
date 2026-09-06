@@ -51,7 +51,7 @@ def test_the_injected_a0_to_a0p_interval_is_recovered():
         res = e3.analyze(d, PKG)
         truth = sim.SCENARIOS["e3_input_timeline_present"]["a0_gap_ms"]
         assert res["a0_method"] == e3.METHOD_PRIMARY
-        assert res["interval"]["status"] == ec.PASS
+        assert res["interval"]["sample_ok"] is True      # A-5b：原键名 status
         assert abs(res["interval"]["p50_ms"] - truth) < 1.0
 
 
