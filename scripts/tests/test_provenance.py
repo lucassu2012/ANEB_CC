@@ -239,6 +239,20 @@ _NOT_A_REPORT_GATE = {
         "arrived with D-718 A-4, so this is no longer 'half'). It decides whether "
         "the red banner appears, not what any number is, and a real corpus is "
         "unaffected by its value",
+    # D-730 A-8④ 的三个**原因词**：`is_admissible` 用它们说明「为什么可作／不可作
+    # 证据」。它们不是可调门限，且**报告面根本不调 `is_admissible`**——目前唯一
+    # 消费方是语料台账（`corpus_ledger.admissibility_counts`），而台账不是本清单
+    # 要守的那份产物。扰动它们移不动报告里任何一个数（下方反向守卫会验证这点）。
+    # ⚠ 若将来报告开始按证据资格分池，**这三条就该从豁免移进 `effective_thresholds`**
+    # ——那时反向守卫会先红，别把它当噪音。
+    ("campaign_common", "ADMISSIBILITY_DEBUG_INJECT"):
+        "reason word for is_admissible (D-730 A-8-4); not a tunable level, and the "
+        "report never calls is_admissible - the corpus ledger is its only consumer",
+    ("campaign_common", "ADMISSIBILITY_BLOCK_ABSENT"):
+        "same family: the word for 'run.build absent, therefore unknown'. It names a "
+        "state, it does not set one; perturbing it moves no printed number",
+    ("campaign_common", "ADMISSIBILITY_TYPE_ABSENT"):
+        "same family: the word for 'build block present but build_type missing'",
     ("campaign_common", "SYNTHETIC_RUN_ID_PREFIXES"):
         "the third criterion of the same detector (D-718 A-4): a record IDENTITY "
         "test (generated vs measured), not a level anyone retunes. Deliberately "

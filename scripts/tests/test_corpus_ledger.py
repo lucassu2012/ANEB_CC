@@ -650,6 +650,71 @@ def test_the_repo_has_no_mislabelled_observation_cells_right_now():
         % (c, "、".join(cl.API_CMP_REQUIRED)))
 
 
+def _rec(build=None, rid="wire-001"):
+    r = {"run": {"run_id": rid}}
+    if build is not None:
+        r["run"]["build"] = build
+    return r
+
+
+def test_a_debug_build_with_injection_is_not_admissible_evidence():
+    """反例①（D-730 A-8④）：debug 构建 ∧ 开了故障注入 ⇒ **不可作证据**。
+
+    测到的是**我们注入的东西**，不是外界。原因词单独给，别只给一个 False。
+    反例证伪：把 `and inject` 去掉，本条即红（release 也会被误判不可用）。
+    """
+    ok, why = cc.is_admissible(_rec({"build_type": "debug", "inject_used": True}))
+    assert ok is False and why == cc.ADMISSIBILITY_DEBUG_INJECT, (ok, why)
+
+
+def test_a_release_build_with_injection_is_admissible_and_says_why():
+    """反例②：release ∧ 注入 ⇒ **可作证据**，且原因要写明是哪一种。
+
+    判据钉的是「debug 且注入」这一个组合，不是「用过注入」——把注入本身
+    当成不可用，会把一批合法数据无声判死。
+    ⚠ 原因词必须点名，否则两个 True 之间不可区分（读者看不出它带没带注入）。
+    反例证伪：把判据放宽成「只要 inject_used 就 False」，本条即红。
+    """
+    ok, why = cc.is_admissible(_rec({"build_type": "release", "inject_used": True}))
+    assert ok is True, (ok, why)
+    assert "inject_used" in why and "release" in why, why
+    ok2, why2 = cc.is_admissible(_rec({"build_type": "release", "inject_used": False}))
+    assert ok2 is True and why2 == "no_inject", (ok2, why2)
+
+
+def test_a_missing_build_block_is_unknown_not_admissible():
+    """反例③：`run.build` 缺席 ⇒ **None（不知道）**，绝不默认 True。
+
+    老语料早于该字段上线；把它们默认成「可作证据」，等于**凭空给一批数据
+    发了证据资格**——「不知道」与「可以用」是两个状态（R-10 同族）。
+    ⚠ 实测：全仓 673 条记录里带 `run.build` 的为 **0** ⇒ 这条路径是当前常态，
+    不是边角。半个块（有块无 `build_type`）同样判 None：半个块答不了这个问题。
+    反例证伪：把缺席分支改成 `return True, ...`，本条即红。
+    """
+    ok, why = cc.is_admissible(_rec(None))
+    assert ok is None and why == cc.ADMISSIBILITY_BLOCK_ABSENT, (ok, why)
+    ok2, why2 = cc.is_admissible(_rec({"inject_used": True}))       # 有块无类型
+    assert ok2 is None and why2 == cc.ADMISSIBILITY_TYPE_ABSENT, (ok2, why2)
+
+
+def test_defaulting_unknown_to_admissible_changes_the_number_readers_see(monkeypatch):
+    """突变（D-730 A-8④）：把「未知」默认成 True，**读者看到的数就变了**。
+
+    本条证明台账那一行是**从判据推出来的**，不是写死的：突变一旦生效，
+    「未知 N」会变成「可作证据 N」——一个凭空发出去的证据资格。
+    （真正把这条突变咬住的是上面的反例③；本条钉的是「它确实在承重」。）
+    """
+    recs = [_rec(None), _rec(None), _rec({"build_type": "debug", "inject_used": True})]
+    base = cl.admissibility_counts(recs)
+    assert (base["unknown"], base["admissible"], base["inadmissible"]) == (2, 0, 1), base
+    real = cc.is_admissible
+    monkeypatch.setattr(cc, "is_admissible",
+                        lambda r: ((True, "MUTANT") if real(r)[0] is None
+                                   else real(r)))
+    mut = cl.admissibility_counts(recs)
+    assert (mut["unknown"], mut["admissible"]) == (0, 2), mut
+
+
 def test_observation_states_are_counted_apart_and_unknown_is_not_valid():
     """反例（D-718 B-3）：四态相加恒等于总数，且 `unknown` **不并进 valid**。
 
@@ -664,6 +729,30 @@ def test_observation_states_are_counted_apart_and_unknown_is_not_valid():
     c = cl.classify_state(obs)
     assert c == {"valid": 3, "void": 2, "verify": 1, "unknown": 2}, c
     assert sum(c.values()) == len(obs), c        # 无减法桶、无遗漏
+
+
+def test_the_valid_bucket_is_expanded_by_kind_not_printed_as_one_number():
+    """反例（2026-09-06 对抗复核咬出）：`valid` 桶必须**就地展开成 kind 交叉表**。
+
+    初版印成「实格 43」，而那 43 里只有 25 个是真机——另有 6 个干跑、
+    12 个 API 对照。`state` 与 `kind` 是两个轴，**「未作废」不等于「真机实格」**，
+    而「实格」这个词会被直接读成后者：一个看起来精确、含义却更宽的数。
+    反例证伪：把交叉表折回成一个孤立数字，本条即红。
+    """
+    def _o(state, kind, i):
+        return {"state": state, "kind": kind, "path": "evidence/x%d" % i,
+                "experiments": "E2", "pkg": "com.x", "files": 3}
+
+    obs = [_o("valid", "DEVICE_REAL", 0), _o("valid", "DEVICE_REAL", 1),
+           _o("valid", "DRY_RUN_SIMULATED", 2), _o("void", "DEVICE_REAL", 3)]
+    md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), [], obs)
+    assert "有效 **3**" in md, md
+    assert "DEVICE_REAL×2" in md and "DRY_RUN_SIMULATED×1" in md, md
+    # 读者真正要问的那个数必须**直接印出来**，不能让他从 kind 分布里自己拼
+    assert "真机有效格 2" in md, md
+    assert "实格 3" not in md, (
+        "又把聚合数印成了「实格 N」——`实格` 在本项目已有确定含义（真机观察格），"
+        "而 state=valid 里还含 dry-run 与 API 对照批")
 
 
 def test_the_repo_has_no_unregistered_observation_state_right_now():

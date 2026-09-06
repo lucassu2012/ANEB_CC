@@ -273,6 +273,26 @@ def summarize(paths):
     return real, synth, st
 
 
+def admissibility_counts(records):
+    """证据资格三态计数 + 原因分布（D-730 A-8④）。判据只有 `cc.is_admissible` 一处。
+
+    **三个数互不相加，也不与 real/synth 相加**：它回答的是「这条能不能当证据」，
+    与「它是真实还是合成」「采样密度是 quick 还是 forensic」都正交。
+    `unknown` 单列的理由见 `cc.is_admissible` —— **「不知道」不是「可以用」**。
+    """
+    out = {"admissible": 0, "inadmissible": 0, "unknown": 0, "reasons": Counter()}
+    for r in records:
+        ok, why = cc.is_admissible(r)
+        out["reasons"][why] += 1
+        if ok is None:
+            out["unknown"] += 1
+        elif ok:
+            out["admissible"] += 1
+        else:
+            out["inadmissible"] += 1
+    return out
+
+
 OBS_STATES = ("valid", "void", "verify", "unknown")
 
 
@@ -406,6 +426,15 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
                  f"body 冲突 {len(st.get('conflicts') or [])} 条单记、"
                  f"坏行 {st.get('malformed', 0)}、无 run_id {st.get('no_run_id', 0)}）")
     lines.append(f"- 合成记录（`is_synthetic`）：**{len(synth)} 条，单列不计入上行**")
+    # 证据资格（D-730 A-8④）：**单列，不与上面任何数相加**。三态照实印——
+    # 「未知」不是「零」，也不是「可用」：老语料早于 `run.build` 上线，
+    # 把它们默认成可作证据，等于凭空发证据资格。
+    _adm = admissibility_counts(real)
+    lines.append(
+        "- 证据资格（`is_admissible`，**与 mode 正交，单列不并入上行**）："
+        f"可作证据 **{_adm['admissible']}**／不可作证据 **{_adm['inadmissible']}**／"
+        f"**未知 {_adm['unknown']}**"
+        + (f"（原因：{n(_adm['reasons'])}）" if _adm["reasons"] else ""))
     # 警告要印在会被误加的那个数**旁边**，不能只印在第四节里（D-330／D-339：
     # 门说了而摘要没说，等于读者最先看的那一行仍然缺信息）。
     if obs:
@@ -498,11 +527,21 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
         lines.append(f"（本次扫描未发现带 `{OBS_MARKER}` 标记的采集目录。）")
     else:
         _st = classify_state(obs)
+        # ⚠ **valid 桶必须就地展开成 kind 交叉表**（2026-09-06 对抗复核咬出）：
+        # 初版把它印成「实格 43」，而 43 里只有 25 个是真机——另有 6 个干跑、
+        # 12 个 API 对照。`state` 与 `kind` 是两个轴，「未作废」不等于「真机实格」，
+        # 而「实格」这个词会被直接读成后者。**聚合数要在它出现的地方展开一次**，
+        # 否则读者拿到的是一个看起来精确、含义却更宽的数。
+        _vk = Counter(r.get("kind") or "?" for r in obs
+                      if (r.get("state") or "unknown") == "valid")
         lines.append(
             "- 状态分列（D-718 B-3，**与上面按 kind 的分类正交、两组都不相加**）："
-            f"实格 **{_st['valid']}**／作废 **{_st['void']}**／试水 **{_st['verify']}**／"
-            f"**未登记 {_st['unknown']}**"
-            "　⚠ 未登记＝早于 `state` 字段上线的老目录，**不是实格**\n")
+            f"有效 **{_st['valid']}**／作废 **{_st['void']}**／试水 **{_st['verify']}**／"
+            f"未登记 **{_st['unknown']}**；**其中真机有效格 "
+            f"{_vk.get(DEVICE_REAL_KIND, 0)}**（{n(_vk)}）"
+            "　⚠ **「有效」是 `state=valid` 的字面义，不等于「真机观察格」**："
+            "dry-run 与 API 对照批同样是「有效」，但它们不是真机格；"
+            "未登记＝早于 `state` 字段上线的老目录，也不进真机格\n")
         lines.append("| 目录 | kind | state | 实验 | 包名 | 文件数 |"
                      "\n|---|---|---|---|---|---|")
         for r in obs:
@@ -520,7 +559,14 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
                      f"`validate_results.py` 即 contract VIOLATIONS。列在这里是为了"
                      f"让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。"
                      f"判据＝目录里有 `{OBS_MARKER}`（采集器自己写的标记，非文件名清单）；"
-                     f"早于该标记的采集目录不在此表，仍落在第三节的通用桶里。")
+                     f"早于该标记的采集目录不在此表，仍落在第三节的通用桶里。\n>\n"
+                     f"> ⚠ **本表不是采集目录的全集**：另有 **3 个**目录有采集产物却无 "
+                     f"`{OBS_MARKER}`，故数不进来（2026-09-06 全扫实测，判据面**不扩**，"
+                     f"列出来只为让读者别把本表当全集）——`evidence/e1/20260801-150506` 与 "
+                     f"`evidence/e1/20260801-170127`（各 6–7 个产物的正式跑，**早于标记上线**，"
+                     f"见 `observation_runs` docstring 的边界说明），以及 "
+                     f"`evidence/DW-20260905-02/ds_wifi_f6_attempt1_toggle_stop`"
+                     f"（只有 `orchestrator.log`，**夭折于写标记之前**）。")
     lines.append("")
     return "\n".join(lines)
 
