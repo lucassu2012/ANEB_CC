@@ -47,7 +47,11 @@ schtasks /Create /F /TN 'ANEB-Shaper-Start' /SC ONCE /ST 00:00 /RL HIGHEST /RU "
 schtasks /Create /F /TN 'ANEB-Shaper-Stop'  /SC ONCE /ST 00:00 /RL HIGHEST /RU "$env:USERDOMAIN\$env:USERNAME" /TR "$ps `"$bin\shaper_stop.ps1`""
 
 # --- 4. 自检：任务存在且为最高权限；bin 的 ACL 无 Users 写位 ---
-schtasks /Query /TN 'ANEB-Shaper-Start' /V /FO LIST | Select-String 'Run As User|Task To Run|Highest'
+# ⚠ 原写 `... /V /FO LIST | Select-String 'Run As User|Task To Run|Highest'` —— **中文 Windows 上恒空**，英文字段名匹配不到中文输出；PO 实跑即返回空，而任务其实建成了。改用不受语言影响的 XML：
+foreach ($n in 'ANEB-Shaper-Start','ANEB-Shaper-Stop') {
+  $x = [xml](schtasks /Query /TN $n /XML ONE | Out-String)
+  '{0} RunLevel={1}' -f $n, $x.Task.Principals.Principal.RunLevel   # 须为 HighestAvailable
+}
 icacls $bin | Select-String 'Users'
 ```
 
