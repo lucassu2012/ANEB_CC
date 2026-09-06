@@ -68,8 +68,32 @@ ping -n 3 223.5.5.5                      # 回到基线
 ## 4. 此后编队怎么用（非提权会话，无需您在场）
 
 1. 写档位：`Set-Content E:\tools\aneb-shaper\profiles\current.args '<clumsy 参数一行>'`（例：`--filter "outbound and !loopback" --drop on --drop-outbound on --drop-inbound on --drop-chance 10`）。
-2. 起：`schtasks /Run /TN ANEB-Shaper-Start`；停：`schtasks /Run /TN ANEB-Shaper-Stop`。每次起／停在 `profiles\start.log` 留行，供格 README 引用。
+2. 起／停——**先看你在哪个 shell 里，这不是废话，见 §4.1**：
+   - **PowerShell（推荐，照抄即可）**：起 `schtasks /Run /TN ANEB-Shaper-Start`；停 `schtasks /Run /TN ANEB-Shaper-Stop`。
+   - **Git Bash（必须加前缀）**：`MSYS_NO_PATHCONV=1 schtasks /Run /TN ANEB-Shaper-Start`。
+   每次起／停在 `profiles\start.log` 留行，供格 README 引用。
+   ⚠ **`schtasks /Run` 返回 0 只表示「任务已被拉起」，不表示整形器在跑、更不表示整形生效**——判据仍照 §3 正面写：`Get-Process clumsy` 有进程 ＋ `driverquery` 见 WinDivert ＋ 目标 RTT 抬升到预期带。
 3. 段 B（v4）／段 C（设备侧）的过滤器写法与档位表以 `docs/B2_SHAPER_BUILD_SHEET_20260903.md` §4 为准；限速档本批不覆盖（D-656①）。
+
+### 4.1 ⚠ Git Bash 会吃掉 `schtasks` 的 `/` 参数（2026-09-06 18:5x 实测，大脑）
+
+MSYS 路径转换把 `/Query`、`/Run`、`/TN` 当成 Unix 路径改写，于是：
+
+```
+$ schtasks /Query /TN '\Microsoft\Windows\Defrag\ScheduledDefrag'
+错误: 无效参数/选项 - 'C:/Program Files/Git/Query'。          # rc=1
+
+$ MSYS_NO_PATHCONV=1 schtasks /Query /TN '\Microsoft\Windows\Defrag\ScheduledDefrag'
+ScheduledDefrag        N/A        已禁用                      # rc=0，真实数据
+```
+
+**三条要记住的**：
+
+- **单斜杠 ＋ `MSYS_NO_PATHCONV=1` 才对**。改成 `//Run` **不管用**——那会被原样传成 `//Run`，schtasks 一样拒。
+- **那条报错指向一个路径，不指向 shell** ⇒ 撞上的人最可能的误判是「任务没建成，PO 的 §2 没跑成」，然后去动本来正常的东西。**看到 `'C:/Program Files/Git/...'` 就知道是 shell 不是任务。**
+- **「任务不存在」与「参数被改写」长得不一样，认准这两句**：前者是 `错误: 系统找不到指定的文件。`，后者是 `错误: 无效参数/选项 - 'C:/…'`。**要确认任务在不在，用能返回真实数据的那一式去问**，别拿一条本身就跑不通的命令的失败当「任务不存在」的证据。
+
+> 本节由大脑在 PO 执行 §2 **之前**实测补入：源文件三个（`clumsy.exe`／`WinDivert.dll`／`WinDivert64.sys`）经核仍在 `E:\tools\aneb-shaper\clumsy\`，`bin\`／`profiles\` 尚不存在 ⇒ §2 确未执行。
 
 ## 5. 回滚（管理员窗）
 
