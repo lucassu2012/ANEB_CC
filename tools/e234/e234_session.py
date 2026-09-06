@@ -34,6 +34,10 @@ MARK_KINDS = (KIND_TURN_START, KIND_ANSWER_START, KIND_ANSWER_COMPLETE)
 
 TURN_METHOD_MARKS = "operator-marks"
 TURN_METHOD_WHOLE_RUN = "whole-run"
+# 按操作者标记切轮，但 A 侧**一条事件都没有**（D-718 A-3）。与 `operator-marks`
+# 切法相同、可信度完全不同：这一批的每一轮 A 侧都是空的，任何「n 轮」在这里
+# 都不代表「n 轮有 A 侧数据」。给它自己的名字，下游才拦得住。
+TURN_METHOD_NO_EVENTS = "marks-no-events"
 
 
 def content_events(lines, pkg):
@@ -87,10 +91,14 @@ def segment_turns(events, marks):
     返回 (turns, method)。无标记 -> 整段一轮，method=`whole-run`，
     **由调用方在每一个面上印出这件事**（n 结构上等于 1，别让它长得像 n 很多）。
     """
-    if not events:
-        return [], TURN_METHOD_WHOLE_RUN
     ends = [m for m in marks if m["kind"] == KIND_ANSWER_COMPLETE
             and m.get("t_boot_ns") is not None]
+    # 零事件**且**无标记：确实无从切轮。
+    # 零事件**但有标记**则不同（D-718 A-3）：轮窗是操作者标出来的，A 侧一条事件
+    # 都没有并不妨碍按标记切——**返回空列表等于把「这一批有 6 轮、A 侧全哑」
+    # 说成「压根没有轮」**，下游连「哑了几轮」都数不出来。两件事必须分开。
+    if not events and not ends:
+        return [], TURN_METHOD_WHOLE_RUN
     if not ends:
         return ([{"idx": 0, "t_start_ns": events[0]["t_boot_ns"],
                   "t_end_ns": events[-1]["t_boot_ns"], "answer_start_ns": None,
@@ -100,9 +108,18 @@ def segment_turns(events, marks):
               and m.get("t_boot_ns") is not None]
     a_starts = [m for m in marks if m["kind"] == KIND_ANSWER_START
                 and m.get("t_boot_ns") is not None]
+    # 首轮下界：有事件时取「第一条事件之前」（沿用原口径）；零事件时退到标记侧
+    # ——优先第一个 `turn_start`，否则第一个 `answer_complete` 自身（此时首轮窗宽
+    # 为 0，**这正是实情**：除了那一个标记，本轮没有任何可用时刻，别假装知道更多）。
+    if events:
+        first_lo = events[0]["t_boot_ns"] - 1
+    else:
+        cand = [s["t_boot_ns"] for s in starts
+                if s["t_boot_ns"] <= ends[0]["t_boot_ns"]]
+        first_lo = (min(cand) if cand else ends[0]["t_boot_ns"]) - 1
     turns, prev = [], None
     for i, e in enumerate(ends):
-        lo = prev if prev is not None else events[0]["t_boot_ns"] - 1
+        lo = prev if prev is not None else first_lo
         explicit = [s["t_boot_ns"] for s in starts
                     if lo < s["t_boot_ns"] <= e["t_boot_ns"]]
         if explicit:
@@ -124,7 +141,10 @@ def segment_turns(events, marks):
                        if lo < ev["t_boot_ns"] <= e["t_boot_ns"]],
         })
         prev = e["t_boot_ns"]
-    return turns, TURN_METHOD_MARKS
+    # 切法同源，但**名字必须分开**：`operator-marks` 读起来像「按操作者标记切的、
+    # 正常的一批」，而零事件那批的每一轮 A 侧都是空的。同名会让下游把两者
+    # 一视同仁（本仓「共用 token 前先问这两个词回答的是同一个问题吗」）。
+    return turns, (TURN_METHOD_MARKS if events else TURN_METHOD_NO_EVENTS)
 
 
 def frames_in(frames, lo_mono_ns, hi_mono_ns):

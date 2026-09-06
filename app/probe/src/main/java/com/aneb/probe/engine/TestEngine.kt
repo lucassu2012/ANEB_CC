@@ -6,6 +6,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.SystemClock
 import androidx.room.withTransaction
+import com.aneb.probe.BuildConfig
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.EchoSampleEntity
 import com.aneb.probe.data.EnvEvent
@@ -119,7 +120,11 @@ class TestEngine(private val context: Context) {
         if (!guard.ok) {
             log("GUARD_REJECT reasons=${guard.reasons.joinToString(",")}")
             persistRun(
-                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                db,
+                baseRun(
+                    runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
+                )
                     .copy(status = "guard_rejected:${guard.reasons.joinToString(",")}"),
             )
             log("RUN_END run_id=$runId status=guard_rejected")
@@ -137,7 +142,11 @@ class TestEngine(private val context: Context) {
         } catch (e: GuardException) {
             log("NET_BIND_FAIL transport=$transportStr error=${e.message?.replace(' ', '_')}")
             persistRun(
-                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                db,
+                baseRun(
+                    runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
+                )
                     .copy(status = "bind_failed"),
             )
             log("RUN_END run_id=$runId status=bind_failed")
@@ -180,7 +189,11 @@ class TestEngine(private val context: Context) {
             log("RUN_FAILED run_id=$runId error=profiles_unavailable:${e.javaClass.simpleName}")
             bound?.release()
             persistRun(
-                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                db,
+                baseRun(
+                    runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
+                )
                     .copy(status = "profiles_unavailable"),
             )
             log("RUN_END run_id=$runId status=profiles_unavailable")
@@ -675,6 +688,7 @@ class TestEngine(private val context: Context) {
             val runEntity = baseRun(
                 runId, startedAtEpochMs, measureBase, modeStr, transportStr,
                 orderRecord.joinToString("|"), loaded.source, guardMeta,
+                injectUsed = !config.inject.isNullOrBlank(),
             ).copy(
                 profileVersions = profileVersions,
                 aqsScore = aqsResult.score,
@@ -758,6 +772,7 @@ class TestEngine(private val context: Context) {
                 db, baseRun(
                     runId, startedAtEpochMs, measureBase, modeStr, transportStr,
                     orderRecord.joinToString("|"), loaded.source, guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
                 ).copy(profileVersions = profileVersions, status = "error:${e.javaClass.simpleName}"),
             )
             log("RUN_END run_id=$runId status=error")
@@ -894,6 +909,12 @@ class TestEngine(private val context: Context) {
         order: String,
         profileSource: String,
         guardMeta: String,
+        /**
+         * **刻意不给默认值**：给了默认值，任一调用点漏传就会静默记成「没注入」，
+         * 而那是取证字段最坏的失效方式——一条被人为截断过的流会被记成干净数据，
+         * 不报错、看起来完全正常。不给默认值，编译器替我保证每个调用点都想过这件事。
+         */
+        injectUsed: Boolean,
     ): TestRun {
         val pkg = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
         return TestRun(
@@ -910,6 +931,16 @@ class TestEngine(private val context: Context) {
             profileSource = profileSource,
             appVersionName = pkg?.versionName,
             appVersionCode = pkg?.longVersionCode,
+            // 构建指纹（A-8③，v23 三列）：回答「这条 run 是**哪份代码**采的」。
+            // ⚠ 与上面两行**不是**同一件事：versionName/Code 是**声明的产品版本**，
+            // 阶段 0 里恒为 0.1.0-phase0 / 1，对「哪份代码」毫无分辨力——
+            // 本仓实证过两个不同构建 versionName 完全相同，当时只能靠 lastUpdateTime 区分。
+            buildGitSha = BuildConfig.GIT_SHA,
+            buildType = BuildConfig.BUILD_TYPE,
+            buildApplicationId = BuildConfig.APPLICATION_ID_DECLARED,
+            // 注入标记（D-729）：这里恒为 true/false，**不会是 null**——null 的含义是
+            // 「该 run 早于本列上线」，而本代码路径产出的每条 run 都在本列上线之后。
+            injectUsed = injectUsed,
             guardMetadata = guardMeta,
             aqsScore = null,
             aqsLowConfidence = null,
@@ -1126,7 +1157,15 @@ class TestEngine(private val context: Context) {
     }
 
     companion object {
-        const val KPI_SET = "agent-qoe-kpi-v0.2"
+        /**
+         * D-708：改为**引用**而非第二份字面量。
+         *
+         * 这里此前硬编码 `"agent-qoe-kpi-v0.2"`，而 `KpiCalculator.KPI_SET_VERSION` 写着
+         * `v0.1`——**两份副本长期不一致，且没有任何东西报错**：run JSONL 的 `kpi_set`
+         * 取的是这一份（实测 336 条全为 v0.2），打分侧自报的却是另一份。
+         * 指向单一事实源后，这种分歧不再可能。
+         */
+        const val KPI_SET = com.aneb.probe.scoring.KpiCalculator.KPI_SET_VERSION
 
         /** 实时遥测采样节流间隔（ms）：观测通道节流上限，不影响任何测量计时 */
         private const val TELEMETRY_SAMPLE_MS = 100L

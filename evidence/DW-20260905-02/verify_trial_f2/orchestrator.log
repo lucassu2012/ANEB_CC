@@ -1,0 +1,38 @@
+[00:30:06] == 环节 -1：格间连续性（D-640③④：与上一格 DONE 相差 >30 分钟即停）==
+[00:30:06] since_prev_done_min=4
+[00:30:07] == 环节 0：P40 五步 + P1a 前置 ==
+[00:30:07] P1a aneb_processes=1 (须=1)
+[00:30:08] focus=mCurrentFocus=Window{530b50b u0 com.deepseek.chat/com.deepseek.chat.MainActivity}
+[00:30:08] == 环节 0a：条件=wifi，切网并核实生效 ==
+[00:30:17] route_pre=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[00:30:17] gsm.network.type(pre)=NR_SA,Unknown
+[00:30:18] deepseek=versionName=2.2.2 lastUpdateTime=2026-07-19 15:02:06
+[00:30:18] probe_ctree lastUpdateTime=2026-09-04 09:02:32 (P2 判据须=2026-09-04 09:02:32)
+[00:30:19] driver=tools/e234/drive_cell_ds.py@99d07b2 dirty_lines=0
+[00:30:19] == 环节 0b：被测 App 先前台出一屏（monkey 启动），核焦点与同包窗口数，截图落仓外 ==
+[00:30:29] focus_after_launch=mCurrentFocus=Window{530b50b u0 com.deepseek.chat/com.deepseek.chat.MainActivity}
+[00:30:29] pkg_windows=1 (须=1；>1 疑弹窗)
+[00:30:30] screenshot_pre=/c/Users/lucas/AppData/Local/Temp/claude/E--C-Project-ANEB/6d3a133e-db52-461a-91c8-97d6a12e1e63/scratchpad/verify_trial_f2_pre.png (仓外，自读后即删)
+[00:30:30] toggles_declared=深度思考ON+智能搜索OFF（am kill 冷启后搜索复位为 ON，本格启动后手动点 (545,2525) 关闭并像素核对）；模式选择器=快速模式(默认未动)
+[00:30:34] toggle_pixels=think=(164, 186, 254) ON(blue) search=(158, 158, 158) OFF(achromatic) 
+[00:30:34] == 环节 1：起采集器（后台）==
+[00:30:34] collector pid=4504 session=300 roi=400,1800,400,200
+[00:30:47] == 环节 1a：sf_latency 在长？首行刷新周期？==
+[00:30:52] sf_latency bytes 22815 -> 56562
+[00:30:52] sf_first_line=16666666 (16666667≈60Hz 界2.12s；11111111≈90Hz 界1.41s)
+[00:30:52] == 环节 2：起驱动器（1 轮 × (120+20)s）F2 驱动器哈希=99d07b2 ==
+[00:33:22] driver exit=0
+[00:33:22] == 等采集器收尾 ==
+[00:35:51] collector exit=0
+[00:35:51] == 环节 4b：e2_analyze / e2_precheck 终态 / 逐轮结构量 ==
+E2 report -> E:/C Project/ANEB/evidence/DW-20260905-02/verify_trial_f2\e2_report.md
+E2 |t_A-t_C| verdict=NOT_EXECUTED (缺分布或缺实测刷新率) n=0 dropped=1 frame_ms=16.667
+channel_b=PASS (采样周期与检出次数，非时刻) transitions=4
+[00:35:52] precheck_rc=1 e2_precheck verify_trial_f2: NOT_APPLICABLE - 全程连续覆盖（零丢帧边界）且一次 >=gap 静默都没有 ⇒ 该 App/场景**结构性不适用** e2
+clock_pin: PASS | wall_to_boot: PASS | turn_method: operator-marks | verdict: ['NOT_EXECUTED', '缺分布或缺实测刷新率']
+per_turn turn=0 a_clusters=3 c_clusters=1 frames=7220
+[00:35:52] gsm.network.type(post)=NR_SA,Unknown route_post=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[00:35:53] == 环节 5：格 README（记实际值）==
+[00:35:53] == 环节 6：设备复原（App 退桌面、am kill、WiFi 回开）==
+[00:35:57] aneb_processes=1 ds_processes=0 focus=mCurrentFocus=Window{51a4d69 u0 com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher}
+[00:35:58] DONE verify_trial_f2

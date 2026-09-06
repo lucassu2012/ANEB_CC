@@ -1,0 +1,59 @@
+{
+ "run_dir": "E:/C Project/ANEB/evidence/DW-20260905-02/ds_wifi_f1",
+ "gap_ms": 400.0,
+ "clock_pin": "PASS",
+ "turns_total": 6,
+ "turns": [
+  {
+   "turn": "1",
+   "window_s": 45.0,
+   "gaps_over_ms": [],
+   "disjoint_in_window": 0,
+   "dumps_in_window": 40,
+   "ring_span_s": 2.07
+  },
+  {
+   "turn": "2",
+   "window_s": 45.0,
+   "gaps_over_ms": [],
+   "disjoint_in_window": 0,
+   "dumps_in_window": 40,
+   "ring_span_s": 2.07
+  },
+  {
+   "turn": "3",
+   "window_s": 45.0,
+   "gaps_over_ms": [],
+   "disjoint_in_window": 0,
+   "dumps_in_window": 41,
+   "ring_span_s": 2.07
+  },
+  {
+   "turn": "4",
+   "window_s": 45.0,
+   "gaps_over_ms": [],
+   "disjoint_in_window": 0,
+   "dumps_in_window": 40,
+   "ring_span_s": 2.07
+  },
+  {
+   "turn": "5",
+   "window_s": 45.0,
+   "gaps_over_ms": [],
+   "disjoint_in_window": 0,
+   "dumps_in_window": 40,
+   "ring_span_s": 2.07
+  },
+  {
+   "turn": "6",
+   "window_s": 45.0,
+   "gaps_over_ms": [],
+   "disjoint_in_window": 0,
+   "dumps_in_window": 40,
+   "ring_span_s": 2.07
+  }
+ ],
+ "verdict": "P1_HOLDS_IN_CELL",
+ "counterexample_turns": [],
+ "fragmented_turns": []
+}

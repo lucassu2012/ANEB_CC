@@ -1,0 +1,47 @@
+[00:51:39] == 环节 -1：格间连续性（D-640③④：与上一格 DONE 相差 >30 分钟即停）==
+[00:51:39] since_prev_done_min=7
+[00:51:39] == 环节 0：P40 五步 + P1a 前置 ==
+[00:51:40] P1a aneb_processes=1 (须=1)
+[00:51:41] focus=mCurrentFocus=Window{125fe4 u0 com.deepseek.chat/com.deepseek.chat.MainActivity}
+[00:51:41] == 环节 0a：条件=wifi，切网并核实生效 ==
+[00:51:49] route_pre=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[00:51:50] gsm.network.type(pre)=NR_SA,Unknown
+[00:51:50] deepseek=versionName=2.2.2 lastUpdateTime=2026-07-19 15:02:06
+[00:51:51] probe_ctree lastUpdateTime=2026-09-04 09:02:32 (P2 判据须=2026-09-04 09:02:32)
+[00:51:51] driver=tools/e234/drive_cell_ds.py@99d07b2 dirty_lines=0
+[00:51:51] == 环节 0b：被测 App 先前台出一屏（monkey 启动），核焦点与同包窗口数，截图落仓外 ==
+[00:52:01] focus_after_launch=mCurrentFocus=Window{125fe4 u0 com.deepseek.chat/com.deepseek.chat.MainActivity}
+[00:52:02] pkg_windows=1 (须=1；>1 疑弹窗)
+[00:52:02] screenshot_pre=/c/Users/lucas/AppData/Local/Temp/claude/E--C-Project-ANEB/6d3a133e-db52-461a-91c8-97d6a12e1e63/scratchpad/ds_wifi_f6_pre.png (仓外，自读后即删)
+[00:52:02] toggles_declared=深度思考ON+智能搜索OFF（冷启默认双ON，脚本钩子点 (545,2525) 关搜索并像素核对）；模式选择器=快速模式(默认未动)
+[00:52:07] toggle_pixels_before=think=(156, 156, 156) OFF(achromatic) search=(158, 158, 158) OFF(achromatic) 
+[00:52:13] toggle_pixels=think=(164, 186, 254) ON(blue) search=(158, 158, 158) OFF(achromatic) 
+[00:52:13] == 环节 1：起采集器（后台）==
+[00:52:13] collector pid=8857 session=678 roi=400,1800,400,200
+[00:52:25] == 环节 1a：sf_latency 在长？首行刷新周期？==
+[00:52:31] sf_latency bytes 22680 -> 56427
+[00:52:31] sf_first_line=16666666 (16666667≈60Hz 界2.12s；11111111≈90Hz 界1.41s)
+[00:52:31] == 环节 2：起驱动器（6 轮 × (75+20)s）F6 驱动器哈希=99d07b2 ==
+[00:54:31] == 环节 1c（约 2 分处）：e2_precheck 看 dump存活／断 ==
+e2_precheck ds_wifi_f6: NOT_APPLICABLE - 全程连续覆盖（零丢帧边界）且一次 >=gap 静默都没有 ⇒ 该 App/场景**结构性不适用** e2：C 侧永远切不出次簇，加轮数不解 | dump=112(同=0 叠=111 断=0) C侧已观测间隔=0 不可判=0 | A侧可用轮=0/1 | B动率=0.093 建议 --framestats-period-s=1
+断=0
+[01:02:57] driver exit=0
+[01:02:57] == 等采集器收尾 ==
+[01:03:48] collector exit=0
+[01:03:48] == 环节 4b：e2_analyze / e2_precheck 终态 / 逐轮结构量 ==
+E2 report -> E:/C Project/ANEB/evidence/DW-20260905-02/ds_wifi_f6\e2_report.md
+E2 |t_A-t_C| verdict=NOT_EXECUTED (缺分布或缺实测刷新率) n=0 dropped=6 frame_ms=16.667
+channel_b=PASS (采样周期与检出次数，非时刻) transitions=27
+[01:03:49] precheck_rc=1 e2_precheck ds_wifi_f6: NOT_APPLICABLE - 全程连续覆盖（零丢帧边界）且一次 >=gap 静默都没有 ⇒ 该 App/场景**结构性不适用** e2：C 
+clock_pin: PASS | wall_to_boot: PASS | turn_method: operator-marks | verdict: ['NOT_EXECUTED', '缺分布或缺实测刷新率']
+per_turn turn=0 a_clusters=1 c_clusters=1 frames=4522
+per_turn turn=1 a_clusters=1 c_clusters=1 frames=4524
+per_turn turn=2 a_clusters=1 c_clusters=1 frames=4528
+per_turn turn=3 a_clusters=1 c_clusters=1 frames=4522
+per_turn turn=4 a_clusters=1 c_clusters=1 frames=4524
+per_turn turn=5 a_clusters=1 c_clusters=1 frames=4525
+[01:03:50] gsm.network.type(post)=NR_SA,Unknown route_post=1.1.1.1 via 10.10.0.1 dev wlan0 table 1040 src 10.10.7.37 uid 2000 
+[01:03:50] == 环节 5：格 README（记实际值）==
+[01:03:50] == 环节 6：设备复原（App 退桌面、am kill、WiFi 回开）==
+[01:03:55] aneb_processes=1 ds_processes=0 focus=mCurrentFocus=Window{51a4d69 u0 com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher}
+[01:03:55] DONE ds_wifi_f6

@@ -1,0 +1,7 @@
+{"kind": "prompt", "text": "What is 5G in one sentence", "pkg": "com.deepseek.chat", "serial": "8MY0221126002537"}
+{"round": 1, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.008, "quiet_intended_s": 20.0, "quiet_actual_s": 20.028, "prep_before_send_s": 8.597, "round_total_s": 73.711}
+{"round": 2, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.031, "quiet_intended_s": 20.0, "quiet_actual_s": 20.038, "prep_before_send_s": 8.558, "round_total_s": 73.702}
+{"round": 3, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.007, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 8.394, "round_total_s": 73.529}
+{"round": 4, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.019, "quiet_intended_s": 20.0, "quiet_actual_s": 20.039, "prep_before_send_s": 8.514, "round_total_s": 73.645}
+{"round": 5, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.037, "quiet_intended_s": 20.0, "quiet_actual_s": 20.042, "prep_before_send_s": 8.488, "round_total_s": 73.674}
+{"round": 6, "answer_wait_intended_s": 45.0, "answer_wait_actual_s": 45.029, "quiet_intended_s": 20.0, "quiet_actual_s": 20.041, "prep_before_send_s": 8.51, "round_total_s": 73.653}

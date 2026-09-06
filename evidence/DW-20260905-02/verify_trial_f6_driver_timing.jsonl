@@ -1,0 +1,2 @@
+{"kind": "prompt", "text": "Generate an image of a red circle on a white background.", "pkg": "com.deepseek.chat", "serial": "8MY0221126002537"}
+{"round": 1, "answer_wait_intended_s": 120.0, "answer_wait_actual_s": 120.022, "quiet_intended_s": 20.0, "quiet_actual_s": 20.029, "prep_before_send_s": 8.976, "round_total_s": 149.093}

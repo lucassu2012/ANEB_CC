@@ -1,0 +1,16 @@
+{
+  "device_window": "DW-20260905-02",
+  "pkg": "com.deepseek.chat",
+  "stim_pre": "E:/C Project/ANEB/evidence/DW-20260905-02/ds_wifi_f6\\stim_pre.log",
+  "layer": "com.deepseek.chat/com.deepseek.chat.MainActivity#4384",
+  "sf_dumps": {
+    "layer_initial": "com.deepseek.chat/com.deepseek.chat.MainActivity#4384",
+    "issued": 575,
+    "with_frames": 575,
+    "empty_streak_max": 0,
+    "relists": [],
+    "ever_had_frames": true
+  },
+  "screencap_samples": 452,
+  "stim_post": "E:/C Project/ANEB/evidence/DW-20260905-02/ds_wifi_f6\\stim_post.log"
+}

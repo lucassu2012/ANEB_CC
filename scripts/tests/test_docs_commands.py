@@ -1717,6 +1717,32 @@ def test_frozen_line_reference_exemptions_expire_when_paid_off():
         % stale)
 
 
+def _git_ignored(path):
+    """该路径是否被 `.gitignore` 挡住（产物目录在鲜克隆里**合法**缺席）。
+
+    只看返回码，**不解码输出**：`subprocess.run(text=True)` 不给 `encoding` 会在
+    本机 cp936 下把 stdout 静默吞成 None（本仓踩过，害主树红过一次），而这里
+    根本不需要输出。git 不可用时返回 False——**宁可红，不放行**：放行一条本该
+    存在却缺席的路径，会让一道门静默跳过。
+    """
+    import subprocess
+    try:
+        return subprocess.run(
+            ["git", "check-ignore", "-q", path], cwd=REPO,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    except OSError:
+        return False
+
+
+# `verify_all.ps1` 里**允许指不到东西**的路径字面量：仅限被 `.gitignore` 挡住的
+# 产物目录（鲜克隆里合法缺席）。每条都要写清「它为什么合法」。
+# 目前为空——D-718 A-4 把 `server\data\results\*.jsonl` 从 verify_all 移除（契约门
+# 改喂 `corpus_ledger.py --list-corpus`）之后，没有任何字面量落在被忽略的目录下。
+# **机制留着**：下一个人加回一个产物目录字面量时，鲜克隆会红，而那个红看起来
+# 像「路径写错了」——那正是本机制要区分开的两件事。
+_VERIFY_ALL_GITIGNORE_EXEMPT = set()
+
+
 def test_every_path_literal_in_verify_all_resolves():
     """`verify_all.ps1` 里每个仓相对路径字面量都必须真指得到东西。
 
@@ -1739,18 +1765,30 @@ def test_every_path_literal_in_verify_all_resolves():
         "verify_all.ps1 含不可见控制字符 %s——它们在 grep/编辑器里看不见，"
         "却能把路径字面量悄悄改掉（0x08 实例见本条 docstring）" % ctrl)
 
-    bad = []
+    bad, exempt = [], []
     for lit in re.findall(r"Join-Path \$repo '([^']+)'", src):
         rel = lit.replace("\\", os.sep).replace("/", os.sep)
         target = os.path.join(REPO, rel)
         if "*" in rel:                      # glob：查它的父目录在不在
             target = os.path.dirname(target)
         if not os.path.exists(target):
-            bad.append(lit)
+            # 被 `.gitignore` 挡住的产物目录（如 server/data/results）在**鲜克隆**
+            # 里合法地不存在——那不是「路径写错了」，且两者处置相反：一个要改
+            # 字面量，一个什么都不用做。放行，但**必须显名**（见下方断言）：
+            # 一条无名放行会把这两桶悄悄合成一桶（D-718 A-4）。
+            (exempt if _git_ignored(target) else bad).append(lit)
     assert not bad, (
         "verify_all.ps1 里这些路径字面量指不到东西：%s\n"
         "——一条指不到脚本的门会静默跳过，而静默跳过与「跑过且通过」"
         "在输出上一模一样（D-532）。" % bad)
+    # 显名：豁免集**两个方向都推红**——新增未申报的豁免要红（否则放行是隐形的），
+    # 已清偿的申报也要红（否则清单只长不缩，读者无从知道还欠几条，D-275）。
+    assert set(exempt) == _VERIFY_ALL_GITIGNORE_EXEMPT, (
+        "被 .gitignore 放行的路径字面量与申报清单对不上：\n"
+        "  本次实际放行：%s\n  清单申报：%s\n"
+        "——新增请连同「它为什么合法缺席」一起写进 _VERIFY_ALL_GITIGNORE_EXEMPT；"
+        "已不再出现的请从清单删掉。"
+        % (sorted(exempt), sorted(_VERIFY_ALL_GITIGNORE_EXEMPT)))
 
 
 # DECISION_LOG 开篇：「推翻旧决策时新增条目并**引用被推翻的 D-xx**」。
@@ -2188,3 +2226,240 @@ def test_the_manifest_exception_covers_run_logs_and_nothing_else():
     # 否则任何人只要把 `verify_all` 塞进文件名就能绕过完整性记录。
     sneaky = ev + "/notes_verify_all_hack.json"
     assert unlisted_tracked_files({sneaky, mf}, set(), mf) == [sneaky]
+
+
+# ------------------------------------------------ D 条正文长度门（B-12，承 D-705）
+#
+# D-705 起 `DECISION_LOG.md` 正文 ≤200 字。**为什么值得一道门**：手写超限当天发生了
+# 三次，靠一段临时 python 断言才拦住——而**临时断言不跟着仓走**，下一个人不会有它。
+#
+# ⚠ **本清单与 `_FROZEN_LINE_REFS` 性质不同，别照搬那条的理由。**
+# 那条冻结的是「历史记述不可追溯改写」——行号引用写进历史账就改不得；
+# **而 D 条写长了是可以缩的**。所以这里每一条都是**欠账，不是永久许可**：
+# 缩到 ≤200 就把它从清单删掉；删干净后这个 dict 应当是空的。
+_DECISION_LEN_LIMIT = 200
+_DECISION_LEN_FROM = 705          # 规则自 D-705 起，之前的条目不追溯
+_DECISION_OVERLONG_PENDING_TRIM = {
+    # D 号: 立此清单时的**实测**字数（写实测值而非「约」，缩没缩一眼可见）
+    # 目前为空：D-722 已由 502 压到 192（2026-09-06），按下方反向断言从本清单移出。
+    # **清单是欠账不是许可**——清偿了就得删，否则它会变成一张只增不减的免罪符。
+}
+
+
+def _decision_body_lengths(path):
+    """→ [(D 号, 编号, 正文字数)]；正文是第 3 格（`| D 号 | 日期 | 正文 | 依据 |`）。
+
+    ⚠ 按格取而不是按整行长度：整行含日期与依据栏，**用整行会把门槛悄悄放宽**，
+    且放宽的幅度随依据栏长短浮动——同一条正文有时过有时不过，而没有任何东西报错。
+    """
+    out = []
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            m = re.match(r"\| (D-(\d+)) \|", line)
+            if not m:
+                continue
+            cells = line.rstrip("\n").split("|")
+            if len(cells) < 5:      # 不是四格行 ⇒ 交给既有的表格结构守卫去报
+                continue
+            out.append((m.group(1), int(m.group(2)), len(cells[3].strip())))
+    return out
+
+
+def test_decision_length():
+    """D-705 起每条 D 记录正文 ≤200 字；存量超限只许**显名**豁免，不静默放行。"""
+    path = os.path.join(REPO_ROOT, "docs", "DECISION_LOG.md")
+    rows = [r for r in _decision_body_lengths(path) if r[1] >= _DECISION_LEN_FROM]
+    assert rows, "一条 D-705 及以后的记录都没解析到——先怀疑量法坏了，别当成没有超限"
+
+    over = {d: n for d, _, n in rows if n > _DECISION_LEN_LIMIT}
+    unexpected = {d: n for d, n in over.items() if d not in _DECISION_OVERLONG_PENDING_TRIM}
+    assert not unexpected, (
+        "这些 D 条正文超过 %d 字：%s。缩短它，"
+        "或（仅当确有理由）显名加进 _DECISION_OVERLONG_PENDING_TRIM 并写清为什么。"
+        % (_DECISION_LEN_LIMIT, sorted(unexpected.items()))
+    )
+
+    # 反向：已缩短的条目必须从清单删掉，否则清单会变成一张**只增不减的免罪符**，
+    # 日后没人知道哪些还欠着。这条与上面方向相反，缺了它守卫只会越来越松。
+    settled = [d for d in _DECISION_OVERLONG_PENDING_TRIM if d not in over]
+    assert not settled, (
+        "这些条目已缩短到限内，请从 _DECISION_OVERLONG_PENDING_TRIM 删除：%s" % sorted(settled)
+    )
+
+
+# ------------------------------------------ 冲突标记直查（B-12，承 2026-09-06 板面事故）
+#
+# **为什么要一条正面判据**：那次事故里，一份带 `<<<<<<<` 的板面被推上了远端，
+# 而当时**只有表格结构守卫间接报红**——它报的是「这一行格数不对」，读的人得先想到
+# 「格数为什么不对」才追得到冲突标记。**间接信号会把人引向错误的第一嫌疑**。
+# 直查一句就说清楚：哪个文件、第几行、什么标记。
+#
+# ⚠ **`=======` 单独一行也是合法的 Markdown**（setext 二级标题下划线／分隔线），
+# 故它**只在同一文件里同时出现 `<<<<<<<` 时**才算冲突标记。不这么收窄的话，
+# 日后一条正常的分隔线就能把门弄红——而**失信的守卫等于没有**（本文件 §2.10 同族）。
+_CONFLICT_SCAN_DIRS = ("docs", "evidence", "scripts", "tools")
+_CONFLICT_SCAN_EXTS = frozenset(
+    [".md", ".py", ".ps1", ".txt", ".json", ".jsonl", ".yaml", ".yml", ".kt", ".go"]
+)
+
+
+def _conflict_marker_hits():
+    """→ [(路径, 行号, 该行前 40 字)]；空列表＝干净。"""
+    # ⚠ 读 git 输出用**字节模式**再显式 decode（同本文件既有写法）：`text=True`
+    # 不带 `encoding=` 时，子进程按 utf-8 写而父进程按系统代码页解，
+    # `UnicodeDecodeError` 抛在读取线程里被吞掉，**stdout 静默变 None**——
+    # 那样本条会以「一个文件都没扫到」的姿态变绿。这条守卫自己不能踩它要防的坑。
+    import subprocess
+    proc = subprocess.run(
+        ["git", "ls-files"] + list(_CONFLICT_SCAN_DIRS),
+        cwd=REPO, capture_output=True,
+    )
+    assert proc.returncode == 0, "git ls-files 跑不动，本条的绿不说明任何事"
+    listed = [
+        ln for ln in proc.stdout.decode("utf-8", errors="replace")
+        .replace(chr(13), "").split(chr(10)) if ln.strip()
+    ]
+    assert listed, "git ls-files 没给出任何文件——先怀疑量法坏了，别当成树是干净的"
+    hits = []
+    for rel in listed:
+        if os.path.splitext(rel)[1].lower() not in _CONFLICT_SCAN_EXTS:
+            continue
+        path = os.path.join(REPO, rel)   # 与上面 cwd=REPO 同一基准，不混用
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            continue
+        has_open = any(ln.startswith("<<<<<<< ") for ln in lines)
+        for i, ln in enumerate(lines, 1):
+            if ln.startswith("<<<<<<< ") or ln.startswith(">>>>>>> "):
+                hits.append((rel, i, ln[:40]))
+            elif has_open and ln.rstrip() == "=======":
+                hits.append((rel, i, ln[:40]))
+    return hits
+
+
+def test_no_conflict_markers_in_tracked_text():
+    """受跟踪文本文件里不得留下 git 冲突标记。
+
+    反例证伪：在任一受扫描的 `.md` 里新写一行 `<<<<<<< HEAD`，本条即红并打印行号。
+    """
+    hits = _conflict_marker_hits()
+    assert not hits, (
+        "受跟踪文件里残留 git 冲突标记（共 %d 处）：\n%s"
+        % (len(hits), "\n".join("  %s:%d  %s" % h for h in hits[:20]))
+    )
+
+
+# ------------------------------- 代码文件行号引用 · 逐文件计数棘轮（B-12②，D-733）
+#
+# 规则同 `_FROZEN_LINE_REFS` 那条：引他文给节号+锚文字，**不给行号**（行号会悄悄漂）。
+# 差别只在**存量规模**：`.md` 引用存量 31 条，显名清单读得完；**代码文件引用存量
+# 398 处、40 个文件**——显名清单没人会读，**而没人读的清单就是静默放行**，
+# 恰好废掉这条守卫要防的东西。故改**逐文件计数棘轮**（D-733 裁 (a)）：
+#   · 任一文件计数**上升** ⇒ 红（挡新增，这是原意）；
+#   · 记录值**高于实际** ⇒ 红（清偿后必须下调，与 `_FROZEN_LINE_REFS` 的「清偿即推红」同形）；
+#   · 未登记的文件基线视作 0 ⇒ 新建文件里写行号自然被拦。
+#
+# ⚠ **已知盲点，写在这里以免被当成显名清单的等价物**：
+# **计数不变的「一换一」替换它看不见**（删一处旧的、加一处新的）。显名清单看得见。
+# 这是用「可读」换来的，**不是它也能做到**。若将来某类文件确实需要精确到条，
+# 那类文件该单独进 `_FROZEN_LINE_REFS`，而不是把这张表变成 398 行。
+#
+# ⚠ **不缩适用面**（D-733）：缩了会把「哪些文件被守着」变成又一张没人读的清单。
+#
+# 排除 `docs/coordination/`：沿用 `_EXTERNAL_LANE_DIRS` 的同一理由（外部 lane 归档件）。
+_CODE_LINE_REF = re.compile(r"([\w./\-]+\.(?:py|kt|go|ps1|kts)):(\d+)")
+
+# 基线由脚本生成、非手抄（手抄 40 个数必错一个，而错了不报错）。采集于 2026-09-06。
+_CODE_LINE_REF_BASELINE = {
+    "docs/ANALYSIS_LAYER_HANDOVER.md": 2,
+    "docs/BRAIN_TASKBOARD.md": 23,
+    "docs/CAMPAIGN_LABELS_WIRING_SPEC.md": 4,
+    "docs/DECISION_LOG.md": 119,
+    "docs/DECISION_REQUEST_2026-08-02.md": 1,
+    "docs/DECISION_REQUEST_2026-08-20.md": 3,
+    "docs/DECISION_REQUEST_20260829.md": 4,
+    "docs/DELIVERY_PACKAGE_AUDIT_FINDINGS_20260820.md": 2,
+    "docs/DW_NEXT_OPERATOR_CARD_v2_DRAFT_20260830.md": 1,
+    "docs/E01_DEPLOY_REQUEST_FOR_CODEX_20260804.md": 5,
+    "docs/GATE_VERDICT_MIN_N_PROPOSAL_20260829.md": 6,
+    "docs/GOVERNANCE_SLIMDOWN_PROPOSAL_20260829.md": 3,
+    "docs/M2_CAMPAIGN_RUNBOOK.md": 1,
+    "docs/M3_EXPANSION_ROUND_RUNBOOK_ADDENDUM.md": 4,
+    "docs/M7_FIRST_BATCH_REGISTRATION_20260805.md": 1,
+    "docs/M7_RECALIBRATION_INDEPENDENT_VERIFICATION_20260819.md": 9,
+    "docs/PLAN_ALIGNMENT_2026-07-17.md": 5,
+    "docs/PROFILE2_THROUGHPUT_PROBE_INTERFACE.md": 3,
+    "docs/PROFILE2_THROUGHPUT_PROBE_SPEC.md": 42,
+    "docs/PROFILE4_VOICE_LOOPBACK_SPEC.md": 13,
+    "docs/REQUIREMENTS_BASELINE_v2.0.md": 4,
+    "docs/T14_CROSS_AUDIT_20260801.md": 3,
+    "docs/T21_SPLIT_BY_RUN_MODE_REVIEW.md": 2,
+    "docs/T23_RADIO_SAMPLER_LIFECYCLE_REVIEW.md": 19,
+    "docs/T29_E2_CROSS_CHANNEL_MATCHING_PLAN.md": 4,
+    "docs/T45_APP_DEV_AUDIT_20260804.md": 20,
+    "docs/T46_FULL_CORPUS_ANALYSIS_REPORT_20260804.md": 1,
+    "docs/T48_UI_REDESIGN_PROPOSAL_20260804.md": 4,
+    "docs/T50_VOICE_FIRST_COLLECTION_PROTOCOL_20260804.md": 21,
+    "docs/T55_M7_SCORING_CHAIN_VERIFICATION_20260805.md": 4,
+    "docs/T56_AQS_SCORE_FACE_AUDIT_20260805.md": 4,
+    "docs/T58_RELEASE_PREFLIGHT_20260819.md": 7,
+    "docs/T59_SCORING_DECISION_PACKAGE_20260819.md": 8,
+    "docs/T64_WALL_CLOCK_BLINDSPOT_20260819.md": 6,
+    "docs/T65_M7_RECALIBRATION_DISTRIBUTION_20260819.md": 2,
+    "docs/VOICE_ANALYSIS_LAYER_INVENTORY.md": 5,
+    "docs/VOICE_STALL_KPI_PROPOSAL.md": 6,
+    "docs/launchpad/crosscut-device-unlock-udp-contend-runbook.md": 11,
+    "docs/launchpad/spine1-api-agent-calibration.md": 4,
+    "docs/launchpad/spine4-speedtest-dynamism-blueprint.md": 12,
+}
+
+
+def _code_line_ref_counts():
+    """→ {相对路径: 唯一引用数}；只统计有命中的文件。"""
+    docs = os.path.join(REPO, "docs")
+    excluded = os.path.join(docs, "coordination")
+    counts = {}
+    for root, _dirs, files in os.walk(docs):
+        if root.startswith(excluded):
+            continue
+        for fn in sorted(files):
+            if not fn.endswith(".md"):
+                continue
+            path = os.path.join(root, fn)
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                refs = {m.group(0) for m in _CODE_LINE_REF.finditer(fh.read())}
+            if refs:
+                rel = os.path.relpath(path, REPO).replace(chr(92), "/")
+                counts[rel] = len(refs)
+    return counts
+
+
+def test_code_line_refs_do_not_grow():
+    """代码文件行号引用**只减不增**（逐文件计数棘轮，D-733）。"""
+    actual = _code_line_ref_counts()
+    assert actual, "一个代码行号引用都没扫到——先怀疑量法坏了，别当成清零了"
+
+    grew = {
+        f: (_CODE_LINE_REF_BASELINE.get(f, 0), n)
+        for f, n in actual.items()
+        if n > _CODE_LINE_REF_BASELINE.get(f, 0)
+    }
+    assert not grew, (
+        "这些文件新增了代码文件行号引用（基线→现值）：%s\n"
+        "改成「节号 + 可搜索的锚文字」；行号会随他人编辑悄悄漂掉。"
+        % sorted((f, b, n) for f, (b, n) in grew.items())
+    )
+
+    # 反向：清偿后基线必须下调，否则这张表会变成**只增不减的免罪符**，
+    # 日后没人知道还欠着多少。缺了这半，守卫只会越来越松。
+    stale = {
+        f: (b, actual.get(f, 0))
+        for f, b in _CODE_LINE_REF_BASELINE.items()
+        if b > actual.get(f, 0)
+    }
+    assert not stale, (
+        "这些文件的引用已减少，请把 _CODE_LINE_REF_BASELINE 里的数下调（基线→现值）：%s"
+        % sorted((f, b, n) for f, (b, n) in stale.items())
+    )

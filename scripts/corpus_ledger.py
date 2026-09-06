@@ -243,6 +243,12 @@ def observation_runs(roots):
                 row["kind"] = meta.get("kind") or "?"
                 row["experiments"] = ",".join(meta.get("experiments") or []) or "—"
                 row["pkg"] = meta.get("pkg") or "—"
+                # 状态（D-718 B-3）：与 `kind` **正交**——kind 说数据怎么来的，
+                # state 说这一格算不算数。**缺席记 `unknown`，不默认 valid**：
+                # 老目录早于该字段上线，默认成实格＝把作废格重新算进统计。
+                row["state"] = meta.get("state") or "unknown"
+                row["void_reason"] = meta.get("void_reason")
+                row["tier"] = meta.get("tier")
             except (OSError, ValueError) as e:
                 row["error"] = type(e).__name__
             try:
@@ -265,6 +271,87 @@ def summarize(paths):
     real = [r for r in recs if not cc.is_synthetic(r)]
     synth = [r for r in recs if cc.is_synthetic(r)]
     return real, synth, st
+
+
+def admissibility_counts(records):
+    """证据资格三态计数 + 原因分布（D-730 A-8④）。判据只有 `cc.is_admissible` 一处。
+
+    **三个数互不相加，也不与 real/synth 相加**：它回答的是「这条能不能当证据」，
+    与「它是真实还是合成」「采样密度是 quick 还是 forensic」都正交。
+    `unknown` 单列的理由见 `cc.is_admissible` —— **「不知道」不是「可以用」**。
+    """
+    out = {"admissible": 0, "inadmissible": 0, "unknown": 0, "reasons": Counter()}
+    for r in records:
+        ok, why = cc.is_admissible(r)
+        out["reasons"][why] += 1
+        if ok is None:
+            out["unknown"] += 1
+        elif ok:
+            out["admissible"] += 1
+        else:
+            out["inadmissible"] += 1
+    return out
+
+
+OBS_STATES = ("valid", "void", "verify", "unknown")
+
+
+def classify_state(obs):
+    """观察格**状态**分布（D-718 B-3）。四个数相加恒等于 `len(obs)`，无减法桶。
+
+    与 `classify_obs`（按 kind）**正交、不相加**：一格既有 kind 也有 state。
+    此前这三类只写在目录名里（`*_VOID1`／`verify_trial_*`／`*_attempt1_*`），
+    台账把观察目录混着数（F7-02）——**目录名不是字段**，数不了。
+    `unknown` 单列且**不并进 valid**：缺席是「没登记过」，不是「实格」。
+    ⚠ 将来新立一种 state，本函数会把它记进 `unknown` 而不是悄悄归进某个真桶；
+    那时请**先扩 `OBS_STATES` 再回填标签**（D-689③ 的顺序，反过来会静默吞格）。
+    """
+    out = {k: 0 for k in OBS_STATES}
+    for r in obs:
+        s = r.get("state") or "unknown"
+        out[s if s in out else "unknown"] += 1
+    return out
+
+
+def real_corpus_files(corpus):
+    """语料文件中含**至少一条真实记录**的那批（路径原样，顺序同 discover）。
+
+    为什么不是「全部语料文件」：合成侧（`gen_demo_jsonl.py` / `synth_campaign.py`）
+    本就不满足结果契约——2026-09-06 实测 40 条违约（如 `scenarios[0]` 缺 `buffering`）。
+    把它们喂进契约门＝拿「造的数据不合规」去红一道**验真实语料**的门。
+    文件粒度在此精确的**前提**是 real 与 synth 不混同一文件（同日实测 mixed=0），
+    该前提由 `test_no_corpus_file_mixes_real_and_synthetic` 守着，不靠记性。
+    """
+    out = []
+    for path, _n, _lines in corpus:
+        recs, _ = cc.load_records([path], dedupe=False, quiet=True)
+        if any(not cc.is_synthetic(r) for r in recs):
+            out.append(path)
+    return out
+
+
+def real_contract_violations(real):
+    """对 real 集跑结果契约校验 → (errors, 验不了的原因)。
+
+    **台账为什么要管契约**：台账数的是「真实 run 有几条」，而一条**违约**记录照样
+    会被数进去——「数得对」与「内容合法」是两个问题。此前只有 `results-contract-unit`
+    门在验契约，而它喂的是 `server/data/results/*.jsonl` 这个**通配符**
+    ⇒ `evidence/` 下的几十份语料**从来没被契约验过**，而两个门各自都绿。
+    这里补上：**台账认定谁是语料，就由台账把谁交给校验器**（与 --list-corpus 同源）。
+
+    ⚠ 三态而非二值：schema 读不了/导不进时返回 `(None, 原因)`——
+    **「验不了」不是「验过了」**，调用方须据此退 2，不得当成通过。
+    """
+    try:
+        import validate_results as vr          # noqa: E402  同目录，见文件头 sys.path
+    except ImportError as e:
+        return None, "导不进 validate_results：%s" % e
+    try:
+        sch = vr.load_schema(vr.DEFAULT_SCHEMA)
+    except (OSError, ValueError) as e:         # JSONDecodeError 是 ValueError 子类
+        return None, "读不了 schema %s：%s" % (vr.DEFAULT_SCHEMA, e)
+    errors, _warnings = vr.validate_records(real, sch)
+    return errors, None
 
 
 def buckets(real):
@@ -339,6 +426,15 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
                  f"body 冲突 {len(st.get('conflicts') or [])} 条单记、"
                  f"坏行 {st.get('malformed', 0)}、无 run_id {st.get('no_run_id', 0)}）")
     lines.append(f"- 合成记录（`is_synthetic`）：**{len(synth)} 条，单列不计入上行**")
+    # 证据资格（D-730 A-8④）：**单列，不与上面任何数相加**。三态照实印——
+    # 「未知」不是「零」，也不是「可用」：老语料早于 `run.build` 上线，
+    # 把它们默认成可作证据，等于凭空发证据资格。
+    _adm = admissibility_counts(real)
+    lines.append(
+        "- 证据资格（`is_admissible`，**与 mode 正交，单列不并入上行**）："
+        f"可作证据 **{_adm['admissible']}**／不可作证据 **{_adm['inadmissible']}**／"
+        f"**未知 {_adm['unknown']}**"
+        + (f"（原因：{n(_adm['reasons'])}）" if _adm["reasons"] else ""))
     # 警告要印在会被误加的那个数**旁边**，不能只印在第四节里（D-330／D-339：
     # 门说了而摘要没说，等于读者最先看的那一行仍然缺信息）。
     if obs:
@@ -370,6 +466,32 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
                  f"其中 low_confidence：{lc}"
                  f"｜顶层 `aqs_version` 版本戳共 {bk['aqs_versioned']} 条，"
                  f"其中 **{_vonly} 条只有版本戳、没有分数**（两个量不可混用）\n")
+    # ⚠ **低置信那个比例是结构性的，不是数据质量结论**（D-743）。它印在摘要面上，
+    # 而「低置信」这个词听起来是质量判断——读者会按通常含义去读它，正如「实格」
+    # 那次。所以限定必须**紧挨着那个数**，不能只写在别处。
+    if bk["aqs_runs"]:
+        lines.append(
+            "  > ⚠ **上行的 low_confidence 比例是结构性的，不表示这些 run 数据有问题**"
+            "（D-743）：`T1` 在现行 profile 下样本数恒不达其门限（**本页作者实测**："
+            "每场景 `token_stream` 相位 s1=1／s2=2／s3=2／s4=0，**至多 2 个**），"
+            "而 run 级低置信按「任一 KPI 低置信」上抛 ⇒ **只要一个真实 run 出了分，"
+            "它必然低置信**。判决性对照（**本页作者独立复算**）：真实侧 99/99＝100%，"
+            "而合成侧仅 5/572＝0.9%——合成语料的样本数是编出来的，从没触发过这条。\n"
+            "  > ⇒ **加轮不能摘帽**，只能改 profile 相位数或门限；"
+            "**引用本行时不得把它当作数据质量证据**。\n"
+            "  > ⚠ **要查成因就读场景的 `kpi_quality` 块**——它**逐 KPI**带 "
+            "`sample_count` 与 `low_confidence`（v17 起在 wire 上）。**本页作者实测**："
+            "真实侧 `T1` 有样本 382 个场景**全部低置信**、`U1` 382／382、"
+            "`U1_excl_slow_start` 90／90、`D1` 12／12，而 `N1`／`N2`（各 384）与 "
+            "`T2`／`T3`／`T4`／`T5`／`U2`／`U3`／`D3` **零低置信** ⇒ 钉住 run 的就这四个。\n"
+            "  > ⚠ **但它有覆盖边界**（2026-09-06 实测，**分母是全部真实 run 101 条、"
+            "不是上行那 99 条带分 run**——两个集合不同，别混用）："
+            "**只有 63 条带该块**（598 个场景里 388 个），其余早于 v17 ⇒ "
+            "**那些仍查不出成因**；"
+            "合成侧 **0 条带该块**——这也是它低置信率只有 0.9% 的另一半原因。\n"
+            "  > 🔴 **本段是 2026-09-06 的勘误**：初版写成「wire 不带逐 KPI 的"
+            "`sample_count`／`low_confidence`、台账无从判定成因」，**是错的**"
+            "（D-744 撤回该说法）。留这行是因为那句错话已经进过台账一次。\n")
     # 单点位口径**给成有名字的行项**，别让引用者自己从维度表挑（挑得动就挑得错，
     # 2026-08-29 PO 页头条写 73、实为 57 即此）。**数字与点位 id 绑在一起给**：
     # 数字被搬进别的文档后，才不会失去「它是哪个点」这条信息。
@@ -430,20 +552,47 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
     if not obs:
         lines.append(f"（本次扫描未发现带 `{OBS_MARKER}` 标记的采集目录。）")
     else:
-        lines.append("| 目录 | kind | 实验 | 包名 | 文件数 |\n|---|---|---|---|---|")
+        _st = classify_state(obs)
+        # ⚠ **valid 桶必须就地展开成 kind 交叉表**（2026-09-06 对抗复核咬出）：
+        # 初版把它印成「实格 43」，而 43 里只有 25 个是真机——另有 6 个干跑、
+        # 12 个 API 对照。`state` 与 `kind` 是两个轴，「未作废」不等于「真机实格」，
+        # 而「实格」这个词会被直接读成后者。**聚合数要在它出现的地方展开一次**，
+        # 否则读者拿到的是一个看起来精确、含义却更宽的数。
+        _vk = Counter(r.get("kind") or "?" for r in obs
+                      if (r.get("state") or "unknown") == "valid")
+        lines.append(
+            "- 状态分列（D-718 B-3，**与上面按 kind 的分类正交、两组都不相加**）："
+            f"有效 **{_st['valid']}**／作废 **{_st['void']}**／试水 **{_st['verify']}**／"
+            f"未登记 **{_st['unknown']}**；**其中真机有效格 "
+            f"{_vk.get(DEVICE_REAL_KIND, 0)}**（{n(_vk)}）"
+            "　⚠ **「有效」是 `state=valid` 的字面义，不等于「真机观察格」**："
+            "dry-run 与 API 对照批同样是「有效」，但它们不是真机格；"
+            "未登记＝早于 `state` 字段上线的老目录，也不进真机格\n")
+        lines.append("| 目录 | kind | state | 实验 | 包名 | 文件数 |"
+                     "\n|---|---|---|---|---|---|")
         for r in obs:
             if "error" in r:
                 lines.append(f"| {r['path']} | **读不了**（{r['error']}） | — | — |"
-                             f" {r['files']} |")
+                             f" — | {r['files']} |")
             else:
                 pkg = f"`{r['pkg']}`" if r["pkg"] != "—" else "—"
-                lines.append(f"| {r['path']} | {r['kind']} | {r['experiments']} |"
-                             f" {pkg} | {r['files']} |")
+                st = r.get("state") or "unknown"
+                if r.get("void_reason"):
+                    st += f"（{r['void_reason']}）"
+                lines.append(f"| {r['path']} | {r['kind']} | {st} |"
+                             f" {r['experiments']} | {pkg} | {r['files']} |")
         lines.append(f"\n> 这些目录**产出 0 条 wire run**——产物喂 "
                      f"`validate_results.py` 即 contract VIOLATIONS。列在这里是为了"
                      f"让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。"
                      f"判据＝目录里有 `{OBS_MARKER}`（采集器自己写的标记，非文件名清单）；"
-                     f"早于该标记的采集目录不在此表，仍落在第三节的通用桶里。")
+                     f"早于该标记的采集目录不在此表，仍落在第三节的通用桶里。\n>\n"
+                     f"> ⚠ **本表不是采集目录的全集**：另有 **3 个**目录有采集产物却无 "
+                     f"`{OBS_MARKER}`，故数不进来（2026-09-06 全扫实测，判据面**不扩**，"
+                     f"列出来只为让读者别把本表当全集）——`evidence/e1/20260801-150506` 与 "
+                     f"`evidence/e1/20260801-170127`（各 6–7 个产物的正式跑，**早于标记上线**，"
+                     f"见 `observation_runs` docstring 的边界说明），以及 "
+                     f"`evidence/DW-20260905-02/ds_wifi_f6_attempt1_toggle_stop`"
+                     f"（只有 `orchestrator.log`，**夭折于写标记之前**）。")
     lines.append("")
     return "\n".join(lines)
 
@@ -487,6 +636,9 @@ def main(argv=None):
     ap.add_argument("--csv", default=os.path.join("docs", "CORPUS_LEDGER.csv"))
     ap.add_argument("--check", action="store_true",
                     help="只比不写：落盘的两面与现算是否一致（exit 1=不一致）")
+    ap.add_argument("--list-corpus", action="store_true",
+                    help="只打印被本台账认定为语料的 jsonl 路径（每行一个），不写两面；"
+                         "供门禁把**台账认定的那批文件**喂给契约校验器")
     a = ap.parse_args(argv)
     roots = a.root or DEFAULT_ROOTS
     # **前提检查排在「算」之前**：根不存在时算出来的是一个**更小但看起来正常**的数，
@@ -516,6 +668,26 @@ def main(argv=None):
             % ", ".join(gone))
         return 2
     corpus, skipped = discover(roots)
+    if a.list_corpus:
+        # 这条路径的存在理由：契约门此前喂的是 `server/data/results/*.jsonl` 一个
+        # **通配符**，它与台账认定的语料面**不是同一批**（evidence/ 下那几十份根本
+        # 不在里面）。「我验的对象与台账数的对象是不是同一个」——不是，而且没人会
+        # 发现，因为两边各自都绿。改喂本清单后，两个门看的是同一批文件。
+        # 只打印、不写两面：写盘是另一条路的事，两者不该互相牵连。
+        #
+        # ⚠ **行尾必须是 LF**：调用方是 `validate_results.py $(corpus_ledger.py
+        # --list-corpus)`，而 `$(...)` 只按换行切词、**不吃 `\r`** ⇒ Windows 默认
+        # CRLF 会给每个路径尾巴挂一个 `\r`，open() 全部失败，**而校验器照样打印
+        # 「contract OK」**——首版实测「42 个文件只验出 1 条记录」也叫 OK。
+        # 这就是门的 PASS 判词必须要求 record(s)≥99 的理由：一句「OK」证明不了
+        # 它验过什么。（路径同时转成正斜杠：跨壳都能用，Windows 侧照常打得开。）
+        try:
+            sys.stdout.reconfigure(newline="\n")
+        except (AttributeError, ValueError):   # 老解释器或被包装过的流
+            pass
+        for p in real_corpus_files(corpus):
+            print(p.replace(os.sep, "/"))
+        return 0
     real, synth, st = summarize([p for p, _, _ in corpus])
     bk = buckets(real)
     # Room 库只在 evidence 侧（server 落盘没有），扫描根仍取第一个
@@ -567,6 +739,39 @@ def main(argv=None):
                   "别急着重算——重算不会让文件出现在一个错的 cwd 下。"
                   "确认在仓根后仍读不到，才是文件真的缺了。")
             return 2
+        # 契约校验（D-718 A-4）：两面一致**不等于**内容合法——台账把「谁是语料」
+        # 认定完，就该由它把这批文件交给契约校验器，否则 evidence/ 侧永远没人验。
+        #
+        # ⚠ **作用域限于仓自身的语料面**（roots 为默认）：`--root <别处>` 是在审另一
+        # 批语料（测试夹具、临时导出…），那批合不合结果契约不归「台账新不新鲜」这
+        # 道门管。把两个问题合进一个退出码，会让一条契约违约冒充「台账被手改」——
+        # 本仓最贵的那类合并 token（实测：它当场顶红了 `test_a_hand_edit…` 那条
+        # **正确**的守卫）。
+        # ⚠ 但**跳过必须出声**：静默跳过与「跑过且通过」在输出上一模一样。
+        # 「它在默认根上确实会跑」由 `test_the_contract_leg_runs_on_the_default_roots`
+        # 钉着——否则这个作用域收窄会慢慢变成「哪儿都不跑」。
+        if tuple(roots) != tuple(DEFAULT_ROOTS):
+            print("  （契约腿未跑：--root 非默认语料根，本次只比两面新鲜度）")
+            viol, why = [], None
+        else:
+            viol, why = real_contract_violations(real)
+        if viol is None:
+            # 与上面 unreadable 同族的第三态：**没验成**，不冒充「验过了」。
+            print("corpus ledger check: CANNOT_COMPARE —— 真实语料的契约没验成：%s"
+                  "（处置＝先修可读性/导入，别把「没验成」记成通过）" % why)
+            return 2
+        if viol:
+            # 判词与成因必须在**同一行**：门只把这一行当判词（verify_all 捞前缀行）。
+            print("corpus ledger check: CONTRACT_VIOLATION —— 真实语料 %d 条违约%s"
+                  % (len(viol), "；且落盘两面与现算不一致" if drift else ""))
+            for line in viol[:5]:
+                print("  " + line)
+            if len(viol) > 5:
+                print("  …共 %d 条；全量＝`python scripts/validate_results.py "
+                      "$(python scripts/corpus_ledger.py --list-corpus)`" % len(viol))
+            for d in drift:
+                print("  " + d)
+            return 1
         print("corpus ledger check: %s" % ("DRIFT" if drift else "in sync"))
         for d in drift:
             print("  " + d)

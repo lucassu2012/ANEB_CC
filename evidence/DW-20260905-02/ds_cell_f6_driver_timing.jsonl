@@ -1,0 +1,7 @@
+{"kind": "prompt", "text": "Generate an image of a red circle on a white background.", "pkg": "com.deepseek.chat", "serial": "8MY0221126002537"}
+{"round": 1, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.012, "quiet_intended_s": 20.0, "quiet_actual_s": 20.037, "prep_before_send_s": 8.883, "round_total_s": 103.997}
+{"round": 2, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.032, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 8.889, "round_total_s": 104.038}
+{"round": 3, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.039, "quiet_intended_s": 20.0, "quiet_actual_s": 20.043, "prep_before_send_s": 8.902, "round_total_s": 104.061}
+{"round": 4, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.012, "quiet_intended_s": 20.0, "quiet_actual_s": 20.045, "prep_before_send_s": 8.956, "round_total_s": 104.092}
+{"round": 5, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.027, "quiet_intended_s": 20.0, "quiet_actual_s": 20.039, "prep_before_send_s": 8.903, "round_total_s": 104.045}
+{"round": 6, "answer_wait_intended_s": 75.0, "answer_wait_actual_s": 75.025, "quiet_intended_s": 20.0, "quiet_actual_s": 20.045, "prep_before_send_s": 8.868, "round_total_s": 104.022}

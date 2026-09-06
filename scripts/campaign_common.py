@@ -586,6 +586,12 @@ def run_server_started_ms(rec):
 # block still carries the campaign_id prefix. Fabricated numbers must never be
 # able to launder themselves into looking like field measurements.
 SYNTHETIC_CAMPAIGN_PREFIX = "SYNTH-"
+# 第三条判据（D-718 A-4）：`evidence/phase3/gen_demo_jsonl.py` 造的仪表盘演示语料
+# 用 `demo-NNN` 作 run_id，却**既没有 additive 块、也没有战役前缀** ⇒ 上面两条一条都
+# 咬不住，12 条捏造记录因此在台账里当了两个月「真实 run」（113 里的 12）。
+# ⚠ 三条判据是**或**关系，且**各自必须独立够用**：块可被剥（重标注链路）、战役 id 可
+# 被改名、run_id 可被保留——一条洗白路径对应一条判据。少一条就多一条洗白通道。
+SYNTHETIC_RUN_ID_PREFIXES = ("demo-",)
 
 
 def is_synthetic(rec):
@@ -593,11 +599,56 @@ def is_synthetic(rec):
     if isinstance(rec.get("synthetic"), dict):
         return True
     cid = (run_obj(rec).get("campaign") or {}).get("campaign_id")
-    return isinstance(cid, str) and cid.startswith(SYNTHETIC_CAMPAIGN_PREFIX)
+    if isinstance(cid, str) and cid.startswith(SYNTHETIC_CAMPAIGN_PREFIX):
+        return True
+    rid = run_obj(rec).get("run_id")
+    return isinstance(rid, str) and rid.startswith(SYNTHETIC_RUN_ID_PREFIXES)
 
 
 def count_synthetic(records):
     return sum(1 for r in records if is_synthetic(r))
+
+
+# 「能不能当证据用」的原因词（D-730 A-8④）。**与 `run.mode` 正交**：mode 的取值
+# 里已经有 `forensic`（采样密度），复用那个词会造出「mode 是 forensic、同时又被
+# 标成『非取证』」这种自相矛盾却**不报错**的行（v4 在 A-8 停手时指出）。
+# ⚠ 这里**故意不写那个被否决的字面标签**：A-8④ 的验收判据就是全 `scripts/` 搜
+# 不到它，而我初版为了解释「为什么不用它」把它逐字引了进来——**为守一条线而
+# 新增的说明，自己越了那条线**。故独立命名、独立取值。
+ADMISSIBILITY_DEBUG_INJECT = "debug_inject"
+ADMISSIBILITY_BLOCK_ABSENT = "build_block_absent"
+ADMISSIBILITY_TYPE_ABSENT = "build_type_absent"
+
+
+def is_admissible(rec):
+    """这条 run 能不能当证据用 → `(True/False/None, reason)`。**唯一判据在此**。
+
+    只读 wire 自己上报的 `run.build`（v4 上报层 `cf547e6`／`45a08da`；契约块
+    `66549ee` 已进 `spec/schemas/result-run.schema.json`）：
+      · `build_type == "debug"` 且 `inject_used` 为真 ⇒ `(False, "debug_inject")`
+        —— 开着故障注入的 debug 构建，测到的是**我们注入的东西**，不是外界。
+      · 块在、且不满足上式 ⇒ `(True, 原因)`，原因写明是哪一种（有没有注入）。
+      · **块缺席 ⇒ `(None, "build_block_absent")`，绝不默认 True**：
+        「不知道」与「可作证据」是两个状态（R-10 同族）。老语料早于该字段上线，
+        默认成可作证据等于**凭空给一批数据发了证据资格**。
+      · 块在但 `build_type` 缺 ⇒ 同样 `None`：半个块答不了这个问题。
+
+    ⚠ **消费方一律引本函数，不各写一份**：判定散在多处时，改口径必有一处先漂，
+    而漂的那处不报错（本仓老形状）。
+    ⚠ 落地实况（2026-09-06 实测）：全仓 673 条记录**带 `run.build` 的为 0**
+    ⇒ 当日全部判 `None`。**「未知」不是「零」**——台账把它单列，不并进任何总数。
+    """
+    b = run_obj(rec).get("build")
+    if not isinstance(b, dict) or not b:
+        return None, ADMISSIBILITY_BLOCK_ABSENT
+    bt = b.get("build_type")
+    if not isinstance(bt, str) or not bt:
+        return None, ADMISSIBILITY_TYPE_ABSENT
+    inject = bool(b.get("inject_used"))
+    if bt.lower() == "debug" and inject:
+        return False, ADMISSIBILITY_DEBUG_INJECT
+    return True, (("inject_used_but_%s_build" % bt.lower()) if inject
+                  else "no_inject")
 
 
 def run_sub_scores(rec):

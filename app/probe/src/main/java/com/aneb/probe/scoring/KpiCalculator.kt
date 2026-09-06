@@ -112,7 +112,18 @@ data class DownloadResult(
 data class AdaptiveWindowResult(
     val windowTargetMs: Int,
     val windowActualNanos: Long?,
-    val bytesTransferred: Long,
+    /**
+     * 窗口内传输字节。
+     *
+     * **可空（A-8／D-721）**：上行窗口若拿不到服务端权威计数（响应体缺失或解析失败），
+     * 这里记 **null**，而不是退回客户端写出的 `written`。理由是**字段名会替数据作证**——
+     * 叫 `bytesTransferred` 的东西，读者理所当然读成「传过去了这么多」；而 `written`
+     * 只是「写进了本地 socket 缓冲」，窗口关闭时**服务端从未读到**的那段尾巴也在里面。
+     * 填进去不报错、看起来完全正常，**只是它回答的不是这个字段问的那个问题**（R-10）。
+     *
+     * **下行恒非 null**：实收字节即到达字节，不存在这个歧义。
+     */
+    val bytesTransferred: Long?,
     val http2xx: Boolean,
     val slowStartUs: Long? = null,
     val slowStartBytes: Long? = null,
@@ -332,7 +343,19 @@ data class KpiResult(
  */
 object KpiCalculator {
 
-    const val KPI_SET_VERSION: String = "agent-qoe-kpi-v0.1"
+    /**
+     * KPI 集版本戳（D-708）。
+     *
+     * ⚠ **改成 v0.2 不是一次版本升级，是一次订正**：`TestEngine` 里另有一份**硬编码副本**
+     * 长期写着 `v0.2`，而 run JSONL 的 `kpi_set` 取的正是那一份——实测**全部 336 条语料
+     * 记的都是 `agent-qoe-kpi-v0.2`，v0.1 一条都没有**。滞后的是这个常量与 `anchors.yaml`，
+     * 不是数据。本改让三处对齐到语料**一直在记的那个值**：
+     * **既有 `kpi_set` 取值不变，语料不因此分裂。**
+     *
+     * ⇒ 顺带说明本仓为什么要求「同一事实别写两处」：这三处一旦分头写，
+     * **打分侧自报的版本可以与数据里记的版本不一致，而没有任何东西会报错**。
+     */
+    const val KPI_SET_VERSION: String = "agent-qoe-kpi-v0.2"
 
     /** stall 判定线（ms），KPI 文档 5.1 T3（Eloquent 定义） */
     const val STALL_THRESHOLD_MS: Double = 200.0
@@ -495,7 +518,12 @@ object KpiCalculator {
 
         // ---- U3/D3：单流自适应窗口 goodput 探针（T47 批③，spec §8.4.2/§8.4.3）----
         fun windowGoodput(w: AdaptiveWindowResult?): Pair<KpiValue, KpiValue> {
-            if (w == null || !w.http2xx || w.windowActualNanos == null || w.windowActualNanos <= 0) {
+            // A-8／D-721：`bytesTransferred == null` ＝ 上行拿不到服务端权威计数。
+            // 这条与 windowActualNanos 的判空**分开写**：两者失效原因不同，
+            // 合成一条会让日后读代码的人以为「有时长就一定有字节」。
+            if (w == null || !w.http2xx || w.windowActualNanos == null || w.windowActualNanos <= 0 ||
+                w.bytesTransferred == null
+            ) {
                 return KpiValue.empty("Mbps") to KpiValue.empty("Mbps")
             }
             val goodput = goodputMbps(w.bytesTransferred, w.windowActualNanos)

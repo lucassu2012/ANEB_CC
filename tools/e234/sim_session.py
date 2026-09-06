@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """会话模拟器 —— 生成与 `e234_collect.py` **逐字段同形**的合成语料，供 dry-run。
 
@@ -77,6 +77,17 @@ SCENARIOS = {
         "ttft_ms": 1900, "a0_gap_ms": 180, "stream_gap_ms": [90, 130],
         "post_silence_ms": [4000], "framestats": "new",
     },
+    # —— A-3：零回答轮（A 侧全哑，C 侧照常）——
+    "e2_zero_event_turns": {
+        "purpose": "A-3 注入项：第 1、3 轮 A 侧**一条内容事件都没有**（无障碍掉线／"
+                   "包名过滤过严的形状），C 侧帧与操作者标记照常。判读必须把这两轮"
+                   "记成「零事件」，**不得与「有事件但不足两簇」合成同一句判词** —— "
+                   "两者处置相反（查服务/过滤 vs 调 gap/换负载）",
+        "turns": 6, "stream_events": 25, "a_lag_ms": [2.0, 6.0],
+        "ttft_ms": 1900, "a0_gap_ms": 120, "stream_gap_ms": [80, 120, 95, 150, 110],
+        "post_silence_ms": [4000], "framestats": "new",
+        "zero_event_turns": [1, 3],
+    },
     # —— E4：T_quiet 的两个对照组 ——
     "e4_separable": {
         "purpose": "E4 对照组·可分：流式内最大停顿 900ms，回答后静默 ≥3000ms",
@@ -154,15 +165,23 @@ def build(scenario, seed=20260802):
         t_mark = t_last + int(MARK_LAG_MS * ec.NS_PER_MS)
         post = p["post_silence_ms"][i % len(p["post_silence_ms"])]
 
+        # 零回答轮：**只掐 A 侧**，C 侧帧与标记照常产（A-3）。
+        # ⚠ `rnd.uniform` 无论哑不哑都要抽——帧位置用它，抽与不抽会改掉 C 侧时刻，
+        # 那就不止注入了一个变量（判决性检验一次只许变一个量）。
+        silent = i in set(p.get("zero_event_turns") or ())
         for ts in bubble + stream:
             lag = rnd.uniform(*p["a_lag_ms"])
-            events.append({"boot": ts, "lag_ms": lag})
+            if not silent:
+                events.append({"boot": ts, "lag_ms": lag})
             frames.append({"mono": ts - BOOT_MINUS_MONO_NS - int(lag * ec.NS_PER_MS),
                            "input_mono": (t_a0 - BOOT_MINUS_MONO_NS) if ts in bubble else 0})
         marks.append({"kind": es.KIND_ANSWER_COMPLETE, "boot": t_mark})
         turns.append({"idx": i, "t_a0_boot": t_a0, "t_a0p_boot": t_a0p,
                       "t_a2_boot": t_a2, "t_last_boot": t_last, "t_mark_boot": t_mark,
                       "max_intra_gap_ms": max(gaps),
+                      # 该轮 A 侧注入了几条事件（0＝零回答轮）。**注入的真值要写下来**，
+                      # 判读结果自查时才有得比，不靠读者反推场景参数。
+                      "a_events": 0 if silent else len(bubble) + len(stream),
                       "post_silence_ms": post})
         t = t_last + int(post * ec.NS_PER_MS)
 

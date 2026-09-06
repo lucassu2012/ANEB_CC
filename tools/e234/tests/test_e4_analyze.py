@@ -48,6 +48,26 @@ def test_the_separable_control_finds_an_interval_bounded_by_the_injected_truth()
         assert res["separation"]["gap_hi_ms"] >= min(p["post_silence_ms"]) - 1.0
 
 
+def test_sample_adequacy_is_named_sample_ok_but_the_verdict_keeps_being_status():
+    """反例（D-726 ② / A-5b）：**改名要连着边界一起钉住**。
+
+    `summarize` 产出的三块（`intra_gaps`／`post_silences`／`mark_lag`）里那个
+    `status` 回答的是「样本够不够」，与判词并排落盘会被读成「判据过没过」
+    ⇒ 改名 `sample_ok` 并给布尔。
+    ⚠ 而 `t_quiet["status"]` **是判词**（给不给得出 T_quiet）——**它必须留着**。
+    把判词也改成布尔名，是同一个错误反着犯一遍；本条的第二半就为拦这个：
+    将来若有人以「统一命名」为由把它一起改了，这里会红。
+    反例证伪：漏改任一块（留下 `status`）红在前半；改了 `t_quiet` 红在后半。
+    """
+    with _Run("e4_separable") as d:
+        res = e4.analyze(d, PKG)
+    for k in ("intra_gaps", "post_silences", "mark_lag"):
+        assert "status" not in res[k], (k, sorted(res[k]))
+        assert isinstance(res[k]["sample_ok"], bool), (k, res[k]["sample_ok"])
+    assert "status" in res["t_quiet"], "判词被误改成了布尔名"
+    assert "sample_ok" not in res["t_quiet"], res["t_quiet"]
+
+
 def test_the_overlap_control_reports_c1_unusable_and_shows_the_overlap():
     """spec §3.3 E4：重叠 -> 「C-1 单独不可用，A4 必须走 C-3 合取」，
     这是合法且有价值的否定结论，不得为了拿到数值而硬凑。"""

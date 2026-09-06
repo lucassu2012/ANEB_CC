@@ -147,7 +147,7 @@ class AqsScorerV02Test {
     fun `v02 result carries aqs-v02 version`() {
         val r = AqsScorer.score(kpiResult(), continuity())
         assertEquals("aqs-v0.2", r.aqsVersion)
-        assertEquals("agent-qoe-kpi-v0.1", r.kpiSetVersion)
+        assertEquals("agent-qoe-kpi-v0.2", r.kpiSetVersion) // D-708 订正，理由见 AqsScorerTest 同处
     }
 
     // ---------- 失败语义（R-10） ----------

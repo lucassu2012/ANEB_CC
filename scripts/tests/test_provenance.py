@@ -235,9 +235,36 @@ _NOT_A_REPORT_GATE = {
         "the contract's claim-scope string, enforced by validate_results on the "
         "way IN; no report section computes from it",
     ("campaign_common", "SYNTHETIC_CAMPAIGN_PREFIX"):
-        "half of the synthetic-corpus detector (D-116/117). It decides whether "
+        "one criterion of the synthetic-corpus detector (D-116/117; a third one "
+        "arrived with D-718 A-4, so this is no longer 'half'). It decides whether "
         "the red banner appears, not what any number is, and a real corpus is "
         "unaffected by its value",
+    # D-730 A-8④ 的三个**原因词**：`is_admissible` 用它们说明「为什么可作／不可作
+    # 证据」。它们不是可调门限，且**报告面根本不调 `is_admissible`**——目前唯一
+    # 消费方是语料台账（`corpus_ledger.admissibility_counts`），而台账不是本清单
+    # 要守的那份产物。扰动它们移不动报告里任何一个数（下方反向守卫会验证这点）。
+    # ⚠ 若将来报告开始按证据资格分池，**这三条就该从豁免移进 `effective_thresholds`**
+    # ——那时反向守卫会先红，别把它当噪音。
+    ("campaign_common", "ADMISSIBILITY_DEBUG_INJECT"):
+        "reason word for is_admissible (D-730 A-8-4); not a tunable level, and the "
+        "report never calls is_admissible - the corpus ledger is its only consumer",
+    ("campaign_common", "ADMISSIBILITY_BLOCK_ABSENT"):
+        "same family: the word for 'run.build absent, therefore unknown'. It names a "
+        "state, it does not set one; perturbing it moves no printed number",
+    ("campaign_common", "ADMISSIBILITY_TYPE_ABSENT"):
+        "same family: the word for 'build block present but build_type missing'",
+    ("campaign_common", "SYNTHETIC_RUN_ID_PREFIXES"):
+        "the third criterion of the same detector (D-718 A-4): a record IDENTITY "
+        "test (generated vs measured), not a level anyone retunes. Deliberately "
+        "NOT archived, and the reason is checkable rather than argued: the "
+        "converse guard below builds its corpus from synth_campaign, whose "
+        "records already carry the additive `synthetic` block, so perturbing this "
+        "prefix cannot move a single printed number there — archiving it would "
+        "pad the manifest with an inert key, the exact fault D-200 caught. "
+        "WHERE IT DOES BITE is the corpus ledger, not this report: it moved 12 "
+        "`demo-` records out of the real total (113 -> 101) the day it landed, "
+        "and that number lives in docs/CORPUS_LEDGER.md. It is pinned there by "
+        "test_a_demo_run_id_without_a_synthetic_block_still_cannot_enter_real",
     # ---- structural: what a cell IS, not a level anyone retunes
     ("campaign_common", "TRANSPORT_EXPLICIT"):
         "the same two media as `transport_media`, in the normaliser that maps a "
@@ -575,7 +602,13 @@ def _perturbed_value(v):
     if isinstance(v, dict) and len(v) > 1:
         drop = sorted(v, key=str)[-1]
         return {k: val for k, val in v.items() if k != drop}
-    if isinstance(v, (list, tuple)) and len(v) > 1:
+    if isinstance(v, (list, tuple)) and v:
+        # 长度 1 时「丢掉最后一个」＝清空，那正是这类值唯一有意义的挪动
+        # （D-718 A-4：`SYNTHETIC_RUN_ID_PREFIXES = ("demo-",)` 是第一个撞上
+        # 原来 `len>1` 的常量，于是它成了「没有任何扰动够得着的豁免」＝
+        # 一条谁也没检查过的豁免）。
+        # 只放宽 list/tuple：把 set/dict 一起放宽会把别的豁免卷进本次改动，
+        # 那是另一次改动的作用域，故两者的 `len>1` 原样保留。
         return type(v)(list(v)[:-1])
     if isinstance(v, (set, frozenset)) and len(v) > 1:
         return type(v)(sorted(v, key=str)[:-1])

@@ -1,0 +1,1 @@
+e2_precheck verify_trial_f2: NOT_APPLICABLE - 全程连续覆盖（零丢帧边界）且一次 >=gap 静默都没有 ⇒ 该 App/场景**结构性不适用** e2：C 侧永远切不出次簇，加轮数不解 | dump=255(同=0 叠=254 断=0) C侧已观测间隔=0 不可判=0 | A侧可用轮=1/1 | B动率=0.020 建议 --framestats-period-s=1

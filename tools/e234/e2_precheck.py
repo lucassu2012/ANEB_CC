@@ -13,7 +13,8 @@ DeepSeek 型「思考期播放生成动画」栈：持续 CONTENT、无 >gap 静
 **这一步默认了帧序列是连续观测的，而它不是。**
 
 `dumpsys SurfaceFlinger --latency` 读的是**环形缓冲**（本机实测固定 127 行/次），
-采集器按 `--framestats-period-s`（默认 20s）周期 dump。**若两次 dump 之间渲染的帧
+采集器按 `--framestats-period-s`（**默认 1.0s**，D-718 A-2 由 20s 收紧；实际跑成
+多少以 `collect_notes.sf_dumps.cadence_s` 为准——那是实测节拍，CLI 里的是排期）周期 dump。**若两次 dump 之间渲染的帧
 超过环缓冲深度，中间的帧就永远丢了** —— 而丢帧在去重后的序列里长得**和静默一模一样**：
 都是一个「相邻两帧相距很远」的间隔。
 
@@ -149,6 +150,20 @@ DUMP_SURVIVAL_FLOOR = 0.95
 # 太少的样本不套比例判据：退化跑（发出 1～5 次）会以 0% 命中，而它们的病因是
 # 「根本没跑起来」不是「图层死了」——**两种病共用一个判词会把下游引向错的修法**。
 DUMP_SURVIVAL_MIN_N = 3
+# 帧记录的**时间覆盖率**下限（D-718 A-2）。与存活率是两个问题：存活问「dump 有没有
+# 取到帧」，覆盖问「取到的帧覆盖了多少墙钟」。实测 `t90_verify_20260901/relist1`
+# 存活 95.7%（过存活闸）而覆盖 **4.6%**——133 次 dump 只落在 4 个不同窗口上。
+# 覆盖不足时，「这段没有帧」既可能是 App 静默，也可能是**根本没看**，不可判。
+SF_COVERAGE_FLOOR = 0.90
+# 太少的 dump 不套覆盖率判据（与 `DUMP_SURVIVAL_MIN_N` 同款理由）：只取了三五次
+# 时，覆盖率主要由**取样次数**决定，不由仪器看没看见决定。分界从数据来：
+# 全仓真实格 35–583 次（relist1 133、VOID1 45、wave1 583、DW-01 578/581、wave0 35），
+# 而合成夹具 3–5 次——空区很宽，取 10 只为留裕量。
+SF_COVERAGE_MIN_DUMPS = 10
+# 环余量下限：`ring_margin` ＝ 节拍 ÷ 环覆盖上界，余量 ＝ 1 − margin。
+# 余量低于本值意味着两次 dump 之间几乎把环填满，再抖一下就开始丢帧。
+# **只告警不拦**：它预测的是风险，而覆盖率量的是已经发生的事实。
+RING_MARGIN_HEADROOM_MIN = 0.20
 
 
 def dump_row_counts(text):
@@ -214,13 +229,58 @@ def count_issued_dumps(text):
     return n
 
 
+def _read_notes_acct(run_dir):
+    """`collect_notes.json` 的 `sf_dumps` 子块（采集侧账目），读不到就空 dict。
+
+    读不到是**常态而非异常**：旧格没有这个块，A-2 之前的采集器也不写 `cadence_s`。
+    故调用方一律要有回退路径，不能把「这一格没记」当成「节拍是 0」。
+    """
+    p = os.path.join(run_dir, "collect_notes.json")
+    try:
+        with open(p, encoding="utf-8") as fh:
+            return (json.load(fh) or {}).get("sf_dumps") or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _coverage_ratio(dumps):
+    """帧记录**实际覆盖的墙钟** ÷ 记录首末跨度（各段取并集，去掉重叠）。
+
+    为什么要去重叠：相邻 dump 读的是同一只环缓冲，内容天然重复；把各段长度
+    直接相加会得到 >1 的「覆盖率」——一个**看起来很好**的假数。
+    ⚠ 分母是**记录跨度**不是全场时长：第一段之前的那截（图层还没挑到）不在
+    分母里，所以本值是**上界**。别拿它当「全场覆盖率」用。
+    """
+    ivs = sorted((d[0], d[-1]) for d in dumps if d and len(d) >= 2)
+    if len(ivs) < 2:
+        return None
+    total = ivs[-1][1] - ivs[0][0]
+    if total <= 0:
+        return None
+    covered, cur_lo, cur_hi = 0, ivs[0][0], ivs[0][1]
+    for lo, hi in ivs[1:]:
+        if lo > cur_hi:
+            covered += cur_hi - cur_lo
+            cur_lo, cur_hi = lo, hi
+        elif hi > cur_hi:
+            cur_hi = hi
+    covered += cur_hi - cur_lo
+    return round(covered / float(total), 4)
+
+
 def parse_ring_shape(text):
     """-> (refresh_period_ns, ring_depth_rows)。环缓冲的**容量**，不是本场的内容。
 
     `ring_depth` 取各次 dump 的**最大原始行数**（本机实测恒为 127）：这是缓冲区的
     深度上界，而深度乘以一帧的时长，就是「满速渲染时这只缓冲最多能覆盖多长墙钟」。
     """
-    period_ns, rows, cur = None, [], None
+    # 周期头取**首个含 ≥1 条可用帧的段**（D-718 A-2），与 `parse_sf_latency` 同口径。
+    # 旧口径取第一段的头：实测 `evidence/e234/20260802-172614` 五段的头全是
+    # `11111111`（90Hz）而一帧都没渲染出来，那个 90Hz 会一路传进环覆盖上界。
+    # ⚠ 判据用**可用**帧：`0 0 0` 占位行满地都是，按「三整数行」数则每段都算
+    # 「含帧」，这条改动会静默失效。
+    pending = (1 << 63) - 1
+    period_ns, rows, cur, cur_header = None, [], None, None
     for line in text.splitlines():
         s = line.strip()
         if not s:
@@ -230,13 +290,19 @@ def parse_ring_shape(text):
             if cur is not None:
                 rows.append(cur)
             cur = 0
-            if period_ns is None:
-                try:
-                    period_ns = int(parts[0])
-                except ValueError:
-                    period_ns = None
+            try:
+                cur_header = int(parts[0])
+            except ValueError:
+                cur_header = None
         elif cur is not None and len(parts) >= 3:
-            cur += 1
+            cur += 1                      # ring_depth 仍按**原始行数**计，口径不变
+            if period_ns is None and cur_header is not None:
+                try:
+                    actual, ready = int(parts[1]), int(parts[2])
+                except ValueError:
+                    continue
+                if actual not in (0, pending) and ready not in (0, pending):
+                    period_ns = cur_header
     if cur is not None:
         rows.append(cur)
     return period_ns, (max(rows) if rows else 0)
@@ -343,12 +409,22 @@ def channel_a_anchors(run_dir, pkg, gap_ns):
     fit = ec.fit_wall_to_boot(lines)
     marks = es.parse_marks(lines, fit)
     turns, method = es.segment_turns(evts, marks)
-    with_anchor = 0
+    with_anchor = zero_events = 0
     for t in turns:
-        _a0p, a2, _cl = ec.v3_anchors([e["t_boot_ns"] for e in t["events"]], gap_ns)
+        ts = [e["t_boot_ns"] for e in t["events"]]
+        if not ts:
+            # **零事件轮不该进分母**（D-718 A-3）：它不是「切不出次簇」，是
+            # 压根没有可切的东西。混进分母会让「A 侧 2/6 轮可用」读起来像
+            # 「有 4 轮试过但结构不足」——而实情可能是那 4 轮 A 侧全哑。
+            # 两者处置相反：前者调 gap／换负载，后者去查无障碍服务与包名过滤。
+            zero_events += 1
+            continue
+        _a0p, a2, _cl = ec.v3_anchors(ts, gap_ns)
         if a2 is not None:
             with_anchor += 1
     return {"status": ec.PASS, "turn_method": method, "turns": len(turns),
+            "turns_zero_events": zero_events,
+            "turns_judgeable": len(turns) - zero_events,
             "turns_with_anchor": with_anchor, "events_used": len(evts)}
 
 
@@ -387,9 +463,13 @@ def _verdict(counts, ver, unj, b, a=None):
                 % (len(ver), (a or {}).get("reason", "无 channel_a 结果")))
     if a.get("turns") and a["turns_with_anchor"] < MIN_OBSERVED_GAPS:
         return (CANNOT_TELL,
-                "C 侧够了（已观测间隔 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇** "
-                "< %d ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解"
-                % (len(ver), a["turns_with_anchor"], a["turns"],
+                "C 侧够了（已观测间隔 %d 次），**但 A 侧只有 %d/%d 轮切得出次簇**"
+                "%s < %d ⇒ n 的上界不够；瓶颈在 A 不在 C，加采样周期不解"
+                % (len(ver), a["turns_with_anchor"],
+                   a.get("turns_judgeable", a["turns"]),
+                   ("（另有 %d 轮**零事件**，已从分母分列——那几轮要查的是"
+                    "无障碍服务与包名过滤，不是 gap 门限）"
+                    % a["turns_zero_events"]) if a.get("turns_zero_events") else "",
                    MIN_OBSERVED_GAPS))
     return (WORTH_RUNNING,
             "已观测间隔 %d 次（>=%d）、不可判间隔 %d 不占多数，A 侧 %s 轮可用 ⇒ 值得开 e2"
@@ -432,6 +512,36 @@ def precheck(run_dir, pkg=None):
                           "通道 C 无帧记录（sf_latency.txt 缺失或全为待定帧）")
         return res
 
+    # ⚠ **覆盖率必须算在两处早退之前**（D-718 A-2）：最需要它的恰恰是仪器失效那些
+    # 格，而早退会让它们的 `sf_coverage` 恒为 None —— 「最该量的那格没量」是本仓
+    # 反复吃亏的形状（首版我就这么写的，实测 VOID1 全 None 才发现）。
+    _ring_period_ns, _ring_depth = parse_ring_shape(sf_text)
+    res["ring_bound_s"] = ((_ring_depth * _ring_period_ns / 1e9)
+                           if (_ring_period_ns and _ring_depth) else None)
+    # **这两个量回答的是 `dump_survival` 回答不了的问题**：存活率只问「这次 dump
+    # 有没有取到帧」，取到了就算 100%。可若排期 20s 而环只覆盖 2.1s，**每 20 秒里
+    # 有 17.9 秒从来没被看见过**，存活率照样 100%，判读侧却按「记录连续」算静默。
+    # 实测更狠的一例（`t90_verify_20260901/relist1`）：133 次 dump **只有 4 个不同
+    # 窗口**（三个同起点＝环冻住，第四个在 111 秒后＝重挑图层才恢复）
+    # ⇒ 存活 95.7%、而**实际覆盖 4.6%**。
+    _acct = _read_notes_acct(run_dir)
+    _cad = _acct.get("cadence_s")                    # 采集侧实测节拍优先
+    if _cad is None and res.get("dumps_issued") and res["dumps_issued"] > 1:
+        _span_all = (max(d[-1] for d in dumps) - min(d[0] for d in dumps)) / 1e9
+        _cad = _span_all / (res["dumps_issued"] - 1)
+    res["sf_cadence_s"] = round(_cad, 4) if _cad else None
+    # `ring_margin` ＝ 一次节拍**消耗掉环容量的比例**。<1＝相邻 dump 有重叠（记录
+    # 连续）；≥1＝两次 dump 之间的帧永远丢了。⚠ 告警看的是**余量**＝1−margin：
+    # 余量 <20%（即 margin >0.8）就该改排期。两个数都印，别让人去反推。
+    # ⚠ margin 是**排期层面的期望**，coverage 是**实际发生的**：margin 很小而
+    # coverage 也很小 ⇒ 不是排期问题，是环根本没在推进（图层死了或冻住）。
+    res["ring_margin"] = (round(_cad / res["ring_bound_s"], 4)
+                          if (_cad and res["ring_bound_s"]) else None)
+    # `sf_coverage` ＝ 帧记录**实际覆盖的墙钟** ÷ 记录首末跨度（各段取并集去重叠）。
+    # ⚠ 分母是记录跨度不是全场：第一段之前那截（图层还没挑到）不在分母里
+    # ⇒ 本值是**上界**，别当「全场覆盖率」用。
+    res["sf_coverage"] = _coverage_ratio(dumps)
+
     # 仪器坏了就别评这一格：**幸存的那些 dump 本身是好的，正因如此才危险**
     # ——它们会拼出一份看着健康的判词，而覆盖的只是会话最前面的一小段。
     if (res["dump_survival"] is not None
@@ -444,6 +554,24 @@ def precheck(run_dir, pkg=None):
                           "**幸存的 dump 只覆盖失效之前那一小段，不代表整场**"
                           % (res["dumps_issued"], res["dumps_with_frames"],
                              100.0 * res["dump_survival"]))
+        return res
+
+    # 存活率过关**不等于**看得见（D-718 A-2）：dump 次次取到帧，但如果那些帧
+    # 落在同一小段上（环冻住／排期太稀），中间那些墙钟**一眼都没看过**。
+    # 这时「这段没有帧」既可能是 App 静默、也可能是没看——正是 CANNOT_TELL。
+    if (res["sf_coverage"] is not None
+            and res["dumps_with_frames"] >= SF_COVERAGE_MIN_DUMPS
+            and res["sf_coverage"] < SF_COVERAGE_FLOOR):
+        res["verdict"] = (CANNOT_TELL,
+                          "通道 C 记录只覆盖 %.1f%% 的墙钟（门限 %.0f%%）"
+                          "：dump 存活 %s 说明取得到帧，但那些帧压在很窄的窗口里"
+                          "（节拍 %s s，环覆盖上界 %s s，margin %s）"
+                          "——**没看过的那段里，静默与丢帧不可区分**"
+                          % (100.0 * res["sf_coverage"], 100.0 * SF_COVERAGE_FLOOR,
+                             res["dump_survival"], res["sf_cadence_s"],
+                             (round(res["ring_bound_s"], 3)
+                              if res["ring_bound_s"] else "?"),
+                             res["ring_margin"]))
         return res
 
     counts, runs = classify_pairs(dumps)
@@ -469,7 +597,9 @@ def precheck(run_dir, pkg=None):
     # **判断一致算不算互证，要看两条路是否共享机制，不是看数字是否吻合。**
     # 若两者显著背离（实测 p10 远小于理论界），说明该 App 根本达不到满帧率，
     # 此时**以实测为准**——理论界只是上界。
-    period_ns, ring_depth = parse_ring_shape(ec.read_text(run_dir, "sf_latency.txt"))
+    # 复用上面算过的那一份：**同一个事实别算两次**（两处各算一次，改口径时
+    # 必有一处先漂，而漂的那处不报错——本仓的老形状）。
+    period_ns, ring_depth = _ring_period_ns, _ring_depth
     spans = sorted((d[-1] - d[0]) / 1e9 for d in dumps)
     p10 = spans[max(0, int(0.10 * (len(spans) - 1)))]
     res["ring_depth_rows"] = ring_depth
@@ -484,6 +614,7 @@ def precheck(run_dir, pkg=None):
         "环深 %s × 一帧 %.3fms = %.2fs（理论界）；实测 p10 %.2fs；取小者的一半"
         % (ring_depth, (period_ns or 0) / ec.NS_PER_MS, bound_s or 0, p10)
         if bound_s else "仅实测 p10 %.2fs（刷新周期行不可解析）" % p10)
+
 
     b = channel_b_motion(ec.ea.parse_screencap_index(
         ec.read_jsonl(run_dir, "screencap_index.jsonl")))
@@ -529,12 +660,14 @@ def render_line(res):
     if rw and rw["min"] != rw["max"]:
         warn += " 逐段行数=%d/%d/%d(min/p50/max)" % (rw["min"], rw["p50"], rw["max"])
     return ("e2_precheck %s: %s - %s%s | dump=%d(同=%d 叠=%d 断=%d) "
-            "C侧已观测间隔=%d 不可判=%d | A侧可用轮=%s/%s | B动率=%s "
+            "C侧已观测间隔=%d 不可判=%d | A侧可用轮=%s/%s（零事件轮 %s 已分列） | B动率=%s "
             "建议 --framestats-period-s=%s"
             % (os.path.basename(res["run_dir"]), v, why, warn, res["dumps"],
                ps["identical"], ps["overlap"], ps["disjoint"],
                res["observed_gaps"], res["unjudgeable_gaps"],
-               a.get("turns_with_anchor", "?"), a.get("turns", "?"),
+               a.get("turns_with_anchor", "?"),
+               a.get("turns_judgeable", a.get("turns", "?")),
+               a.get("turns_zero_events", "?"),
                _f(res["channel_b"].get("motion_rate"), 3),
                res["recommended_framestats_period_s"]))
 

@@ -189,11 +189,42 @@ object ScenarioKpi {
         val rttRefMsPre = clockSyncRttP50Ms(outcome.clockSyncs.getOrNull(0))
         val rttRefMsPost = clockSyncRttP50Ms(outcome.clockSyncs.getOrNull(1))
 
-        fun adaptiveWindow(w: ScenarioRunner.AdaptiveWindowOutcome?): AdaptiveWindowResult? {
+        /**
+         * @param isUpload 上下行两条腿共用本函数，但**口径不同**，必须显式区分：
+         *   上行的权威计数与逐块到达序列都在**服务端**（A-8／S3-01），客户端只看得见
+         *   自己往 socket 缓冲写了多少；下行相反，实收字节就是到达字节。
+         *   ⚠ 不加这个参数、改去猜（比如「samples 空不空」），会在某一侧**静默**取错口径。
+         */
+        fun adaptiveWindow(
+            w: ScenarioRunner.AdaptiveWindowOutcome?,
+            isUpload: Boolean,
+        ): AdaptiveWindowResult? {
             if (w == null) return null
             val r = w.result
-            val windowActualNanos = r.endNanos?.let { it - r.startNanos }
-            val slowStart = TransferWindowAnalysis.estimateSlowStartByRate(w.samples)
+            // A-8：上行无服务端视角 ⇒ 置 null（R-10）。
+            //
+            // ⚠ **理由不是「不知道服务端何时读完」**——那条在本批改动后已不成立：
+            // `uploadWindow` 的 `endNanos` 现在锚在**响应头到达**，与响应体能否解析无关。
+            // **真正不可信的是字节数**：无权威计数时 `bytesTransferred` 退回客户端 `written`，
+            // 而它把窗口关闭时**还留在本地 socket 缓冲、服务端从未读到**的那段尾巴也算了进去
+            // ⇒ 速率系统性偏高。时长置 null 是让下游算不出这个偏高的速率。
+            //
+            // （更精确的做法是直接标掉字节数而非时长；此处从 A-8 原文取 durationNanos 置 null，
+            // 差异已报大脑——两者对 U3 结果等价，但**写在注释里的理由必须是真的那个**。）
+            val serverCountMissing = isUpload && r.serverView == null
+            val windowActualNanos =
+                if (serverCountMissing) null else r.endNanos?.let { it - r.startNanos }
+            val slowStart = if (isUpload) {
+                r.serverView
+                    ?.takeIf { it.recvStartUs >= 0 }
+                    ?.let {
+                        UploadAnalysis.estimateSlowStart(
+                            it.chunkUs, it.recvStartUs, SERVER_UPLOAD_CHUNK_BYTES,
+                        )
+                    }
+            } else {
+                TransferWindowAnalysis.estimateSlowStartByRate(w.samples)
+            }
             val dominance = RttDominanceGuard.evaluate(
                 windowActualMs = windowActualNanos?.let { it / 1e6 } ?: 0.0,
                 rttRefMs = rttRefMsPre,
@@ -202,7 +233,9 @@ object ScenarioKpi {
             return AdaptiveWindowResult(
                 windowTargetMs = w.windowTargetMs,
                 windowActualNanos = windowActualNanos,
-                bytesTransferred = r.bytesTransferred,
+                // D-721：无服务端权威计数 ⇒ 记 null，不退回客户端 written。
+                // 退回去不报错，只会让「bytes_transferred」这个名字替另一个量作证。
+                bytesTransferred = if (serverCountMissing) null else r.bytesTransferred,
                 http2xx = r.error == null && (r.httpCode ?: 0) in 200..299,
                 slowStartUs = slowStart?.first,
                 slowStartBytes = slowStart?.second,
@@ -215,8 +248,8 @@ object ScenarioKpi {
                 windowUnderrun = r.windowUnderrun,
             )
         }
-        val adaptiveUpload = adaptiveWindow(outcome.uploadWindows.firstOrNull())
-        val adaptiveDownload = adaptiveWindow(outcome.downloadWindows.firstOrNull())
+        val adaptiveUpload = adaptiveWindow(outcome.uploadWindows.firstOrNull(), isUpload = true)
+        val adaptiveDownload = adaptiveWindow(outcome.downloadWindows.firstOrNull(), isUpload = false)
 
         val ttfts = outcome.streams.map { TtftSample(it.ttftMs) }
 

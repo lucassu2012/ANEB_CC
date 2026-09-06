@@ -259,11 +259,16 @@ class _MarkPump(object):
 
 def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
             pin_flips, pin_interval_ms, interactive, device_window,
-            framestats_period_s=20, pin_through_session=False):
+            framestats_period_s=1.0, pin_through_session=False,
+            tier="good", uplink=None, state=ec.STATE_VALID):
+    # 整形档与状态（D-718 B-3 / D-655③）：**开跑就写，不等收窗**。
+    # `tier` 缺省 `good`＝没做整形；`uplink` 记上行通路（网线/热点/…）。
+    # `state` 缺省 `valid`；作废或试水格在收窗时改写（见 `ec.set_run_state`），
+    # 而**不是靠目录名**——目录名是给人看的，台账要的是能被机器数的字段。
     ec.write_run_kind(out_dir, ec.KIND_DEVICE, {
         "experiments": ["E2", "E3", "E4"],
         "pkg": pkg, "roi": list(roi), "device_window": device_window,
-        "serial": adb.serial,
+        "serial": adb.serial, "tier": tier, "uplink": uplink, "state": state,
         "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3",
     })
     notes = {"device_window": device_window, "pkg": pkg}
@@ -364,6 +369,28 @@ def _should_relist(ever_had_frames, empty_streak, since_last_relist_s):
                 and since_last_relist_s >= SF_RELIST_MIN_INTERVAL_S)
 
 
+def _count_refresh_period(text, acct):
+    """把这次 dump 的刷新周期头计一次数（值 → 次数），累进 `acct`。
+
+    **为什么逐值计数而不是只记一个**：同一场会话里出现两种周期＝**刷新率变过**
+    （省电降档、或高刷切档），而下游把它当常数用（帧时长、环深换算、覆盖率）。
+    只记最后一个，那次切换就再也查不出来——它在别的量上完全不留痕迹。
+
+    头的形状＝响应**第一条非空行的单个整数**（与 `split_dumps` 同口径）。
+    ⚠ 行尾实测是 `\\r\\r\\n`（两个 CR），`shell` 侧工具按 `NF==1` 数会**零命中**，
+    本仓为此栽过一次；Python 的 `strip()` 吃掉 CR，故这里判据成立。
+    """
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        parts = s.split()
+        if len(parts) == 1 and parts[0].isdigit():
+            d = acct.setdefault("refresh_period_ns", {})
+            d[parts[0]] = d.get(parts[0], 0) + 1
+        return              # 只看第一条非空行；其后是帧行
+
+
 def _sf_frame_rows(text):
     """一次 `--latency` 响应里的帧行数（三列整数行），与 `split_dumps` 同口径。
 
@@ -393,35 +420,78 @@ def _dump_channel_c(adb, out_dir, pkg, layer, period_s, stop, notes=None):
     fs_path = os.path.join(out_dir, "framestats.txt")
     probe_path = os.path.join(out_dir, "sf_layer_probe.jsonl")
     acct = {"layer_initial": layer, "issued": 0, "with_frames": 0,
-            "empty_streak_max": 0, "relists": [], "ever_had_frames": False}
+            "empty_streak_max": 0, "relists": [], "ever_had_frames": False,
+            # 节拍账（A-2）：**排期是意图，节拍是实测**，两者必分开记。
+            # 判读侧凡按「每 N 秒一次」推算覆盖率的，靠的都是后者。
+            "t_first": None, "t_last": None, "cadence_s": None,
+            # 循环体里被吃掉的异常：以前一次 adb 超时就让整条线程静默退出，
+            # 而产物上看不出来——「采到一半就没了」与「本来就这么少」同形。
+            "errors": 0, "errors_by_type": {},
+            # 每个刷新周期头各出现几次：**同一场会话里出现两种周期＝换过刷新率**，
+            # 而下游把周期当常数用（帧时长、环深换算）。不记就查不出来。
+            "refresh_period_ns": {}}
     if notes is not None:
         notes["sf_dumps"] = acct
     empty_streak, last_relist = 0, 0.0
+    next_tick = time.time()
     while not stop["stop"]:
-        if layer:
-            txt = adb.text("shell", "dumpsys", "SurfaceFlinger",
-                           "--latency", layer)
-            _append(sf_path, txt)
-            acct["issued"] += 1
-            if _sf_frame_rows(txt) > 0:
-                acct["with_frames"] += 1
-                acct["ever_had_frames"] = True
-                empty_streak = 0
-            else:
-                empty_streak += 1
-                if empty_streak > acct["empty_streak_max"]:
-                    acct["empty_streak_max"] = empty_streak
-                if _should_relist(acct["ever_had_frames"], empty_streak,
-                                  time.time() - last_relist):
-                    last_relist = time.time()
-                    layer = _relist_layer(adb, pkg, layer, acct, probe_path,
-                                          acct["issued"])
-        _append(fs_path, adb.text("shell", "dumpsys", "gfxinfo", pkg,
-                                  "framestats", timeout=45))
-        for _ in range(int(max(1, period_s) * 4)):
-            if stop["stop"]:
-                return
-            time.sleep(0.25)
+        try:
+            if layer:
+                txt = adb.text("shell", "dumpsys", "SurfaceFlinger",
+                               "--latency", layer)
+                _append(sf_path, txt)
+                acct["issued"] += 1
+                now = time.time()
+                if acct["t_first"] is None:
+                    acct["t_first"] = now
+                acct["t_last"] = now
+                _count_refresh_period(txt, acct)
+                if _sf_frame_rows(txt) > 0:
+                    acct["with_frames"] += 1
+                    acct["ever_had_frames"] = True
+                    empty_streak = 0
+                else:
+                    empty_streak += 1
+                    if empty_streak > acct["empty_streak_max"]:
+                        acct["empty_streak_max"] = empty_streak
+                    if _should_relist(acct["ever_had_frames"], empty_streak,
+                                      time.time() - last_relist):
+                        last_relist = time.time()
+                        layer = _relist_layer(adb, pkg, layer, acct, probe_path,
+                                              acct["issued"])
+            elif time.time() - last_relist >= SF_RELIST_MIN_INTERVAL_S:
+                # **图层一开始就没挑到**（开跑时 App 还没画第一帧、或 `--list`
+                # 那一瞬没有它）。旧代码这一支什么都不做 ⇒ 整场会话通道 C 全空，
+                # 而且**一条错都不报**：`issued` 恒 0，读者只看到「没有帧」。
+                # 缺席与失效是同一件事的两个时刻，自愈要一视同仁。
+                last_relist = time.time()
+                layer = _relist_layer(adb, pkg, layer, acct, probe_path,
+                                      acct["issued"])
+            _append(fs_path, adb.text("shell", "dumpsys", "gfxinfo", pkg,
+                                      "framestats", timeout=45))
+        except (subprocess.TimeoutExpired, OSError) as e:
+            # **计数继续，不让整条通道随一次超时消失**。计数本身就是产物：
+            # 「采集期间超时 12 次」与「一次都没超时」在 sf_latency.txt 上
+            # 长得一模一样，不记就永远分不出「设备卡」与「我们采少了」。
+            acct["errors"] += 1
+            k = type(e).__name__
+            acct["errors_by_type"][k] = acct["errors_by_type"].get(k, 0) + 1
+        # **补偿式等待**：按绝对刻度推进，而不是「干完活再睡 period」。
+        # 后者的实际节拍＝period ＋ 每次 dump 的耗时（实测 dump 可达数秒），
+        # 于是**排期 1s 会跑成 3s**，而判读侧仍按 1s 算覆盖率——多算三倍。
+        next_tick += max(0.05, float(period_s))
+        while not stop["stop"]:
+            remain = next_tick - time.time()
+            if remain <= 0:
+                break
+            time.sleep(min(0.25, remain))
+        if stop["stop"]:
+            break
+    if acct["issued"] >= 2 and acct["t_first"] and acct["t_last"]:
+        # 实测节拍＝首末跨度 ÷ 间隔数。**记实际值不记意图值**：排期在 CLI 里，
+        # 这里记的是它实际跑成了什么。
+        acct["cadence_s"] = round(
+            (acct["t_last"] - acct["t_first"]) / (acct["issued"] - 1), 3)
 
 
 def _relist_layer(adb, pkg, old_layer, acct, probe_path, dump_index):
@@ -498,8 +568,18 @@ def main(argv=None):
     ap.add_argument("--session-seconds", type=int, default=600)
     ap.add_argument("--pin-flips", type=int, default=6)
     ap.add_argument("--pin-interval-ms", type=int, default=800)
-    ap.add_argument("--framestats-period-s", type=int, default=20,
+    ap.add_argument("--framestats-period-s", type=float, default=1.0,
                     help="通道 C 的取样周期；环缓冲约 120 帧，取得太稀就丢帧")
+    # 整形档与上行通路（D-718 B-3 / D-655③）：**开跑就记进 RUN_KIND.json**。
+    # 缺省 `good`＝没做整形——写进字段而不是留空，因为「没整形」与「忘了记」
+    # 在空值上同形，而它们对判读的影响完全不同。
+    ap.add_argument("--tier", default="good",
+                    help="整形档（good/mid/poor…）；缺省 good＝未整形")
+    ap.add_argument("--uplink", default=None,
+                    help="上行通路（如 wired/hotspot/…）；不填则记 null")
+    ap.add_argument("--state", default=ec.STATE_VALID, choices=list(ec.RUN_STATES),
+                    help="格状态：valid 实格／void 作废／verify 试水。"
+                         "收窗改判用 `ec.set_run_state`，别改目录名了事")
     ap.add_argument("--no-marks", action="store_true",
                     help="不收操作者标记（那时整段=一轮，E4 结构上判不了，判读侧会说）")
     ap.add_argument("--pin-through-session", action="store_true",
@@ -541,7 +621,8 @@ def main(argv=None):
     notes = collect(adb, out, args.pkg, roi, args.screencap_period_ms,
                     args.session_seconds, args.pin_flips, args.pin_interval_ms,
                     not args.no_marks, args.device_window, args.framestats_period_s,
-                    args.pin_through_session)
+                    args.pin_through_session, tier=args.tier,
+                    uplink=args.uplink, state=args.state)
     sys.stdout.write("collected -> %s\n%s\n"
                      % (out, json.dumps(notes, ensure_ascii=False)))
     return 0

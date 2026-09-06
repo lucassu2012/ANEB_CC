@@ -63,6 +63,26 @@ def test_a_sub_frame_anchor_offset_passes_the_gate():
         assert res["channel_a_vs_c"]["p99_ms"] <= res["frame_ms"]
 
 
+def test_a_turn_with_zero_events_is_not_reported_as_too_few_clusters():
+    """反例（D-718 A-3）：**零事件轮**必须有自己的判词，不得并进「不足两簇」。
+
+    两者的处置相反——零事件要去查无障碍服务与包名过滤，不足两簇要去调 gap 或
+    换负载。合成一句，读的人会照后者去查，而那对前者完全无效。
+    注入项 `e2_zero_event_turns` 掐掉第 1、3 轮的 A 侧事件（C 侧照常）。
+    反例证伪：把 `if not ts` 那一支删掉，本条即红（两类会合并成一个键）。
+    """
+    with _Run("e2_zero_event_turns") as d:
+        res = e2.analyze(d, PKG)
+    drops = res["drop_reasons"]
+    zero_keys = [k for k in drops if "零事件" in k]
+    assert len(zero_keys) == 1, "零事件应恰好一个判词键：%r" % drops
+    assert drops[zero_keys[0]] == 2, "注入了 2 轮零事件，判词计数应为 2：%r" % drops
+    # 正对照：**没被掐的那几轮仍要正常出数**——否则「全都记成零事件」也会绿
+    assert res["channel_a_vs_c"]["n"] == 4, res["channel_a_vs_c"]
+    silent = [r["turn"] for r in res["per_turn"] if r["a_clusters"] == 0]
+    assert silent == [1, 3], "被掐的应恰是注入的那两轮：%r" % silent
+
+
 def test_a_three_frame_anchor_offset_fails_the_gate():
     """门必须会说 FAIL。只会说 PASS 的门等于没有门。"""
     with _Run("e2_over_one_frame") as d:

@@ -1,0 +1,3 @@
+device: serial=8MY0221126002537 model=ELS-AN00 -> ALLOW (型号在 denylist，但排窗授权 DW-20260905-02 已在任务板上核到)
+collected -> E:/C Project/ANEB/evidence/DW-20260905-02/ds_wifi_f1
+{"device_window": "DW-20260905-02", "pkg": "com.deepseek.chat", "stim_pre": "E:/C Project/ANEB/evidence/DW-20260905-02/ds_wifi_f1\\stim_pre.log", "layer": "com.deepseek.chat/com.deepseek.chat.MainActivity#4515", "sf_dumps": {"layer_initial": "com.deepseek.chat/com.deepseek.chat.MainActivity#4515", "issued": 424, "with_frames": 424, "empty_streak_max": 0, "relists": [], "ever_had_frames": true}, "screencap_samples": 332, "stim_post": "E:/C Project/ANEB/evidence/DW-20260905-02/ds_wifi_f1\\stim_post.log"}

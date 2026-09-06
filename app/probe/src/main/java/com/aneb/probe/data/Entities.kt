@@ -78,6 +78,35 @@ data class TestRun(
     // "" = 明确零跳过；null = 该 run 早于本列上线（R-10：不知道跳没跳，不是知道没跳）。
     // wire 侧由 ResultReporter 映射为字符串数组（""→[]，null→null）。
     val skippedProfiles: String? = null,
+
+    // ---- 构建指纹（v23 additive 三列，A-8③／REVIEW §7.1 L1-F4）----
+    // 回答「这条 run 是**哪份代码**采的」。语料横跨多次口径修正（U3 服务端权威计数、
+    // TLS 钉死 h1…），没有指纹就**无法把旧口径样本从池子里摘出来**——而混池不报错，
+    // 只让结论悄悄建立在两套口径上。
+    //
+    // null = 该 run 早于本列上线（R-10：不知道用的哪份代码，**不是**知道它就是当前这份）。
+    // ⚠ 与 `NO_GIT` 分得开：null 是「这列还没上线」，`NO_GIT` 是「上线了但构建时没有 git」。
+    /** `BuildConfig.GIT_SHA`；`NO_GIT` = 构建时取不到 git */
+    val buildGitSha: String? = null,
+    /** `BuildConfig.BUILD_TYPE`（debug/release）——取证判别要的是变体名本身，布尔不够用 */
+    val buildType: String? = null,
+    /** `BuildConfig.APPLICATION_ID_DECLARED`；`.ctree` 等换名变体据此分辨 */
+    val buildApplicationId: String? = null,
+    /**
+     * 本 run 是否启用了服务端故障注入（`--es inject`，仅 debug 变体可用）。
+     *
+     * **它与上面三列一起决定这条数据能不能作证据**：debug ∧ inject 的 run 里，
+     * 流是被人为截断／畸形化过的——**那不是网络行为**。此前它只出现在一行
+     * `RUN_START` logcat 里，而**日志到不了分析层**（`skippedProfiles` 那一列的
+     * 立项理由与此完全相同）。
+     *
+     * **三态，不可压成两态**：null＝该 run 早于本列上线；`false`＝**确认**没注入；
+     * `true`＝用了。把 null 当 false 读，等于把一批「不知道」说成「干净」（R-10）。
+     *
+     * 📌 已知限定：本列只记**用没用**，不记**用了哪一种**（`truncate:50` 等）。
+     * 取证判别只需前者；要复现具体注入仍须查该 run 的 logcat。
+     */
+    val injectUsed: Boolean? = null,
 )
 
 @Entity(
@@ -749,6 +778,18 @@ data class AdapterObsEntity(
      * ≠真实对话会话时长（受前台切换/节流界定），恒 ui-proxy/LOW；跨会话分布见 [com.aneb.probe.adapter.SessionDurationStats]。
      */
     val sessionSpanMs: Double? = null,
+
+    // ---- 溯源三列（v23 additive，C-6；D-719② 裁定与 A-8 的 TestRun 三列并入同一版迁移）----
+    // ⚠ **本批只落列，不落写入逻辑**：C-6 的 `enqueuePersist` 分列、定时 emit、IME 监听
+    // 等仍未做 ⇒ 这三列在本批之后**恒为 null**。分开落是 D-719② 的裁定（合并迁移少一次
+    // 版本跃迁），**但因此不得据「列已存在」推断「数据已在采」**——那正是本仓咬过的
+    // 「机制存在 ≠ 覆盖面」形状。
+    /** TTFT 取值来源（簇值/首增量/未测到），用于把 D-608 那类回退链在数据里显名 */
+    val ttftSource: String? = null,
+    /** TTFT 判定所用的事件密度，ms；密度过疏时该 TTFT 不可信 */
+    val ttftDensityMs: Double? = null,
+    /** 被观察 App 的 versionCode——App 升级会改变事件形态，跨版本样本不可直接合池 */
+    val targetVersionCode: Long? = null,
 ) {
     companion object {
         /** 规格 id → 友好显示名（spec_adapters 目录各适配器 display_name 镜像）；未知 id → null（UI 缺退 pkg）。 */

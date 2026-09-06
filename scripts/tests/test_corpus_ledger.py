@@ -648,3 +648,254 @@ def test_the_repo_has_no_mislabelled_observation_cells_right_now():
     assert c["api_cmp_rejected"] == 0 and c["unknown_kind"] == 0, (
         "有观察格的标签与判据对不上：%r —— api_cmp 判据＝%s 在场且非空"
         % (c, "、".join(cl.API_CMP_REQUIRED)))
+
+
+def _rec(build=None, rid="wire-001"):
+    r = {"run": {"run_id": rid}}
+    if build is not None:
+        r["run"]["build"] = build
+    return r
+
+
+def test_a_debug_build_with_injection_is_not_admissible_evidence():
+    """反例①（D-730 A-8④）：debug 构建 ∧ 开了故障注入 ⇒ **不可作证据**。
+
+    测到的是**我们注入的东西**，不是外界。原因词单独给，别只给一个 False。
+    反例证伪：把 `and inject` 去掉，本条即红（release 也会被误判不可用）。
+    """
+    ok, why = cc.is_admissible(_rec({"build_type": "debug", "inject_used": True}))
+    assert ok is False and why == cc.ADMISSIBILITY_DEBUG_INJECT, (ok, why)
+
+
+def test_a_release_build_with_injection_is_admissible_and_says_why():
+    """反例②：release ∧ 注入 ⇒ **可作证据**，且原因要写明是哪一种。
+
+    判据钉的是「debug 且注入」这一个组合，不是「用过注入」——把注入本身
+    当成不可用，会把一批合法数据无声判死。
+    ⚠ 原因词必须点名，否则两个 True 之间不可区分（读者看不出它带没带注入）。
+    反例证伪：把判据放宽成「只要 inject_used 就 False」，本条即红。
+    """
+    ok, why = cc.is_admissible(_rec({"build_type": "release", "inject_used": True}))
+    assert ok is True, (ok, why)
+    assert "inject_used" in why and "release" in why, why
+    ok2, why2 = cc.is_admissible(_rec({"build_type": "release", "inject_used": False}))
+    assert ok2 is True and why2 == "no_inject", (ok2, why2)
+
+
+def test_a_missing_build_block_is_unknown_not_admissible():
+    """反例③：`run.build` 缺席 ⇒ **None（不知道）**，绝不默认 True。
+
+    老语料早于该字段上线；把它们默认成「可作证据」，等于**凭空给一批数据
+    发了证据资格**——「不知道」与「可以用」是两个状态（R-10 同族）。
+    ⚠ 实测：全仓 673 条记录里带 `run.build` 的为 **0** ⇒ 这条路径是当前常态，
+    不是边角。半个块（有块无 `build_type`）同样判 None：半个块答不了这个问题。
+    反例证伪：把缺席分支改成 `return True, ...`，本条即红。
+    """
+    ok, why = cc.is_admissible(_rec(None))
+    assert ok is None and why == cc.ADMISSIBILITY_BLOCK_ABSENT, (ok, why)
+    ok2, why2 = cc.is_admissible(_rec({"inject_used": True}))       # 有块无类型
+    assert ok2 is None and why2 == cc.ADMISSIBILITY_TYPE_ABSENT, (ok2, why2)
+
+
+def test_defaulting_unknown_to_admissible_changes_the_number_readers_see():
+    """突变（D-730 A-8④）：把「未知」默认成 True，**读者看到的数就变了**。
+
+    本条证明台账那一行是**从判据推出来的**，不是写死的：突变一旦生效，
+    「未知 N」会变成「可作证据 N」——一个凭空发出去的证据资格。
+    （真正把这条突变咬住的是上面的反例③；本条钉的是「它确实在承重」。）
+    ⚠ **不用 pytest 夹具**：本目录的跑器是 `run_all.py`（门禁 `campaign-analysis-unit`
+    走的就是它），它自带收集器、直接调函数，**不提供 `monkeypatch`/`capsys`/`tmp_path`**
+    ——用了夹具会 TypeError，而 `pytest scripts/tests` 那边照样绿。
+    「我的验收命令，和门禁的验收命令，是不是同一条」——这条就是为它立的。
+    """
+    recs = [_rec(None), _rec(None), _rec({"build_type": "debug", "inject_used": True})]
+    base = cl.admissibility_counts(recs)
+    assert (base["unknown"], base["admissible"], base["inadmissible"]) == (2, 0, 1), base
+    real = cc.is_admissible
+    cc.is_admissible = (lambda r: ((True, "MUTANT") if real(r)[0] is None
+                                   else real(r)))
+    try:
+        mut = cl.admissibility_counts(recs)
+    finally:
+        cc.is_admissible = real
+    assert (mut["unknown"], mut["admissible"]) == (0, 2), mut
+
+
+def test_observation_states_are_counted_apart_and_unknown_is_not_valid():
+    """反例（D-718 B-3）：四态相加恒等于总数，且 `unknown` **不并进 valid**。
+
+    以前这三类只写在目录名里（`*_VOID1`／`verify_trial_*`／`*_attempt1_*`），
+    台账把观察目录混着数（F7-02）——**目录名不是字段，数不了**。
+    `unknown` 单列的理由：缺席是「没登记过」，不是「实格」；默认成实格
+    等于把作废格重新算回统计。
+    反例证伪：把 unknown 并进 valid，或让某一支落进减法兜底桶，本条即红。
+    """
+    obs = ([{"state": "valid"}] * 3 + [{"state": "void"}] * 2
+           + [{"state": "verify"}] + [{}] + [{"state": "没见过的词"}])
+    c = cl.classify_state(obs)
+    assert c == {"valid": 3, "void": 2, "verify": 1, "unknown": 2}, c
+    assert sum(c.values()) == len(obs), c        # 无减法桶、无遗漏
+
+
+def test_the_valid_bucket_is_expanded_by_kind_not_printed_as_one_number():
+    """反例（2026-09-06 对抗复核咬出）：`valid` 桶必须**就地展开成 kind 交叉表**。
+
+    初版印成「实格 43」，而那 43 里只有 25 个是真机——另有 6 个干跑、
+    12 个 API 对照。`state` 与 `kind` 是两个轴，**「未作废」不等于「真机实格」**，
+    而「实格」这个词会被直接读成后者：一个看起来精确、含义却更宽的数。
+    反例证伪：把交叉表折回成一个孤立数字，本条即红。
+    """
+    def _o(state, kind, i):
+        return {"state": state, "kind": kind, "path": "evidence/x%d" % i,
+                "experiments": "E2", "pkg": "com.x", "files": 3}
+
+    obs = [_o("valid", "DEVICE_REAL", 0), _o("valid", "DEVICE_REAL", 1),
+           _o("valid", "DRY_RUN_SIMULATED", 2), _o("void", "DEVICE_REAL", 3)]
+    md = cl.render_md([], [], [], [], {"lines": 0}, cl.buckets([]), [], obs)
+    assert "有效 **3**" in md, md
+    assert "DEVICE_REAL×2" in md and "DRY_RUN_SIMULATED×1" in md, md
+    # 读者真正要问的那个数必须**直接印出来**，不能让他从 kind 分布里自己拼
+    assert "真机有效格 2" in md, md
+    assert "实格 3" not in md, (
+        "又把聚合数印成了「实格 N」——`实格` 在本项目已有确定含义（真机观察格），"
+        "而 state=valid 里还含 dry-run 与 API 对照批")
+
+
+def test_the_repo_has_no_unregistered_observation_state_right_now():
+    """真树现态：回填之后**不该再有 `unknown`**（D-718 B-3 回填的验收面）。
+
+    ⚠ 将来新采一格若忘了写 `state`，本条会红——**那是对的**：
+    去让采集器写上，别改本条。（新采集器默认就写 `valid`，忘不了才对。）
+    """
+    import pytest
+    if cl.missing_roots(cl.DEFAULT_ROOTS):
+        pytest.skip("语料根不全（鲜克隆/worktree）")
+    c = cl.classify_state(cl.observation_runs(cl.DEFAULT_ROOTS))
+    assert c["unknown"] == 0, (
+        "有观察目录没登记 state：%r —— 采集器应写 valid，历史目录按 README 回填" % c)
+
+
+def test_a_demo_run_id_without_a_synthetic_block_still_cannot_enter_real():
+    """反例（D-718 A-4）：`demo-` 前缀 ＋ **没有** additive 块 ⇒ 仍须判合成。
+
+    这正是 `evidence/phase3/demo_results.jsonl` 那 12 条捏造记录在台账里冒充
+    「真实 run」的形状：additive 块与 `SYNTH-` 战役前缀两条判据**都咬不住**它，
+    而它的 run_id 从头到尾写着 `demo-`。111 里的 12 条因此被当成实测数据。
+    反例证伪：删掉 `cc.SYNTHETIC_RUN_ID_PREFIXES` 那条判据，本条即红。
+    """
+    import json as _json
+    import tempfile as _tf
+
+    fake = {"run": {"run_id": "demo-999"}}
+    assert "synthetic" not in fake, "前提：块确实不在（否则验的是另一条判据）"
+    assert cc.is_synthetic(fake)
+    # 正对照：没有 demo- 前缀、也没有块的记录必须仍判**真实**——否则本条在
+    # 「is_synthetic 恒 True」这种坏实现下也会绿（判据要能分开两侧，不只认一侧）。
+    assert not cc.is_synthetic({"run": {"run_id": "wire-001"}})
+
+    # 走台账那条**被执行**的路径再确认一次：谓词对了不等于台账口径也对。
+    with _tf.TemporaryDirectory() as d:
+        p = os.path.join(d, "x.jsonl")
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(_json.dumps(fake) + "\n")
+            fh.write(_json.dumps({"run": {"run_id": "wire-001"}}) + "\n")
+        real, synth, _st = cl.summarize([p])
+    assert [cc.run_obj(r).get("run_id") for r in real] == ["wire-001"]
+    assert [cc.run_obj(r).get("run_id") for r in synth] == ["demo-999"]
+
+
+def test_the_contract_leg_runs_on_the_default_roots():
+    """作用域收窄的配套守卫：契约腿在**默认语料根**上必须真的跑。
+
+    收窄一个判据的作用域，最容易的失手是收到「哪儿都不跑」——而「跑了且通过」
+    与「压根没跑」在退出码上完全同形。本条做**联合观测**：注入一条假违约，
+    只有那条腿确实被调用，`--check` 才会退 1 并打出 CONTRACT_VIOLATION。
+    （注入的是假违约而不是真的改语料：真违约要靠改数据制造，而改数据本身
+    会顺带改掉别的量——判据要一次只动一个量。）
+    反例证伪：把 main() 里的契约腿删掉、或让它对默认根也跳过，本条即红。
+    ⚠ **不用 pytest 夹具**：本目录的跑器是 `run_all.py`（门禁 `campaign-analysis-unit`
+    走的就是它），它自带收集器、直接调函数，**不提供 `monkeypatch`/`capsys`/`tmp_path`**
+    ——用了夹具会 TypeError，而 `pytest scripts/tests` 那边照样绿（同一份代码两种
+    跑法两种结论，而门禁用的是没跑到的那种）。故手工存-还原＋重定向 stdout。
+    """
+    import contextlib
+    import io as _io
+    import pytest
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
+        pytest.skip("语料根不全（鲜克隆/worktree）")
+    old_cwd = os.getcwd()
+    real_fn = cl.real_contract_violations
+    cl.real_contract_violations = (
+        lambda _real: (["injected: 假违约（本条注入）"], None))
+    buf = _io.StringIO()
+    try:
+        os.chdir(repo)               # --md/--csv 默认是相对路径
+        with contextlib.redirect_stdout(buf):
+            rc = cl.main(["--check"])
+    finally:
+        cl.real_contract_violations = real_fn
+        os.chdir(old_cwd)
+    out = buf.getvalue()
+    assert "CONTRACT_VIOLATION" in out, (
+        "默认根下契约腿没有生效——注入的违约没能改变判词：\n%s" % out[:400])
+    assert rc == 1, "契约违约必须让 --check 退 1"
+
+
+def test_no_corpus_file_mixes_real_and_synthetic():
+    """`--list-corpus` 按**文件**粒度交付，而这只在 real/synth 不混同一文件时精确。
+
+    2026-09-06 实测：33 份纯真实、9 份纯合成、**混合 0**。本条把那个「0」从
+    一句当日观察变成一条持续判据——**它是 `real_corpus_files` 正确性的前提**，
+    而前提不写成守卫就会在某次新增语料时无声失效（那时契约门会突然吃进
+    合成记录并红在「造的数据不合规」上，读起来却像真实语料出了问题）。
+    反例证伪：往任一真实语料文件里追加一条 `demo-` 记录，本条即红。
+    """
+    import pytest
+    if cl.missing_roots(cl.DEFAULT_ROOTS):
+        pytest.skip("语料根不全（鲜克隆/worktree）——本条要全量语料才有意义")
+    corpus, _skipped = cl.discover(cl.DEFAULT_ROOTS)
+    if not corpus:
+        pytest.skip("本 checkout 里没有语料文件")
+    mixed = []
+    for path, _n, _lines in corpus:
+        recs, _ = cc.load_records([path], dedupe=False, quiet=True)
+        n_real = sum(1 for r in recs if not cc.is_synthetic(r))
+        if n_real and n_real != len(recs):
+            mixed.append((path, n_real, len(recs) - n_real))
+    assert not mixed, (
+        "以下语料文件同时含真实与合成记录：%r\n"
+        "——`--list-corpus` 是按文件交付的，混合文件会把合成记录一并送进契约门。"
+        % mixed)
+
+
+def test_list_corpus_emits_lf_only_so_the_shell_can_split_it():
+    """`--list-corpus` 的调用姿势是 `validate_results.py $(corpus_ledger.py --list-corpus)`，
+    而 `$(...)` 只按换行切词、**不吃 CR**。
+
+    实测（2026-09-06，本条的由来）：Windows 默认 CRLF ⇒ 每个路径尾巴挂一个 CR
+    ⇒ `open()` 全数失败 ⇒ 校验器照样打 **「contract OK: 1 record(s) across 42
+    file(s)」并退 0**。一道什么都没验到的门，看起来和全绿一模一样。
+    ⚠ 本条**故意不用 `text=True`**：通用换行会把 CRLF 归一成 LF，
+    那正好把要测的东西抹掉——量法自己不能销毁被测量。
+    反例证伪：去掉 `sys.stdout.reconfigure(newline=LF)`，本条在 Windows 上即红。
+    """
+    import subprocess
+    import pytest
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
+        pytest.skip("语料根不全（鲜克隆/worktree）")
+    r = subprocess.run(
+        [sys.executable, os.path.join(repo, "scripts", "corpus_ledger.py"),
+         "--list-corpus"],
+        cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert r.returncode == 0, r.stderr[:400]
+    assert b"\r" not in r.stdout, (
+        "--list-corpus 的输出里有 CR：shell 的 $(...) 不会去掉它，"
+        "每个路径都会带着尾巴被 open()，而校验器仍会打 contract OK")
+    paths = [ln for ln in r.stdout.decode("utf-8").split("\n") if ln.strip()]
+    assert paths, "清单为空——空清单喂给契约门＝什么都没验却退 0"
+    assert all("/" in p and "\\" not in p for p in paths), (
+        "路径应为正斜杠形态（跨壳可用）：%r" % paths[:3])

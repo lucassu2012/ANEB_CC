@@ -9,5 +9,5 @@ gate_count=27
 gate_count_source=verify_all log verify_all_20260904-093125-11464.log
 reflex_tests=1026
 reflex_tests_source=reflex lines (all green): campaign-analysis 813 + e03 6 + e1 85 + e234 122
-corpus_real_runs=111
+corpus_real_runs=101
 corpus_real_runs_source=CORPUS_LEDGER.csv total,real_runs (D-565)

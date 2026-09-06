@@ -1,0 +1,19 @@
+{
+ "run_dir": "E:/C Project/ANEB/evidence/DW-20260905-02/verify_trial_f1",
+ "gap_ms": 400.0,
+ "clock_pin": "PASS",
+ "turns_total": 1,
+ "turns": [
+  {
+   "turn": "1",
+   "window_s": 60.0,
+   "gaps_over_ms": [],
+   "disjoint_in_window": 0,
+   "dumps_in_window": 52,
+   "ring_span_s": 2.07
+  }
+ ],
+ "verdict": "P1_HOLDS_IN_CELL",
+ "counterexample_turns": [],
+ "fragmented_turns": []
+}

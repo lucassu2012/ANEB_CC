@@ -81,6 +81,23 @@ object ResultReporter {
             put("app_version_code", run.appVersionCode)
             put("guard_metadata", run.guardMetadata)
             put("status", run.status)
+            // ---- 构建指纹（A-8③／REVIEW §7.1 L1-F4，additive）----
+            // 块缺席 = 该 run 早于本字段上线（同旁边 env 块的先例）；块在而值为 null =
+            // 列已上线但该 run 没记上。两者不可混为一谈（R-10）。
+            //
+            // `inject_used`（D-729 裁 (a) 后补齐第四键）：debug ∧ inject 的 run 里，流是被
+            // 人为截断／畸形化过的——**那不是网络行为**，故它与前三键一起决定这条数据
+            // 能不能作证据。三态照实写：null＝早于本列上线，false＝确认没注入，true＝用了。
+            if (run.buildGitSha != null || run.buildType != null ||
+                run.buildApplicationId != null || run.injectUsed != null
+            ) {
+                put("build", buildJsonObject {
+                    put("git_sha", run.buildGitSha)
+                    put("build_type", run.buildType)
+                    put("application_id", run.buildApplicationId)
+                    put("inject_used", run.injectUsed)
+                })
+            }
             // D-534 §2：键缺席=该 run 早于本字段上线（R-10 缺失≠空数组），""→[]=明确零跳过。
             run.skippedProfiles?.let { csv ->
                 putJsonArray("skipped_profiles") {
