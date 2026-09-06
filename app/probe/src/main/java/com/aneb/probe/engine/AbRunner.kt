@@ -5,6 +5,7 @@ import com.aneb.probe.data.AbResultEntity
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.net.AnebClient
 import com.aneb.probe.net.NetGuard
+import com.aneb.probe.net.SeqJoinAudit
 import com.aneb.probe.net.SseStreamResult
 import com.aneb.probe.net.TokenEvent
 import com.aneb.probe.net.cronet.CronetStreamClient
@@ -347,21 +348,14 @@ class AbRunner(private val context: Context) {
             transportError: Boolean = false,
         ): SampleKpi {
             // ---- seq 审计（R-08：join 校验 + 尾部截断补计） ----
-            val seen = HashSet<Long>(events.size * 2)
-            var dups = 0
-            for (e in events) if (!seen.add(e.seq)) dups++
-            val maxSeq = seen.maxOrNull()
-            var gaps = 0
-            if (maxSeq != null) {
-                var s = 0L
-                while (s <= maxSeq) {
-                    if (s !in seen) gaps++
-                    s++
-                }
-            }
-            val received = maxSeq?.plus(1L) ?: 0L
-            val tailMissing = (expectedTokens - received).coerceAtLeast(0L).toInt()
-            gaps += tailMissing
+            // ⚠ 本段此前是 net/AnebClient.stream 那段的**逐行副本**，上面 KDoc 里那句
+            // 「同 AnebClient.stream」是**注释级的承诺，没有任何机制保证**——任一方改了，
+            // 另一方不会有任何提示。现已合并为 [SeqJoinAudit] 单一实现（合并前逐行核对过
+            // 两份语义一致，不是采信那句注释），并由 net/SeqJoinAuditTest 钉住。
+            val audit = SeqJoinAudit.audit(events, expectedTokens)
+            val gaps = audit.gapCount
+            val dups = audit.duplicateCount
+            val tailMissing = audit.tailMissing
 
             if (transportError) {
                 return SampleKpi(
