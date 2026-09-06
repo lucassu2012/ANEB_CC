@@ -677,25 +677,17 @@ class AnebClient(bound: BoundNetwork? = null) {
                 // A-8：终点＝**响应头到达**，不是最后一次 write 返回的时刻。
                 // 后者只说明字节进了本地 socket 缓冲；服务端把 body 读完的证据是 2xx 响应头。
                 val headersNanos = SystemClock.elapsedRealtimeNanos()
-                val error = if (resp.isSuccessful) null else "http ${resp.code}"
-                // 排空并解析服务端权威逐块到达序列（R-07）；口径与 uploadBurst 同源。
-                val bodyText = resp.body?.string()
-                // 解析失败 ⇒ 无权威计数，退化为 null（R-10），时长在 KPI 层一并被置 null。
-                val serverView = UploadResponseView.parse(json, resp.isSuccessful, bodyText)
-                WindowTransferResult(
+                // 整段装配已移进 [buildWindowResult]，由 UploadWindowResponseTest 喂一个手工
+                // 构造的 Response 钉住（权威计数优先、`bytes >= 0` 边界、终点戳取响应头）。
+                // ⚠ **这里剩下的仍是零覆盖的那一层**：本行取的 headersNanos 是不是真的落在
+                // 响应头到达那一刻，只有真实往返才验得到——抽纯函数把它变薄了，没有消掉。
+                buildWindowResult(
+                    json = json,
+                    resp = resp,
                     startNanos = startNanos,
-                    endNanos = headersNanos,
-                    // 权威计数优先；缺席时退回客户端写出量，但该样本的时长会在
-                    // ScenarioKpi.adaptiveWindow 被置 null，故不会被拿去算速率。
-                    // ⚠ `bytes >= 0` 而非 `> 0`：0 是合法值，-1 才是「服务端没报」——
-                    // 判据连同这条边界移进 [UploadResponseView.bytesTransferred] 单测钉住，
-                    // 此前它内联在这里，**要起一条真实 HTTP 请求才跑得到，故从未被测过**。
-                    bytesTransferred = UploadResponseView.bytesTransferred(serverView, written),
-                    httpCode = resp.code,
-                    error = error,
+                    headersNanos = headersNanos,
+                    writtenBytes = written,
                     windowUnderrun = underrun,
-                    serverView = serverView,
-                    clientWrittenBytes = written,
                 )
             }
         } catch (e: CancellationException) {
@@ -911,6 +903,49 @@ class AnebClient(bound: BoundNetwork? = null) {
          * 区间内，不必精调；有真实 skew 分布支撑前维持 PROVISIONAL。
          */
         const val WALL_SKEW_MAX_MS: Long = 60_000L
+
+        /**
+         * 由上行窗口的响应装配 [WindowTransferResult]（A-8 口径的落点）。
+         *
+         * **为什么抽出来**：这段判读此前**内联在 [uploadWindow] 的 `executeCancellable` 块里**，
+         * 而那个块要跑起来需要一次真实 HTTP 往返 ⇒ **零单测覆盖**。实测过：两条接线突变
+         * （调用点丢掉 `serverView`／终点戳退回最后一次 write）**全套件无人咬住**。
+         * 抽出后可以喂一个手工构造的 [Response]（`Response.Builder` 在本仓 JVM 单测可用，
+         * 已先验证再动代码），把这两条判断钉住。
+         *
+         * ⚠ **收 [Response] 而不是拆好的字段，是刻意的**：这样 `.isSuccessful`／`.code`／
+         * `.body?.string()` 这几步也落在被测边界之内；拆好了再传，等于把它们留在外面没人看。
+         *
+         * ⚠ **仍够不着的那一层，写明**：本函数看不见调用点传进来的 [headersNanos] 是不是
+         * 真的在响应头到达那一刻取的。**抽纯函数只能把不可测的接线层变薄，不能消掉它。**
+         *
+         * @param headersNanos **响应头到达**的单调纳秒——不是最后一次 write 返回的时刻。
+         *   后者只说明字节进了本地 socket 缓冲；服务端把 body 读完的证据是 2xx 响应头。
+         * @param writtenBytes 客户端写出量，仅在服务端权威计数缺席时兜底
+         */
+        fun buildWindowResult(
+            json: Json,
+            resp: Response,
+            startNanos: Long,
+            headersNanos: Long,
+            writtenBytes: Long,
+            windowUnderrun: Boolean,
+        ): WindowTransferResult {
+            val error = if (resp.isSuccessful) null else "http ${resp.code}"
+            // 排空并解析服务端权威逐块到达序列（R-07）；口径与 uploadBurst 同源。
+            val bodyText = resp.body?.string()
+            val serverView = UploadResponseView.parse(json, resp.isSuccessful, bodyText)
+            return WindowTransferResult(
+                startNanos = startNanos,
+                endNanos = headersNanos,
+                bytesTransferred = UploadResponseView.bytesTransferred(serverView, writtenBytes),
+                httpCode = resp.code,
+                error = error,
+                windowUnderrun = windowUnderrun,
+                serverView = serverView,
+                clientWrittenBytes = writtenBytes,
+            )
+        }
 
         /**
          * 时钟偏移：**服务端钟 − 客户端钟**（微秒，可正可负）。NTP 式四时戳还原
