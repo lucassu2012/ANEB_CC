@@ -17,9 +17,31 @@ import corpus_ledger as cl
 import synth_campaign as sc
 from synth import make_record
 
-_T46 = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))), "evidence",
-    "t46_full_corpus_analysis_20260804", "full_corpus_labelled.jsonl")
+
+def _repo():
+    """本文件所在仓的根（`scripts/tests/` 上溯两级）。**本模块取仓根的唯一入口。**"""
+    return os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+
+
+def _roots():
+    """**取语料根的唯一入口**（D-764）。
+
+    `cl.DEFAULT_ROOTS` 是**相对**的，而门禁跑 `run_all.py` 的 cwd 是
+    `scripts/tests/`（`verify_all.ps1` 先 Push-Location）⇒ 相对根在那里解析成
+    `scripts/tests/evidence` ⇒ `missing_roots` 非空 ⇒ 守卫**静默跳过，而跳过
+    不算失败、门禁 RC=0 照报绿**（D-762 实测：改前 836/838 + 2 SKIPPED）。
+
+    ⚠ **本模块内一律走这里取根，别再各自拼。** 立入口不是为了少写两行：
+    「记得拼仓根」的执行依赖下一个人在正确时刻想起它，入口不依赖——取根只有
+    一条路且那条路是对的。回归钉＝`test_the_root_helper_is_absolute_and_cwd_independent`。
+    """
+    return [os.path.join(_repo(), r) for r in cl.DEFAULT_ROOTS]
+
+
+_T46 = os.path.join(_repo(), "evidence",
+                    "t46_full_corpus_analysis_20260804",
+                    "full_corpus_labelled.jsonl")
 
 
 def test_ledger_matches_campaign_report_head_count_on_the_same_corpus():
@@ -640,10 +662,7 @@ def test_the_repo_has_no_mislabelled_observation_cells_right_now():
     ⚠ 若将来新立一类 kind，本条会红——**那是对的**：新 kind 必须先教会分类器，
     否则它会落进某个现成的桶里而没人知道。红了请改 `classify_obs`，别改本条。
     """
-    import os as _os
-    repo = _os.path.dirname(_os.path.dirname(_os.path.dirname(
-        _os.path.abspath(__file__))))
-    roots = [_os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]
+    roots = _roots()
     c = cl.classify_obs(cl.observation_runs(roots))
     assert c["api_cmp_rejected"] == 0 and c["unknown_kind"] == 0, (
         "有观察格的标签与判据对不上：%r —— api_cmp 判据＝%s 在场且非空"
@@ -778,13 +797,7 @@ def test_the_repo_has_no_unregistered_observation_state_right_now():
     是因为「守卫红了就去改守卫」是这一步最省事也最错的做法。
     """
     import pytest
-    # 🔴 **必须拼仓根**（D-762 实测）：门禁跑 `run_all.py` 的 cwd 是
-    # `scripts/tests/`（`verify_all.ps1` 先 Push-Location），相对根在那里解析成
-    # `scripts/tests/evidence` ⇒ `missing_roots` 非空 ⇒ 本条**静默跳过而门禁照绿**，
-    # 且它正是 B-3 的验收面。范式见同文件 `..._mislabelled_...` 那条。
-    repo = os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))))
-    roots = [os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]
+    roots = _roots()          # 唯一取根入口；相对根会让本条静默跳过（D-762）
     if cl.missing_roots(roots):
         pytest.skip("语料根不全（鲜克隆/worktree）")
     c = cl.classify_state(cl.observation_runs(roots))
@@ -842,9 +855,8 @@ def test_the_contract_leg_runs_on_the_default_roots():
     import contextlib
     import io as _io
     import pytest
-    repo = os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))))
-    if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
+    repo = _repo()
+    if cl.missing_roots(_roots()):
         pytest.skip("语料根不全（鲜克隆/worktree）")
     old_cwd = os.getcwd()
     real_fn = cl.real_contract_violations
@@ -874,10 +886,7 @@ def test_no_corpus_file_mixes_real_and_synthetic():
     反例证伪：往任一真实语料文件里追加一条 `demo-` 记录，本条即红。
     """
     import pytest
-    # 🔴 拼仓根同上（D-762）：门禁 cwd 是 `scripts/tests/`，相对根在那里全缺。
-    repo = os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))))
-    roots = [os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]
+    roots = _roots()          # 唯一取根入口（D-762/D-764）
     if cl.missing_roots(roots):
         pytest.skip("语料根不全（鲜克隆/worktree）——本条要全量语料才有意义")
     corpus, _skipped = cl.discover(roots)
@@ -908,9 +917,8 @@ def test_list_corpus_emits_lf_only_so_the_shell_can_split_it():
     """
     import subprocess
     import pytest
-    repo = os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))))
-    if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
+    repo = _repo()
+    if cl.missing_roots(_roots()):
         pytest.skip("语料根不全（鲜克隆/worktree）")
     r = subprocess.run(
         [sys.executable, os.path.join(repo, "scripts", "corpus_ledger.py"),
@@ -924,3 +932,35 @@ def test_list_corpus_emits_lf_only_so_the_shell_can_split_it():
     assert paths, "清单为空——空清单喂给契约门＝什么都没验却退 0"
     assert all("/" in p and "\\" not in p for p in paths), (
         "路径应为正斜杠形态（跨壳可用）：%r" % paths[:3])
+
+
+def test_the_root_helper_is_absolute_and_cwd_independent():
+    """`_roots()` 是本模块取根的**唯一入口**，它错则一整批守卫静默跳过（D-762）。
+
+    ⚠ **这里不能断言「`missing_roots(_roots())` 为空」**（D-764 原案如此，我改了）：
+    `server/data/` 被 `.gitignore:12` 挡、**零受跟踪文件**（实测 `git ls-files
+    server/data` = 0）⇒ **全新 worktree 里它合法缺席**（成因见
+    `test_a_configured_root_that_does_not_exist_is_detectable`），那样断言会在
+    T87 迁移后的每个 worktree 里假红——**把一条真守卫变成噪音，下一步就是有人关掉它**。
+    ⇒ 断言落在 **D-762 真正的病：取根随 cwd 变**，那在鲜 worktree 里同样成立；
+    再加上受跟踪的那个根必须真在（`evidence/` 实测 1265 个受跟踪文件）。
+    反例证伪（两种突变均实测咬住，**各红一条不同的断言**）：`_roots()` 改成
+    `list(cl.DEFAULT_ROOTS)` ⇒ 绝对性那条红（后两条根本跑不到）；改成
+    `[os.path.abspath(r) for r in cl.DEFAULT_ROOTS]`（绝对但随 cwd 变，
+    **正是 D-762 的形状**）⇒ cwd 无关那条红。
+    """
+    import tempfile
+    roots = _roots()
+    assert roots and all(os.path.isabs(r) for r in roots), roots
+    assert all(r.startswith(_repo() + os.sep) for r in roots), (roots, _repo())
+    old = os.getcwd()
+    # ⚠ chdir 必须在 `with` **之内**切回：Windows 删不掉「当前工作目录」，
+    # 放在 with 之外会让清理抛 WinError 32（实测，本条第一版即如此）。
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            assert _roots() == roots, "取根随 cwd 变了——这正是 D-762 的病"
+        finally:
+            os.chdir(old)
+    ev = [r for r in roots if os.path.basename(r) == "evidence"]
+    assert ev and os.path.isdir(ev[0]), ("受跟踪的 evidence 根不在：%r" % (ev,))
