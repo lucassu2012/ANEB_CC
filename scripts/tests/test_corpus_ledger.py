@@ -697,21 +697,27 @@ def test_a_missing_build_block_is_unknown_not_admissible():
     assert ok2 is None and why2 == cc.ADMISSIBILITY_TYPE_ABSENT, (ok2, why2)
 
 
-def test_defaulting_unknown_to_admissible_changes_the_number_readers_see(monkeypatch):
+def test_defaulting_unknown_to_admissible_changes_the_number_readers_see():
     """突变（D-730 A-8④）：把「未知」默认成 True，**读者看到的数就变了**。
 
     本条证明台账那一行是**从判据推出来的**，不是写死的：突变一旦生效，
     「未知 N」会变成「可作证据 N」——一个凭空发出去的证据资格。
     （真正把这条突变咬住的是上面的反例③；本条钉的是「它确实在承重」。）
+    ⚠ **不用 pytest 夹具**：本目录的跑器是 `run_all.py`（门禁 `campaign-analysis-unit`
+    走的就是它），它自带收集器、直接调函数，**不提供 `monkeypatch`/`capsys`/`tmp_path`**
+    ——用了夹具会 TypeError，而 `pytest scripts/tests` 那边照样绿。
+    「我的验收命令，和门禁的验收命令，是不是同一条」——这条就是为它立的。
     """
     recs = [_rec(None), _rec(None), _rec({"build_type": "debug", "inject_used": True})]
     base = cl.admissibility_counts(recs)
     assert (base["unknown"], base["admissible"], base["inadmissible"]) == (2, 0, 1), base
     real = cc.is_admissible
-    monkeypatch.setattr(cc, "is_admissible",
-                        lambda r: ((True, "MUTANT") if real(r)[0] is None
+    cc.is_admissible = (lambda r: ((True, "MUTANT") if real(r)[0] is None
                                    else real(r)))
-    mut = cl.admissibility_counts(recs)
+    try:
+        mut = cl.admissibility_counts(recs)
+    finally:
+        cc.is_admissible = real
     assert (mut["unknown"], mut["admissible"]) == (0, 2), mut
 
 
@@ -798,7 +804,7 @@ def test_a_demo_run_id_without_a_synthetic_block_still_cannot_enter_real():
     assert [cc.run_obj(r).get("run_id") for r in synth] == ["demo-999"]
 
 
-def test_the_contract_leg_runs_on_the_default_roots(monkeypatch, capsys):
+def test_the_contract_leg_runs_on_the_default_roots():
     """作用域收窄的配套守卫：契约腿在**默认语料根**上必须真的跑。
 
     收窄一个判据的作用域，最容易的失手是收到「哪儿都不跑」——而「跑了且通过」
@@ -807,17 +813,31 @@ def test_the_contract_leg_runs_on_the_default_roots(monkeypatch, capsys):
     （注入的是假违约而不是真的改语料：真违约要靠改数据制造，而改数据本身
     会顺带改掉别的量——判据要一次只动一个量。）
     反例证伪：把 main() 里的契约腿删掉、或让它对默认根也跳过，本条即红。
+    ⚠ **不用 pytest 夹具**：本目录的跑器是 `run_all.py`（门禁 `campaign-analysis-unit`
+    走的就是它），它自带收集器、直接调函数，**不提供 `monkeypatch`/`capsys`/`tmp_path`**
+    ——用了夹具会 TypeError，而 `pytest scripts/tests` 那边照样绿（同一份代码两种
+    跑法两种结论，而门禁用的是没跑到的那种）。故手工存-还原＋重定向 stdout。
     """
+    import contextlib
+    import io as _io
     import pytest
     repo = os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))))
     if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
         pytest.skip("语料根不全（鲜克隆/worktree）")
-    monkeypatch.chdir(repo)          # --md/--csv 默认是相对路径
-    monkeypatch.setattr(cl, "real_contract_violations",
-                        lambda real: (["injected: 假违约（本条注入）"], None))
-    rc = cl.main(["--check"])
-    out = capsys.readouterr().out
+    old_cwd = os.getcwd()
+    real_fn = cl.real_contract_violations
+    cl.real_contract_violations = (
+        lambda _real: (["injected: 假违约（本条注入）"], None))
+    buf = _io.StringIO()
+    try:
+        os.chdir(repo)               # --md/--csv 默认是相对路径
+        with contextlib.redirect_stdout(buf):
+            rc = cl.main(["--check"])
+    finally:
+        cl.real_contract_violations = real_fn
+        os.chdir(old_cwd)
+    out = buf.getvalue()
     assert "CONTRACT_VIOLATION" in out, (
         "默认根下契约腿没有生效——注入的违约没能改变判词：\n%s" % out[:400])
     assert rc == 1, "契约违约必须让 --check 退 1"
