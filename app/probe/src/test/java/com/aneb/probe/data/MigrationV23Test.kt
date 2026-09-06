@@ -13,6 +13,12 @@ import java.io.File
  * 「一共几条语句」——那种写法在「六条全打到同一张表」时照样通过，而那是个真实存在的
  * 打字错误形态（复制粘贴改了列名忘了改表名）。**逐表分别核，并核每表的列集合。**
  *
+ * ⚠ **本版定义被修订过一次（D-729，加第七条 `injectUsed`），当时的前提是「无任何设备
+ * 装过 v23」**——`.ctree` 上仍是 v22 库、无人重装，故改迁移定义本身是安全的。
+ * **这个前提必须与事实一起记住**：一旦有设备已按旧定义迁到 v23，再改本列表就
+ * **不是修订而是伪造**——那些设备的库里少一列而版本号说它是 v23，Room 下次打开即抛
+ * schema 不匹配，且**没有任何迁移路径能补救**。届时正确做法是发 v24，不是动这里。
+ *
  * ⚠ **`adapter_obs` 那三列本批只有列、没有写入逻辑**（C-6 的 `enqueuePersist` 分列、
  * 定时 emit、IME 监听等未做）⇒ 迁移后恒为 null。本测试**只锚迁移合同，不断言数据在采**
  * ——「列已存在」推不出「数据已在采」。
@@ -50,16 +56,16 @@ class MigrationV23Test {
      * 只数总数的话，「六条全打到 test_run」会通过，而那正是改列名忘改表名的形状。
      */
     @Test
-    fun addsSixColumnsAcrossExactlyTwoTables() {
-        assertEquals("v23 应为六条 additive 语句", 6, sql.size)
+    fun addsSevenColumnsAcrossExactlyTwoTables() {
+        assertEquals("v23 应为七条 additive 语句", 7, sql.size)
         val byTable = sql.map { tableAndColumn(it) }
             .groupBy({ it.first }, { it.second })
             .mapValues { it.value.toSet() }
 
         assertEquals("应恰好动两张表", setOf("test_run", "adapter_obs"), byTable.keys)
         assertEquals(
-            "test_run 的构建指纹三列不符",
-            setOf("buildGitSha", "buildType", "buildApplicationId"),
+            "test_run 的四列（构建指纹三 ＋ 注入标记一）不符",
+            setOf("buildGitSha", "buildType", "buildApplicationId", "injectUsed"),
             byTable["test_run"],
         )
         assertEquals(
@@ -97,6 +103,7 @@ class MigrationV23Test {
             "buildGitSha" to "TEXT",
             "buildType" to "TEXT",
             "buildApplicationId" to "TEXT",
+            "injectUsed" to "INTEGER", // Boolean? —— SQLite 无布尔类型
             "ttftSource" to "TEXT",
             "ttftDensityMs" to "REAL", // Double?
             "targetVersionCode" to "INTEGER", // Long?

@@ -25,6 +25,7 @@ class ResultReporterBuildFingerprintTest {
         gitSha: String? = "8029f5f",
         buildTypeName: String? = "debug",
         appId: String? = "com.aneb.probe.ctree",
+        injectUsed: Boolean? = false,
     ) = TestRun(
         runId = "run-1", startedAtEpochMs = 1_752_000_000_000L,
         serverBase = "http://10.0.2.2:8443", mode = "quick",
@@ -36,6 +37,7 @@ class ResultReporterBuildFingerprintTest {
         aqsVetoApplied = false, aqsNotComputableReason = null,
         status = "completed", reportStatus = null,
         buildGitSha = gitSha, buildType = buildTypeName, buildApplicationId = appId,
+        injectUsed = injectUsed,
     )
 
     /** 最小可用场景行（形状照抄 [ResultReporterD1Test]，本测不关心其中任何 KPI 值）。 */
@@ -86,20 +88,31 @@ class ResultReporterBuildFingerprintTest {
      */
     @Test
     fun `早于本字段上线的 run 整块缺席_而不是块在值为 null`() {
-        val json = body(run(gitSha = null, buildTypeName = null, appId = null))
-        assertFalse("三列皆 null 时不该出现 build 块", json.contains("\"build\""))
+        val json = body(run(gitSha = null, buildTypeName = null, appId = null, injectUsed = null))
+        assertFalse("四列皆 null 时不该出现 build 块", json.contains("\"build\""))
     }
 
     /**
-     * **缺席钉**：`inject_used` 目前没有持久来源，故**不得出现在 wire 上**。
-     * 这条不是「防回归」，是**防好心**——补一个没有来源的键比缺这个键更坏，因为读者会信它。
-     * 等大脑裁定给了来源，改这条测试与改实现应当是**同一个动作**。
+     * `inject_used` 已有持久来源（D-729 裁 (a)：`test_run.injectUsed` 并入 v23），故**必须上 wire**。
+     *
+     * 📌 **本条原是一枚「缺席钉」**（断言它**不得**出现），理由是当时那个键没有真实来源，
+     * 而**补一个没有来源的键比缺这个键更坏——因为读者会信它**。当时写下：
+     * 「等给了来源，改这条测试与改实现应当是**同一个动作**」——**本次正是同一提交**。
+     * 保留这段来历，是因为**「它一度为什么不该存在」比「它现在存在」更容易被后人忘掉**。
      */
     @Test
-    fun `inject_used 在有真实来源之前不得出现在 wire 上`() {
-        assertFalse(
-            "wire 上出现了 inject_used，但库里没有它的持久来源——见类注释",
-            body(run()).contains("inject_used"),
+    fun `inject_used 三态照实上 wire_不把 null 压成 false`() {
+        assertTrue(
+            "用了注入却没在 wire 上标出来——这条数据会被当成干净数据引用",
+            body(run(injectUsed = true)).contains("\"inject_used\":true"),
+        )
+        assertTrue(
+            "确认没注入应记 false，而不是省略",
+            body(run(injectUsed = false)).contains("\"inject_used\":false"),
+        )
+        assertTrue(
+            "早于本列上线的 run 应记 null——把它压成 false 等于把「不知道」说成「干净」",
+            body(run(injectUsed = null)).contains("\"inject_used\":null"),
         )
     }
 }

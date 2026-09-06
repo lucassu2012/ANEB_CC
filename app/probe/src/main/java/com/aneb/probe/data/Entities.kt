@@ -92,6 +92,21 @@ data class TestRun(
     val buildType: String? = null,
     /** `BuildConfig.APPLICATION_ID_DECLARED`；`.ctree` 等换名变体据此分辨 */
     val buildApplicationId: String? = null,
+    /**
+     * 本 run 是否启用了服务端故障注入（`--es inject`，仅 debug 变体可用）。
+     *
+     * **它与上面三列一起决定这条数据能不能作证据**：debug ∧ inject 的 run 里，
+     * 流是被人为截断／畸形化过的——**那不是网络行为**。此前它只出现在一行
+     * `RUN_START` logcat 里，而**日志到不了分析层**（`skippedProfiles` 那一列的
+     * 立项理由与此完全相同）。
+     *
+     * **三态，不可压成两态**：null＝该 run 早于本列上线；`false`＝**确认**没注入；
+     * `true`＝用了。把 null 当 false 读，等于把一批「不知道」说成「干净」（R-10）。
+     *
+     * 📌 已知限定：本列只记**用没用**，不记**用了哪一种**（`truncate:50` 等）。
+     * 取证判别只需前者；要复现具体注入仍须查该 run 的 logcat。
+     */
+    val injectUsed: Boolean? = null,
 )
 
 @Entity(

@@ -85,16 +85,17 @@ object ResultReporter {
             // 块缺席 = 该 run 早于本字段上线（同旁边 env 块的先例）；块在而值为 null =
             // 列已上线但该 run 没记上。两者不可混为一谈（R-10）。
             //
-            // ⚠ **本块只有三键，而 REVIEW 原文写的是四键**（含 `inject_used`）。
-            // 差的那一键**在库里没有持久来源**：inject 只活在内存的 `TestEngine.Config.inject`
-            // 与一行 `RUN_START` logcat 里，而**日志到不了分析层**（本仓已为此立过规矩）。
-            // 补它须在 `test_run` 再加一列 ⇒ 触及刚裁定的 v23 迁移范围，已报大脑裁；
-            // **裁定前不写一个没有真实来源的键**——那比缺键更坏，因为读者会信它。
-            if (run.buildGitSha != null || run.buildType != null || run.buildApplicationId != null) {
+            // `inject_used`（D-729 裁 (a) 后补齐第四键）：debug ∧ inject 的 run 里，流是被
+            // 人为截断／畸形化过的——**那不是网络行为**，故它与前三键一起决定这条数据
+            // 能不能作证据。三态照实写：null＝早于本列上线，false＝确认没注入，true＝用了。
+            if (run.buildGitSha != null || run.buildType != null ||
+                run.buildApplicationId != null || run.injectUsed != null
+            ) {
                 put("build", buildJsonObject {
                     put("git_sha", run.buildGitSha)
                     put("build_type", run.buildType)
                     put("application_id", run.buildApplicationId)
+                    put("inject_used", run.injectUsed)
                 })
             }
             // D-534 §2：键缺席=该 run 早于本字段上线（R-10 缺失≠空数组），""→[]=明确零跳过。

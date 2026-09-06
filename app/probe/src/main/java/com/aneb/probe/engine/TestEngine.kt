@@ -120,7 +120,11 @@ class TestEngine(private val context: Context) {
         if (!guard.ok) {
             log("GUARD_REJECT reasons=${guard.reasons.joinToString(",")}")
             persistRun(
-                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                db,
+                baseRun(
+                    runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
+                )
                     .copy(status = "guard_rejected:${guard.reasons.joinToString(",")}"),
             )
             log("RUN_END run_id=$runId status=guard_rejected")
@@ -138,7 +142,11 @@ class TestEngine(private val context: Context) {
         } catch (e: GuardException) {
             log("NET_BIND_FAIL transport=$transportStr error=${e.message?.replace(' ', '_')}")
             persistRun(
-                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                db,
+                baseRun(
+                    runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
+                )
                     .copy(status = "bind_failed"),
             )
             log("RUN_END run_id=$runId status=bind_failed")
@@ -181,7 +189,11 @@ class TestEngine(private val context: Context) {
             log("RUN_FAILED run_id=$runId error=profiles_unavailable:${e.javaClass.simpleName}")
             bound?.release()
             persistRun(
-                db, baseRun(runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta)
+                db,
+                baseRun(
+                    runId, startedAtEpochMs, base, modeStr, transportStr, "", "none", guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
+                )
                     .copy(status = "profiles_unavailable"),
             )
             log("RUN_END run_id=$runId status=profiles_unavailable")
@@ -676,6 +688,7 @@ class TestEngine(private val context: Context) {
             val runEntity = baseRun(
                 runId, startedAtEpochMs, measureBase, modeStr, transportStr,
                 orderRecord.joinToString("|"), loaded.source, guardMeta,
+                injectUsed = !config.inject.isNullOrBlank(),
             ).copy(
                 profileVersions = profileVersions,
                 aqsScore = aqsResult.score,
@@ -759,6 +772,7 @@ class TestEngine(private val context: Context) {
                 db, baseRun(
                     runId, startedAtEpochMs, measureBase, modeStr, transportStr,
                     orderRecord.joinToString("|"), loaded.source, guardMeta,
+                    injectUsed = !config.inject.isNullOrBlank(),
                 ).copy(profileVersions = profileVersions, status = "error:${e.javaClass.simpleName}"),
             )
             log("RUN_END run_id=$runId status=error")
@@ -895,6 +909,12 @@ class TestEngine(private val context: Context) {
         order: String,
         profileSource: String,
         guardMeta: String,
+        /**
+         * **刻意不给默认值**：给了默认值，任一调用点漏传就会静默记成「没注入」，
+         * 而那是取证字段最坏的失效方式——一条被人为截断过的流会被记成干净数据，
+         * 不报错、看起来完全正常。不给默认值，编译器替我保证每个调用点都想过这件事。
+         */
+        injectUsed: Boolean,
     ): TestRun {
         val pkg = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
         return TestRun(
@@ -918,6 +938,9 @@ class TestEngine(private val context: Context) {
             buildGitSha = BuildConfig.GIT_SHA,
             buildType = BuildConfig.BUILD_TYPE,
             buildApplicationId = BuildConfig.APPLICATION_ID_DECLARED,
+            // 注入标记（D-729）：这里恒为 true/false，**不会是 null**——null 的含义是
+            // 「该 run 早于本列上线」，而本代码路径产出的每条 run 都在本列上线之后。
+            injectUsed = injectUsed,
             guardMetadata = guardMeta,
             aqsScore = null,
             aqsLowConfidence = null,
