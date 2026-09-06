@@ -726,6 +726,8 @@
 | D-721 | 2026-09-06 | **A-8 U1 半作废（承 v4 50df3e7）**：`serverView==null` 时只置 U3 为 null——U3 按窗截断，本地缓冲尾巴服务端未读，字节须服务端视角；U1 是完整请求，2xx 即整体已收、时长锚在响应头，不依赖 serverView。既有测试「serverView 缺失不判死 U1」正确，A-8 原文 U1 半作废；解析失败记诊断字段。 | v4 回执 50df3e7；REVIEW §7.1 A-8；R-10；`ScenarioKpiUploadBytesTest` |
 | D-722 | 2026-09-06 | **A-4 台账诚实化：12 条 demo 出真实面**。`is_synthetic` 加第三判据「`run_id` 以 `demo-` 开头」（additive 块与 `SYNTH-` 前缀都咬不住它）；生成器与数据同带 `synthetic` 块（重生成，除该块外逐字段不变）。**两个数不可混用**：真实 run 总数 113→**101**，带 AQS 分数的 run 111→**99**——分派令把后者的数配到了前者的 grep 上。**「10 条高置信 run 全为合成」已独立复核为真**：demo 恰 10 条 `low_confidence:false`，改后真实侧 99/99 全 low_confidence，即此前高置信证据面 100% 是造的。契约门改喂 `--list-corpus`（33 份含真实记录的文件、101 条、0 违约），PASS 判词加量的下限——首版 CRLF 使 42 条路径全部打不开，却照报 `contract OK: 1 record`。`SYNTHETIC_RUN_ID_PREFIXES` 判豁免非入册：它在报告语料上不动任何数字，咬的是台账。 | REVIEW §7.1 A-4；D-718 ⑤；实测 `contract OK: 101 record(s) across 33 file(s)`；`pytest scripts/tests` 817 passed |
 | D-723 | 2026-09-06 | **A-4 核收＋追认（承 v3 9356de7／D-722）**：验收亲核过——真实 run 101、契约门 101 记录/33 文件 RC 0、scripts/tests 816 绿；「AQS 分数 run 99」与「真实 run 101」是两个量，勿混用。追认 `--list-corpus` 只列纯真实文件（混合文件 0，有守卫）。口径改「真机 wire 101，真实高置信 0」。 | v3 交付 9356de7；D-722；REVIEW §7.1 A-4；T91 |
+| D-724 | 2026-09-06 | **C-1 ⑦ 裁（承 cd5239ba b4faea3）**：整形窗未开 ⇒ 原文单元 A/B/C/E/I/J 标 NOT_EXECUTED·无自变量，D 范围外（F3/F4 未采），F/H 红线，G 只答自然网络半（F1 vs F2 同批）；「可测」是能力词不是本批有数。报告 v0.1＝自然对照版，三档待 B-2 后出 v0.2。§0/§1 核过。台账句按 D-723 两量分写。 | cd5239ba b4faea3／6c6288a；REVIEW §7.4-2(a)；D-712(2)；D-720；D-723 |
+| D-725 | 2026-09-06 | **A-8① 核收＋C-3 升为 A-8 收口前提**：v4 0fb4c77 934/0；突变 M2 SURVIVED——夹具直接构造 `WindowTransferResult` 绕过 `uploadWindow`，须 C-3 驱动真路径才承重。v4 序改 A-8③→B-12→D-708/707→C-3；C-3 前 A-8 记「代码完成、传输层选择无守卫」。 | v4 回执 0fb4c77／50df3e7；D-721；REVIEW §7.1 A-8、§7.3 C-3；并线 aa46a50／3bb5732 |
 
 ## 否决记录（评估后明确不采纳）
 
