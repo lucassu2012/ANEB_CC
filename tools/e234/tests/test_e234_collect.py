@@ -334,6 +334,126 @@ class _FakeAdb(object):
         return ""
 
 
+class _FlakyAdb(object):
+    """第 `fail_on` 次 `--latency` 抛超时，其余正常返回一帧。"""
+
+    def __init__(self, fail_on=2, period="16666666"):
+        self.n, self.fail_on, self.period = 0, fail_on, period
+
+    def text(self, *args, **kw):
+        if "--latency" in args:
+            self.n += 1
+            if self.n == self.fail_on:
+                import subprocess
+                raise subprocess.TimeoutExpired(cmd="dumpsys", timeout=5)
+            return "%s\n1000\t2000\t1500\n" % self.period
+        return ""
+
+
+def test_one_adb_timeout_does_not_kill_the_whole_channel_and_is_counted():
+    """反例（D-718 A-2）：循环体一次超时**不得**让整条通道 C 静默消失。
+
+    旧代码没有 try/except ⇒ 一次 `TimeoutExpired` 就让守护线程退出，
+    而产物上**看不出来**：「采到一半就没了」与「本来就这么少」在
+    `sf_latency.txt` 上长得一模一样。计数本身就是产物。
+    反例证伪：去掉 `except (subprocess.TimeoutExpired, OSError)`，本条即红。
+    """
+    import threading
+    import time as _t
+    d = tempfile.mkdtemp(prefix="t90_flaky_")
+    try:
+        adb, notes, stop = _FlakyAdb(fail_on=2), {}, {"stop": False}
+        th = threading.Thread(target=e2c._dump_channel_c, daemon=True,
+                              args=(adb, d, "pkg", "pkg/pkg.Act#1", 0.05,
+                                    stop, notes))
+        th.start()
+        for _ in range(300):                      # 等够 4 次以上 dump
+            if (notes.get("sf_dumps") or {}).get("issued", 0) >= 4:
+                break
+            _t.sleep(0.02)
+        stop["stop"] = True
+        th.join(timeout=5)
+        acct = notes["sf_dumps"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    assert acct["errors"] == 1, acct                      # 抛了一次
+    assert acct["errors_by_type"].get("TimeoutExpired") == 1, acct
+    assert acct["issued"] >= 3, acct                      # **超时之后还在跑**
+    # 节拍与周期头都记下来了（不是只记「发了几次」）
+    assert acct["t_first"] and acct["t_last"], acct
+    assert acct["cadence_s"] is not None, acct
+    assert acct["refresh_period_ns"].get("16666666", 0) >= 3, acct
+
+
+def test_a_layer_that_was_never_picked_still_gets_retried_in_the_loop():
+    """反例（D-718 A-2）：开跑时 `layer is None` **也要**定时重挑。
+
+    旧代码那一支什么都不做 ⇒ 整场会话通道 C 全空，且一条错都不报：
+    `issued` 恒 0，读者只看到「没有帧」。缺席与失效是同一件事的两个时刻。
+    反例证伪：把 `elif ... _relist_layer(...)` 那一支删掉，本条即红。
+    """
+    import threading
+    import time as _t
+    d = tempfile.mkdtemp(prefix="t90_nolayer_")
+    old_iv = e2c.SF_RELIST_MIN_INTERVAL_S
+    e2c.SF_RELIST_MIN_INTERVAL_S = 0.0            # 让重挑在测试尺度上可达
+    try:
+        adb, notes, stop = _FakeAdb("pkg/pkg.Act#100"), {}, {"stop": False}
+        th = threading.Thread(target=e2c._dump_channel_c, daemon=True,
+                              args=(adb, d, "pkg", None, 0.05, stop, notes))
+        th.start()
+        for _ in range(300):
+            if (notes.get("sf_dumps") or {}).get("relists"):
+                break
+            _t.sleep(0.02)
+        stop["stop"] = True
+        th.join(timeout=5)
+        acct = notes["sf_dumps"]
+    finally:
+        e2c.SF_RELIST_MIN_INTERVAL_S = old_iv
+        shutil.rmtree(d, ignore_errors=True)
+    assert acct["relists"], "图层缺席时一次都没重挑 ⇒ 整场通道 C 必然全空"
+    assert acct["relists"][0]["new"] == "pkg/pkg.Act#100", acct["relists"]
+
+
+def test_the_wait_is_compensated_so_the_cadence_tracks_the_schedule():
+    """反例（D-718 A-2）：等待要**按绝对刻度**推进，不是「干完活再睡 period」。
+
+    后者的实际节拍＝period ＋ 每次 dump 的耗时，于是**排期 1s 会跑成 3s**，
+    而判读侧仍按 1s 算覆盖率——多算三倍。这里让每次 dump 耗时 ≈ 半个周期，
+    补偿式等待下节拍应仍贴近排期；旧写法会明显偏大。
+    反例证伪：把 `next_tick += period` 换回固定 `sleep(period)`，本条即红。
+    """
+    import threading
+    import time as _t
+
+    class _SlowAdb(_FakeAdb):
+        def text(self, *args, **kw):
+            if "--latency" in args:
+                _t.sleep(0.05)                    # 半个周期的开销
+            return _FakeAdb.text(self, *args, **kw)
+
+    d = tempfile.mkdtemp(prefix="t90_cad_")
+    try:
+        adb, notes, stop = _SlowAdb("pkg/pkg.Act#1"), {}, {"stop": False}
+        th = threading.Thread(target=e2c._dump_channel_c, daemon=True,
+                              args=(adb, d, "pkg", "pkg/pkg.Act#1", 0.1,
+                                    stop, notes))
+        th.start()
+        for _ in range(400):
+            if (notes.get("sf_dumps") or {}).get("issued", 0) >= 6:
+                break
+            _t.sleep(0.02)
+        stop["stop"] = True
+        th.join(timeout=5)
+        acct = notes["sf_dumps"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    assert acct["cadence_s"] is not None, acct
+    # 补偿后节拍应贴近排期 0.1s；未补偿会是 0.15s 以上（0.1 睡 ＋ 0.05 开销）
+    assert acct["cadence_s"] < 0.14, acct["cadence_s"]
+
+
 def test_the_collector_repicks_the_layer_after_frames_stop():
     """出过帧之后连续取空 ⇒ 必须重挑图层，并把 `--list` 原文落盘。
 

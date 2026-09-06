@@ -350,13 +350,24 @@ def parse_sf_latency(text):
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     if not lines:
         return None, []
-    try:
-        period = int(lines[0].split()[0])
-    except (ValueError, IndexError):
-        return None, []
+    # 周期头取**首个含 ≥1 条可用帧的段**，不是文件第一行（D-718 A-2）。
+    # 实测 `evidence/e234/20260802-172614`：五个段的头全是 `11111111`（90Hz），
+    # 而**没有一段渲染出过可用帧** —— 旧口径照样把 90Hz 印出去，那个数
+    # 来自一个什么都没画的 dump。⇒ 没有可用帧时周期就是 **None（未知）**，
+    # 不是沿用、不是猜。下游据此判 NOT_EXECUTED，正是该有的结果。
+    # ⚠ 判据用**可用**帧而不是「三整数行」：环缓冲里 `0 0 0` 占位行满地都是，
+    # 按语法数的话每一段都「含帧行」，这条改动就等于没改（会静默无效）。
+    period = None
+    cur_header = None
     frames = []
-    for line in lines[1:]:
+    for line in lines:
         parts = line.replace("\t", " ").split()
+        if len(parts) == 1:
+            try:
+                cur_header = int(parts[0])
+            except ValueError:
+                cur_header = None
+            continue
         if len(parts) < 3:
             continue
         try:
@@ -365,6 +376,8 @@ def parse_sf_latency(text):
             continue
         if actual in (0, pending) or ready in (0, pending):
             continue
+        if period is None and cur_header is not None:
+            period = cur_header
         frames.append({"desired_ns": desired, "actual_ns": actual, "ready_ns": ready})
     frames.sort(key=lambda f: f["actual_ns"])
     return period, frames
