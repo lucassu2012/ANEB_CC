@@ -650,6 +650,36 @@ def test_the_repo_has_no_mislabelled_observation_cells_right_now():
         % (c, "、".join(cl.API_CMP_REQUIRED)))
 
 
+def test_observation_states_are_counted_apart_and_unknown_is_not_valid():
+    """反例（D-718 B-3）：四态相加恒等于总数，且 `unknown` **不并进 valid**。
+
+    以前这三类只写在目录名里（`*_VOID1`／`verify_trial_*`／`*_attempt1_*`），
+    台账把观察目录混着数（F7-02）——**目录名不是字段，数不了**。
+    `unknown` 单列的理由：缺席是「没登记过」，不是「实格」；默认成实格
+    等于把作废格重新算回统计。
+    反例证伪：把 unknown 并进 valid，或让某一支落进减法兜底桶，本条即红。
+    """
+    obs = ([{"state": "valid"}] * 3 + [{"state": "void"}] * 2
+           + [{"state": "verify"}] + [{}] + [{"state": "没见过的词"}])
+    c = cl.classify_state(obs)
+    assert c == {"valid": 3, "void": 2, "verify": 1, "unknown": 2}, c
+    assert sum(c.values()) == len(obs), c        # 无减法桶、无遗漏
+
+
+def test_the_repo_has_no_unregistered_observation_state_right_now():
+    """真树现态：回填之后**不该再有 `unknown`**（D-718 B-3 回填的验收面）。
+
+    ⚠ 将来新采一格若忘了写 `state`，本条会红——**那是对的**：
+    去让采集器写上，别改本条。（新采集器默认就写 `valid`，忘不了才对。）
+    """
+    import pytest
+    if cl.missing_roots(cl.DEFAULT_ROOTS):
+        pytest.skip("语料根不全（鲜克隆/worktree）")
+    c = cl.classify_state(cl.observation_runs(cl.DEFAULT_ROOTS))
+    assert c["unknown"] == 0, (
+        "有观察目录没登记 state：%r —— 采集器应写 valid，历史目录按 README 回填" % c)
+
+
 def test_a_demo_run_id_without_a_synthetic_block_still_cannot_enter_real():
     """反例（D-718 A-4）：`demo-` 前缀 ＋ **没有** additive 块 ⇒ 仍须判合成。
 

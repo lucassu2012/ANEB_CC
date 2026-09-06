@@ -243,6 +243,12 @@ def observation_runs(roots):
                 row["kind"] = meta.get("kind") or "?"
                 row["experiments"] = ",".join(meta.get("experiments") or []) or "—"
                 row["pkg"] = meta.get("pkg") or "—"
+                # 状态（D-718 B-3）：与 `kind` **正交**——kind 说数据怎么来的，
+                # state 说这一格算不算数。**缺席记 `unknown`，不默认 valid**：
+                # 老目录早于该字段上线，默认成实格＝把作废格重新算进统计。
+                row["state"] = meta.get("state") or "unknown"
+                row["void_reason"] = meta.get("void_reason")
+                row["tier"] = meta.get("tier")
             except (OSError, ValueError) as e:
                 row["error"] = type(e).__name__
             try:
@@ -265,6 +271,26 @@ def summarize(paths):
     real = [r for r in recs if not cc.is_synthetic(r)]
     synth = [r for r in recs if cc.is_synthetic(r)]
     return real, synth, st
+
+
+OBS_STATES = ("valid", "void", "verify", "unknown")
+
+
+def classify_state(obs):
+    """观察格**状态**分布（D-718 B-3）。四个数相加恒等于 `len(obs)`，无减法桶。
+
+    与 `classify_obs`（按 kind）**正交、不相加**：一格既有 kind 也有 state。
+    此前这三类只写在目录名里（`*_VOID1`／`verify_trial_*`／`*_attempt1_*`），
+    台账把观察目录混着数（F7-02）——**目录名不是字段**，数不了。
+    `unknown` 单列且**不并进 valid**：缺席是「没登记过」，不是「实格」。
+    ⚠ 将来新立一种 state，本函数会把它记进 `unknown` 而不是悄悄归进某个真桶；
+    那时请**先扩 `OBS_STATES` 再回填标签**（D-689③ 的顺序，反过来会静默吞格）。
+    """
+    out = {k: 0 for k in OBS_STATES}
+    for r in obs:
+        s = r.get("state") or "unknown"
+        out[s if s in out else "unknown"] += 1
+    return out
 
 
 def real_corpus_files(corpus):
@@ -471,15 +497,25 @@ def render_md(corpus, skipped, real, synth, st, bk, dbs, obs=()):
     if not obs:
         lines.append(f"（本次扫描未发现带 `{OBS_MARKER}` 标记的采集目录。）")
     else:
-        lines.append("| 目录 | kind | 实验 | 包名 | 文件数 |\n|---|---|---|---|---|")
+        _st = classify_state(obs)
+        lines.append(
+            "- 状态分列（D-718 B-3，**与上面按 kind 的分类正交、两组都不相加**）："
+            f"实格 **{_st['valid']}**／作废 **{_st['void']}**／试水 **{_st['verify']}**／"
+            f"**未登记 {_st['unknown']}**"
+            "　⚠ 未登记＝早于 `state` 字段上线的老目录，**不是实格**\n")
+        lines.append("| 目录 | kind | state | 实验 | 包名 | 文件数 |"
+                     "\n|---|---|---|---|---|---|")
         for r in obs:
             if "error" in r:
                 lines.append(f"| {r['path']} | **读不了**（{r['error']}） | — | — |"
-                             f" {r['files']} |")
+                             f" — | {r['files']} |")
             else:
                 pkg = f"`{r['pkg']}`" if r["pkg"] != "—" else "—"
-                lines.append(f"| {r['path']} | {r['kind']} | {r['experiments']} |"
-                             f" {pkg} | {r['files']} |")
+                st = r.get("state") or "unknown"
+                if r.get("void_reason"):
+                    st += f"（{r['void_reason']}）"
+                lines.append(f"| {r['path']} | {r['kind']} | {st} |"
+                             f" {r['experiments']} | {pkg} | {r['files']} |")
         lines.append(f"\n> 这些目录**产出 0 条 wire run**——产物喂 "
                      f"`validate_results.py` 即 contract VIOLATIONS。列在这里是为了"
                      f"让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。"

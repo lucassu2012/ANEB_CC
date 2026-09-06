@@ -91,59 +91,61 @@
 
 ## 四、观察通道采集（与第一节**不可相加**——两条链口径不同）
 
-| 目录 | kind | 实验 | 包名 | 文件数 |
-|---|---|---|---|---|
-| evidence/DW-20260905-01/cell_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 15 |
-| evidence/DW-20260905-01/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 15 |
-| evidence/DW-20260905-01/wifi_f6_attempt1_preflight_stop | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 7 |
-| evidence/DW-20260905-02/ds_cell_f1 | DEVICE_REAL | E2,E3,E4 | `com.deepseek.chat` | 16 |
-| evidence/DW-20260905-02/ds_cell_f6 | DEVICE_REAL | E2,E3,E4 | `com.deepseek.chat` | 16 |
-| evidence/DW-20260905-02/ds_wifi_f1 | DEVICE_REAL | E2,E3,E4 | `com.deepseek.chat` | 16 |
-| evidence/DW-20260905-02/ds_wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.deepseek.chat` | 16 |
-| evidence/DW-20260905-02/verify_trial_f1 | DEVICE_REAL | E2,E3,E4 | `com.deepseek.chat` | 16 |
-| evidence/DW-20260905-02/verify_trial_f2 | DEVICE_REAL | E2,E3,E4 | `com.deepseek.chat` | 16 |
-| evidence/DW-20260905-02/verify_trial_f6 | DEVICE_REAL | E2,E3,E4 | `com.deepseek.chat` | 16 |
-| evidence/doubao_wave0_20260830/cell_f1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/cell_f1b | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/cell_f2 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/cell_f2_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 6 |
-| evidence/doubao_wave0_20260830/cell_f5 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/cell_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/wifi_f1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/wifi_f1_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/wifi_f1_VOID2 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 8 |
-| evidence/doubao_wave0_20260830/wifi_f1_VOID3 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/wifi_f1_anchor | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/wifi_f2 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/wifi_f5 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/doubao_wave0_20260830/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/e1_realdevice_20260802 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
-| evidence/e1_realdevice_20260802_run2 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
-| evidence/e234/20260802-163504 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
-| evidence/e234/20260802-164148 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 10 |
-| evidence/e234/20260802-172614 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
-| evidence/e234/20260802-173031 | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
-| evidence/e234/20260803-154544-e1band | DEVICE_REAL | E2,E3,E4 | `com.aneb.e1stimulus` | 10 |
-| evidence/e234_dryrun_20260802/dryrun-e2-over | DRY_RUN_SIMULATED | — | — | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e2-within | DRY_RUN_SIMULATED | — | — | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e3-absent | DRY_RUN_SIMULATED | — | — | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e3-present | DRY_RUN_SIMULATED | — | — | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e4-overlap | DRY_RUN_SIMULATED | — | — | 11 |
-| evidence/e234_dryrun_20260802/dryrun-e4-separable | DRY_RUN_SIMULATED | — | — | 11 |
-| evidence/glm_e03_20260903/smoke_a | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/smoke_b | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/smoke_c | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t150_1 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t150_2 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t150_3 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t60_1 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t60_2 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t60_3 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t800_1 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t800_2 | api_cmp | E-03 | — | 3 |
-| evidence/glm_e03_20260903/t800_3 | api_cmp | E-03 | — | 3 |
-| evidence/t90_verify_20260901/relist1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 9 |
-| evidence/wave1_20260831/wifi_f6 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
-| evidence/wave1_20260831/wifi_f6_b_VOID1 | DEVICE_REAL | E2,E3,E4 | `com.larus.nova` | 10 |
+- 状态分列（D-718 B-3，**与上面按 kind 的分类正交、两组都不相加**）：实格 **43**／作废 **6**／试水 **3**／**未登记 0**　⚠ 未登记＝早于 `state` 字段上线的老目录，**不是实格**
+
+| 目录 | kind | state | 实验 | 包名 | 文件数 |
+|---|---|---|---|---|---|
+| evidence/DW-20260905-01/cell_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 15 |
+| evidence/DW-20260905-01/wifi_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 15 |
+| evidence/DW-20260905-01/wifi_f6_attempt1_preflight_stop | DEVICE_REAL | void（attempt_aborted） | E2,E3,E4 | `com.larus.nova` | 7 |
+| evidence/DW-20260905-02/ds_cell_f1 | DEVICE_REAL | valid | E2,E3,E4 | `com.deepseek.chat` | 16 |
+| evidence/DW-20260905-02/ds_cell_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.deepseek.chat` | 16 |
+| evidence/DW-20260905-02/ds_wifi_f1 | DEVICE_REAL | valid | E2,E3,E4 | `com.deepseek.chat` | 16 |
+| evidence/DW-20260905-02/ds_wifi_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.deepseek.chat` | 16 |
+| evidence/DW-20260905-02/verify_trial_f1 | DEVICE_REAL | verify | E2,E3,E4 | `com.deepseek.chat` | 16 |
+| evidence/DW-20260905-02/verify_trial_f2 | DEVICE_REAL | verify | E2,E3,E4 | `com.deepseek.chat` | 16 |
+| evidence/DW-20260905-02/verify_trial_f6 | DEVICE_REAL | verify | E2,E3,E4 | `com.deepseek.chat` | 16 |
+| evidence/doubao_wave0_20260830/cell_f1 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/cell_f1b | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/cell_f2 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/cell_f2_VOID1 | DEVICE_REAL | void（void_marked_in_dir_name_and_readme） | E2,E3,E4 | `com.larus.nova` | 6 |
+| evidence/doubao_wave0_20260830/cell_f5 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/cell_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f1 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f1_VOID1 | DEVICE_REAL | void（void_marked_in_dir_name_and_readme） | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f1_VOID2 | DEVICE_REAL | void（void_marked_in_dir_name_and_readme） | E2,E3,E4 | `com.larus.nova` | 8 |
+| evidence/doubao_wave0_20260830/wifi_f1_VOID3 | DEVICE_REAL | void（void_marked_in_dir_name_and_readme） | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f1_anchor | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f2 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f5 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/doubao_wave0_20260830/wifi_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/e1_realdevice_20260802 | DEVICE_REAL | valid | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
+| evidence/e1_realdevice_20260802_run2 | DEVICE_REAL | valid | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
+| evidence/e234/20260802-163504 | DEVICE_REAL | valid | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
+| evidence/e234/20260802-164148 | DEVICE_REAL | valid | E2,E3,E4 | `com.aneb.e1stimulus` | 10 |
+| evidence/e234/20260802-172614 | DEVICE_REAL | valid | E2,E3,E4 | `com.aneb.e1stimulus` | 7 |
+| evidence/e234/20260802-173031 | DEVICE_REAL | valid | E2,E3,E4 | `com.aneb.e1stimulus` | 12 |
+| evidence/e234/20260803-154544-e1band | DEVICE_REAL | valid | E2,E3,E4 | `com.aneb.e1stimulus` | 10 |
+| evidence/e234_dryrun_20260802/dryrun-e2-over | DRY_RUN_SIMULATED | valid | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e2-within | DRY_RUN_SIMULATED | valid | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e3-absent | DRY_RUN_SIMULATED | valid | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e3-present | DRY_RUN_SIMULATED | valid | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e4-overlap | DRY_RUN_SIMULATED | valid | — | — | 11 |
+| evidence/e234_dryrun_20260802/dryrun-e4-separable | DRY_RUN_SIMULATED | valid | — | — | 11 |
+| evidence/glm_e03_20260903/smoke_a | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/smoke_b | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/smoke_c | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t150_1 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t150_2 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t150_3 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t60_1 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t60_2 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t60_3 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t800_1 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t800_2 | api_cmp | valid | E-03 | — | 3 |
+| evidence/glm_e03_20260903/t800_3 | api_cmp | valid | E-03 | — | 3 |
+| evidence/t90_verify_20260901/relist1 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 9 |
+| evidence/wave1_20260831/wifi_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
+| evidence/wave1_20260831/wifi_f6_b_VOID1 | DEVICE_REAL | void（void_marked_in_dir_name_and_readme） | E2,E3,E4 | `com.larus.nova` | 10 |
 
 > 这些目录**产出 0 条 wire run**——产物喂 `validate_results.py` 即 contract VIOLATIONS。列在这里是为了让「一个设备窗跑完、台账一个数都不动」不再发生，**不是**为了相加。判据＝目录里有 `RUN_KIND.json`（采集器自己写的标记，非文件名清单）；早于该标记的采集目录不在此表，仍落在第三节的通用桶里。

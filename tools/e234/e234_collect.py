@@ -259,11 +259,16 @@ class _MarkPump(object):
 
 def collect(adb, out_dir, pkg, roi, screencap_period_ms, session_seconds,
             pin_flips, pin_interval_ms, interactive, device_window,
-            framestats_period_s=1.0, pin_through_session=False):
+            framestats_period_s=1.0, pin_through_session=False,
+            tier="good", uplink=None, state=ec.STATE_VALID):
+    # 整形档与状态（D-718 B-3 / D-655③）：**开跑就写，不等收窗**。
+    # `tier` 缺省 `good`＝没做整形；`uplink` 记上行通路（网线/热点/…）。
+    # `state` 缺省 `valid`；作废或试水格在收窗时改写（见 `ec.set_run_state`），
+    # 而**不是靠目录名**——目录名是给人看的，台账要的是能被机器数的字段。
     ec.write_run_kind(out_dir, ec.KIND_DEVICE, {
         "experiments": ["E2", "E3", "E4"],
         "pkg": pkg, "roi": list(roi), "device_window": device_window,
-        "serial": adb.serial,
+        "serial": adb.serial, "tier": tier, "uplink": uplink, "state": state,
         "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3",
     })
     notes = {"device_window": device_window, "pkg": pkg}
@@ -565,6 +570,16 @@ def main(argv=None):
     ap.add_argument("--pin-interval-ms", type=int, default=800)
     ap.add_argument("--framestats-period-s", type=float, default=1.0,
                     help="通道 C 的取样周期；环缓冲约 120 帧，取得太稀就丢帧")
+    # 整形档与上行通路（D-718 B-3 / D-655③）：**开跑就记进 RUN_KIND.json**。
+    # 缺省 `good`＝没做整形——写进字段而不是留空，因为「没整形」与「忘了记」
+    # 在空值上同形，而它们对判读的影响完全不同。
+    ap.add_argument("--tier", default="good",
+                    help="整形档（good/mid/poor…）；缺省 good＝未整形")
+    ap.add_argument("--uplink", default=None,
+                    help="上行通路（如 wired/hotspot/…）；不填则记 null")
+    ap.add_argument("--state", default=ec.STATE_VALID, choices=list(ec.RUN_STATES),
+                    help="格状态：valid 实格／void 作废／verify 试水。"
+                         "收窗改判用 `ec.set_run_state`，别改目录名了事")
     ap.add_argument("--no-marks", action="store_true",
                     help="不收操作者标记（那时整段=一轮，E4 结构上判不了，判读侧会说）")
     ap.add_argument("--pin-through-session", action="store_true",
@@ -606,7 +621,8 @@ def main(argv=None):
     notes = collect(adb, out, args.pkg, roi, args.screencap_period_ms,
                     args.session_seconds, args.pin_flips, args.pin_interval_ms,
                     not args.no_marks, args.device_window, args.framestats_period_s,
-                    args.pin_through_session)
+                    args.pin_through_session, tier=args.tier,
+                    uplink=args.uplink, state=args.state)
     sys.stdout.write("collected -> %s\n%s\n"
                      % (out, json.dumps(notes, ensure_ascii=False)))
     return 0

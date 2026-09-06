@@ -261,6 +261,18 @@ def boot_to_mono_ns(t_boot_ns, pin):
 
 # ── dry-run 隔离 ──────────────────────────────────────────────────────────
 RUN_KIND_FILE = "RUN_KIND.json"
+# 格的**状态**（D-718 B-3 / D-655③）。与 `kind`（真机/干跑/API 对照）**正交**：
+# kind 说这批数据是怎么来的，state 说这一格算不算数。
+#   · valid  —— 实格，进统计
+#   · void   —— 作废（仪器失效／操作失误／中途停），**留痕但不进统计**
+#   · verify —— 试水／验证格，为验装置而跑，本就不进统计
+# ⚠ 以前这三类只体现在**目录名**里（`*_VOID1`／`verify_trial_*`／`*_attempt1_*`），
+# 于是台账把观察目录混着数（F7-02）。目录名是给人看的；**要被机器数的东西必须
+# 是字段**——名字可以改、可以拼错、可以少写一个后缀，字段不会。
+STATE_VALID = "valid"
+STATE_VOID = "void"
+STATE_VERIFY = "verify"
+RUN_STATES = (STATE_VALID, STATE_VOID, STATE_VERIFY)
 KIND_DRY_RUN = "DRY_RUN_SIMULATED"
 KIND_DEVICE = "DEVICE_REAL"
 DRY_RUN_DIR_TOKEN = "dryrun"
@@ -298,6 +310,30 @@ def write_run_kind(out_dir, kind, meta=None):
     body = {"kind": kind}
     body.update(meta or {})
     with open(os.path.join(out_dir, RUN_KIND_FILE), "w", encoding="utf-8") as fh:
+        json.dump(body, fh, ensure_ascii=False, indent=2)
+    return body
+
+
+def set_run_state(run_dir, state, void_reason=None):
+    """收窗时改写这一格的 `state`（＋作废原因），**其余键原样保留**。
+
+    只碰这两个键是硬要求：实格的数据面不许因为一次状态标注而变动
+    （D-718 B-3「实格不变」）。读不到或不是对象 ⇒ 抛，**不新建一个半截文件**——
+    一个凭空造出来的 `RUN_KIND.json` 会让「这格没登记过」变成「这格登记过」。
+    """
+    if state not in RUN_STATES:
+        raise ValueError("未知 state %r，只认 %s" % (state, "/".join(RUN_STATES)))
+    p = os.path.join(run_dir, RUN_KIND_FILE)
+    with open(p, "r", encoding="utf-8-sig") as fh:
+        body = json.load(fh)
+    if not isinstance(body, dict):
+        raise ValueError("%s 不是对象，拒绝改写" % p)
+    body["state"] = state
+    if void_reason is None:
+        body.pop("void_reason", None)
+    else:
+        body["void_reason"] = void_reason
+    with open(p, "w", encoding="utf-8") as fh:
         json.dump(body, fh, ensure_ascii=False, indent=2)
     return body
 

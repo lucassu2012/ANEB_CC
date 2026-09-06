@@ -342,6 +342,49 @@ def test_without_marks_the_whole_run_is_one_turn_and_the_method_says_so():
     assert len(turns[0]["events"]) == 5
 
 
+def test_setting_a_run_state_touches_only_that_key():
+    """反例（D-718 B-3）：改状态**只动 `state`／`void_reason`**，实格数据不变。
+
+    一次状态标注不该让这一格的任何别的字段动一下（令里写死的「实格不变」）。
+    另钉两条：未知 state 直接拒（别让打字错误变成第四种状态）；
+    文件不存在时**抛而不新建**——凭空造一个 `RUN_KIND.json` 会把
+    「这格没登记过」变成「这格登记过」。
+    反例证伪：改成整体重写 body，或缺文件时 `makedirs`+写，本条即红。
+    """
+    import json as _json
+    import shutil
+    import tempfile
+    d = tempfile.mkdtemp(prefix="runstate_")      # 本文件的既有习惯；
+    try:                                          # run_tests.py 直接调函数，无 fixture
+        orig = {"kind": ec.KIND_DEVICE, "pkg": "com.x", "roi": [1, 2, 3, 4],
+                "spec": "s", "serial": "SN"}
+        with open(os.path.join(d, ec.RUN_KIND_FILE), "w", encoding="utf-8") as fh:
+            _json.dump(orig, fh, ensure_ascii=False, indent=2)
+
+        body = ec.set_run_state(d, ec.STATE_VOID, "attempt_aborted")
+        assert body["state"] == ec.STATE_VOID
+        assert body["void_reason"] == "attempt_aborted"
+        for k, v in orig.items():
+            assert body[k] == v, (k, body.get(k), v)   # 别的键一个都没动
+
+        # 改回 valid 时把作废原因清掉，别留「valid 但带作废原因」的自相矛盾行
+        body2 = ec.set_run_state(d, ec.STATE_VALID)
+        assert body2["state"] == ec.STATE_VALID and "void_reason" not in body2
+
+        try:                                      # 未知 state 直接拒
+            ec.set_run_state(d, "没见过的词")
+            raise AssertionError("未知 state 被放行了")
+        except ValueError:
+            pass
+        try:                                      # 缺文件时抛，不新建
+            ec.set_run_state(os.path.join(d, "nope"), ec.STATE_VALID)
+            raise AssertionError("缺文件时凭空造了一个 RUN_KIND.json")
+        except OSError:
+            pass
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def test_zero_events_with_marks_still_cuts_turns_under_its_own_method_name():
     """反例（D-718 A-3）：A 侧一条事件都没有、但操作者标记在，**仍要切出轮**。
 
