@@ -732,6 +732,7 @@
 | D-727 | 2026-09-06 | **`-race` 补记（承 M-B-015①）**：协调侧 Linux 鲜克隆对 `3235779` 跑 `go test -race -count=1 ./...` 全绿；D-719③「本机无 gcc 未跑」补为「协调侧代跑绿」。此后需 `-race` 即在 INBOX 点名代跑；撤回装 Go/mingw 的 PO 请求。 | M-B-015①；D-719③；v4 9c646cd |
 | D-728 | 2026-09-06 | **A-3 核收（承 v3 983e677）**：零事件轮与「不足两簇」分流两句判词；`segment_turns` 有标记无事件按标记切；precheck 分母改可判轮数。VOID1 格三键 2/2/2 亲核；reflex 134 绿；突变 26 CAUGHT。裁：突变取连续号 M26，总数以实际为准。 | v3 交付 983e677；REVIEW §7.1 A-3；M-B-014①；T91 |
 | D-729 | 2026-09-06 | **`inject_used` 来源裁 (a)（承 v4 cf547e6）**：`inject` 只活在内存与 logcat ⇒ `test_run` 加 `injectUsed` 列并入 v23（前提＝v23 未装到任何设备，现成立；迁移测试与 schema 同步）；REVIEW 三列/四键不自洽，以四键为准。「缺席钉」测试保留，改它与改实现同一提交。 | v4 回执 cf547e6／7a21a53；D-719②；REVIEW §7.1 A-8 |
+| D-730 | 2026-09-06 | **A-8 `non_forensic` 改名＋改派**：仓内 `forensic`＝`run.mode` 采样密度，A-8 指「debug∧inject⇒不可作证据」，共用词会出自相矛盾行且不报错 ⇒ 取 `evidence_admissible`（布尔）＋`admissibility_reason`；判定在 scripts/ 八处，改派 v3 作 A-8④，A-8 核收待其一起出。 | v4 回执（cf547e6 后）；REVIEW §7.1 A-8；`scripts/split_by_run_mode.py`；D-729 |
 
 ## 否决记录（评估后明确不采纳）
 
