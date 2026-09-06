@@ -15,5 +15,5 @@
   "device_window": "T90-VERIFY-20260901",
   "serial": "8MY0221126002537",
   "spec": "spec/adapters/INSTRUMENTATION_SPEC.md §3.3",
-  "state": "valid"
+  "state": "verify"
 }

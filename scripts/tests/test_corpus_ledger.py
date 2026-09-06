@@ -755,7 +755,13 @@ def test_the_valid_bucket_is_expanded_by_kind_not_printed_as_one_number():
     assert "有效 **3**" in md, md
     assert "DEVICE_REAL×2" in md and "DRY_RUN_SIMULATED×1" in md, md
     # 读者真正要问的那个数必须**直接印出来**，不能让他从 kind 分布里自己拼
-    assert "真机有效格 2" in md, md
+    # ⚠ **带边界地校验确切值**（2026-09-06 对抗复核指出）：原写
+    # `"真机有效格 2" in md` 是**前缀子串**匹配——渲染成 20／24／2000 它照样通过，
+    # 风险是**假绿**。而只写 `真机有效格 \d+` 又把数值校验整个去掉，比原来更弱。
+    # 本夹具的真值就是 2（两个 DEVICE_REAL valid），既要它印出来、也要它印对。
+    import re as _re
+    _m = _re.search(r"真机有效格 (\d+)", md)
+    assert _m and _m.group(1) == "2", (_m.group(1) if _m else None, md)
     assert "实格 3" not in md, (
         "又把聚合数印成了「实格 N」——`实格` 在本项目已有确定含义（真机观察格），"
         "而 state=valid 里还含 dry-run 与 API 对照批")

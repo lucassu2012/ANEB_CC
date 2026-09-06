@@ -98,7 +98,7 @@
 
 ## 四、观察通道采集（与第一节**不可相加**——两条链口径不同）
 
-- 状态分列（D-718 B-3，**与上面按 kind 的分类正交、两组都不相加**）：有效 **43**／作废 **6**／试水 **3**／未登记 **0**；**其中真机有效格 25**（DEVICE_REAL×25、api_cmp×12、DRY_RUN_SIMULATED×6）　⚠ **「有效」是 `state=valid` 的字面义，不等于「真机观察格」**：dry-run 与 API 对照批同样是「有效」，但它们不是真机格；未登记＝早于 `state` 字段上线的老目录，也不进真机格
+- 状态分列（D-718 B-3，**与上面按 kind 的分类正交、两组都不相加**）：有效 **42**／作废 **6**／试水 **4**／未登记 **0**；**其中真机有效格 24**（DEVICE_REAL×24、api_cmp×12、DRY_RUN_SIMULATED×6）　⚠ **「有效」是 `state=valid` 的字面义，不等于「真机观察格」**：dry-run 与 API 对照批同样是「有效」，但它们不是真机格；未登记＝早于 `state` 字段上线的老目录，也不进真机格
 
 | 目录 | kind | state | 实验 | 包名 | 文件数 |
 |---|---|---|---|---|---|
@@ -151,7 +151,7 @@
 | evidence/glm_e03_20260903/t800_1 | api_cmp | valid | E-03 | — | 3 |
 | evidence/glm_e03_20260903/t800_2 | api_cmp | valid | E-03 | — | 3 |
 | evidence/glm_e03_20260903/t800_3 | api_cmp | valid | E-03 | — | 3 |
-| evidence/t90_verify_20260901/relist1 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 9 |
+| evidence/t90_verify_20260901/relist1 | DEVICE_REAL | verify | E2,E3,E4 | `com.larus.nova` | 9 |
 | evidence/wave1_20260831/wifi_f6 | DEVICE_REAL | valid | E2,E3,E4 | `com.larus.nova` | 10 |
 | evidence/wave1_20260831/wifi_f6_b_VOID1 | DEVICE_REAL | void（void_marked_in_dir_name_and_readme） | E2,E3,E4 | `com.larus.nova` | 10 |
 
