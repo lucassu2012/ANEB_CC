@@ -61,7 +61,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      bytes_transferred/rtt_ref_ms_pre/_post/rtt_drift_ratio/rtt_dominance_ratio/
     //      rtt_dominance_ok 各 11 列×2 方向;诊断期不进任何 AQS facet;可空,历史行/非
     //      s4_throughput 场景 NULL＝「未跑该探针」而非「为零」,additive ADD COLUMN）
-    version = 22,
+    version = 23,
     exportSchema = true, // T45/D-463 §6.2：打开，快照进 app/probe/schemas/（ksp room.schemaLocation）
 )
 abstract class AnebDatabase : RoomDatabase() {
@@ -611,6 +611,43 @@ abstract class AnebDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v22 → v23 的六条 additive 列（**两件任务合并成一版**，D-719②）：
+         *
+         * - `test_run` 三列＝**构建指纹**（A-8③）：回答「这条 run 是哪份代码采的」；
+         * - `adapter_obs` 三列＝**溯源列**（C-6）：TTFT 取值来源／事件密度／被观察 App 版本号。
+         *
+         * **为什么合并而不发两版**：两件同期落地，各发一版会让设备经历两次迁移，
+         * 而每次迁移都是一次可能失败的写操作；REVIEW §7.3 C-6 原文亦明写要合并。
+         *
+         * ⚠ **`adapter_obs` 那三列本批只有列、没有写入逻辑**（C-6 的 `enqueuePersist` 分列、
+         * 定时 emit、IME 监听等未做）⇒ 迁移后它们**恒为 null**。
+         * **不得据「列已存在」推断「数据已在采」**——那正是本仓咬过的「机制存在 ≠ 覆盖面」。
+         */
+        internal val MIGRATION_22_23_SQL: List<String> = listOf(
+            // 构建指纹（A-8③）
+            "ALTER TABLE `test_run` ADD COLUMN `buildGitSha` TEXT",
+            "ALTER TABLE `test_run` ADD COLUMN `buildType` TEXT",
+            "ALTER TABLE `test_run` ADD COLUMN `buildApplicationId` TEXT",
+            // 溯源列（C-6）
+            "ALTER TABLE `adapter_obs` ADD COLUMN `ttftSource` TEXT",
+            "ALTER TABLE `adapter_obs` ADD COLUMN `ttftDensityMs` REAL",
+            "ALTER TABLE `adapter_obs` ADD COLUMN `targetVersionCode` INTEGER",
+        )
+
+        /**
+         * v22 → v23（additive）：只加列不动数据；既有行六列皆 NULL。
+         *
+         * 人工验证同 [MIGRATION_18_19] KDoc：覆盖安装后既有 test_run／adapter_obs 行可见
+         * 且新列 = NULL、`.schema test_run` 与 `.schema adapter_obs` 输出含新列、
+         * 新跑一轮后 `buildGitSha` = `git rev-parse --short HEAD`、logcat 无 Migration 异常。
+         */
+        internal val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_22_23_SQL.forEach(db::execSQL)
+            }
+        }
+
         fun get(context: Context): AnebDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -624,7 +661,7 @@ abstract class AnebDatabase : RoomDatabase() {
                         MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                         MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19,
-                        MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
+                        MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23,
                     )
                     // 兜底仅覆盖 <6 的开发期版本（无显式迁移路径时毁库重建）。
                     //
