@@ -78,7 +78,7 @@ def analyze(run_dir, pkg):
 
     gap = ec.cluster_gap_nanos()
     if pin.get("status") != ec.PASS:
-        res["channel_a_vs_c"] = {"status": ec.NOT_EXECUTED, "n": 0,
+        res["channel_a_vs_c"] = {"sample_ok": False, "n": 0,
                                  "reason": "时钟钉桩不可用：%s" % pin.get("reason")}
         res["verdict"] = (ec.NOT_EXECUTED, "跨基比较缺时钟钉桩")
         return res
@@ -112,6 +112,18 @@ def analyze(run_dir, pkg):
     res["signed"] = ec.summarize(signed, dropped=dropped)
     res["channel_a_vs_c"] = ec.summarize([abs(d) for d in signed], dropped=dropped)
     v, why = ec.ea.gate_verdict(res["channel_a_vs_c"], frame_ms)
+    # `summarize` 的 `status` 回答的是「**样本够不够**」（空样本 NOT_EXECUTED，
+    # 非空 PASS），不是「判据过没过」。而它在本子块里紧挨着 `verdict` 落盘，
+    # 于是 `status: PASS` 与 `verdict: FAIL` 并排出现——读者会把前者读成
+    # 「这条判据通过了」。改名 `sample_ok`（D-718 A-5 ⑤），并给布尔值：
+    # 名字长得像布尔就别塞状态词。
+    # ⚠ **只改存进 res 的这一份，且必须排在 gate_verdict 之后**：`gate_verdict`
+    # 读的是 `summary["status"]`（`tools/e1/e1_analyze.py`），先改名它就判不了。
+    # ⚠ `res["signed"]` 与共用的 `summarize()` 本身**不动**：前者是突变 M1 的判据
+    # 载体，后者在 tools/e1 且 e1/e3/e4 共用——同款措辞问题在 e3/e4 同样存在，
+    # 那是另一次改动的作用域，此处只登记不顺手扩。
+    _sum_status = res["channel_a_vs_c"].pop("status", None)
+    res["channel_a_vs_c"]["sample_ok"] = (_sum_status == ec.PASS)
     res["verdict"] = (v, why)
     # T14 待裁 C-2 的**一半已解**（2026-08-29 订正，原注释写于 W-4 之前）：
     # `gate_verdict` **现在设了最小 n**（`e1_analyze.GATE_MIN_N`，W-4/A 行），
