@@ -410,11 +410,15 @@ class ScenarioRunner(private val client: AnebClient) {
             val first = stream.events.minByOrNull { it.seq }
             val preludeSrvTsUs = stream.prelude?.let { parsePreludeSrvTsUs(it.raw) }
             val originNs = r.timing?.requestHeadersEndNs
-            ttftMs = if (first != null && preludeSrvTsUs != null && originNs != null && first.schedUs >= 0) {
-                (first.arrivalNanos - originNs) / 1e6 - (first.schedUs - preludeSrvTsUs) / 1e3
-            } else {
-                null // prelude/计时点缺失 → 无法剥离服务端 dwell，T1 样本不出值（R-10/R-20）
-            }
+            // C-3：公式与四条缺失判据整体搬进 TtftAnalysis.ttftMs（纯函数，可单测）。
+            // 此前内联在这里 ⇒ 要跑到它得起一条真实 HTTP 流 ⇒ **一行都没被单测覆盖过**。
+            // 语义未变：prelude/计时点缺失或 schedUs<0 仍返回 null（R-10/R-20，不出值不造值）。
+            ttftMs = TtftAnalysis.ttftMs(
+                arrivalNs = first?.arrivalNanos,
+                originNs = originNs,
+                schedUs = first?.schedUs,
+                preludeUs = preludeSrvTsUs,
+            )
         } else {
             ttftMs = null
         }
