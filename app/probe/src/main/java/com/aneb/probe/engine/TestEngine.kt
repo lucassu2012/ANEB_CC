@@ -6,6 +6,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.SystemClock
 import androidx.room.withTransaction
+import com.aneb.probe.BuildConfig
 import com.aneb.probe.data.AnebDatabase
 import com.aneb.probe.data.EchoSampleEntity
 import com.aneb.probe.data.EnvEvent
@@ -910,6 +911,13 @@ class TestEngine(private val context: Context) {
             profileSource = profileSource,
             appVersionName = pkg?.versionName,
             appVersionCode = pkg?.longVersionCode,
+            // 构建指纹（A-8③，v23 三列）：回答「这条 run 是**哪份代码**采的」。
+            // ⚠ 与上面两行**不是**同一件事：versionName/Code 是**声明的产品版本**，
+            // 阶段 0 里恒为 0.1.0-phase0 / 1，对「哪份代码」毫无分辨力——
+            // 本仓实证过两个不同构建 versionName 完全相同，当时只能靠 lastUpdateTime 区分。
+            buildGitSha = BuildConfig.GIT_SHA,
+            buildType = BuildConfig.BUILD_TYPE,
+            buildApplicationId = BuildConfig.APPLICATION_ID_DECLARED,
             guardMetadata = guardMeta,
             aqsScore = null,
             aqsLowConfidence = null,
