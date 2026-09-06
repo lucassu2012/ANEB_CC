@@ -417,15 +417,9 @@ class AnebClient(bound: BoundNetwork? = null) {
                 val responseNanos = SystemClock.elapsedRealtimeNanos()
                 val timing = timingFactory.recordFor(call)
                 val bodyText = resp.body?.string() // 排空 + 解析服务端视角逐块到达序列（R-07 权威序列）
-                val serverView = if (resp.isSuccessful && bodyText != null) {
-                    try {
-                        json.decodeFromString(UploadServerView.serializer(), bodyText)
-                    } catch (e: Exception) {
-                        null // 解析失败：serverView=null，慢启动口径退化为 null（R-10）
-                    }
-                } else {
-                    null
-                }
+                // 非 2xx／体缺失／坏 JSON ⇒ null（R-10），慢启动口径随之退化为 null。
+                // 判据与其边界写在 [UploadResponseView.parse]，那里可以不起网络地测。
+                val serverView = UploadResponseView.parse(json, resp.isSuccessful, bodyText)
                 val error = if (resp.isSuccessful) null else "http ${resp.code}"
                 UploadResult(
                     startNanos, responseNanos, stamps, payload.size, resp.code, error, timing,
@@ -475,15 +469,9 @@ class AnebClient(bound: BoundNetwork? = null) {
                 val responseNanos = SystemClock.elapsedRealtimeNanos()
                 val timing = timingFactory.recordFor(call)
                 val bodyText = resp.body?.string()
-                val serverView = if (resp.isSuccessful && bodyText != null) {
-                    try {
-                        json.decodeFromString(UploadServerView.serializer(), bodyText)
-                    } catch (e: Exception) {
-                        null // 解析失败：serverView=null（R-10）
-                    }
-                } else {
-                    null
-                }
+                // 同上：判据集中在 [UploadResponseView.parse]，三处上行共用一份，
+                // 免得同一个判断在三个地方各自演化（本仓吃过「同一逻辑三处」的亏）。
+                val serverView = UploadResponseView.parse(json, resp.isSuccessful, bodyText)
                 val error = if (resp.isSuccessful) null else "http ${resp.code}"
                 UploadResult(
                     startNanos, responseNanos, stamps, frames * frameBytes, resp.code, error, timing,
@@ -695,21 +683,17 @@ class AnebClient(bound: BoundNetwork? = null) {
                 val error = if (resp.isSuccessful) null else "http ${resp.code}"
                 // 排空并解析服务端权威逐块到达序列（R-07）；口径与 uploadBurst 同源。
                 val bodyText = resp.body?.string()
-                val serverView = if (resp.isSuccessful && bodyText != null) {
-                    try {
-                        json.decodeFromString(UploadServerView.serializer(), bodyText)
-                    } catch (e: Exception) {
-                        null // 解析失败 ⇒ 无权威计数，退化为 null（R-10），时长在 KPI 层被置 null
-                    }
-                } else {
-                    null
-                }
+                // 解析失败 ⇒ 无权威计数，退化为 null（R-10），时长在 KPI 层一并被置 null。
+                val serverView = UploadResponseView.parse(json, resp.isSuccessful, bodyText)
                 WindowTransferResult(
                     startNanos = startNanos,
                     endNanos = headersNanos,
                     // 权威计数优先；缺席时退回客户端写出量，但该样本的时长会在
                     // ScenarioKpi.adaptiveWindow 被置 null，故不会被拿去算速率。
-                    bytesTransferred = serverView?.bytes?.takeIf { it >= 0 } ?: written,
+                    // ⚠ `bytes >= 0` 而非 `> 0`：0 是合法值，-1 才是「服务端没报」——
+                    // 判据连同这条边界移进 [UploadResponseView.bytesTransferred] 单测钉住，
+                    // 此前它内联在这里，**要起一条真实 HTTP 请求才跑得到，故从未被测过**。
+                    bytesTransferred = UploadResponseView.bytesTransferred(serverView, written),
                     httpCode = resp.code,
                     error = error,
                     windowUnderrun = underrun,
