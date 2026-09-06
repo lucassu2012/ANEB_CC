@@ -2226,3 +2226,61 @@ def test_the_manifest_exception_covers_run_logs_and_nothing_else():
     # 否则任何人只要把 `verify_all` 塞进文件名就能绕过完整性记录。
     sneaky = ev + "/notes_verify_all_hack.json"
     assert unlisted_tracked_files({sneaky, mf}, set(), mf) == [sneaky]
+
+
+# ------------------------------------------------ D 条正文长度门（B-12，承 D-705）
+#
+# D-705 起 `DECISION_LOG.md` 正文 ≤200 字。**为什么值得一道门**：手写超限当天发生了
+# 三次，靠一段临时 python 断言才拦住——而**临时断言不跟着仓走**，下一个人不会有它。
+#
+# ⚠ **本清单与 `_FROZEN_LINE_REFS` 性质不同，别照搬那条的理由。**
+# 那条冻结的是「历史记述不可追溯改写」——行号引用写进历史账就改不得；
+# **而 D 条写长了是可以缩的**。所以这里每一条都是**欠账，不是永久许可**：
+# 缩到 ≤200 就把它从清单删掉；删干净后这个 dict 应当是空的。
+_DECISION_LEN_LIMIT = 200
+_DECISION_LEN_FROM = 705          # 规则自 D-705 起，之前的条目不追溯
+_DECISION_OVERLONG_PENDING_TRIM = {
+    # D 号: 立此清单时的**实测**字数（写实测值而非「约」，缩没缩一眼可见）
+    "D-722": 502,
+}
+
+
+def _decision_body_lengths(path):
+    """→ [(D 号, 编号, 正文字数)]；正文是第 3 格（`| D 号 | 日期 | 正文 | 依据 |`）。
+
+    ⚠ 按格取而不是按整行长度：整行含日期与依据栏，**用整行会把门槛悄悄放宽**，
+    且放宽的幅度随依据栏长短浮动——同一条正文有时过有时不过，而没有任何东西报错。
+    """
+    out = []
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            m = re.match(r"\| (D-(\d+)) \|", line)
+            if not m:
+                continue
+            cells = line.rstrip("\n").split("|")
+            if len(cells) < 5:      # 不是四格行 ⇒ 交给既有的表格结构守卫去报
+                continue
+            out.append((m.group(1), int(m.group(2)), len(cells[3].strip())))
+    return out
+
+
+def test_decision_length():
+    """D-705 起每条 D 记录正文 ≤200 字；存量超限只许**显名**豁免，不静默放行。"""
+    path = os.path.join(REPO_ROOT, "docs", "DECISION_LOG.md")
+    rows = [r for r in _decision_body_lengths(path) if r[1] >= _DECISION_LEN_FROM]
+    assert rows, "一条 D-705 及以后的记录都没解析到——先怀疑量法坏了，别当成没有超限"
+
+    over = {d: n for d, _, n in rows if n > _DECISION_LEN_LIMIT}
+    unexpected = {d: n for d, n in over.items() if d not in _DECISION_OVERLONG_PENDING_TRIM}
+    assert not unexpected, (
+        "这些 D 条正文超过 %d 字：%s。缩短它，"
+        "或（仅当确有理由）显名加进 _DECISION_OVERLONG_PENDING_TRIM 并写清为什么。"
+        % (_DECISION_LEN_LIMIT, sorted(unexpected.items()))
+    )
+
+    # 反向：已缩短的条目必须从清单删掉，否则清单会变成一张**只增不减的免罪符**，
+    # 日后没人知道哪些还欠着。这条与上面方向相反，缺了它守卫只会越来越松。
+    settled = [d for d in _DECISION_OVERLONG_PENDING_TRIM if d not in over]
+    assert not settled, (
+        "这些条目已缩短到限内，请从 _DECISION_OVERLONG_PENDING_TRIM 删除：%s" % sorted(settled)
+    )
