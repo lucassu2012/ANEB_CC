@@ -778,9 +778,16 @@ def test_the_repo_has_no_unregistered_observation_state_right_now():
     是因为「守卫红了就去改守卫」是这一步最省事也最错的做法。
     """
     import pytest
-    if cl.missing_roots(cl.DEFAULT_ROOTS):
+    # 🔴 **必须拼仓根**（D-762 实测）：门禁跑 `run_all.py` 的 cwd 是
+    # `scripts/tests/`（`verify_all.ps1` 先 Push-Location），相对根在那里解析成
+    # `scripts/tests/evidence` ⇒ `missing_roots` 非空 ⇒ 本条**静默跳过而门禁照绿**，
+    # 且它正是 B-3 的验收面。范式见同文件 `..._mislabelled_...` 那条。
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    roots = [os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]
+    if cl.missing_roots(roots):
         pytest.skip("语料根不全（鲜克隆/worktree）")
-    c = cl.classify_state(cl.observation_runs(cl.DEFAULT_ROOTS))
+    c = cl.classify_state(cl.observation_runs(roots))
     assert c["unknown"] == 0, (
         "有观察目录没登记 state：%r\n"
         "⇒ **该改的是写目录的那一方，不是本守卫**。最可能的成因："
@@ -867,9 +874,13 @@ def test_no_corpus_file_mixes_real_and_synthetic():
     反例证伪：往任一真实语料文件里追加一条 `demo-` 记录，本条即红。
     """
     import pytest
-    if cl.missing_roots(cl.DEFAULT_ROOTS):
+    # 🔴 拼仓根同上（D-762）：门禁 cwd 是 `scripts/tests/`，相对根在那里全缺。
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    roots = [os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]
+    if cl.missing_roots(roots):
         pytest.skip("语料根不全（鲜克隆/worktree）——本条要全量语料才有意义")
-    corpus, _skipped = cl.discover(cl.DEFAULT_ROOTS)
+    corpus, _skipped = cl.discover(roots)
     if not corpus:
         pytest.skip("本 checkout 里没有语料文件")
     mixed = []
