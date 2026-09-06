@@ -24,6 +24,27 @@ TEST_MODULES = sorted(
     f[:-3] for f in os.listdir(os.path.dirname(os.path.abspath(__file__)))
     if f.startswith("test_") and f.endswith(".py"))
 
+# pytest.skip() raises Skipped, and Skipped derives from BaseException, *not*
+# from Exception -- so the `except Exception` in main() is structurally unable
+# to catch it. One skipping test therefore aborted the whole run: on 2026-09-06
+# it died inside module 10 of 34, leaving 24 modules unrun and printing no
+# summary line at all, so the operator sees a traceback where the tally belongs
+# and cannot tell "a test failed" from "the runner never finished".
+#
+# This fires only where a skip condition is true, which is why it hid: the main
+# tree has both corpus roots, so it stayed green there while every worktree and
+# fresh clone was dead. Same runner, two trees, two verdicts -- and both sides
+# were honestly reporting "the gate runner".
+#
+# Resolve the class when pytest is importable; otherwise fall back to a
+# placeholder nothing ever raises, keeping this runner's "no pytest dep"
+# promise (see module docstring) intact.
+try:
+    from _pytest.outcomes import Skipped as _Skipped
+except Exception:  # pytest absent: nothing can raise Skipped anyway
+    class _Skipped(BaseException):
+        """Never raised; only keeps the except clause in main() well-formed."""
+
 
 def _encodable(ch, enc):
     try:
@@ -57,6 +78,7 @@ def _say(text):
 def main():
     total = passed = 0
     failures = []
+    skips = []
     for modname in TEST_MODULES:
         try:
             mod = importlib.import_module(modname)
@@ -74,10 +96,35 @@ def main():
             try:
                 fn()
                 passed += 1
+            except _Skipped as e:
+                # A skip is NOT a pass, and it is NOT a failure either.
+                #
+                # It stays in `total` while staying out of `passed`, so the
+                # printed ratio drops below N/N. That visible gap is the entire
+                # point: these guards did not run. Counting a skip as passed --
+                # or quietly dropping it from `total` -- would print a clean
+                # N/N over a gate that covered less than it did yesterday,
+                # which is the exact shape this repo keeps getting bitten by.
+                #
+                # Skips do not set a non-zero exit code: a skip condition like
+                # "corpus roots absent" is true and legitimate in a fresh
+                # clone, and failing there would make the gate unrunnable
+                # rather than honest. The signal is the ratio and the SKIP
+                # lines below, both of which land in the verify_all log.
+                skips.append((f"{modname}.{name}", str(e)))
             except Exception as e:
                 failures.append((f"{modname}.{name}", "".join(
                     traceback.format_exception_only(type(e), e)).strip()))
-    _say(f"campaign-analysis reflex: {passed}/{total} passed")
+    # The suffix goes after "passed" on purpose: badges.py matches
+    # `(\w+) reflex:\s*(\d+)/(\d+)\s*passed` with no end-of-line anchor, so it
+    # keeps reading the same two numbers, and verify_all.ps1 echoes this whole
+    # line into the gate result where a reviewer will see the skip count.
+    summary = f"campaign-analysis reflex: {passed}/{total} passed"
+    if skips:
+        summary += f", {len(skips)} SKIPPED (did not run)"
+    _say(summary)
+    for name, why in skips:
+        _say(f"  SKIP {name}: {why}")
     for name, err in failures:
         _say(f"  FAIL {name}: {err}")
     return 0 if not failures else 1
