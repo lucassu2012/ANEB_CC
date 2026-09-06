@@ -128,8 +128,18 @@ class AnebClient(bound: BoundNetwork? = null) {
                         EchoWire.serializer(),
                         checkNotNull(resp.body) { "empty body for 2xx" }.string(),
                     )
-                    val offsetUs = ((wire.t1Us - t0Us) + (wire.t2Us - t3Us)) / 2
-                    val rttUs = (t3Us - t0Us) - (wire.t2Us - wire.t1Us)
+                    // 判据移进 companion 的两个纯函数（[echoOffsetUs]/[echoRttUs]）单测钉住：
+                    // 此前它们内联在这里，**要一个会应答的对端才跑得到，故从未被测过**。
+                    // ⚠ 刻意用**具名实参**：抽出判据之后，这里剩下的是「四个时戳有没有喂对位」，
+                    // 而**那一层单测够不着**（纯函数看不见调用点传了什么）。具名实参把一次
+                    // 位置互换变成 `t1Us = wire.t2Us` 这种读起来就刺眼的形状 ——
+                    // 它是**复核期**的防御，不是测试期的；这层仍是零覆盖，别当它已解决。
+                    val offsetUs = echoOffsetUs(
+                        t0Us = t0Us, t1Us = wire.t1Us, t2Us = wire.t2Us, t3Us = t3Us,
+                    )
+                    val rttUs = echoRttUs(
+                        t0Us = t0Us, t1Us = wire.t1Us, t2Us = wire.t2Us, t3Us = t3Us,
+                    )
                     EchoResult(
                         t0Us, wire.t1Us, wire.t2Us, t3Us, offsetUs, rttUs,
                         resp.code, null, timing, observed = wire.observed,
@@ -914,6 +924,38 @@ class AnebClient(bound: BoundNetwork? = null) {
          * 区间内，不必精调；有真实 skew 分布支撑前维持 PROVISIONAL。
          */
         const val WALL_SKEW_MAX_MS: Long = 60_000L
+
+        /**
+         * 时钟偏移：**服务端钟 − 客户端钟**（微秒，可正可负）。NTP 式四时戳还原
+         * `((t1−t0)+(t2−t3))/2`，误差 ±RTT/2（设计文档 §4.2）。
+         *
+         * **为什么抽出来**：这一行此前**内联在 [echo] 里**，而 [echo] 要跑起来需要一个
+         * 会应答的对端 ⇒ **它一行都没被单测覆盖过**。而紧挨着它的 [wallSkewMs] 早已抽出并
+         * 由 `WallClockSkewTest` 钉住 —— **同一个函数、相邻几行，抽了一个、漏了旁边那个**。
+         * 本次照该范式补齐；**公式逐字搬运，语义未变，刻意不加任何新守卫**
+         * （t0..t3 在调用点均已非空，加判据等于改行为而不是让它可测）。
+         *
+         * ⚠ **服务端处理时长在本式中自动抵消**：它同时出现在 (t2−t3) 与 (t1−t0) 里，符号相反。
+         * 故 dwell 不影响 offset —— 这是本式与 [echoRttUs] 共同的正确性来源，两条都有用例钉住。
+         * ⚠ **已知局限**：上下行不对称时本式有 (t_up−t_down)/2 的偏差，这是方法固有的，
+         * 不是缺陷；用例里造了一个非对称样本把偏差量钉住，免得日后有人「修」掉它。
+         */
+        fun echoOffsetUs(t0Us: Long, t1Us: Long, t2Us: Long, t3Us: Long): Long =
+            ((t1Us - t0Us) + (t2Us - t3Us)) / 2
+
+        /**
+         * 往返时延：**总耗时减去服务端处理时长**（微秒）＝ `(t3−t0) − (t2−t1)`。
+         *
+         * 🔴 **减去 (t2−t1) 是本式的全部要点**：不减，测的就是「服务端花了多久」而不是
+         * 「网络花了多久」。服务端 dwell 可以比网络往返大一个数量级（用例里造的是
+         * 300ms dwell 对 50ms 往返，不减就报 350ms —— **七倍，而且不报错**）。
+         * 与 `engine/TtftAnalysis` 剥离服务端 pacing 是同一条口径。
+         *
+         * ⚠ 与 [echoOffsetUs] 不同，本式**不受上下行不对称影响**：往返总和与
+         * 单向如何分配无关。用例里同一个非对称样本同时钉住这两件事。
+         */
+        fun echoRttUs(t0Us: Long, t1Us: Long, t2Us: Long, t3Us: Long): Long =
+            (t3Us - t0Us) - (t2Us - t1Us)
 
         /**
          * 由 echo 响应还原「设备墙钟 − 服务端墙钟」（毫秒，可正可负）。纯函数，离线可单测。
