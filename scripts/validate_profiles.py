@@ -94,6 +94,94 @@ def check_structure(profile, name):
     return errs
 
 
+# ------------------------------------------------- expected_n（D-707／D-740／D-751）
+#
+# `expected_n` ＝「这份 profile **该**产出多少个该 KPI 的样本」，**从 phases 推导**（D-739 裁 (a)）。
+# 显式声明只作覆盖，两者同在**必须相等**（见 check_expected_n）。
+#
+# 🔴 **它只是完备性信号，不是门限**（D-740 §2，承重条款）：
+# `lowConfidence` 仍由 `KpiCalculator` 的五个 `MIN_*` 常量决定，**本模块一个都不碰**。
+# 两者回答不同问题——门限问「样本够不够密到能下结论」，`expected_n` 问「该拿到的拿到了没有」。
+# D-707 原文把两者当成同一个数，照做会把 ITL 那条 100 的密度门限换成 1–2，
+# **废掉一条本来有效的门限，而且不报错**。
+#
+# **写成逐 KPI 的具名字段映射，不写成「密度型/计数型」二分**（D-740 §1）：
+# 六族全都可推导，只是每族读相位的不同字段；二分会让人以为有一类推不出来。
+EXPECTED_N_RULES = {
+    # KPI: (相位类型, 取法, 理由)
+    "N1": ("clock_sync", "sum:samples", "echo 样本 ＝ 各 clock_sync 相位 samples 之和"),
+    "N2": ("clock_sync", "sum:samples", "同 N1，同一批 echo 样本"),
+    "T1": ("token_stream", "count", "每个 token_stream 相位产出 1 个 TTFT"),
+    "T2": ("token_stream", "sum:tokens-1", "ITL ＝ 相邻 token 之差 ⇒ 每相位 tokens−1 个间隔"),
+    "T3": ("token_stream", "sum:tokens-1", "同 T2，同一条间隔序列"),
+    "U1": ("upload_burst", "count", "每个 upload_burst 相位产出 1 个上行样本"),
+    "D1": ("download_burst", "count", "每个 download_burst 相位产出 1 个下行样本"),
+    "U2": ("tool_loop", "sum:rounds", "tool_loop 每 round 一个样本"),
+}
+
+# 🔴 **显名排除并写明理由**（D-740 §4／D-751）——不写出来，下一个人会顺手把 `expected_n`
+# 推广到全部 KPI，**而那正是本轮差点发生的事**。
+EXPECTED_N_EXCLUDED = {
+    "S1": "样本单位是「遍/场景」而非相位；没有任何相位产出它，推导无来源",
+    "C1": "由 ContinuityResultEntity 构造，该实体不带 profileId/phases，无从推导",
+    "C2": "同 C1",
+}
+
+# ⚠ **T2/T3 的推导值是名义值**（D-746）：它假设无合并到达、无丢包。
+# 实测与名义**几乎相等**（s1 599/599、s2 1021/1098、s3 397/398），故按**近似等值**理解；
+# `actual < expected` 的差额是**合并信号，不是错误**。此处只登记语义，比对实测属判读侧。
+EXPECTED_N_ITL_SEMANTICS = "actual < expected 记为合并信号，非错误（D-746）"
+
+
+def derive_expected_n(profile):
+    """从 phases 推导 {KPI: 期望样本数}；无来源相位的 KPI **不出现**在结果里（不记 0）。"""
+    phases = profile.get("phases")
+    if not isinstance(phases, list):
+        return {}
+    out = {}
+    for kpi, (ptype, how, _why) in EXPECTED_N_RULES.items():
+        hits = [p for p in phases if isinstance(p, dict) and p.get("type") == ptype]
+        if not hits:
+            continue          # 无该相位 ⇒ 这份 profile 不产出此 KPI；缺席 ≠ 期望 0
+        if how == "count":
+            out[kpi] = len(hits)
+        elif how.startswith("sum:"):
+            field = how.split(":", 1)[1]
+            if field.endswith("-1"):
+                base = field[:-2]
+                out[kpi] = sum(int(p.get(base, 0)) - 1 for p in hits)
+            else:
+                out[kpi] = sum(int(p.get(field, 0)) for p in hits)
+    return out
+
+
+def check_expected_n(profile, name):
+    """显式声明只作覆盖，且**必须与推导相等**（D-739 (a)）。-> [errors]
+
+    不等即红，理由：手写声明是同一事实的第二份副本，**漂了不报错、只把完备性判歪**。
+    **未声明是合法的**——推导本身就是事实源，声明只在需要覆盖时才写。
+    """
+    declared = profile.get("expected_n")
+    if declared is None:
+        return []
+    if not isinstance(declared, dict):
+        return [f"{name}: 'expected_n' must be an object"]
+    derived = derive_expected_n(profile)
+    errs = []
+    for kpi, val in sorted(declared.items()):
+        if kpi in EXPECTED_N_EXCLUDED:
+            errs.append(f"{name}.expected_n: {kpi} 已显名排除"
+                        f"（{EXPECTED_N_EXCLUDED[kpi]}），不得声明")
+        elif kpi not in EXPECTED_N_RULES:
+            errs.append(f"{name}.expected_n: 未知 KPI {kpi!r}（不在 EXPECTED_N_RULES 里）")
+        elif kpi not in derived:
+            errs.append(f"{name}.expected_n: {kpi} 在本 profile 无来源相位，推不出，不得声明")
+        elif val != derived[kpi]:
+            errs.append(f"{name}.expected_n: {kpi} 声明 {val} ≠ 推导 {derived[kpi]}"
+                        f"（{EXPECTED_N_RULES[kpi][2]}）")
+    return errs
+
+
 def _load(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
