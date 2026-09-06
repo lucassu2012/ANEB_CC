@@ -5,7 +5,10 @@ package main
 
 import (
 	"crypto/tls"
+	"net"
+	"net/http"
 	"testing"
+	"time"
 )
 
 // 用两张可区分的空壳证书（Leaf 携带一个哨兵字段无法直接比对，改用指针相等）。
@@ -73,5 +76,61 @@ func TestValidateIPCertPair(t *testing.T) {
 	}
 	if err := validateIPCertPair("", "key.pem"); err == nil {
 		t.Errorf("key without cert should error")
+	}
+}
+
+// TestTLSPinsHTTP11 —— A-8／REVIEW §7.1：测量端点在 TLS 上必须协商到 HTTP/1.1。
+//
+// **这条守的是测量口径，不是功能**：Go 在 TLS 上默认协商 h2，而 h2 的流控与
+// 多路复用会在「客户端写完」与「服务端收完」之间插进一层与网络无关的排队
+// ——U3 的上行时长因此可能量到一个不属于链路的数。D-703 首样本的
+// `u3 excl<incl` 正卡在「本地写缓冲伪影」与「h2 流控」两种互斥解释之间。
+//
+// ⚠ **客户端这里主动在 ALPN 里提供 h2**（`NextProtos` 显式列出 ＋
+// `ForceAttemptHTTP2`）。若不这么写，测试会在**客户端根本没提 h2** 的情况下
+// 拿到 HTTP/1.1 而通过——那样它证明的是客户端的默认值，不是服务端的配置。
+func TestTLSPinsHTTP11(t *testing.T) {
+	a := &app{profiles: map[string]*Profile{}, dataDir: t.TempDir()}
+	srv := newTCPServer(a, "127.0.0.1:0", "", &tls.Config{
+		Certificates: []tls.Certificate{testTLSCert(t)},
+	})
+
+	// 结构断言：nil 与空映射在源码里只差一个字面量，行为却相反——
+	// nil ＝「用 Go 默认」＝ h2 仍会被协商；空映射才是「显式地没有下一协议」。
+	if srv.TLSNextProto == nil {
+		t.Fatal("TLSNextProto 为 nil ＝ 沿用 Go 默认 ＝ h2 照样协商；A-8 要的是空映射")
+	}
+	if n := len(srv.TLSNextProto); n != 0 {
+		t.Fatalf("TLSNextProto 有 %d 项，h2 可能仍在册", n)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = srv.ServeTLS(ln, "", "") }()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			ForceAttemptHTTP2: true,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // 自签测试证书
+				NextProtos:         []string{"h2", "http/1.1"},
+			},
+		},
+	}
+	resp, err := client.Get("https://" + ln.Addr().String() + "/serverinfo")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.Proto != "HTTP/1.1" {
+		t.Fatalf("协商到 %q，期望 HTTP/1.1——测量端点上的 h2 会把流控排队算进上行时长", resp.Proto)
+	}
+	if got := resp.TLS.NegotiatedProtocol; got != "" && got != "http/1.1" {
+		t.Fatalf("ALPN 协商结果 %q，期望空或 http/1.1", got)
 	}
 }

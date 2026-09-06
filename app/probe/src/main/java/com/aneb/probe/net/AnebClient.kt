@@ -560,10 +560,32 @@ class AnebClient(bound: BoundNetwork? = null) {
         val startNanos: Long,
         /** 窗口到点/流自然结束/异常中断的时刻；异常无法打戳记 null（R-10） */
         val endNanos: Long?,
+        /**
+         * 传输字节数。
+         *
+         * **上行（A-8／REVIEW §7.1，S3-01）＝服务端权威计数** `serverView.bytes`，
+         * 不是客户端写出的字节。两者不是同一个量：`write` 返回只意味着字节进了本地
+         * socket 缓冲，**离开设备与被服务端读完都还没发生**——拿它算上行速率，等于
+         * 把本地缓冲的吞吐算进网络。服务端视角缺席时退回客户端计数，但**那种样本的
+         * 时长会被置 null**（见 `ScenarioKpi.adaptiveWindow`），故不会被拿去算速率。
+         *
+         * 下行：实收字节，口径不变。
+         */
         val bytesTransferred: Long,
         val httpCode: Int?,
         val error: String?,
         val windowUnderrun: Boolean,
+        /**
+         * 上行窗口的服务端权威视角（A-8）。**下行路径恒为 null**，解析失败亦为 null（R-10）。
+         * 两个新字段都带默认值：本 data class 上下行共用，additive 才不动下行既有构造点。
+         */
+        val serverView: UploadServerView? = null,
+        /**
+         * 客户端写出的字节数（**诊断量，不参与 KPI**）。
+         * 与 [bytesTransferred] 不一致本身就是信息：差值＝「已写进本地缓冲但服务端没读到」
+         * 的那一段，正是窗口到点时被丢掉的尾巴。null＝下行路径或未记录。
+         */
+        val clientWrittenBytes: Long? = null,
     )
 
     /**
@@ -667,9 +689,33 @@ class AnebClient(bound: BoundNetwork? = null) {
         val call = client.newCall(Request.Builder().url(url).post(body).build())
         return try {
             executeCancellable(call) { resp ->
+                // A-8：终点＝**响应头到达**，不是最后一次 write 返回的时刻。
+                // 后者只说明字节进了本地 socket 缓冲；服务端把 body 读完的证据是 2xx 响应头。
+                val headersNanos = SystemClock.elapsedRealtimeNanos()
                 val error = if (resp.isSuccessful) null else "http ${resp.code}"
-                resp.body?.close()
-                WindowTransferResult(startNanos, endNanos, written, resp.code, error, underrun)
+                // 排空并解析服务端权威逐块到达序列（R-07）；口径与 uploadBurst 同源。
+                val bodyText = resp.body?.string()
+                val serverView = if (resp.isSuccessful && bodyText != null) {
+                    try {
+                        json.decodeFromString(UploadServerView.serializer(), bodyText)
+                    } catch (e: Exception) {
+                        null // 解析失败 ⇒ 无权威计数，退化为 null（R-10），时长在 KPI 层被置 null
+                    }
+                } else {
+                    null
+                }
+                WindowTransferResult(
+                    startNanos = startNanos,
+                    endNanos = headersNanos,
+                    // 权威计数优先；缺席时退回客户端写出量，但该样本的时长会在
+                    // ScenarioKpi.adaptiveWindow 被置 null，故不会被拿去算速率。
+                    bytesTransferred = serverView?.bytes?.takeIf { it >= 0 } ?: written,
+                    httpCode = resp.code,
+                    error = error,
+                    windowUnderrun = underrun,
+                    serverView = serverView,
+                    clientWrittenBytes = written,
+                )
             }
         } catch (e: CancellationException) {
             throw e // 不吞取消（fail-closed §4.6/§4.7）
