@@ -45,6 +45,11 @@ def _valid_record():
             # THERMAL 接线（D-556）：接线后的生产端每条 run 恒带 env 块（TestEngine 恒传
             # fold 结果）——夹具跟上今天的生产者形状；块缺席=老语料，另有专测钉其合法。
             "env": {"thermal_max_status": "none", "thermal_polluting_event_count": 0},
+            # 构建指纹（A-8③）：块可缺席，块在则四键齐。夹具带上它，
+            # 才使 _SCHEMA_SITE 里 build_spec 那个篡改点真能改变判词
+            # ——**块缺席时校验整段跳过，突变会「无效果」而假绿**。
+            "build": {"git_sha": "8029f5f", "build_type": "debug",
+                      "application_id": "com.aneb.probe", "inject_used": False},
             # voice 摘要（大脑 08-22 裁定 voice 半）：24h 窗内有 Done 行时生产端带 voice 块。
             # 夹具取 v2 口径全值行；v1 形状（caliber/turns_ok/proxy 恒 null）另有专测钉其合法。
             "voice": {"caliber": "server-sim-v2", "m7_max_frame_gap_ms": 180.5,
@@ -286,6 +291,12 @@ _SCHEMA_SITE = {
     "hist_required":
         lambda s: _dig(s, "definitions", "scenario", "properties", "itl_histogram",
                        "required").append("zzz_not_a_field"),
+    # 构建指纹（A-8③）：篡改点同 aqs_v02/aqs_token——往块级 required 追加一个
+    # 记录里绝不存在的字段。它能生效的前提是 _valid_record() 里带着 build 块，
+    # 见那里的注释（块缺席则校验整段跳过，突变无效果而假绿）。
+    "build_spec":
+        lambda s: _dig(s, "properties", "run", "properties", "build",
+                       "required").append("zzz_not_a_field"),
 }
 
 
@@ -521,3 +532,46 @@ def test_aqs_token_bool_flag_as_string_rejected():
     rec = _valid_record()
     rec["run"]["aqs_token"]["s1_veto_applied"] = "false"
     assert any("type mismatch" in e and "s1_veto_applied" in e for e in _errors(rec))
+
+
+# ---------------------------------------- run.build 构建指纹块（A-8③，契约侧）
+#
+# 三条覆盖派单要的两句话：「**缺席合法**」与「**在则四键齐**」。
+# 分三条而不合成一条：三种情形失败时该说的话不同，合成一条只会报「build 不合格」，
+# 而读的人还得自己去分辨是缺席被误杀、还是少了哪一键。
+
+def test_build_block_absent_is_legal():
+    """块缺席 = 该 run 早于本字段上线（R-10）——**不是错误**。
+
+    这条是**正对照**：没有它，一个把 build 列为 run 级 required 的写法也会「通过」
+    另外两条，而那会把全部历史语料判死。
+    """
+    rec = _valid_record()
+    del rec["run"]["build"]
+    assert _errors(rec) == [], "块缺席应合法（早于字段上线的老语料不得被判死）"
+
+
+def test_build_block_present_needs_all_four_keys():
+    for missing in ("git_sha", "build_type", "application_id", "inject_used"):
+        rec = _valid_record()
+        del rec["run"]["build"][missing]
+        errs = _errors(rec)
+        assert any(missing in e for e in errs), (
+            "build 块在而缺 %s，却没报——「在则四键齐」没有落实；实际 errs=%s"
+            % (missing, errs)
+        )
+
+
+def test_build_inject_used_keeps_three_states():
+    """`inject_used` 三态照实：true / false / null 都合法。
+
+    ⚠ 这条钉住的是**不把 null 压成 false**：压了不会报错，只会把一批
+    「不知道用没用注入」的 run 说成「确认干净」——而那正是取证判别要的那个字段。
+    """
+    for v in (True, False, None):
+        rec = _valid_record()
+        rec["run"]["build"]["inject_used"] = v
+        assert _errors(rec) == [], "inject_used=%r 应合法（三态）" % (v,)
+    rec = _valid_record()
+    rec["run"]["build"]["inject_used"] = "false"   # 字符串不是布尔
+    assert any("inject_used" in e for e in _errors(rec)), "字符串形式的 inject_used 应被拒"

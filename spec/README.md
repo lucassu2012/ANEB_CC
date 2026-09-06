@@ -32,6 +32,14 @@
    `portrait.schema.json`(`observedLayer` 无 `additionalProperties: false`),**不是**严格
    Kotlin loader。**动手前先数消费方**(D-276),别数变更形状。
 
+   > **当例(A-8③,2026-09-06)**:`result-run.schema.json` 的 `run.build` 块
+   > (`git_sha`/`build_type`/`application_id`/`inject_used`;**块可缺席**=该 run 早于本字段
+   > 上线,**块在则四键齐**;`inject_used` **三态** null/false/true,把 null 压成 false 等于
+   > 把「不知道」说成「干净」)。它的消费方是 `scripts/validate_results.py` 与
+   > `scripts/campaign_common.py`——**不是**严格 Kotlin loader,故属安全 additive。
+   > ⚠ 但**先上 wire、后补契约的那几个小时里,读方是被合同门挡住的**:
+   > 「additive 安全」说的是**不炸**,不等于**消费方已经能读**。**两侧同批落。**
+
    **即使照做了「先 DTO 后 JSON」,形状门仍有一处够不着**(T14 §8.2,真 `main()` 实测):
    新增的嵌套 DTO 若**声明在 `AdapterSpec.kt` 之外的文件**,`validate_adapters.py` 对该段
    **一个键都不查**,并照旧印出 `OK: ... A1 no key the strict parser would reject ...`
