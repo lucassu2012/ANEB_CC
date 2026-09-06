@@ -112,7 +112,18 @@ data class DownloadResult(
 data class AdaptiveWindowResult(
     val windowTargetMs: Int,
     val windowActualNanos: Long?,
-    val bytesTransferred: Long,
+    /**
+     * 窗口内传输字节。
+     *
+     * **可空（A-8／D-721）**：上行窗口若拿不到服务端权威计数（响应体缺失或解析失败），
+     * 这里记 **null**，而不是退回客户端写出的 `written`。理由是**字段名会替数据作证**——
+     * 叫 `bytesTransferred` 的东西，读者理所当然读成「传过去了这么多」；而 `written`
+     * 只是「写进了本地 socket 缓冲」，窗口关闭时**服务端从未读到**的那段尾巴也在里面。
+     * 填进去不报错、看起来完全正常，**只是它回答的不是这个字段问的那个问题**（R-10）。
+     *
+     * **下行恒非 null**：实收字节即到达字节，不存在这个歧义。
+     */
+    val bytesTransferred: Long?,
     val http2xx: Boolean,
     val slowStartUs: Long? = null,
     val slowStartBytes: Long? = null,
@@ -495,7 +506,12 @@ object KpiCalculator {
 
         // ---- U3/D3：单流自适应窗口 goodput 探针（T47 批③，spec §8.4.2/§8.4.3）----
         fun windowGoodput(w: AdaptiveWindowResult?): Pair<KpiValue, KpiValue> {
-            if (w == null || !w.http2xx || w.windowActualNanos == null || w.windowActualNanos <= 0) {
+            // A-8／D-721：`bytesTransferred == null` ＝ 上行拿不到服务端权威计数。
+            // 这条与 windowActualNanos 的判空**分开写**：两者失效原因不同，
+            // 合成一条会让日后读代码的人以为「有时长就一定有字节」。
+            if (w == null || !w.http2xx || w.windowActualNanos == null || w.windowActualNanos <= 0 ||
+                w.bytesTransferred == null
+            ) {
                 return KpiValue.empty("Mbps") to KpiValue.empty("Mbps")
             }
             val goodput = goodputMbps(w.bytesTransferred, w.windowActualNanos)

@@ -233,7 +233,9 @@ object ScenarioKpi {
             return AdaptiveWindowResult(
                 windowTargetMs = w.windowTargetMs,
                 windowActualNanos = windowActualNanos,
-                bytesTransferred = r.bytesTransferred,
+                // D-721：无服务端权威计数 ⇒ 记 null，不退回客户端 written。
+                // 退回去不报错，只会让「bytes_transferred」这个名字替另一个量作证。
+                bytesTransferred = if (serverCountMissing) null else r.bytesTransferred,
                 http2xx = r.error == null && (r.httpCode ?: 0) in 200..299,
                 slowStartUs = slowStart?.first,
                 slowStartBytes = slowStart?.second,

@@ -71,4 +71,59 @@ class ScenarioKpiUploadBytesTest {
     @Test fun `profileBytes未声明时跳过字节对账_与下行同口径`() {
         assertEquals(1_000_000_000L, up(serverBytes = 1L, profileBytes = 0L).durationNanos)
     }
+
+    // ------------------------------------------------------------------ U3（窗口上传）
+    //
+    // **U1 与 U3 是两种上传，A-8 原文把它们混成了一种（D-721 已裁）**：
+    // - U1 是一次**完整请求**：服务端回 2xx 就意味着请求体已整体收下，客户端 written 与
+    //   服务端字节**由构造相等**；时长锚在响应头，serverView 只是确认、不是依赖。
+    //   ⇒ 上面那条「serverView 缺失时不据此判死」是对的，本批不动它。
+    // - U3 是**按窗截断**的上传：窗口到点即停写，**留在本地 socket 缓冲里的尾巴服务端
+    //   从未读到**。此时 written 必然 ≥ 服务端字节，两者不再由构造相等 ⇒ 字节非要服务端
+    //   视角不可，缺了只能记 null（R-10「无事件不造数」）。
+
+    private val profile =
+        ScenarioProfile(profileId = "s4_throughput", version = "0.3.0", phases = emptyList())
+
+    /** @param serverBytes null ＝ 2xx 但响应体缺失或坏 JSON（解析不出 serverView） */
+    private fun uploadWindow(serverBytes: Long?, written: Long) =
+        ScenarioRunner.AdaptiveWindowOutcome(
+            windowTargetMs = 4000,
+            result = AnebClient.WindowTransferResult(
+                startNanos = 1_000_000_000L,
+                endNanos = 5_000_000_000L,
+                // 传输层在无权威计数时退回 written（AnebClient 既有回退）；
+                // 本组要验的正是 **KPI 层不该把这个回退值当成 bytes_transferred 上报**。
+                bytesTransferred = serverBytes ?: written,
+                httpCode = 200,
+                error = null,
+                windowUnderrun = false,
+                serverView = serverBytes?.let {
+                    AnebClient.UploadServerView(bytes = it, recvStartUs = 1, recvEndUs = 2)
+                },
+                clientWrittenBytes = written,
+            ),
+            samples = emptyList(),
+        )
+
+    private fun u3(serverBytes: Long?, written: Long) =
+        ScenarioRunner.ScenarioOutcome(profile, "s4_throughput#0")
+            .also { it.uploadWindows.add(uploadWindow(serverBytes, written)) }
+            .let { ScenarioKpi.buildKpiInput(it, emptyList()) }
+            .adaptiveUpload
+
+    @Test fun `U3取服务端权威计数_written34MB_server30MB_判30MB`() {
+        // A-8 的核心事故：拿客户端 written 当上行字节 ⇒ 把窗口关闭时还堵在本地缓冲、
+        // 服务端从未读到的那 4 MB 也算成「传过去了」⇒ 吞吐系统性高估约 13%。
+        val server = 30L * 1024 * 1024
+        val written = 34L * 1024 * 1024
+        assertEquals(server, u3(serverBytes = server, written = written)?.bytesTransferred)
+    }
+
+    @Test fun `U3在2xx但坏JSON时字节与时长与慢启动全null_不退回written`() {
+        val w = u3(serverBytes = null, written = 34L * 1024 * 1024)
+        assertNull("无服务端权威计数时不得把 written 当 bytes_transferred 上报", w?.bytesTransferred)
+        assertNull("字节不可信 ⇒ 时长置 null，下游才算不出那个偏高的速率", w?.windowActualNanos)
+        assertNull("慢启动估计依赖服务端逐块序列，同样只能 null", w?.slowStartUs)
+    }
 }
