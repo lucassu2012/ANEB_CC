@@ -17,6 +17,21 @@ import org.junit.Test
  * 单测会抛 "not mocked"——这正是调查报告里"零测试覆盖"成因，不是失误。改为直接测试
  * 两处真正改动落脚的纯函数/无 Android 依赖类：[parseSseEventFields]（多行 data: 拼接）
  * 与 [SseBoundaryScanner]（CRLF 边界，其 `onRead`/`finish` 均不触碰 SystemClock）。
+ *
+ * 🔴 **2026-09-06 勘误（上面那段写于 `fb82de4`／2026-08-04 时为真，现已失效）**：
+ * 「本仓无 Robolectric」**不再成立**——它已于 `186d1b7`（2026-08-20，D-526
+ * 「渲染层红线测试从『做不到』变成『做到了』」）入仓，同目录的
+ * [NetGuardPowerMetadataTest] 就在用。⇒ [SseReader.parseRaw] **现在可以直接测**，
+ * 见 [SseReaderMalformedTest]（`@RunWith(RobolectricTestRunner)`，`parseRaw` 一行未改）。
+ * **本文件当初的选择是对的，原文保留不改写**；补这一段只为止损。
+ *
+ * ⚠ **这条限制解除后仍挡了人 17 天，而它并非无人察觉**：
+ * `docs/coordination/REVIEW_20260905_FULL.md` 的 L1-F8 早已写明「Robolectric 已入仓
+ * （4.16.1）可直接测 `readRaw`」，**证据栏引的就是本文件第 15-19 行**。
+ * ⇒ 差的不是「有没有人发现」，是**发现之后没有回到被推翻的那句话上去改它**——
+ * 于是下一个读者仍会先撞上这段写得很清楚、很有说服力、而且已经不成立的话。
+ * **一条被记录的障碍，写得越清楚越像还成立。** 读到「因为 X 做不到，所以绕开」时，
+ * 先核 X 今天是否还成立。
  */
 class SseReaderHardeningTest {
 
