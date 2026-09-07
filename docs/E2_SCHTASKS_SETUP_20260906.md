@@ -2,7 +2,7 @@
 
 > **给 PO 照抄的单子。只需在「管理员 PowerShell」里跑一次 §2；此后编队任何非提权会话都能起／停整形器，不再需要您开窗。**
 > 设计目标＝把 D-712(1) 点名的代价「脚本对本用户可写＝常开提权通道」**堵掉**：被提权执行的可执行文件与包装脚本放**仅 Administrators/SYSTEM 可写**的目录；非提权侧只能改「档位参数」一行文本，且包装脚本按**白名单**校验后才传给 clumsy（clumsy 的参数只影响过滤与整形，不含任何代码执行面）。
-> 依据：D-702③（schtasks 替代方案）、D-712(1)、D-656③／D-657（`clumsy-0.3-win64-a.zip` sha256 ＝ `f50dc734148815831c67d9fc2c246c22d421c53dcea51e26eee905b0b2806c27`，与 D-657 登记值一致；**范围限定**：clumsy 上游 release 不发布校验和、GitHub 资产 digest 为空，第二源只有资产大小 536789 一致——本比对只证「登记→解压之间未被改」，**不证溯源**（cd5239ba 09-06 指出，采纳））；clumsy 命令行旗标核自上游源码 `src/utils.c`（`--key value` 形态）、`src/lag.c`／`drop.c`／`bandwidth.c`（`<模块>-inbound/-outbound/-time/-chance/-bandwidth`）、`src/main.c`（`--filter`，带参启动即开始过滤）。
+> 依据：D-702③（schtasks 替代方案）、D-712(1)、D-656③／D-657（`clumsy-0.3-win64-a.zip` sha256 ＝ `f50dc734148815831c67d9fc2c246c22d421c53dcea51e26eee905b0b2806c27`，与 D-657 登记值一致；**范围限定**：clumsy 上游 release 不发布校验和、GitHub 资产 digest 为空，第二源只有资产大小 536789 一致——本比对只证「登记→解压之间未被改」，**不证溯源**（cd5239ba 09-06 指出，采纳））；clumsy 命令行旗标核自上游源码 `src/utils.c`（`--key value` 形态）、`src/lag.c`／`drop.c`／`bandwidth.c`（`<模块>-inbound/-outbound/-time/-chance/-bandwidth`）、`src/main.c`（`--filter`）。🔴 **2026-09-07 实测推翻本句的后半**：原写「**带参启动即开始过滤**」——**错**。v4 在非提权窗实跑：`schtasks /Run` rc=0、clumsy **进程真起来了**（PID 34812）、`start.log` 有 START 行，**但 WinDivert 驱动从未加载**（`sc query` 1060）、**RTT 12ms→12ms 零抬升**。真因：**clumsy 0.3 是 GUI，带参只是预填界面，仍停在那里等人点 Start**。大脑扫二进制字符串复核：`headless`／`nogui`／`autostart`／`--start` **全部零命中**（对照 `lag-time`／`drop-chance` 与 `invalid argument count…"--drop on"` 均命中，量法有效）⇒ **该版本没有无头模式**。⚠ **本句的错法值得记**：「核自上游源码」是**读代码读出来的**，而它回答的是「代码看起来会做什么」，不是「这个二进制被这样拉起时实际做什么」；且本机**从无任何源文件**（解包目录只有 exe／dll／sys／License／config），**具体的文件名让引用显得比它实际更有据**。。
 
 ## 1. 现状（2026-09-06 11:2x，大脑核）
 
