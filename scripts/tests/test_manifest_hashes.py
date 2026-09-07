@@ -218,6 +218,33 @@ def test_bom_and_crlf_do_not_fake_a_finding():
     assert check_manifest(mf2) == [], "文件名尾部的 CR 没被吃掉 ⇒ 会全报缺失"
 
 
+def test_a_manifest_without_a_trailing_newline_keeps_its_last_entry():
+    """🔴 **最后一条不许被静默吃掉**——`evidence/phase3` 那份**没有行尾换行符**（末字节是 `g`，即 `gen_demo_jsonl.py` 的末字符）。
+
+    实证（2026-09-07，同侪的校验器）：用 `while read` 扫它，**`read` 在无尾换行的最后一行上
+    返回非零 ⇒ 循环体不执行 ⇒ 最后一条被静默跳过**，于是它数出 35 条而实际 36 条。
+    ⚠ **那次两侧数字差 1，第一反应是「计数口径不同」——那是个说得通的解释，而它是错的。**
+    **一个数对不上时，先假设某一侧的量法漏了东西，别先找一个能解释它的口径差异。**
+
+    本文件的读取器用 `splitlines()`，天生不受影响；**但没有用例钉住就只是碰巧对**。
+    """
+    tmp = tempfile.mkdtemp()
+    a, b = b"one\n", b"two\n"
+    ha, hb = hashlib.sha256(a).hexdigest(), hashlib.sha256(b).hexdigest()
+    d = os.path.join(tmp, "notrail")
+    os.makedirs(d, exist_ok=True)
+    io.open(os.path.join(d, "a.txt"), "wb").write(a)
+    io.open(os.path.join(d, "b.txt"), "wb").write(b)
+    mf = os.path.join(d, "sha256-manifest.txt")
+    # 末尾**不带**换行，且用 phase3 那种双 CR 行尾——两个形态一起钉
+    io.open(mf, "wb").write(
+        ("%s  a.txt\r\r\n%s  b.txt" % (ha, hb)).encode("utf-8"))
+    entries = parse_manifest(mf)
+    assert len(entries) == 2, ("最后一条被吃掉了：%r" % (entries,))
+    assert entries[-1][1] == "b.txt", entries
+    assert check_manifest(mf) == []
+
+
 def test_an_unparseable_manifest_is_not_silently_empty():
     """解析不出条目时，主用例会断言失败——这里钉住解析器**确实返回空**，
 
