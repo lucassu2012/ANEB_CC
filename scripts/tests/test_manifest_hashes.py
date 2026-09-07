@@ -12,7 +12,7 @@
    ⇒ **不需要任何例外**。少一个例外就少一处日后被引错的地方。
 
 **范围＝全仓四份，不是 phase0 一份**（这条是本门最容易被削掉的部分）：
-链跑只重算 `phase0`（`verify_all.ps1` 的 `$evidenceDir` 写死），presence 门也只查 `phase0`。
+链跑只重算 `phase0`（`verify_all.ps1` 传给 `New-EvidenceManifest.ps1` 的就是这一个目录），presence 门也只查 `phase0`。
 ⇒ `phase1/2/3` 三份**没有重生成器、也没有读者**。**把门也只挂 phase0，等于把那个盲区原样复制一遍。**
 
 ⚠ **判据取盘上，不取 HEAD**：取 HEAD 会造出「修它必须先跑十几分钟链跑，而在提交前门一直红」

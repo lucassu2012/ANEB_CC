@@ -1548,15 +1548,27 @@ def test_the_manifest_is_generated_after_the_badges_it_describes():
     ⚠ **用字符串锚，不用行号**（本仓明令；且当天实测过一次行号漂移：
     四路调查引的 706/720 全来自未提交的工作区，HEAD 其实是 695/709）。
     """
+    # ⚠ **2026-09-07 起清单生成被提取到 `scripts/New-EvidenceManifest.ps1`**（链跑与
+    # 「链外手工重封」两处需要同一段逻辑，而**第二个生成器**正是四份清单三种格式的来源）。
+    # ⇒ 本条改钉**两处锚**，**不变量一字未放松**：
+    #   ①链跑里「先徽章、后清单」的顺序照旧查（锚换成那句调用）；
+    #   ②真正的 `Out-File` 必须存在于被调脚本里——否则「写清单」这件事可能整个消失，
+    #     而只查顺序的断言**对一个根本不写清单的链跑也会通过**。
     with open(os.path.join(REPO, "scripts", "verify_all.ps1"),
               encoding="utf-8") as fh:
         text = fh.read()
+    with open(os.path.join(REPO, "scripts", "New-EvidenceManifest.ps1"),
+              encoding="utf-8") as fh:
+        tool = fh.read()
     badge_call = text.find("& $py $badgeScript")
     badge_else = text.find("badges: NOT_EXECUTED")
-    manifest_write = text.find("Out-File -Encoding utf8 $manifestPath")
+    manifest_write = text.find("& $manifestScript -EvidenceDir $evidenceDir")
     assert badge_call > 0, "找不到徽章调用锚 `& $py $badgeScript`"
     assert badge_else > 0, "找不到徽章 else 分支锚 `badges: NOT_EXECUTED`"
-    assert manifest_write > 0, "找不到清单写入锚 `Out-File ... $manifestPath`"
+    assert manifest_write > 0, "找不到清单生成锚 `& $manifestScript -EvidenceDir …`"
+    assert "Out-File -Encoding utf8 $manifestPath" in tool, (
+        "被调脚本里找不到真正的清单写入 `Out-File ... $manifestPath` —— "
+        "**只查顺序的断言对一个根本不写清单的链跑也会通过**")
     assert badge_call < manifest_write, (
         "清单写在了徽章之前 ⇒ 它会永久记录上一跑的 badges.txt 哈希（D-612）")
     # 清单还必须落在徽章 if/else **之外**：else 分支里那句在清单之前，
@@ -1565,10 +1577,22 @@ def test_the_manifest_is_generated_after_the_badges_it_describes():
         "清单似乎被并进了徽章的 if 分支 ⇒ 徽章未执行时清单不会刷新（D-612）")
 
 
+# ⚠ **2026-09-07：链跑的清单生成段被提取到 `scripts/New-EvidenceManifest.ps1`**。
+# 下面几条守卫钉的锚（`$manifestPath`／`$mhdr`／`ls-files --ignored`／哨兵 99 …）
+# 因此有一部分已不在 `verify_all.ps1` 里。
+# ⇒ 取源helper 改为**覆盖这两个文件**，让每条不变量继续被查到它现在所在的那份，
+#   而**不是**把断言删掉或放宽。**搬家不等于豁免。**
+# ⚠ 代价写明：跨这两份做 `find` 的**先后比较**会失去意义（拼接顺序是人定的），
+#   故凡比顺序的断言必须各自 `open()` 自己那份 —— 上面那条 D-612 次序守卫就是这么写的。
+_MANIFEST_SOURCES = ("verify_all.ps1", "New-EvidenceManifest.ps1")
+
+
 def _verify_all_text():
-    with open(os.path.join(REPO, "scripts", "verify_all.ps1"),
-              encoding="utf-8") as fh:
-        return fh.read()
+    parts = []
+    for name in _MANIFEST_SOURCES:
+        with open(os.path.join(REPO, "scripts", name), encoding="utf-8") as fh:
+            parts.append(fh.read())
+    return chr(10).join(parts)
 
 
 def _verify_all_code():

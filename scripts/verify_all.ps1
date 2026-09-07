@@ -825,78 +825,15 @@ if ($isRed -or $isFinalGreen) {
         if (-not (Test-Path $badgeScript)) { $bm += 'scripts/badges.py' }
         "badges: NOT_EXECUTED (missing: $($bm -join ', ')) —— 徽章未刷新"
     }
-    # --- regenerate sha256 manifest for evidence/phase0 (scripted, never manual) ---
-    # **必须排在徽章之后**（见上方 D-612 注释）：清单描述的是 evidence/phase0 的现态，
-    # 而 badges.txt 是本块里最后一个被写的文件。**无条件执行**，不得并进上面的
-    # `if ($py -and ...)` 分支——徽章没刷新时清单照样要记录当时的真实现态。
-    $manifestPath = Join-Path $evidenceDir 'sha256-manifest.txt'
-    $evRel = $evidenceDir.Substring($repo.Length + 1) -replace '\\', '/'
-
-    # T89(b)：先整批取出「未跟踪且被 .gitignore 忽略」的文件，**一次 git 调用**，
-    # 别每个文件跑一次 check-ignore（清单三百多条，那是三百多次进程）。
-    # 为什么要排除：这些绝大多数是 verify_all_*.log 运行日志，只在本机存在
-    # ⇒ 留着会让**清单内容变成「本 checkout 跑过多少次」的函数**，
-    # 每跑一次就多一行**别的 checkout 无从复核**的行。清单的用处正是让别人能核。
-    # ⚠ 判据是 check-ignore 语义（未跟踪 **且** 被忽略），**不是**「未跟踪」——
-    # 刚产生、马上要入库的证据文件是未跟踪但不被忽略的，它必须进清单。
-    # ⚠ 已跟踪的 verify_all_*.log（在 .gitignore 那条规则之前入过库的）**照收**：
-    # 别的 checkout 确实有它们、核得动，排除它们才是丢信息。
-    $ignoredSet = @{}
-    $gitOk = $false
-    # ⚠ **失败必须朝「不排除」那侧倒**：git 缺失时 `& git` 不会自己把 $LASTEXITCODE
-    # 置非零，它会**留着上一条命令的值**——若那个值恰好是 0，就会走进「已排除」分支、
-    # 拿一个空集合当结果，然后**宣称排除过**。（同族即本文件 §673 记的 D-532。）
-    # 所以先探 git 是否存在，再把 $LASTEXITCODE 预置成哨兵 99：git 真跑过才会被覆盖。
-    # ⚠⚠ 必须写 `$global:` —— 首跑实测（2026-08-30）：裸写 `$LASTEXITCODE = 99`
-    # 会在**脚本作用域**新建一个局部变量把全局那个遮住，而 `& git` 写的是全局那个
-    # ⇒ 读回来永远是 99、`$gitOk` 永远 false、**排除功能整个静默失效**。
-    # 三个独立脚本一次只变一个量测过：局部赋值读 99／`$global:` 读 0／不预置读 0。
-    # 它当时没变成假绿，只因为哨兵朝安全侧倒 + stdout 会明说「未能排除」——
-    # **那句话是唯一的告警**，所以下面那行 $mnote 不许省。
-    if (Get-Command git -ErrorAction SilentlyContinue) {
-        $global:LASTEXITCODE = 99
-        $ign = & git -C $repo ls-files --others --ignored --exclude-standard -- $evRel 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $gitOk = $true
-            foreach ($ip in $ign) { if ($ip) { $ignoredSet[$ip.Trim()] = $true } }
-        }
-    }
-
-    $mlines = @()
-    $skipped = 0
-    # T89(c)：过滤清单自身用**全路径**比较，不用 `.Name`。
-    # 原先写 `$_.Name -ne 'sha256-manifest.txt'` 而这里带 `-Recurse`
-    # ⇒ 任何子目录里的同名文件也会被静默排除，且不报错。
-    Get-ChildItem $evidenceDir -Recurse -File | Where-Object { $_.FullName -ne $manifestPath } | Sort-Object FullName | ForEach-Object {
-        $rel = $_.FullName.Substring($evidenceDir.Length + 1) -replace '\\', '/'
-        if ($gitOk -and $ignoredSet.ContainsKey("$evRel/$rel")) { $skipped++; return }
-        $h = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
-        $mlines += "$h  $rel"
-    }
-
-    # T89(a)：让清单**自述**它是什么。此前它没有表头，读者只能从文件名猜，
-    # 于是哈希对不上时第一反应是「内容被改了」，而最常见的真因是行尾形态不同。
-    # ⚠ 表头里**不写条数**——写了就每跑一次变一次，正好抵消上面消 churn 的目的；
-    # 条数走 stdout / 本次 verify_all 日志。
-    $mhdr = @(
-        '# evidence/phase0 的 SHA256 清单 —— 由 scripts/verify_all.ps1（-Scope all）自动重算，勿手编。',
-        '# 【这是本机 checkout 的形态快照，不是仓库内容的规范哈希】：文件落到磁盘的字节',
-        '# 受本机 core.autocrlf 与 .gitattributes 影响，换一台机器 checkout 出来的行尾可能不同。',
-        '# ⇒ 哈希对不上时**先核行尾形态，再怀疑内容被改**。（全仓行尾策略单列待裁，试点期禁动。）',
-        '# 已排除两类：①清单自身；②本 checkout 中被 .gitignore 忽略的未跟踪文件',
-        '#   （绝大多数是 verify_all_*.log 运行日志，只在本机存在、别处无从复核）。',
-        '# ⚠ 因此本清单**不含当次运行日志**；当次日志路径见 badges.txt 与本次 verify_all 输出。',
-        '# ⚠⚠ 【本表头描述的是「清单生成的那一刻」，不是「入库后的状态」】：归档提交会在',
-        '#   清单生成**之后**把当次运行日志 `git add -f` 入库 ⇒ 入库后必然短暂存在',
-        '#   **已跟踪、却不在本清单里**的日志，它不属于上面任何一类。下次重算即收入。',
-        '#   ⇒ 拿本清单核对账时把这一类算进去，别当成不一致去查（有人为此查过二十分钟）。',
-        '#   守它的是 `test_every_tracked_evidence_file_has_a_hash_except_the_run_logs`：',
-        '#   已跟踪却未列的**必须全部是 verify_all_*.log**，其余一律红。',
-        '# 行格式：<sha256 小写><两个空格><相对 evidence/phase0 的路径，斜杠分隔>；`#` 开头为注释。'
-    )
-    ($mhdr + $mlines) -join "`r`n" | Out-File -Encoding utf8 $manifestPath
-    $mnote = if ($gitOk) { "，已排除 gitignored $skipped 条" } else { '；⚠ git 不可用，未能排除 gitignored' }
-    "manifest: $manifestPath ($($mlines.Count) files$mnote)"
+    # --- regenerate sha256 manifest（**已提取到 scripts/New-EvidenceManifest.ps1**）---
+    # 2026-09-07：同一段逻辑被链跑与「链外手工重封」两处需要 ⇒ 提取成一个脚本，
+    # **不许出现第二个生成器**（四份清单三种格式，正是「同一件事被不同的东西生成」的产物）。
+    # ⚠ **顺序仍然承重**：徽章必须在清单之前刷新（D-612）——上面 badges 那步在前，
+    # 这一句在后；守它的是 `test_docs_commands.test_the_manifest_is_written_after_the_badges`，
+    # 提取后它改钉**两处锚**：本文件里这行调用，与被调脚本里真正的 Out-File。
+    # ⚠ 表头出处那句**与写入者无关**（两条写入路径共用一句），否则它会来回翻。
+    $manifestScript = Join-Path $PSScriptRoot 'New-EvidenceManifest.ps1'
+    & $manifestScript -EvidenceDir $evidenceDir -Repo $repo -Write
 } else {
     $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)
     $log -join "`r`n" | Out-File -Encoding utf8 $scratchLog
