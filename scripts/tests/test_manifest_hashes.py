@@ -63,19 +63,13 @@ MANIFEST_GLOB = os.path.join(REPO_ROOT, "evidence", "*", "sha256-manifest.txt")
 # **这是欠账，不是许可**——下方反向断言会在它被修好后强制把它从这里删掉，
 # 否则这张表会变成一张只增不减的免罪符（同 `_DECISION_OVERLONG_PENDING_TRIM` 的先例）。
 #
-# ⚠ 三条**都有正当成因、无一指向篡改**；共性是**清单在一次合法改动之后从未重算**。
-# **成因既已查清，正确的终局是重算而不是长期豁免**（重算不丢史实，见 docstring 的判决性检验）。
-# 它们暂列在这里，只因 `phase1/2/3` **没有重生成器** —— 需要一次显式的重算动作，
-# **而手改清单违背「只许脚本生成」**。⇒ **这三条是待办，不是结论。**
+# **目前为空**：立此表时实测的三条已按裁定（成因查清、无一指向篡改）**全部重算**——
+#   `evidence/phase1/STATUS.json`        ← 897f474（phase1 收口，两项 NOT_EXECUTED→PASS）
+#   `evidence/phase3/demo_results.jsonl` ← 9356de7（A-4／D-722，demo 加 synthetic 块）
+#   `evidence/phase3/gen_demo_jsonl.py`  ← 同上
+# **清偿了就得删**（下方 `settled` 反向断言强制这一点），否则它会变成只增不减的免罪符。
 _STALE_PENDING_RULING = {
-    "evidence/phase1/STATUS.json":
-        "897f474（phase1 收口，两项 NOT_EXECUTED→PASS）改于 07-13 04:18，"
-        "而清单 74eddd5 写于同日 02:50 —— 早 87 分钟，此后无人重算",
-    "evidence/phase3/demo_results.jsonl":
-        "9356de7（A-4／D-722 台账诚实化，demo 加 synthetic 块）重生成；"
-        "清单 74c9cc0 自 07-13 冻结",
-    "evidence/phase3/gen_demo_jsonl.py":
-        "同上，9356de7 生成器与数据同批改",
+    # 新增条目必须写清成因与 commit 锚，且**尽快清偿**——它是欠账，不是许可。
 }
 
 _HOWTO = (
@@ -84,7 +78,8 @@ _HOWTO = (
     "`git show <改动前的提交>^:<路径>` 逐形态对拍，确认清单记的就是旧字节）。"
     "**不问成因就重算，等于把一次没人解释得清的改动洗成「正确」。**"
     "\n  · `phase0` 有重生成器 ⇒ 跑 `verify_all.ps1 -Scope all` 即可；"
-    "\n  · `phase1/2/3` **没有重生成器** ⇒ 需要一次显式的重算动作，那是**待裁项**，别手改清单。"
+    "\n  · `phase1/2/3` **没有重生成器** ⇒ 需要一次显式的重算动作，只能一次性显式重算（2026-09-07 已这样做过一次）。"
+    "⚠ **逐字节改**：phase3 那份清单的行尾是**双 CR**（CR CR LF），按「单个 CR」还原会每行少一字节，而 `git diff` 只显示哈希那一处、看不出来。"
     "\n  · ⚠ **不要因为「怕抹掉痕迹」而不敢重算**：受跟踪文件的旧字节 git 一直留着，"
     "重算不丢史实（本文件 docstring 有三条判决性检验）。"
 )
