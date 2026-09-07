@@ -815,25 +815,45 @@ if ($isRed -or $isFinalGreen) {
     # 后果：Test-Path 恒 False，而当时 if 又**没有 else**，于是这条接线自 3a1577a 起
     # 一次都没跑过、也一次都没吭声，`badges.txt` 因此从不存在（D-532 的纯粹形态）。
     # 正斜杠在 Windows 上照样解析，且对这一整类吞字免疫。
-    $badgeScript = Join-Path $repo 'scripts/badges.py'
-    if ($py -and (Test-Path $badgeScript)) {
-        & $py $badgeScript --log $logPath 2>&1 | Out-String | Write-Output
+
+    # --- (a′)（2026-09-07）：**徽章与清单只在收官全绿时写**，日志归档照旧含红门样本 ---
+    # 🔴 **为什么**：此前两者写在 `$isRed -or $isFinalGreen` 块内、块内无条件 ⇒
+    #   ①**红跑照样重算清单** ⇒ 哈希门红一次、下跑即绿，**无人动手也自愈** ⇒ 会被读成 flaky
+    #     而被无视；且 D-819 的「收尾复跑」发生在重算之后 ⇒ **对那道门恒绿，是同义反复不是确认**。
+    #   ②**红跑照样重写 badges** ⇒ 盘上会留下一份 `NOT all green` 的徽章，而 D-604② 明令
+    #     「出红则 badges 保持 M 态，宁可 M 态过夜不发布假绿」——此前只靠提交时的门加人的小心拦着。
+    # ⚠ **两者必须一起移**：只移清单会重造 D-612 那个洞——红跑重写了 badges 而清单没跟上，
+    #   清单里 badges 的哈希就**按构造**变陈。
+    # ⚠ **代价是链跑不再能解开自己造成的红**（$isFinalGreen 恒假）。**那是买来的，不是漏掉的**：
+    #   红要持久。唯一在册出路＝手工跑 `scripts/New-EvidenceManifest.ps1`（默认只报不写），
+    #   逐条确认成因后加 `-Write`，并把成因写进提交说明。
+    # ⚠ 税已量过：近 30 天 evidence/phase0 下**受清单覆盖且被提交改动过的文件（排除运行日志
+    #   与清单自身）＝ 2 个**，而同期清单自身被改写 16 次 ⇒ **churn 几乎全部来自 badges，
+    #   不是来自证据**；手工重封的税约**每月 2 次**，而那 2 次本来就该逐条写成因。
+    if (-not $isFinalGreen) {
+        "badges/manifest: 本次为红门样本归档，**按 (a′) 不刷新** —— 徽章保持上一次绿跑的值，
+        清单保持上一次绿跑的形态（这正是让哈希门的红持久下来的机制）。"
     } else {
-        # 静默跳过正是上面那个 bug 能活这么久的原因；缺什么就说什么。
-        $bm = @()
-        if (-not $py) { $bm += 'python' }
-        if (-not (Test-Path $badgeScript)) { $bm += 'scripts/badges.py' }
-        "badges: NOT_EXECUTED (missing: $($bm -join ', ')) —— 徽章未刷新"
+        $badgeScript = Join-Path $repo 'scripts/badges.py'
+        if ($py -and (Test-Path $badgeScript)) {
+            & $py $badgeScript --log $logPath 2>&1 | Out-String | Write-Output
+        } else {
+            # 静默跳过正是上面那个 bug 能活这么久的原因；缺什么就说什么。
+            $bm = @()
+            if (-not $py) { $bm += 'python' }
+            if (-not (Test-Path $badgeScript)) { $bm += 'scripts/badges.py' }
+            "badges: NOT_EXECUTED (missing: $($bm -join ', ')) —— 徽章未刷新"
+        }
+        # --- regenerate sha256 manifest（**已提取到 scripts/New-EvidenceManifest.ps1**）---
+        # 2026-09-07：同一段逻辑被链跑与「链外手工重封」两处需要 ⇒ 提取成一个脚本，
+        # **不许出现第二个生成器**（四份清单三种格式，正是「同一件事被不同的东西生成」的产物）。
+        # ⚠ **顺序仍然承重**：徽章必须在清单之前刷新（D-612）——上面 badges 那步在前，
+        # 这一句在后；守它的是 `test_docs_commands.test_the_manifest_is_written_after_the_badges`，
+        # 提取后它改钉**两处锚**：本文件里这行调用，与被调脚本里真正的 Out-File。
+        # ⚠ 表头出处那句**与写入者无关**（两条写入路径共用一句），否则它会来回翻。
+        $manifestScript = Join-Path $PSScriptRoot 'New-EvidenceManifest.ps1'
+        & $manifestScript -EvidenceDir $evidenceDir -Repo $repo -Write
     }
-    # --- regenerate sha256 manifest（**已提取到 scripts/New-EvidenceManifest.ps1**）---
-    # 2026-09-07：同一段逻辑被链跑与「链外手工重封」两处需要 ⇒ 提取成一个脚本，
-    # **不许出现第二个生成器**（四份清单三种格式，正是「同一件事被不同的东西生成」的产物）。
-    # ⚠ **顺序仍然承重**：徽章必须在清单之前刷新（D-612）——上面 badges 那步在前，
-    # 这一句在后；守它的是 `test_docs_commands.test_the_manifest_is_written_after_the_badges`，
-    # 提取后它改钉**两处锚**：本文件里这行调用，与被调脚本里真正的 Out-File。
-    # ⚠ 表头出处那句**与写入者无关**（两条写入路径共用一句），否则它会来回翻。
-    $manifestScript = Join-Path $PSScriptRoot 'New-EvidenceManifest.ps1'
-    & $manifestScript -EvidenceDir $evidenceDir -Repo $repo -Write
 } else {
     $scratchLog = Join-Path $env:TEMP ("verify_{0}_{1}.log" -f $Scope, $ts)
     $log -join "`r`n" | Out-File -Encoding utf8 $scratchLog

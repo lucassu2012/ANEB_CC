@@ -1587,6 +1587,35 @@ def test_the_manifest_is_generated_after_the_badges_it_describes():
 _MANIFEST_SOURCES = ("verify_all.ps1", "New-EvidenceManifest.ps1")
 
 
+def test_the_badges_and_manifest_are_written_only_on_a_final_green_run():
+    """(a′)：徽章与清单**只在收官全绿时**写；日志归档照旧含红门样本。
+
+    🔴 **它买来的是「红能持久」**：此前两者写在 `$isRed -or $isFinalGreen` 块内且块内无条件
+    ⇒ 红跑照样重算 ⇒ 哈希门红一次、下跑即绿，**无人动手也自愈**，会被读成 flaky 而被无视；
+    且 D-819 的收尾复跑发生在重算之后 ⇒ **对那道门恒绿，是同义反复不是确认**。
+    连带：红跑还会在盘上留下一份 `NOT all green` 的徽章，而 D-604② 明令出红则保持 M 态。
+
+    ⚠ **两者必须一起在门内**：只把清单移进去会重造 D-612 那个洞——红跑重写了 badges
+    而清单没跟上，清单里 badges 的哈希就**按构造**变陈。本条同时钉住这一点。
+
+    ⚠ 判据是**源码结构**，不是某一次跑：红跑要复现得等下一次红。结构可静态查，
+    且这正是「会被顺手移回去」的那类改动。
+    """
+    with open(os.path.join(REPO, "scripts", "verify_all.ps1"), encoding="utf-8") as fh:
+        text = fh.read()
+    gate = text.find("if (-not $isFinalGreen) {")
+    badge_call = text.find("& $py $badgeScript")
+    manifest_call = text.find("& $manifestScript -EvidenceDir $evidenceDir")
+    log_write = text.find("$log -join \"`r`n\" | Out-File -Encoding utf8 $logPath")
+    assert gate > 0, "找不到 (a′) 的分档锚 `if (-not $isFinalGreen) {`"
+    assert badge_call > 0 and manifest_call > 0, "找不到徽章/清单调用锚"
+    assert log_write > 0, "找不到日志归档锚"
+    assert log_write < gate, (
+        "日志归档跑到了 (a′) 分档之后 ⇒ 红门样本不再留档，而红的诊断价值正是要留的")
+    assert gate < badge_call and gate < manifest_call, (
+        "徽章或清单落在 (a′) 分档之前 ⇒ 红跑仍会刷新它们 ⇒ 哈希门的红会自愈（D-825）")
+
+
 def _verify_all_text():
     parts = []
     for name in _MANIFEST_SOURCES:
