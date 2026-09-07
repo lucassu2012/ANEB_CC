@@ -72,6 +72,27 @@ def reflex_tests(log_path):
     for name, passed, total in re.findall(
             r"([A-Za-z0-9_-]+) reflex:\s*(\d+)/(\d+)\s*passed", txt):
         per_suite[name] = (int(passed), int(total))
+    # **形状 2（2026-09-07 补，承本轮全链实证）**：`ran <N> …reflex tests: <N> passed, <M> failed`。
+    # 链上另有三道门（`adapters-spec-unit` 42／`portraits-redline-unit` 46／
+    # `portraits-schema-unit` 10）**自述跑的就是 reflex 测试**，只是措辞与形状 1 不同
+    # ⇒ 此前 **98 条全部落在分子外**（1078 而非 1176）。
+    #
+    # 🔴 **这是上面那条注释记的同一个 bug 换一族措辞再犯。** 所以修法不是「只放宽模式」——
+    # **放宽模式解决的是「这一族」，解决不了「范围」**；下一族新措辞照样会安静地掉出去。
+    # 真正兜住它的是 `scripts/tests/test_badges_reflex_scope.py` 那道**反向守卫**：
+    # 链上任何一道门自述 reflex 而没被这里收进来即红，且它对**读不懂的措辞判红、不跳过**。
+    # **先有那道守卫，这里放宽才是安全的**；只放宽就是第三次同形。
+    #
+    # ⚠ 另一层值得写死：**一个自述来源的聚合数，告诉你的是它的构成，不是它的完整性。**
+    # 下面 `detail` 列的是「谁在里面」，**没有人能从中看出「谁不在」**。
+    #
+    # 形状 2 的行里没有套名、只有门名 ⇒ 用**门名**作键（与形状 1 的套名不同命名空间，不会撞）。
+    for m in re.finditer(
+            r"^(?:PASS|FAIL|NOT_EXECUTED|SKIPPED_SCOPE)\s+(\S+)\s\s+"
+            r"ran (\d+)[^:\n]*reflex tests:\s*(\d+) passed",
+            txt, re.M):
+        per_suite[m.group(1)] = (int(m.group(3)), int(m.group(2)))
+
     if not per_suite:
         return UNKNOWN, "no reflex summary line in log"
     order = sorted(per_suite)

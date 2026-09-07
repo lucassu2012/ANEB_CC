@@ -7,7 +7,7 @@
 
 gate_count=27
 gate_count_source=verify_all log verify_all_20260907-113134-32880.log
-reflex_tests=1078
-reflex_tests_source=reflex lines (all green): campaign-analysis 841 + e03 6 + e1 85 + e234 146
+reflex_tests=1176
+reflex_tests_source=reflex lines (all green): adapters-spec-unit 42 + campaign-analysis 841 + e03 6 + e1 85 + e234 146 + portraits-redline-unit 46 + portraits-schema-unit 10
 corpus_real_runs=101
 corpus_real_runs_source=CORPUS_LEDGER.csv total,real_runs (D-565)
