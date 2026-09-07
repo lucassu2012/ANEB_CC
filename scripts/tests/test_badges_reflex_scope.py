@@ -85,6 +85,22 @@ def gate_reflex_totals(text):
     return totals, unparsed
 
 
+def has_non_pass_reflex_gate(text):
+    """摘要块里有没有**非 PASS** 的 reflex 门。
+
+    🔴 **为什么单独问这一句**：本守卫只数 PASS 门（红门明细无计数），而收集器是从**全文**
+    捞的、**红套件的原始输出行照样被它收进去**（实测：红链上收集器报 `1179/1180`，
+    其中含 `campaign-analysis 845`，而本守卫把那道红门整个排除）⇒ **两边的分母不是同一个，
+    此时比总数必然假红**。所以这不是「宽容」，是那个比较在红链上**没有意义**。
+    ⚠ 措辞检查不受影响，红链上照跑——**不可比的是总数，不是全部**。
+    """
+    for line in _summary_block(text).splitlines():
+        m = _GATE_LINE.match(line)
+        if m and "reflex" in m.group(3).lower() and m.group(1) != "PASS":
+            return True
+    return False
+
+
 def problems(text, collector_value):
     """把「本文件独立数出来的」与「收集器报的」对齐，列出所有不一致。"""
     out = []
@@ -94,11 +110,14 @@ def problems(text, collector_value):
     if not totals and not unparsed:
         out.append("摘要块里一条自述 reflex 的 PASS 门都没有 —— 先怀疑量法坏了，别当成没有门")
     mine = sum(totals.values())
+    if has_non_pass_reflex_gate(text):
+        return out          # 分母不同 ⇒ 只报措辞，不报范围。理由见上面那个函数
     try:
         theirs = int(str(collector_value))
     except (TypeError, ValueError):
-        out.append("收集器报了非整数 %r（红套件会报 'p/t'，那种情况本守卫不比总数）"
-                   % (collector_value,))
+        # 收集器对红套件报 `p/t` 字符串。**这里必须 return，不是 append** ——
+        # ⚠ 首版我在 docstring 写「那种情况本守卫不比总数」，代码却把它当问题上报，
+        # **注释说的与代码做的不一致**，红链上立刻假红一次。留这行注释记着。
         return out
     if mine != theirs:
         out.append(
@@ -163,6 +182,41 @@ def test_an_unknown_wording_goes_red_instead_of_being_skipped():
     out = problems(log, 893)      # 42+10+841，恰好与本守卫数出的相等
     assert any("读不懂其措辞" in p for p in out), (
         "两边**碰巧相等**时也必须红——否则新措辞会在总数对上的那一刻永久隐身。%r" % (out,))
+
+
+_LOG_RED_CHAIN = _LOG_TWO_SHAPES.replace(
+    "PASS           campaign-analysis-unit  campaign-analysis reflex: 841/841 passed",
+    "FAIL           campaign-analysis-unit  reflex test(s) failed; see log",
+).replace("0 FAIL", "1 FAIL")
+
+
+def test_a_red_chain_does_not_produce_a_false_scope_mismatch():
+    """🔴 **这条是补的**：首版在红链上假红过一次，实测才发现。
+
+    红链上两边的**分母根本不是同一个**：本守卫把红门整个排除（它的明细没有计数），
+    而收集器是从全文捞的、**红套件的原始输出行照样被它收进去**。
+    ⇒ 此时比总数**必然**不等，而那个不等**不说明任何范围问题**。
+    ⚠ 首版我在 docstring 写了「那种情况本守卫不比总数」，**代码却把它当问题上报**——
+    注释说的与代码做的不一致，且**只有在真的遇到一次红链时才会暴露**。
+    """
+    out = problems(_LOG_RED_CHAIN, "1179/1180")
+    assert not any("范围不一致" in p for p in out), out
+    out_int = problems(_LOG_RED_CHAIN, 1180)   # 收集器给整数时同样不比
+    assert not any("范围不一致" in p for p in out_int), out_int
+
+
+def test_the_wording_check_still_runs_on_a_red_chain():
+    """不可比的是**总数**，不是全部 —— 红链上措辞检查照跑。
+
+    没有这一条，上面那个「红链不比总数」很容易被改成「红链整个跳过」，
+    而**跳过与通过在结果上长得一模一样**。
+    """
+    log = _LOG_RED_CHAIN.replace(
+        "PASS           obs-tools-e1-unit  e1 reflex: 85/85 passed",
+        "PASS           obs-tools-e1-unit  e1 executed 85 reflex cases OK",
+    )
+    out = problems(log, "1179/1180")
+    assert any("读不懂其措辞" in p for p in out), out
 
 
 # ---------------------------------------------------------------- 真链跑日志（有则跑）
