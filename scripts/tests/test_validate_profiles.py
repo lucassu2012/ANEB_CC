@@ -191,7 +191,12 @@ def test_expected_n_derives_per_kpi_from_the_right_field():
          "server_proc_ms": 1},
     ])
     got = vp.derive_expected_n(p)
-    assert got["N1"] == 40 and got["N2"] == 40, got     # sum:samples
+    # 🔴 2026-09-07 随规则订正改：原断言 40（＝两个相位求和），**那是错的**。
+    # 本夹具**恰好有两个 clock_sync 相位**，所以这一条同时钉住两件事：
+    # ①**只取首个**（否则会是 40）；②**剔 ECHO_WARMUP**（否则会是 20）。
+    # 依据：ScenarioKpi.kt:123-124 与 ScenarioRunner.kt:232/481；
+    # 语料实测恒为 17（384/384）——见 test_derived_expected_n_matches_what_the_corpus_actually_recorded。
+    assert got["N1"] == 17 and got["N2"] == 17, got     # first:samples-warmup = 20-3
     assert got["T1"] == 2, got                          # count
     assert got["T2"] == 598 and got["T3"] == 598, got   # sum:tokens-1
     assert got["U1"] == 1, got                          # count
@@ -206,7 +211,8 @@ def test_expected_n_omits_kpis_with_no_source_phase():
     """
     got = vp.derive_expected_n(_profile([{"type": "clock_sync", "samples": 10}]))
     assert "D1" not in got and "U1" not in got and "T1" not in got, got
-    assert got == {"N1": 10, "N2": 10}, got
+    # 随 2026-09-07 规则订正：10 − ECHO_WARMUP(3) = 7（原断言 10，未剔预热）
+    assert got == {"N1": 7, "N2": 7}, got
 
 
 def test_declared_expected_n_must_equal_derived():
@@ -256,3 +262,122 @@ def test_real_profiles_derivation_matches_measured_corpus():
             n = got.get(pid, {}).get(kpi)
             if n is not None:
                 assert n < 3, (pid, kpi, n)
+
+
+def test_echo_warmup_matches_the_kotlin_constant():
+    """`vp.ECHO_WARMUP` 是 Kotlin 那个常量的**第二份副本**，必须钉死。
+
+    真值在 `ScenarioRunner.kt` 的 `const val ECHO_WARMUP = 3`；N1/N2 的推导要减它。
+    ⚠ **两处各写一个数、谁也不看谁**，正是 D-264／D-508 咬过的形状
+    （「把 window_ms 减半，RTT 保护同步减半而无人吭声」）。
+    照 `tools/e234/tests/test_e2_precheck.py:373` 的既有范式：**直接读那一侧比对**。
+    """
+    import re
+    import pytest
+    kt = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "app", "probe", "src", "main", "java", "com", "aneb", "probe", "engine",
+        "ScenarioRunner.kt")
+    if not os.path.isfile(kt):
+        pytest.skip("app/ 不在本 checkout（鲜克隆/worktree）")
+    with open(kt, encoding="utf-8") as fh:
+        src = fh.read()
+    m = re.search(r"const\s+val\s+ECHO_WARMUP\s*=\s*(\d+)", src)
+    assert m, ("在 ScenarioRunner.kt 里找不到 `const val ECHO_WARMUP` —— "
+               "**量法失败与目标缺席同形**：先确认那个常量是不是改名/搬家了，别直接改本值")
+    assert int(m.group(1)) == vp.ECHO_WARMUP, (
+        "ECHO_WARMUP 两侧不一致：Kotlin=%s，validate_profiles=%s。"
+        "改一侧不改另一侧，N1/N2 的 expected_n 会静默偏移，而**没有任何东西会报错**"
+        % (m.group(1), vp.ECHO_WARMUP))
+
+
+def test_derived_expected_n_matches_what_the_corpus_actually_recorded():
+    """🔴 **推导值 ≟ 语料实测值**——本条的输入与推导规则**不共享任何假设**。
+
+    为什么非有不可（2026-09-07 实证，D-707 笔②）：`check_expected_n` 核的是
+    「profile 里**声明的** ≟ 我**推导的**」，**两侧出自同一个假设** ⇒
+    一条错的推导规则（N1/N2 原写 `sum:samples`，推出 40 而实测恒为 17）
+    **完美通过了那道守卫**。能发现它的只有语料。
+
+    判据分两档，因为两族语义不同：
+    - **非 ITL 族**（N1/N2/T1/U1/U2/D1）：**最大正实测 == 推导值**。
+      取最大而非逐条相等，是容忍单次运行的丢样本；但**上界必须恰好够得着**——
+      够不着就说明推导写错了（正是本次的病）。
+    - **ITL 族**（T2/T3）：**最大正实测 <= 推导值**。D-746 已裁 `actual < expected`
+      是**合并信号非错误**；本次复核过：s1 是 599==599 精确相等，
+      **若存在固定剔除，s1 也会偏——它没偏**，故 s2/s3 的差是数据不是规则。
+
+    ⚠ **非空自证**：末尾断言实际比对过的 (profile, KPI) 对数 > 0，
+    否则语料缺席时本条会**空跑变绿**。
+    """
+    import collections
+    import subprocess
+    import pytest
+    import corpus_ledger as cl
+
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if cl.missing_roots([os.path.join(repo, r) for r in cl.DEFAULT_ROOTS]):
+        pytest.skip("语料根不全（鲜克隆/worktree）")
+    out = subprocess.run(
+        [sys.executable, os.path.join(repo, "scripts", "corpus_ledger.py"), "--list-corpus"],
+        cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert out.returncode == 0, out.stderr[:400]
+    # ⚠ `--list-corpus` 输出的是**仓相对路径**，而门禁跑器的 cwd 是 `scripts/tests`
+    # （`verify_all.ps1` 会 Push-Location 到那里）⇒ 直接拿去 open() 全部落空，
+    # `summarize` 返回空集，本条会**空跑变绿**。故一律拼成绝对路径。
+    # 这正是本仓 D-762 那条「门禁差异第三层是 cwd」的同一形状，落在新写的守卫上。
+    paths = [p if os.path.isabs(p) else os.path.join(repo, p)
+             for p in out.stdout.decode("utf-8").split("\n") if p.strip()]
+    real, _synth, _st = cl.summarize(paths)      # 真实/合成与去重用台账自己的判据
+    # 🔴 非空自证：这一句在门禁里真的红过一次（2026-09-07），拦下的正是上面那个 cwd 坑。
+    assert real, ("真实语料为空 —— 空集上的比对会静默全绿。"
+                  "先查路径是否因 cwd 而打不开，再查语料是不是真的没有")
+
+    prof = {}
+    for d in ("profiles", "evidence/e01_profiles_recovered_20260907"):
+        dd = os.path.join(repo, d)
+        if not os.path.isdir(dd):
+            continue
+        for fn in sorted(os.listdir(dd)):
+            if not fn.endswith(".json"):
+                continue
+            with open(os.path.join(dd, fn), encoding="utf-8") as fh:
+                j = json.load(fh)
+            # ⚠ 这些 profile 用 `profile_id` 不是 `id`；漏掉这个 or 会让**全部**
+            # scenario 判成「取不到 profile」而毫无报错（本轮我在一个临时脚本里正是这么栽的）
+            pid, ver = j.get("id") or j.get("profile_id"), j.get("version")
+            if pid and ver:
+                prof[(pid, ver)] = j
+
+    seen = collections.defaultdict(lambda: collections.defaultdict(int))
+    for rec in real:
+        for s in rec.get("scenarios", []):
+            key = (s.get("profile_id"), s.get("profile_version"))
+            for k, v in (s.get("kpi_quality") or {}).items():
+                sc = v.get("sample_count")
+                if isinstance(sc, int) and sc > 0:
+                    seen[key][k] = max(seen[key][k], sc)
+
+    itl = {"T2", "T3"}
+    checked, bad = 0, []
+    for key, kpis in seen.items():
+        p = prof.get(key)
+        if p is None:
+            continue                 # profile 取不到 ⇒ 无从比对（登记另有守卫管）
+        exp = vp.derive_expected_n(p)
+        for k, mx in kpis.items():
+            e = exp.get(k)
+            if e is None:
+                continue             # 该 KPI 推不出期望值 ⇒ 不在本条覆盖面内
+            checked += 1
+            if k in itl:
+                if mx > e:
+                    bad.append("%s@%s %s: 最大实测 %d > 推导 %d（ITL 只应少不应多）"
+                               % (key[0], key[1], k, mx, e))
+            elif mx != e:
+                bad.append("%s@%s %s: 最大实测 %d != 推导 %d" % (key[0], key[1], k, mx, e))
+    assert not bad, (
+        "推导值与语料实测对不上：\n  " + "\n  ".join(bad) +
+        "\n⇒ **先怀疑推导规则，不要先怀疑数据**：2026-09-07 那次正是推导错了"
+        "（N1/N2 求了两个相位的和、又没剔 ECHO_WARMUP），而语料是对的。")
+    assert checked > 0, "一对都没比到 —— 本条空跑了，等于没有守卫"

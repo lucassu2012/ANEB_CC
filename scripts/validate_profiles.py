@@ -107,10 +107,27 @@ def check_structure(profile, name):
 #
 # **写成逐 KPI 的具名字段映射，不写成「密度型/计数型」二分**（D-740 §1）：
 # 六族全都可推导，只是每族读相位的不同字段；二分会让人以为有一类推不出来。
+# 🔴 **跨语言重复常量，必须被钉死**：真值在 Kotlin
+# （`app/probe/src/main/java/com/aneb/probe/engine/ScenarioRunner.kt` 的
+# `const val ECHO_WARMUP = 3`），本文件是它的**第二份副本**。
+# 本仓吃过这个亏（D-264「常量单一来源」、D-508「把 window_ms 减半，RTT 保护同步减半而无人吭声」）
+# ⇒ `test_validate_profiles.py` 里有一条守卫**直接读那个 .kt 文件**比对本值，
+# 照 `tools/e234/tests/test_e2_precheck.py:373` 的既有范式。**改这里而不改那边，会红。**
+ECHO_WARMUP = 3
+
 EXPECTED_N_RULES = {
     # KPI: (相位类型, 取法, 理由)
-    "N1": ("clock_sync", "sum:samples", "echo 样本 ＝ 各 clock_sync 相位 samples 之和"),
-    "N2": ("clock_sync", "sum:samples", "同 N1，同一批 echo 样本"),
+    # 🔴 2026-09-07 订正（D-707 笔② 回放实测暴露）：原写 `sum:samples`，**错了两处**——
+    # ①**求和**而非只取首个：`ScenarioKpi.kt:123-124` 逐字「N1/N2 输入＝**首次 clock_sync**
+    #   的 echo 样本…尾部 clock_sync 只用于 skew 插值，**不进 N 组**」；
+    # ②**没剔预热**：`ScenarioRunner.kt:232/235` 前 `ECHO_WARMUP` 个样本不进 valid。
+    # 旧规则推出 40，而语料实测**恒为 17**（384/384，五个 profile 无一例外）＝ 20−3。
+    # ⚠ 这条错误**通过了本文件的 `check_expected_n`**——那道守卫核的是「声明值 ≟ 推导值」，
+    # **两侧出自同一个假设**。能发现它的只有「推导值 ≟ 实测值」，见 `test_validate_profiles.py`
+    # 新增的语料对账守卫（它的输入来自语料，与本推导不共享任何假设）。
+    "N1": ("clock_sync", "first:samples-warmup",
+           "echo 样本 ＝ **首个** clock_sync 的 samples 减 ECHO_WARMUP（尾部相位不进 N 组）"),
+    "N2": ("clock_sync", "first:samples-warmup", "同 N1，同一批 echo 样本"),
     "T1": ("token_stream", "count", "每个 token_stream 相位产出 1 个 TTFT"),
     "T2": ("token_stream", "sum:tokens-1", "ITL ＝ 相邻 token 之差 ⇒ 每相位 tokens−1 个间隔"),
     "T3": ("token_stream", "sum:tokens-1", "同 T2，同一条间隔序列"),
@@ -145,6 +162,16 @@ def derive_expected_n(profile):
             continue          # 无该相位 ⇒ 这份 profile 不产出此 KPI；缺席 ≠ 期望 0
         if how == "count":
             out[kpi] = len(hits)
+        elif how == "first:samples-warmup":
+            # 只取**首个**该类相位（尾部 clock_sync 不进 N 组，ScenarioKpi.kt:123-124），
+            # 再剔预热（ScenarioRunner.kt:232/235）。
+            # ⚠ `samples` 缺失或 <=0 时，采集侧取默认 20（ScenarioRunner.kt:227
+            # `val n = if (samples > 0) samples else 20`）——这里必须同款兜底，
+            # 否则 profile 漏写 samples 时推导会得 -3 这种无意义的负数而不报错。
+            n = int(hits[0].get("samples", 0) or 0)
+            if n <= 0:
+                n = 20
+            out[kpi] = max(0, n - ECHO_WARMUP)
         elif how.startswith("sum:"):
             field = how.split(":", 1)[1]
             if field.endswith("-1"):
