@@ -1,0 +1,559 @@
+﻿verify_all run at 20260907-113134-32880
+repo: E:\C Project\ANEB
+go: C:\Program Files\Go\bin\go.exe
+--- server-vet (exit 0) ---
+
+PASS  server-vet  go vet ./...
+--- server-build (exit 0) ---
+
+PASS  server-build  go build ./...
+--- server-test (exit 0) ---
+ok  	aneb-server	2.372s
+?   	aneb-server/tools/capture	[no test files]
+?   	aneb-server/tools/gencert	[no test files]
+?   	aneb-server/tools/h3check	[no test files]
+?   	aneb-server/tools/mockllm	[no test files]
+
+PASS  server-test  go test -count=1 ./...
+PASS  profiles-valid  4 profiles ok
+--- portraits-redline (exit 0) ---
+Checked 4 portraits: deepseek.yaml, doubao.yaml, kimi.yaml, tongyi.yaml
+  gate[deepseek]: blocked by 3: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist
+  gate[doubao]: blocked by 3: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist
+  gate[kimi]: blocked by 2: downlink_media_bytes_dist, pop_ip_list
+  gate[tongyi]: blocked by 3: downlink_media_bytes_dist, pop_ip_list, request_size_bytes_dist
+OK: all red-line invariants hold (R1-R20: params gate intact, no caliber overclaim, provenance consistent, per-field capture status backs every filled param).
+
+PASS  portraits-redline  check_redline.py
+--- adapters-spec (exit 0) ---
+Checked 4 adapter spec(s): deepseek.json, doubao.json, kimi.json, tongyi.json
+  key sets derived from AdapterSpec.kt (13 DTOs)
+OK: all adapter-spec invariants hold (A1 no key the strict parser would reject, A2 required keys present, A3 assets mirror byte-identical and carries nothing extra, A4 every value has the type its DTO declares, A5 the parse() require()s hold, R21 version stamp complete-if-present, R22 status recognised).
+
+PASS  adapters-spec  validate_adapters.py
+--- adapters-spec-unit (exit 0) ---
+ran 42 reflex tests: 42 passed, 0 failed
+
+PASS  adapters-spec-unit  ran 42 reflex tests: 42 passed, 0 failed
+--- portraits-redline-unit (exit 0) ---
+ran 46 reflex tests: 46 passed, 0 failed
+
+PASS  portraits-redline-unit  ran 46 reflex tests: 46 passed, 0 failed
+--- spec-versions (exit 0) ---
+OK: 7 个 aqs version_id / 8 张权重表全部登记且双向一致: aqs-token-v0.1, aqs-v0.1, aqs-v0.2, aqs-voice-sim-v0.1, aqs-voice-sim-v0.2, aqs-voice-v0.1, aqs-voice-v0.2
+
+PASS  spec-versions  check_versions.py
+--- spec-versions-unit (exit 0) ---
+...........                                                              [100%]
+11 passed in 0.04s
+
+PASS  spec-versions-unit  11 passed in 0.04s
+--- portraits-schema (exit 0) ---
+OK: 4 portrait(s) conform to portrait.schema.json (shape gate).
+
+PASS  portraits-schema  validate_schema.py
+--- portraits-schema-unit (exit 0) ---
+ran 10 schema reflex tests: 10 passed, 0 failed
+
+PASS  portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+--- corpus-ledger-fresh (exit 0) ---
+corpus ledger check: in sync
+
+PASS  corpus-ledger-fresh  corpus ledger check: in sync
+--- evidence-rules (exit 0) ---
+evidence guard: violations=0 stale_exemptions=0 frozen_debt=14
+
+PASS  evidence-rules  evidence guard: violations=0 stale_exemptions=0 frozen_debt=14
+--- campaign-analysis-unit (exit 0) ---
+python.exe : 拒算：扫描根不存在 —— C:\Users\lucas\AppData\Local\Temp\tmp7sfuk70h\not_here
+At E:\C Project\ANEB\scripts\verify_all.ps1:405 char:12
++     $out = & $py $campaignTest 2>&1 | Out-String
++            ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (拒算：扫描根不存在 —— C:...fuk70h\not_here:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  这多半意味着你在一个全新的 git worktree 里（`server/data/` 被 .gitignore 挡、零受跟踪文件，故任何新 worktree 里它都不存在）。
+  **别把这里算出的数当台账**：少一个根＝少一批语料，而结果看起来完全正常。
+  处置：回主树跑；或用 --root 显式声明你真正想扫的范围。
+gate_count=21
+reflex_tests=741
+corpus_real_runs=110
+written: C:\Users\lucas\AppData\Local\Temp\tmpxl4jbw2k\badges.txt
+evidence guard: ABORTED C:/Users/lucas/AppData/Local/Temp/tmpcxf_azlb/README.md 里解不出规则 1 的状态表——守卫拒绝在判据缺失时放行（D-511）
+evidence guard: violations=0 stale_exemptions=8 frozen_debt=8
+  STALE_EXEMPTION C:/Users/lucas/AppData/Local/Temp/tmptzksccv_/phase1/STATUS.json C1 已不再违规，请从 LEGACY_PASS_WITHOUT_EVIDENCE 删掉该条（豁免不得长留）
+  STALE_EXEMPTION acceptance_20260820 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION e1_realdevice_20260802 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION e1_realdevice_20260802_run2 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION m2_rerun_20260819 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION spec4_worktree_drill_20260829 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION t39_report_chain_rehearsal_20260803 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+  STALE_EXEMPTION t46_full_corpus_analysis_20260804 已补上 README（或已不存在），请从 LEGACY_DATE_PKG_WITHOUT_README 删掉
+real_runs=3 synthetic=0 files=1 skipped=0 obs_dirs=0
+written: C:\Users\lucas\AppData\Local\Temp\tmpomju0lrp\L.md, C:\Users\lucas\AppData\Local\Temp\tmpomju0lrp\L.csv
+  （契约腿未跑：--root 非默认语料根，本次只比两面新鲜度）
+corpus ledger check: in sync
+  （契约腿未跑：--root 非默认语料根，本次只比两面新鲜度）
+corpus ledger check: DRIFT
+  C:\Users\lucas\AppData\Local\Temp\tmpomju0lrp\L.md 与现算不一致（落盘 1413 字符 / 现算 1413 字符）
+  处置：跑 `python scripts/corpus_ledger.py` 重算并提交，不要手改这两份文件。
+corpus ledger check: CANNOT_COMPARE —— 落盘文件读不了（2 个）（先确认 cwd 是仓根，本门默认路径是相对路径）
+  C:\Users\lucas\AppData\Local\Temp\tmpqd3yo8yz\nope\CORPUS_LEDGER.md 读不了：[Errno 2] No such file or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\tmpqd3yo8yz\\nope\\CORPUS_LEDGER.md'
+  C:\Users\lucas\AppData\Local\Temp\tmpqd3yo8yz\nope\CORPUS_LEDGER.csv 读不了：[Errno 2] No such file or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\tmpqd3yo8yz\\nope\\CORPUS_LEDGER.csv'
+  处置：**先确认工作目录是仓根**（本门的默认路径是相对路径），别急着重算——重算不会让文件出现在一个错的 cwd 下。确认在仓根后仍读不到，才是文件真的缺了。
+corpus ledger check: CANNOT_COMPARE —— 扫描根不存在：C:\Users\lucas\AppData\Local\Temp\tmp7sfuk70h\not_here（多半在 git worktree 里；处置＝回主树跑，或 --root 显式声明范围）
+real_runs=0 synthetic=0 files=0 skipped=0 obs_dirs=0
+written: C:\Users\lucas\AppData\Local\Temp\tmp7sfuk70h\L.md, C:\Users\lucas\AppData\Local\Temp\tmp7sfuk70h\L.csv
+  xref: 豁免(目标不编号) 18，目标未解析 5
+  same-file xref: 豁免(本文不编号) 24
+input records: 1 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default__j69g00f\batch_quick.jsonl (1)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_default__j69g00f\batch_forensic.jsonl (0)
+rejected: 0 (missing_mode=0, other_mode=0)
+  reject run_id=test-5269 reason=missing_mode
+input records: 4 (malformed lines skipped: 0)
+quick -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_xvhaxb3v\q.jsonl (2)
+forensic -> C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_xvhaxb3v\f.jsonl (1)
+rejected: 1 (missing_mode=1, other_mode=0)
+skip C:\Users\lucas\AppData\Local\Temp\split_by_run_mode_badpath_jsz_g5b5\does_not_exist.jsonl: [Errno 2] No such file 
+or directory: 'C:\\Users\\lucas\\AppData\\Local\\Temp\\split_by_run_mode_badpath_jsz_g5b5\\does_not_exist.jsonl'
+cannot read schema C:\Users\lucas\AppData\Local\Temp\tmpdhq7iznk\nope.json: [Errno 2] No such file or directory: 'C:\\U
+sers\\lucas\\AppData\\Local\\Temp\\tmpdhq7iznk\\nope.json'
+contract OK: 1 record(s) across 1 file(s) — structural + R-10 cross-field invariants hold
+contract VIOLATIONS: 1 in 1 record(s)
+  - record[0].claim_scope: must be 'application_end_to_end_to_probe_node', got 'wrong'
+campaign-analysis reflex: 841/841 passed
+
+PASS  campaign-analysis-unit  campaign-analysis reflex: 841/841 passed
+PASS  obs-tools-enumeration  枚举到 3 只：obs-tools-e03-unit, obs-tools-e1-unit, obs-tools-e234-unit
+--- obs-tools-e03-unit (exit 0) ---
+e03 reflex: 6/6 passed
+
+PASS  obs-tools-e03-unit  e03 reflex: 6/6 passed
+--- obs-tools-e1-unit (exit 0) ---
+E1 report -> C:\Users\lucas\AppData\Local\Temp\tmpvnfpvgfn\out.md
+channel_c=NOT_EXECUTED channel_a=NOT_EXECUTED
+E1 report -> C:\Users\lucas\AppData\Local\Temp\tmpopnwn125\out.md
+channel_c=PASS channel_a=NOT_EXECUTED
+e1 reflex: 85/85 passed
+
+PASS  obs-tools-e1-unit  e1 reflex: 85/85 passed
+--- obs-tools-e234-unit (exit 0) ---
+e234 reflex: 146/146 passed
+
+PASS  obs-tools-e234-unit  e234 reflex: 146/146 passed
+--- results-contract-unit (exit 0; fed 33 corpus file(s) from --list-corpus) ---
+python.exe : conflicting run_id 01a01c51-be4d-7682-b332-aea1b449d6ad in evidence/acceptance_20260820/acceptance_2026082
+0_raw.jsonl:1 — same id, different body; kept the first
+At E:\C Project\ANEB\scripts\verify_all.ps1:499 char:16
++         $out = & $py $contractScript $corpusFiles 2>&1 | Out-String
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (conflicting run... kept the first:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+conflicting run_id 01a01c55-65e3-7c73-af97-f773fc0bf8c1 in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:2
+ — same id, different body; kept the first
+conflicting run_id 01a01c57-add0-7873-82e7-0f9b1eacfc20 in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:3
+ — same id, different body; kept the first
+conflicting run_id 01a01c59-f5f3-7236-9f57-38093173a7da in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:4
+ — same id, different body; kept the first
+conflicting run_id 01a01c5c-3e5e-773e-8f23-c2d4e1322faf in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:5
+ — same id, different body; kept the first
+conflicting run_id 01a01c63-d191-7fd1-b58b-e6c776262f8b in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:6
+ — same id, different body; kept the first
+conflicting run_id 01a01c65-f18c-7d90-9695-90347c924a91 in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:7
+ — same id, different body; kept the first
+conflicting run_id 01a01c68-10db-7521-93a2-97be2bdcbf85 in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:8
+ — same id, different body; kept the first
+conflicting run_id 01a01c6a-5848-70aa-8ba5-65a584372167 in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:9
+ — same id, different body; kept the first
+conflicting run_id 01a01c6c-9fd2-7452-9e80-a31b8c9eee77 in evidence/acceptance_20260820/acceptance_20260820_raw.jsonl:1
+0 — same id, different body; kept the first
+conflicting run_id 019fbbe9-83f0-7af7-bb79-0569456daba8 in evidence/afternoonradio_20260801/afternoon_raw.jsonl:1 — sam
+e id, different body; kept the first
+conflicting run_id 019fbbef-f003-7e9a-977c-9ef5203ae42c in evidence/afternoonradio_20260801/afternoon_raw.jsonl:2 — sam
+e id, different body; kept the first
+conflicting run_id 019fbbf6-3452-71da-b7ac-162bfc27421f in evidence/afternoonradio_20260801/afternoon_raw.jsonl:3 — sam
+e id, different body; kept the first
+conflicting run_id 019fbbfc-2a92-765f-aacf-9642cf42f312 in evidence/afternoonradio_20260801/afternoon_raw.jsonl:4 — sam
+e id, different body; kept the first
+conflicting run_id 019fbaf7-4349-76dc-afd3-e75d9094794b in evidence/busyradio_20260801/busyradio_raw.jsonl:1 — same id,
+ different body; kept the first
+conflicting run_id 019fbafd-d64f-7f78-8de5-a952672e3993 in evidence/busyradio_20260801/busyradio_raw.jsonl:2 — same id,
+ different body; kept the first
+conflicting run_id 019fbb04-1a6a-7d1c-81f2-0e80eca243e6 in evidence/busyradio_20260801/busyradio_raw.jsonl:3 — same id,
+ different body; kept the first
+conflicting run_id 019fbb0a-5ede-735d-b2c8-fb5e2288e754 in evidence/busyradio_20260801/busyradio_raw.jsonl:4 — same id,
+ different body; kept the first
+conflicting run_id 019fb8b4-21d7-7ff3-a4d8-b60f953ffec7 in evidence/m2_idleprobe_20260731/idle_raw.jsonl:1 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb8ba-6619-75e6-b2ce-c86e900512cd in evidence/m2_idleprobe_20260731/idle_raw.jsonl:2 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb8c0-83f3-794b-a346-dc0ef946974d in evidence/m2_idleprobe_20260731/idle_raw.jsonl:3 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb8c6-7ab9-7b40-8550-f3a3a11aabf6 in evidence/m2_idleprobe_20260731/idle_raw.jsonl:4 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb6f7-8bff-7158-9889-a86e54a11537 in evidence/m2_pilot_20260731/forensic_raw.jsonl:1 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb70f-5dcf-769d-8845-6ae38cae3d84 in evidence/m2_pilot_20260731/forensic_raw.jsonl:2 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb715-2cdb-7979-b7f2-f324a395805e in evidence/m2_pilot_20260731/forensic_raw.jsonl:3 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb71a-fbe5-7b24-b860-97f24579caf9 in evidence/m2_pilot_20260731/forensic_raw.jsonl:4 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fb6ac-2329-76f3-9208-43e7058cb47f in evidence/m2_pilot_20260731/pilot_raw.jsonl:1 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6c2-25c1-72cb-bb50-6df9006cc665 in evidence/m2_pilot_20260731/pilot_raw.jsonl:2 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6c4-69ae-7ccf-9e59-aa7c60feeb3b in evidence/m2_pilot_20260731/pilot_raw.jsonl:3 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6c6-7edb-7e40-8c90-60089c88f218 in evidence/m2_pilot_20260731/pilot_raw.jsonl:4 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6c8-93e6-7bd4-b75d-b84dd5202f7a in evidence/m2_pilot_20260731/pilot_raw.jsonl:5 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6ca-a8f5-7241-8ef4-6e053622195e in evidence/m2_pilot_20260731/pilot_raw.jsonl:6 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6cc-ecfb-7315-b697-074744599368 in evidence/m2_pilot_20260731/pilot_raw.jsonl:7 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6cf-3102-71c3-8d24-6eb6ecea8a1b in evidence/m2_pilot_20260731/pilot_raw.jsonl:8 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6d1-7511-7872-8605-2f87e0b2c574 in evidence/m2_pilot_20260731/pilot_raw.jsonl:9 — same id, diff
+erent body; kept the first
+conflicting run_id 019fb6d3-b95b-7d12-90cb-cf451f851362 in evidence/m2_pilot_20260731/pilot_raw.jsonl:10 — same id, dif
+ferent body; kept the first
+conflicting run_id 019fb6d5-ce6f-78c0-bf3f-69762e6711a6 in evidence/m2_pilot_20260731/pilot_raw.jsonl:11 — same id, dif
+ferent body; kept the first
+conflicting run_id 019fb6d7-e3b2-7c33-b9cf-1ecccb551836 in evidence/m2_pilot_20260731/pilot_raw.jsonl:12 — same id, dif
+ferent body; kept the first
+conflicting run_id 019fb745-a405-7c5a-aded-65cc44f6a2dc in evidence/m2_pilot_20260731/transport_probe_raw.jsonl:5 — sam
+e id, different body; kept the first
+conflicting run_id 019fb74b-9a06-797d-bb70-b02dda12b5c8 in evidence/m2_pilot_20260731/transport_probe_raw.jsonl:6 — sam
+e id, different body; kept the first
+conflicting run_id 019fb751-68e7-7a7d-be5e-f729fbd3bed6 in evidence/m2_pilot_20260731/transport_probe_raw.jsonl:7 — sam
+e id, different body; kept the first
+conflicting run_id 019fb757-85cf-79e4-9bf2-8f17866bbb84 in evidence/m2_pilot_20260731/transport_probe_raw.jsonl:8 — sam
+e id, different body; kept the first
+conflicting run_id 019fc867-ee2f-7cf5-83d1-f1708b503643 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:1 — same id, different body; kept the first
+conflicting run_id 019fc86a-ba60-7271-a08d-8508fcfcb3a3 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:2 — same id, different body; kept the first
+conflicting run_id 019fc86d-b295-7409-8ae8-ccd60d556d55 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:3 — same id, different body; kept the first
+conflicting run_id 019fc870-80d2-71cd-a899-7d72c789dbd5 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:4 — same id, different body; kept the first
+conflicting run_id 019fc898-d354-78bb-a6a9-b92251fd4eac in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:5 — same id, different body; kept the first
+conflicting run_id 019fc89b-c7ad-7f9a-a617-01ff3930af04 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:6 — same id, different body; kept the first
+conflicting run_id 019fc89e-bb3e-7714-9453-7fd4e4e18382 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:7 — same id, different body; kept the first
+conflicting run_id 019fc8a1-6086-7b98-aaec-355a3baf48ec in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:8 — same id, different body; kept the first
+conflicting run_id 019fc8a4-0477-72d1-8dd5-4bf425de919e in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:9 — same id, different body; kept the first
+conflicting run_id 019fc8a6-f7f8-7214-a7c0-bf416e1e88f9 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:10 — same id, different body; kept the first
+conflicting run_id 019fc8a9-e9f7-74e5-b38f-80acb6575b1d in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:11 — same id, different body; kept the first
+conflicting run_id 019fc8ac-b470-7f18-885c-a411726f5ea1 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:12 — same id, different body; kept the first
+conflicting run_id 019fc8af-a5af-7fd1-8fda-6e273bdb3b74 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:13 — same id, different body; kept the first
+conflicting run_id 019fc8b2-6f45-7ea3-958d-994819a76198 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:14 — same id, different body; kept the first
+conflicting run_id 019fc8b5-621b-74e4-83ea-9c19d4d8235c in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:15 — same id, different body; kept the first
+conflicting run_id 019fc8bf-9620-7dec-849c-11642cd2c2a0 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:16 — same id, different body; kept the first
+conflicting run_id 019fc8c6-33bd-76e1-9492-e1535f67dc7d in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:17 — same id, different body; kept the first
+conflicting run_id 019fc8cd-4712-71f5-837c-b217073cca03 in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:18 — same id, different body; kept the first
+conflicting run_id 019fc8d4-3552-7786-adba-21869702437c in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:19 — same id, different body; kept the first
+conflicting run_id 019fc8db-22ba-7ab5-84c1-40c6e1d04c5a in evidence/m3_expansion_wave0_20260803/wave0_counted_raw.jsonl
+:20 — same id, different body; kept the first
+conflicting run_id 019fb951-67e2-7cdb-8096-0f1ea2c799b8 in evidence/radiowire_20260801/counted_raw.jsonl:1 — same id, d
+ifferent body; kept the first
+conflicting run_id 019fbdd7-4e24-718e-b1d9-48558a371c9c in evidence/t2_idlenight_20260801/idlenight_raw.jsonl:1 — same 
+id, different body; kept the first
+conflicting run_id 019fbddd-98db-73e4-a8da-7ac1af4e0b69 in evidence/t2_idlenight_20260801/idlenight_raw.jsonl:2 — same 
+id, different body; kept the first
+conflicting run_id 019fbde3-bde8-7abf-a81d-5aa14a651708 in evidence/t2_idlenight_20260801/idlenight_raw.jsonl:3 — same 
+id, different body; kept the first
+conflicting run_id 019fbdea-06fb-7c32-89aa-490e846d944e in evidence/t2_idlenight_20260801/idlenight_raw.jsonl:4 — same 
+id, different body; kept the first
+conflicting run_id 019fc520-7d0d-718f-af85-cc1d8f5ef98a in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:1 — same id, different body; kept the first
+conflicting run_id 019fc52a-f506-73b7-a824-a4ef57cababe in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:2 — same id, different body; kept the first
+conflicting run_id 019fc531-5aad-7a4f-9939-461d05b37e4f in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:3 — same id, different body; kept the first
+conflicting run_id 019fc537-b77c-74ca-902e-d89d01d1b23b in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:4 — same id, different body; kept the first
+conflicting run_id 019fc53e-186d-7e50-b57a-d49e0900b73a in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:5 — same id, different body; kept the first
+conflicting run_id 019fc544-7623-74b2-863d-2f7b487591c1 in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:6 — same id, different body; kept the first
+conflicting run_id 019fc54a-f72e-7e4d-9b82-265fa6a658f0 in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:7 — same id, different body; kept the first
+conflicting run_id 019fc551-2c2b-7d60-8b02-30528e61843b in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:8 — same id, different body; kept the first
+conflicting run_id 019fc557-ad8f-721e-a09f-59e3b570c88b in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:9 — same id, different body; kept the first
+conflicting run_id 019fc58d-bb62-79f1-aae8-468880e85510 in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:10 — same id, different body; kept the first
+conflicting run_id 019fc594-199a-71e5-9b77-3a7b073f3c5e in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:11 — same id, different body; kept the first
+conflicting run_id 019fc59a-2840-7132-9c36-b20d05173c74 in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:12 — same id, different body; kept the first
+conflicting run_id 019fc5a0-8a17-7a7d-b3c8-f9caf621919e in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:13 — same id, different body; kept the first
+conflicting run_id 019fc5a6-e6c5-71d2-a077-3e7718ddabcf in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:14 — same id, different body; kept the first
+conflicting run_id 019fc5ac-f7d1-7bbd-949f-1a5db40212f2 in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:15 — same id, different body; kept the first
+conflicting run_id 019fc5b3-0785-798f-9dc5-9f8fcc5e0274 in evidence/t39_report_chain_rehearsal_20260803/nr_0803_morning
+16_raw.jsonl:16 — same id, different body; kept the first
+contract OK: 101 record(s) across 33 file(s) — structural + R-10 cross-field invariants hold
+
+PASS  results-contract-unit  contract OK: 101 record(s) across 33 file(s) — structural + R-10 cross-field invariants hold
+--- spec-scoring-unit (exit 0) ---
+spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+
+PASS  spec-scoring-unit  spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+--- profiles-deep (exit 0) ---
+profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+
+PASS  profiles-deep  profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+--- voice-plan-parity (exit 0) ---
+voice plan parity OK: 9 constants + 9 plan literals matched
+
+PASS  voice-plan-parity  voice plan parity OK: 9 constants + 9 plan literals matched
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:compileDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:compressDebugAssets UP-TO-DATE
+> Task :probe:desugarDebugFileDependencies UP-TO-DATE
+> Task :probe:dexBuilderDebug UP-TO-DATE
+> Task :probe:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :probe:processDebugJavaRes UP-TO-DATE
+> Task :probe:mergeDebugJavaResource UP-TO-DATE
+> Task :probe:checkDebugDuplicateClasses UP-TO-DATE
+> Task :probe:mergeDebugStartupProfile UP-TO-DATE
+> Task :probe:mergeExtDexDebug UP-TO-DATE
+> Task :probe:mergeLibDexDebug UP-TO-DATE
+> Task :probe:mergeProjectDexDebug UP-TO-DATE
+> Task :probe:mergeDebugJniLibFolders UP-TO-DATE
+> Task :probe:mergeDebugNativeLibs UP-TO-DATE
+> Task :probe:stripDebugDebugSymbols UP-TO-DATE
+> Task :probe:validateSigningDebug UP-TO-DATE
+> Task :probe:writeDebugAppMetadata UP-TO-DATE
+> Task :probe:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :probe:packageDebug UP-TO-DATE
+> Task :probe:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :probe:assembleDebug UP-TO-DATE
+
+BUILD SUCCESSFUL in 18s
+39 actionable tasks: 39 up-to-date
+
+PASS  app-assembleDebug  gradlew :probe:assembleDebug
+--- app-parity-tests ---
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:compileDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:bundleDebugClassesToRuntimeJar UP-TO-DATE
+> Task :probe:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :probe:kspDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:compileDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:preDebugUnitTestBuild UP-TO-DATE
+> Task :probe:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :probe:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :probe:generateDebugUnitTestConfig UP-TO-DATE
+> Task :probe:processDebugJavaRes UP-TO-DATE
+> Task :probe:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :probe:testDebugUnitTest
+
+BUILD SUCCESSFUL in 23s
+30 actionable tasks: 1 executed, 29 up-to-date
+
+PASS  app-parity-tests  gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun
+--- app-unit-tests-full ---
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+> Task :probe:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :probe:preBuild UP-TO-DATE
+> Task :probe:preDebugBuild UP-TO-DATE
+> Task :probe:generateDebugBuildConfig UP-TO-DATE
+> Task :probe:checkDebugAarMetadata UP-TO-DATE
+> Task :probe:generateDebugResValues UP-TO-DATE
+> Task :probe:mapDebugSourceSetPaths UP-TO-DATE
+> Task :probe:generateDebugResources UP-TO-DATE
+> Task :probe:mergeDebugResources UP-TO-DATE
+> Task :probe:packageDebugResources UP-TO-DATE
+> Task :probe:parseDebugLocalResources UP-TO-DATE
+> Task :probe:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :probe:extractDeepLinksDebug UP-TO-DATE
+> Task :probe:processDebugMainManifest UP-TO-DATE
+> Task :probe:processDebugManifest UP-TO-DATE
+> Task :probe:processDebugManifestForPackage UP-TO-DATE
+> Task :probe:processDebugResources UP-TO-DATE
+> Task :probe:kspDebugKotlin UP-TO-DATE
+> Task :probe:compileDebugKotlin UP-TO-DATE
+> Task :probe:javaPreCompileDebug UP-TO-DATE
+> Task :probe:compileDebugJavaWithJavac UP-TO-DATE
+> Task :probe:bundleDebugClassesToRuntimeJar UP-TO-DATE
+> Task :probe:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :probe:kspDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:compileDebugUnitTestKotlin UP-TO-DATE
+> Task :probe:preDebugUnitTestBuild UP-TO-DATE
+> Task :probe:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :probe:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :probe:mergeDebugShaders UP-TO-DATE
+> Task :probe:compileDebugShaders NO-SOURCE
+> Task :probe:generateDebugAssets UP-TO-DATE
+> Task :probe:mergeDebugAssets UP-TO-DATE
+> Task :probe:packageDebugUnitTestForUnitTest UP-TO-DATE
+> Task :probe:generateDebugUnitTestConfig UP-TO-DATE
+> Task :probe:processDebugJavaRes UP-TO-DATE
+> Task :probe:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :probe:testDebugUnitTest
+
+BUILD SUCCESSFUL in 39s
+30 actionable tasks: 1 executed, 29 up-to-date
+
+PASS  app-unit-tests-full  gradlew :probe:testDebugUnitTest --rerun (whole suite)
+--- app-release-signing ---
+A: PASS probe-release.apk / CN=ANEB Throwaway (NOT a release identity), OU=Dev, O=ANEB, L=Shenzhen, C=CN
+B: PASS 回落 probe-release-unsigned.apk，构建未中断
+RESULT: PASS
+
+PASS  app-release-signing  scripts/verify_signing_fallback.ps1 (signed + unsigned-fallback)
+
+=== verify_all summary (scope: all) ===
+PASS           server-vet  go vet ./...
+PASS           server-build  go build ./...
+PASS           server-test  go test -count=1 ./...
+PASS           profiles-valid  4 profiles ok
+PASS           portraits-redline  check_redline.py
+PASS           adapters-spec  validate_adapters.py
+PASS           adapters-spec-unit  ran 42 reflex tests: 42 passed, 0 failed
+PASS           portraits-redline-unit  ran 46 reflex tests: 46 passed, 0 failed
+PASS           spec-versions  check_versions.py
+PASS           spec-versions-unit  11 passed in 0.04s
+PASS           portraits-schema  validate_schema.py
+PASS           portraits-schema-unit  ran 10 schema reflex tests: 10 passed, 0 failed
+PASS           corpus-ledger-fresh  corpus ledger check: in sync
+PASS           evidence-rules  evidence guard: violations=0 stale_exemptions=0 frozen_debt=14
+PASS           campaign-analysis-unit  campaign-analysis reflex: 841/841 passed
+PASS           obs-tools-enumeration  枚举到 3 只：obs-tools-e03-unit, obs-tools-e1-unit, obs-tools-e234-unit
+PASS           obs-tools-e03-unit  e03 reflex: 6/6 passed
+PASS           obs-tools-e1-unit  e1 reflex: 85/85 passed
+PASS           obs-tools-e234-unit  e234 reflex: 146/146 passed
+PASS           results-contract-unit  contract OK: 101 record(s) across 33 file(s) — structural + R-10 cross-field invariants hold
+PASS           spec-scoring-unit  spec-scoring OK: 4 file(s) - weights sum=1.0, anchors ascending, veto structure hold
+PASS           profiles-deep  profiles OK: 4 profile(s) - spec<->runtime parity + phase structure hold
+PASS           voice-plan-parity  voice plan parity OK: 9 constants + 9 plan literals matched
+PASS           app-assembleDebug  gradlew :probe:assembleDebug
+PASS           app-parity-tests  gradlew :probe:testDebugUnitTest --tests *ParityTest --tests *AdapterSpecTest --rerun
+PASS           app-unit-tests-full  gradlew :probe:testDebugUnitTest --rerun (whole suite)
+PASS           app-release-signing  scripts/verify_signing_fallback.ps1 (signed + unsigned-fallback)
+checks: 27 total / 0 FAIL / 0 NOT_EXECUTED / 0 SKIPPED_SCOPE
