@@ -50,6 +50,10 @@ compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+# ⚠ 刻意复用 `version.ref = "okhttp"` 而不是另起一个版本号：mockwebserver 与 okhttp
+# 是同一个仓库同批发布的，**版本必须同步**。给它单列版本，等于给「两者漂移」留了一条
+# 不会有人注意的路——共用引用让那种漂移在结构上不可能发生。
+mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
 
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
