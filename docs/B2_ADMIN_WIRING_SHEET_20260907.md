@@ -81,10 +81,21 @@ New-Item -ItemType File -Path 'C:\Program Files\aneb-shaper\.wtest' -ErrorAction
 
 1. 读 `current.args`，**只接受档名**，正面枚举，档名不在表里即抛错；
 2. 参数表里**只有**三档所需（延迟／丢包／限速）＋ `--filter`／`--target`；
-3. **`rst_prob`／`block_ip`／`lan_mode` 无法经任何档名到达**，且**有反例测它**
-   （只有正例的白名单，放宽成「什么都放行」照样全绿）；
+3. **有反例测它**——只有正例的白名单，放宽成「什么都放行」照样全绿；
 4. 启动时置 `BEAN_NO_ELEVATE=1`——任务已是 `/RL HIGHEST`，**不需要程序再自提权**，
    关掉它反而更干净（承 D-838①）。
+
+⚠ **本条第 3 点原先写的是「确保 `rst_prob`／`block_ip`／`lan_mode` 过不了」，已订正。**
+那是一份**黑名单**，而本单 §2 正在论证要用**白名单**——**我在自己的单子里写了自己反对的那个形状**。
+照原字面实现，下面这些照样能到达。`--print-config` 的 33 键里，破坏性或改变作用域的**至少有十一个**：
+
+```
+block_ip  block_port  rst_prob  rst_cooldown  syn_drop
+corrupt   dup         flap_down flap_period   lan_mode  internet_only
+```
+
+⇒ **正因为「要挡的」这份名单我第一次就没列全，才更该用菜单**：
+**菜单不需要知道要挡什么，它只需要知道要放什么。** 一份漏了的黑名单不会报错。
 
 ### 4.4 把两个脚本纳入版本管理
 
