@@ -43,11 +43,42 @@
 
 ## §3 执行前置：这一步归 v4，不归 PO
 
-**v4 须先交出 §4.3 需要的确切参数串**（本单故意留空，不猜）：
-用 `--help` 与 `--print-config` 确认 BeanNetworkTester v0.6.0 的**旗标确切拼法**，产出形如
-`--filter "..." --target ... --latency 200` 的完整行。**这一步不需要管理员，v4 自己能做。**
+✅ **已完成（v4，`03e9270`）。** 脚本、菜单、反例守卫都已入 `scripts/shaper/`，门禁 859/859 RC=0。
 
-⇒ **PO 请等 v4 把参数串交上来再跑本单**，免得跑两趟。
+⚠ **我原先在这里写的示例是错的**：我写成 `--filter "outbound and ip.DstAddr == ..."`，
+那是 **clumsy／裸 WinDivert 的语法**。BeanNetworkTester 的 `--filter` 是**枚举**
+`{both,out,in,tcp,udp,ping,loopback}`，作用域靠 `--dst-ip` 指定。
+**v4 查了 `--help` 才发现，没照抄我给的形状**——这是对的做法，记在这里免得后来人回头照抄我那句。
+
+交付的三档（每档都用 `--print-config` 验过，且破坏性旋钮全为默认）：
+
+| 档名 | 参数串 |
+|---|---|
+| `delay_lat200` | `--filter out --dst-ip 223.5.5.5 --latency 200` |
+| `loss_5pct` | `--filter out --dst-ip 223.5.5.5 --loss 5` |
+| `cap_up_1mbit` | `--filter out --dst-ip 223.5.5.5 --up 125 --buffer 1000` |
+
+### §3.1 两处大脑裁定（v4 报上来待钉的）
+
+**（一）限速单位：标签是比特率，工具吃字节率，换算按十进制，但——不靠读定案，靠测定案。**
+
+战役计划自己写着「1.44MB<6s 需 **≥4.3Mbps** 上行」，同一份文件的阶梯是 `up2m/1m/512k/256k/128k`
+⇒ **标签是 bit/s**。而 `--up` 吃的是 KB/s ⇒ 换算 `÷8 ÷1000`，`1 Mbps → 125 KB/s`。v4 取的值对。
+
+⚠ **但这只是假设，不是定案**：工具的「KB」是 1000 还是 1024，读文档答不了，
+**而步骤 4 本来就要实测达成速率**。⇒ **实测值落在预期带即认，落不进就改常数、不改标签。**
+
+🔴 **档名写意图，证据写实测，两者永远不许互相覆盖。** `cap_up_1mbit` 是我们要的那个数；
+实测 0.98 或 1.05 Mbps 都记在证据里。**一旦拿实测值去改档名，就再也看不出换算错过。**
+
+**（二）目标 IP：验收用 223.5.5.5，战役目标另加已验菜单项——但这里有一个必须先说破的代价。**
+
+菜单设计的代价是**不灵活**：每加一个目标 IP 或一个阶梯级，都要改一次**管理员独写文件**。
+阶梯五级 × 两方向 × 若干目标，条目会很多，**后来人一定会想把它参数化回去**——那等于退回原来的注入面。
+
+⇒ **允许的做法**：菜单可以由**两张钉死的表**（目标表 × 档位表）在脚本内**生成**叉积，
+**但那两张表必须留在同一个管理员独写文件里**。这样既去掉了条目的繁琐，又不引入任何来自非提权侧的自由文本。
+⇒ **不允许的做法**：让 `current.args` 携带 IP、速率、或任何非档名的内容。
 
 ## §4 管理员步骤（PowerShell，以管理员身份运行）
 
@@ -97,18 +128,42 @@ corrupt   dup         flap_down flap_period   lan_mode  internet_only
 ⇒ **正因为「要挡的」这份名单我第一次就没列全，才更该用菜单**：
 **菜单不需要知道要挡什么，它只需要知道要放什么。** 一份漏了的黑名单不会报错。
 
-### 4.4 把两个脚本纳入版本管理
+### 4.4 从仓里部署两个脚本（方向已订正）
+
+⚠ **本节原先写反了**：我写的是「从 `E:\tools` 拷进仓里」。**v4 已经把脚本直接写进仓了**（`03e9270`），
+所以方向是**从仓里拷到管理员目录**。旧的 `E:\tools\aneb-shaper\bin\shaper.ps1` 是 clumsy 版，**不再使用**。
 
 ```powershell
-New-Item -ItemType Directory -Force -Path 'E:\C Project\ANEB\scripts\shaper' | Out-Null
-Copy-Item 'E:\tools\aneb-shaper\bin\shaper.ps1'      'E:\C Project\ANEB\scripts\shaper\shaper.ps1'
-Copy-Item 'E:\tools\aneb-shaper\bin\shaper_stop.ps1' 'E:\C Project\ANEB\scripts\shaper\shaper_stop.ps1'
+$dst = 'C:\Program Files\aneb-shaper'
+Copy-Item 'E:\C Project\ANEB\scripts\shaper\shaper.ps1'      "$dst\shaper.ps1"
+Copy-Item 'E:\C Project\ANEB\scripts\shaper\shaper_stop.ps1' "$dst\shaper_stop.ps1"
 ```
 
-**为什么**：这两个脚本**当前不受 git 跟踪**（`git ls-files` 对 `shaper` 只命中三份 docs 与一份 evidence），
-而其中一个**承载着上面说的那条唯一安全边界**。⇒ **一条改了没有任何东西会报的安全控制。**
-（与今天上午那份「无人校验的完整性记录」是同一个形状，D-822。）
-入库后由 v4 补一道守卫：**盘上那份与库里那份须一致**。
+**用 `Copy-Item` 而不是重新创建文件** —— 理由见下一节。
+
+### 4.5 🔴 拷完必须验 BOM，这一条不能省
+
+```powershell
+foreach ($f in 'shaper.ps1','shaper_stop.ps1') {
+  $b = [System.IO.File]::ReadAllBytes("C:\Program Files\aneb-shaper\$f")[0..2]
+  '{0}: {1}' -f $f, $(if ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { 'BOM 在' } else { '⚠ 缺 BOM，停手' })
+}
+```
+
+**为什么**（v4 实测，这个坑咬过他一次）：
+**无 BOM 的 UTF-8 PowerShell 脚本，只要含中文注释，PS 5.1 下 `param()` 绑定会静默失效**——
+脚本照常跑，但 `-ArgsFile` 之类的命名参数**不绑定、回落默认值、不报任何错**，
+连 `Tokenize` 语法检查都照过。
+
+🔴 **落到这条链上的后果**：提权任务读参数会**静默走默认路径**，
+而「读错了文件」与「读对了文件」在输出上长得一模一样。
+⇒ 这也是为什么 4.4 要用 `Copy-Item`（按字节搬运）而**不是**重新敲一个文件出来。
+
+### 4.6 版本管理的那道守卫（归 v4，部署后补）
+
+两个脚本现已入库（`scripts/shaper/`，D-841 已闭合前半）。**后半还缺**：一道
+「**管理员目录里那份，与库里那份逐字节一致**」的守卫。
+⇒ 部署路径定下来之后由 v4 补，**判据取字节不取行**（今天已经栽过：`git diff` 是关于行的，D-829）。
 
 ## §5 跑完之后（v4 执行，不需要 PO）
 
