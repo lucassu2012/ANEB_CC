@@ -15,6 +15,7 @@ import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
 import com.aneb.probe.data.TokenEventEntity
 import com.aneb.probe.net.AnebClient
+import com.aneb.probe.net.NegotiatedProtocolLog
 import com.aneb.probe.net.BoundNetwork
 import com.aneb.probe.net.GuardException
 import com.aneb.probe.net.NetGuard
@@ -154,7 +155,12 @@ class TestEngine(private val context: Context) {
         }
         bound?.let { log("NET_BIND transport=$transportStr snapshot=${it.snapshot.capabilities.replace(' ', '_')}") }
 
-        val client = AnebClient(bound)
+        // A-8⑦（D-806）：一本账本贯穿本次 run 的测量 client。
+        // ⚠ **故意不给 weaknet contend 的那个 client**（下方 WEAKNET_CONTEND）——
+        // 那是 debug 下人为制造拥塞的背景流、自带 non_forensic 标记，把它计进来会让
+        // 「测量样本用了什么协议」这个数掺进非测量流量。边界写在这里，不是漏了。
+        val protocolLog = NegotiatedProtocolLog()
+        val client = AnebClient(bound, protocolLog)
 
         // ---------------- SNI 双通道连接可达性探测（阶段3，additive best-effort） ----------------
         // run 前对同一 E-01 分别用 {带 SNI 主机名, bare-IP} 各发 1 次 /serverinfo，
@@ -742,6 +748,9 @@ class TestEngine(private val context: Context) {
                 tokenS1 = composite.s1SessionSuccessRate,
                 env = ThermalSummary.fold(thermalDetails.toList()),
                 voice = voiceSummary,
+                // 快照取在 postResults **之前** ⇒ 上报体里不含它自己那次上传的协议。
+                // 这不是缺陷，是不可能：一份报告装不下自己被发出去时的协商结果。
+                protocols = protocolLog.snapshot(),
             )
             val bodyBytes = body.toByteArray(Charsets.UTF_8).size
             if (bodyBytes > ResultReporter.MAX_REPORT_BYTES) {

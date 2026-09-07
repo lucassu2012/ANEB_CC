@@ -33,7 +33,14 @@ import kotlin.coroutines.resumeWithException
  *  - [bound] 非 null 时同时绑定 socketFactory 与 Dns（R-01：否则域名解析仍走默认
  *    网络 DNS，解析与承载路径分裂）。AUTO 模式传 null＝不绑定仅监控。
  */
-class AnebClient(bound: BoundNetwork? = null) {
+class AnebClient(
+    bound: BoundNetwork? = null,
+    /**
+     * 协商协议账本（A-8⑦，D-806）。默认自带一本 ⇒ 既有构造点一字不改；
+     * 需要跨 client 汇总时由调用方传同一本进来（见 `TestEngine`）。
+     */
+    val protocolLog: NegotiatedProtocolLog = NegotiatedProtocolLog(),
+) {
 
     private val timingFactory = TimingEventListener.Factory()
     private val json = Json { ignoreUnknownKeys = true }
@@ -875,6 +882,14 @@ class AnebClient(bound: BoundNetwork? = null) {
                 }
 
                 override fun onResponse(call: Call, response: Response) {
+                    // A-8⑦（D-806）：**逐样本**记协商协议。放在 consume 之前、try 之外
+                    // —— 响应已经到手，协议就已协商完；即便下游解析抛异常，「这条样本
+                    // 用的是什么协议」也是事实。放进 try 里会让**失败样本静默不计**，
+                    // 而那恰恰是最该看协议的一类样本。
+                    protocolLog.observe(
+                        response.protocol.toString(),
+                        response.header(PROTO_EVIDENCE_HEADER),
+                    )
                     val result = try {
                         response.use(consume)
                     } catch (e: Exception) {
@@ -889,6 +904,13 @@ class AnebClient(bound: BoundNetwork? = null) {
     private fun nowUs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000L
 
     companion object {
+        /**
+         * 服务端逐响应协商证据头（`server/h3.go` 的 `withProtoEvidence` 所发）。
+         * 名字写成常量而非字面量：它跨语言分处两侧，字面量写岔了**两边都不报错**，
+         * 只会安静地全记成「头缺席」。
+         */
+        const val PROTO_EVIDENCE_HEADER = "X-Aneb-Proto"
+
         /** 服务端固定 "\n\n" 分隔（与 SseReader 同一 wire 约定） */
         private val SSE_EVENT_DELIMITER = "\n\n".encodeUtf8()
         private val SEQ_REGEX = Regex("\"seq\"\\s*:\\s*(\\d+)")

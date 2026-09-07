@@ -2,6 +2,7 @@ package com.aneb.probe.engine
 
 import com.aneb.probe.data.ScenarioResultEntity
 import com.aneb.probe.data.TestRun
+import com.aneb.probe.net.NegotiatedProtocolLog
 import com.aneb.probe.scoring.AqsScorer
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
@@ -61,6 +62,17 @@ object ResultReporter {
          * 横幅计数，不得作判读源（scripts/README「语音双通道边界」同文）。
          */
         voice: VoiceSummary.Voice? = null,
+        /**
+         * run 级协商协议账本快照（A-8⑦／D-806，additive；挂接先例＝上面的 env/voice）：
+         * 非 null 时**附加**写入 `run.negotiated_protocol`。
+         *
+         * **它回答的是「HTTP/1.1 那颗钉真的生效了吗」**——服务端 `TLSNextProto` 置空只证明
+         * 我们设了它；**一条只设不记的钉，与一条没设的钉，在语料里长得一模一样**。
+         *
+         * 块缺席＝该 run 早于本字段上线；块在而 `samples=0`＝账本在位但一条响应都没有
+         * （两者不可混，R-10）。
+         */
+        protocols: NegotiatedProtocolLog.Snapshot? = null,
     ): String = buildJsonObject {
         // ---- 合同字段（顶层，const/枚举锁定） ----
         put("claim_scope", CLAIM_SCOPE)
@@ -96,6 +108,22 @@ object ResultReporter {
                     put("build_type", run.buildType)
                     put("application_id", run.buildApplicationId)
                     put("inject_used", run.injectUsed)
+                })
+            }
+            // ---- 协商协议账本（A-8⑦／D-806，additive）----
+            // 逐样本记于 AnebClient.executeCancellable（全部请求路径的唯一漏斗）。
+            // 两张计数表分别来自**客户端视角**（OkHttp 协商结果）与**服务端视角**
+            // （X-Aneb-Proto）——两侧独立，对不上本身就是信息，故不合并成一个数。
+            protocols?.let { p ->
+                put("negotiated_protocol", buildJsonObject {
+                    put("samples", p.samples)
+                    put("header_absent", p.headerAbsent)
+                    put("by_protocol", buildJsonObject {
+                        p.byProtocol.forEach { (k, v) -> put(k, v) }
+                    })
+                    put("by_proto_header", buildJsonObject {
+                        p.byProtoHeader.forEach { (k, v) -> put(k, v) }
+                    })
                 })
             }
             // D-534 §2：键缺席=该 run 早于本字段上线（R-10 缺失≠空数组），""→[]=明确零跳过。
