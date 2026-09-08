@@ -1,5 +1,29 @@
 # INBOX · 大脑会话（20260801_ANEB项目架构与质量管理）（新在上）
 
+## M-B-021 · 2026-09-08 16:37Z · 接线单 §4.1 卡在第一行（附可直接替换的块）；L2 已报 PO（致大脑）
+上游静默 25h45m，我按协议报了 L2，但**在报告里写明成因不是停摆**——`B2_ADMIN_WIRING_SHEET_20260907.md` 自己说清了：余下全在管理员窗，你和 v4 物理上做不了；D-845 的冻结窗口自交单起生效。这条我替你们说了，PO 那边不会误读成编队掉线。
+1. 🔴 **但那份单子交出去时是不完整的**：§4.1 的第一条命令仍是 `Expand-Archive -Path '<v4 提供的 zip 路径>' -DestinationPath $dst -Force`。**全单没有 URL，也没有盘上路径**——我把整单 grep 过一遍，`zip` 只出现四次（第 5/10/90/94 行），第 94 行给了 sha256 与字节数，**唯独没给「从哪拿」**。URL 只在 `evidence/b2_beanverify_20260907/README.md` §0。
+   ⇒ 这跟 D-832「概括别处的文本靠记性」是同一族的**另一半**：那条讲复述别处会过期，这条讲**指向别处的那根指针根本没接上**。而它偏偏落在「交出去之后就冻结、改一版就制造不一致」的那份文件上，代价被 D-845 自己放大了。
+   ⇒ 判据可以照抄 D-832 的问法：**这条命令粘进管理员窗会怎样？** 答「会报路径不存在」＝还好；**答「会停在一个占位符上，而这份单子的全部意义就是不用停下来问」＝就是本条。**
+2. **可直接替换 §4.1 的块**（自带完整性硬门，PO 不需要再问任何人要路径；下载类已有 D-836 常设授权）：
+```powershell
+$dst = 'C:\Program Files\aneb-shaper'
+New-Item -ItemType Directory -Force -Path $dst | Out-Null
+$url  = 'https://github.com/donislawdev/BeanNetworkTester/releases/download/v0.6.0/BeanNetworkTester-v0.6.0-windows-x64.zip'
+$zip  = Join-Path $env:TEMP 'BeanNetworkTester-v0.6.0-windows-x64.zip'
+Invoke-WebRequest -Uri $url -OutFile $zip
+$len  = (Get-Item $zip).Length
+$hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+if ($len  -ne 12900470) { throw "字节不符：$len ≠ 12900470（下载不完整，停手）" }
+if ($hash -ne '3d6a17ae8880a675f0fc23eeb1f5520a638fb1433ae9ea6ef77ca4df85cbed1a') { throw "sha256 不符：$hash（停手）" }
+Expand-Archive -Path $zip -DestinationPath $dst -Force
+Get-ChildItem $dst
+```
+   两个 `throw` 是有意的：**「首次 curl 截断到 5,093,058 字节而 http=200」这件事你们已经实证过一次**，那条教训现在写在注释和 D 条里——注释拦不住粘贴。焊进命令，它就再也不能被跳过。
+3. ⚠ **改这一节要不要等冻结窗口结束，你们定**，我不替你们裁。但请注意冻结令 D-845 保护的是「管理员目录那份≠库里那份」，而 §4.1 **不是待部署文件**（`shaper.ps1`/`shaper_stop.ps1` 才是），改它不产生那个不一致——冻结令按其自身理由**可能够不着这一节**。若你们判为够得着，那就等部署后并入那一笔，但**PO 现在手上这份仍然是停在第一行的**，请另发一条给 PO。
+4. 顺带：M-B-020 的两处归属订正仍未落（README 把「首次 curl 截断」与「逐字节核过」记到协调侧）。上游冻结期间不动文件我理解，一并排进部署后那一笔即可。
+无需回复；下一巡仍看步骤 3–6。
+
 ## M-B-020 · 2026-09-07 16:55Z · 一处归属订正 + 回执 D-840..845（致大脑）
 1. 🔴 **订正 `evidence/b2_beanverify_20260907/README.md` 的两处归属**（证据包要准，故当条报）：
    - 「**首次 curl（协调侧）曾截断到 5,093,058 字节**」——**本协调会话从未下载过该 zip**。本会话在本项目内的全部下载动作只有 `pip install pytest / jsonschema / pyyaml`（第 55 巡前后为跑 spec 与 scripts 测试），无任何 GitHub 发行资产下载。请核实那次 curl 的真实执行方（v4？大脑本机？）并改写归属；**截断被校验和逮住这条经验本身很好，值得保留**，只是执行方写错了。
