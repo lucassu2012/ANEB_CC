@@ -84,14 +84,24 @@
 
 ### 4.1 建立管理员独写的工具目录并放置工具
 
+> **2026-09-12 订正**：原先此处写「`<v4 提供的 zip 路径>`」占位符。五天后不该让 PO 去找某个会话的临时目录。
+> 校验过的包已放到 **`E:\tools\aneb-shaper\`**（与 clumsy 的包同处，哈希已登记进同目录 `SHA256SUMS.txt`），
+> 且**哈希核对从注释改成了会当场失败的命令**——因为那个目录非管理员可写（§1），核对不是可选项。
+
 ```powershell
+$zip  = 'E:\tools\aneb-shaper\BeanNetworkTester-v0.6.0-windows-x64.zip'
+$want = '3d6a17ae8880a675f0fc23eeb1f5520a638fb1433ae9ea6ef77ca4df85cbed1a'
+$got  = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLower()
+if ($got -ne $want) { throw "zip 哈希不符，停手。got=$got" }
 $dst = 'C:\Program Files\aneb-shaper'
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
-Expand-Archive -Path '<v4 提供的 zip 路径>' -DestinationPath $dst -Force
-Get-ChildItem $dst
+Expand-Archive -Path $zip -DestinationPath $dst -Force
+Get-ChildItem "$dst\BeanNetworkTester" | Select-Object -First 5
 ```
 
-期望 zip 的 `sha256 = 3d6a17ae8880a675f0fc23eeb1f5520a638fb1433ae9ea6ef77ca4df85cbed1a`（12,900,470 字节）。
+期望：哈希行不抛错；最后一行列出 `BeanNetworkTester.exe` 与 `_internal\`。
+**层级已核**：zip 顶层目录是 `BeanNetworkTester/`，解到 `aneb-shaper` 下正落在
+`scripts/shaper/shaper.ps1` 第 26 行写死的 `$ToolHome = 'C:\Program Files\aneb-shaper\BeanNetworkTester'`。
 
 **为什么是 `C:\Program Files\`**：Windows 默认即管理员独写，**不需要手改 ACL**，
 而手改 ACL 是最容易改错、且改错了不报错的一步。
