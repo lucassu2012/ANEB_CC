@@ -138,24 +138,36 @@ corrupt   dup         flap_down flap_period   lan_mode  internet_only
 ⇒ **正因为「要挡的」这份名单我第一次就没列全，才更该用菜单**：
 **菜单不需要知道要挡什么，它只需要知道要放什么。** 一份漏了的黑名单不会报错。
 
-### 4.4 从仓里部署两个脚本（方向已订正）
+### 4.4 从仓里部署两个脚本（**2026-09-12 第二次订正：目标目录错了，是我的错**）
 
-⚠ **本节原先写反了**：我写的是「从 `E:\tools` 拷进仓里」。**v4 已经把脚本直接写进仓了**（`03e9270`），
-所以方向是**从仓里拷到管理员目录**。旧的 `E:\tools\aneb-shaper\bin\shaper.ps1` 是 clumsy 版，**不再使用**。
+⚠ **本节错过两次。** 第一次方向写反（从 `E:\tools` 拷进仓里，实际脚本已在仓里）。
+第二次——PO 已按我写的跑完——**目标目录写错**：我让脚本去 `C:\Program Files\aneb-shaper\`，
+而脚本第 18 行自述「默认＝本脚本旁 `..\profiles\current.args`」。放到 Program Files 后它会去找
+`C:\Program Files\profiles\current.args`，**不存在**。这个脚本是为 `E:\tools\aneb-shaper\` 下
+`bin\` 与 `profiles\` **并列**的布局写的。**我写部署目标时没有读脚本怎么推路径**（D-846）。
+
+⇒ **正确目标是 `E:\tools\aneb-shaper\bin\`**——它非管理员不可写（§1 实测），
+计划任务本来就指着它，**一个字都不用改**。工具本体留在 Program Files（`$ToolHome` 写死的就是那里）。
 
 ```powershell
-$dst = 'C:\Program Files\aneb-shaper'
-Copy-Item 'E:\C Project\ANEB\scripts\shaper\shaper.ps1'      "$dst\shaper.ps1"
-Copy-Item 'E:\C Project\ANEB\scripts\shaper\shaper_stop.ps1' "$dst\shaper_stop.ps1"
+$bin = 'E:\tools\aneb-shaper\bin'
+# 先把 clumsy 版改名保留——它是 D-790/D-792 的实物证据，不删
+Rename-Item "$bin\shaper.ps1"      'shaper.clumsy.ps1'
+Rename-Item "$bin\shaper_stop.ps1" 'shaper_stop.clumsy.ps1'
+Copy-Item 'E:\C Project\ANEB\scripts\shaper\shaper.ps1'      "$bin\shaper.ps1"
+Copy-Item 'E:\C Project\ANEB\scripts\shaper\shaper_stop.ps1' "$bin\shaper_stop.ps1"
+# 收拾 09-12 第一轮留下的两样：错位置的脚本副本、与提权窗里造出的试写文件
+Remove-Item 'C:\Program Files\aneb-shaper\shaper.ps1', 'C:\Program Files\aneb-shaper\shaper_stop.ps1', 'C:\Program Files\aneb-shaper\.wtest'
+Get-ChildItem $bin
 ```
 
-**用 `Copy-Item` 而不是重新创建文件** —— 理由见下一节。
+**用 `Copy-Item` 而不是重新创建文件** —— 理由见下一节。**§4.5 的 BOM 检查要对 `$bin` 下那两份再跑一遍。**
 
 ### 4.5 🔴 拷完必须验 BOM，这一条不能省
 
 ```powershell
 foreach ($f in 'shaper.ps1','shaper_stop.ps1') {
-  $b = [System.IO.File]::ReadAllBytes("C:\Program Files\aneb-shaper\$f")[0..2]
+  $b = [System.IO.File]::ReadAllBytes("E:\tools\aneb-shaper\bin\$f")[0..2]
   '{0}: {1}' -f $f, $(if ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) { 'BOM 在' } else { '⚠ 缺 BOM，停手' })
 }
 ```
