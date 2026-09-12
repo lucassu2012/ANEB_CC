@@ -276,3 +276,91 @@ def test_hotspot_reasons_are_computed_not_static():
     b = _hot(n_hot=3)
     assert a[0] == b[0] == "FALSE"
     assert a[1] != b[1], "两组不同输入给出逐字相同的理由 ⇒ 那句话是写死的"
+
+
+FULL = list(range(1, 21))
+
+
+def _s3(a, b, t=T):
+    from decompose_2x_verdicts import verdict_s3
+    return verdict_s3(t, a, b)
+
+
+def test_s3_positive_control_copying_passes():
+    """正对照：真的「两句柄各看见同一个包」必须判过。
+
+    没有它,一个恒 VOID 的实现也能把「假的不出现」这半跑绿。
+    """
+    code, why = _s3(FULL, FULL)
+    assert code == "PASS", (code, why)
+
+
+def test_s3_four_worlds_get_four_distinct_codes():
+    """🔴 承重条：原判据只写 `|H_A − H_B| ≤ 2`,而 **W1／W3／W4 在那个读数上同判**。
+
+    W3＝零命中(自证自己身上的「零命中先证明量法」)、
+    W4＝2× 的 2T 个目击被两句柄各分一半(数量相当而看见的是**不同的**目击)。
+    """
+    w1 = _s3(FULL, FULL)
+    w2 = _s3(FULL, [])
+    w3 = _s3([], [])
+    w4 = _s3(FULL, [x + 100 for x in FULL])
+    assert w1[0] == "PASS"
+    assert w2[0] == "FAIL_SKEW", w2
+    assert w3[0] == "VOID_NOT_ALIVE", w3
+    assert w4[0] == "FAIL_NOT_SAME_PACKETS", w4
+    assert len({w1[0], w2[0], w3[0], w4[0]}) == 4, (w1, w2, w3, w4)
+    # 且四个世界在**只看差值**这个旧读数上确实同判 —— 本条的前提
+    diff_ok = lambda a, b: abs(len(a) - len(b)) <= 2
+    assert diff_ok(FULL, FULL) and diff_ok([], []) and diff_ok(FULL, [x + 100 for x in FULL]), \
+        "前提不成立:那三个世界本应在旧读数上都过"
+
+
+def test_s3_zero_traffic_must_not_pass_even_though_the_difference_is_zero():
+    """W3 单独再钉一次：`|0 − 0| = 0` 是最小的差值,而它证明不了任何事。"""
+    code, why = _s3([], [])
+    assert code != "PASS", why
+    assert "没活" in why, why
+
+
+def test_s3_same_counts_different_packets_must_not_pass():
+    """W4 单独再钉一次：数量完全相等、交集为空。"""
+    code, why = _s3(FULL, [x + 100 for x in FULL])
+    assert code != "PASS", why
+    assert "不同的" in why, why
+
+
+def test_s3_void_when_T_missing_is_not_a_pass():
+    code, why = _s3(FULL, FULL, t=None)
+    assert code == "VOID_NO_T", (code, why)
+
+
+def test_s3_tolerates_the_skew_it_declares():
+    """声明的偏移容差要真的容忍：少两个 seq 且交集仍达下界 ⇒ 过。"""
+    code, why = _s3(FULL, FULL[:18])
+    assert code == "PASS", (code, why)
+    code2, why2 = _s3(FULL, FULL[:17])
+    assert code2 == "FAIL_SKEW", (code2, why2)
+
+
+def test_s3_tol_and_skew_drive_different_branches():
+    """🔴 `TOL` 与 `SKEW` **今天值相同（都是 2）**,所以「混用」在数值上完全测不出来。
+
+    判据 §1.6 明写两者**来历不同、不得混用同一个理由**。本条用 monkeypatch 证明
+    **各自驱动各自那条分支**:改 SKEW 只动偏移支,改 TOL 只动活性/配对支。
+    ⚠ 没有这一条,把 `SKEW` 换成 `TOL` 的实现会全绿,而下一次有人改 TOL 时 S3 会静默跟着变。
+    """
+    import decompose_2x_verdicts as m
+    tol0, skew0 = m.TOL, m.SKEW
+    try:
+        m.SKEW = 0
+        assert m.verdict_s3(T, FULL, FULL[:19])[0] == "FAIL_SKEW", "SKEW=0 时差 1 应判偏移超限"
+        assert m.verdict_s3(T, FULL, FULL)[0] == "PASS", "SKEW=0 时零差值仍应过"
+        m.SKEW = skew0
+        m.TOL = 0
+        assert m.verdict_s3(T, FULL[:19], FULL[:19])[0] == "VOID_NOT_ALIVE", \
+            "TOL=0 时下界升到 T,19 个 seq 应判量法没活"
+        assert m.verdict_s3(T, FULL, FULL)[0] == "PASS"
+    finally:
+        m.TOL, m.SKEW = tol0, skew0
+    assert (m.TOL, m.SKEW) == (tol0, skew0), "还原失败"

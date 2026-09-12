@@ -317,3 +317,48 @@ def judge_hotspot_off(n_hot, ctrl_upstream_count, svc_state, route_ifindex, upst
         return ("FALSE", "热点未关(该格 NOT_EXECUTED,需 PO 再动手)—— " + "；".join(fails))
     return ("TRUE", "H1 接口数 0、H2 状态 %s、H3 路由在上游腿 ifIndex=%s,三项皆满足且三个正对照皆活"
             % (svc_state, route_ifindex))
+
+
+# S3 的句柄间偏移容差。**与 `TOL` 来历不同,不得混用同一个理由**(§1.6 自述):
+# 两个句柄的 open 与 shutdown 不在同一瞬间 ⇒ 开头与结尾各可能差一个包 ⇒ 上界 2。
+SKEW = 2
+
+
+def verdict_s3(T, seqs_a, seqs_b):
+    """§1.6 S3 配对法自证 → `(code, 说明)`。**三个条件的合取,缺一不可。**
+
+    🔴 **原判据只写 `|H_A − H_B| ≤ 2`,那不是判别器**——按「列出它要分开的所有世界」这条:
+
+    | 世界 | `H_A` | `H_B` | 交集 | 只看差值 |
+    |---|---|---|---|---|
+    | W1 SNIFF 是复制,两句柄各看见同一个包 | ≈T | ≈T | ≈T | 过 |
+    | W2 只有一个句柄拿到 | ≈T | 0 | 0 | 不过 |
+    | **W3 根本没有流量匹配** | **0** | **0** | 0 | **过**(与 W1 同判) |
+    | **W4 2× 的 2T 个目击被两句柄各分一半** | ≈T | ≈T | **≈0** | **过**(与 W1 同判) |
+
+    ⇒ W3 是「零命中先证明量法」长在自证身上;W4 更隐蔽——两句柄看见的是**不同的**目击,
+    差值一样小而配对法**不成立**。两者都由每包日志分开:
+
+    1. **活性**:`len(seqs_a) >= T - TOL`（句柄 a 自己得像一次全捕获;用 §4.1 的丢包容差）;
+    2. **偏移**:`abs(len_a - len_b) <= SKEW`（两句柄开关不同瞬,与 1 的容差**来历不同**）;
+    3. **配对**:`|set(a) & set(b)| >= T - TOL`（**同一批 seq 都被两边看见**——W4 唯一由它排除）。
+    """
+    if T is None:
+        return ("VOID_NO_T", "T 取不到 ⇒ 三个条件都无从比较,S3 VOID（不是通过）")
+    na, nb = len(seqs_a), len(seqs_b)
+    inter = len(set(seqs_a) & set(seqs_b))
+    floor = T - TOL
+    if na < floor:
+        return ("VOID_NOT_ALIVE",
+                "句柄 a 只看见 %d 个 seq < %d ⇒ **量法没活**（W3：零命中会让差值检查恒过）"
+                % (na, floor))
+    if abs(na - nb) > SKEW:
+        return ("FAIL_SKEW", "|%d − %d| = %d > %d ⇒ 两句柄看见的数量差太多（W2）⇒ 配对法不成立"
+                % (na, nb, abs(na - nb), SKEW))
+    if inter < floor:
+        return ("FAIL_NOT_SAME_PACKETS",
+                "数量相当（%d vs %d）**但 seq 交集只有 %d < %d** ⇒ 两句柄看见的是**不同的**目击"
+                "（W4）⇒ 配对法不成立，**这一支只看差值永远发现不了**" % (na, nb, inter, floor))
+    return ("PASS", "句柄 a %d 个 seq ≥ %d（活）、|%d − %d| ≤ %d（同窗偏移内）、"
+                    "交集 %d ≥ %d（同一批包被两边都看见）⇒ 配对法成立"
+            % (na, floor, na, nb, SKEW, inter, floor))

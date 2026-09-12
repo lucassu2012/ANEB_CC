@@ -29,7 +29,7 @@ if _HERE not in sys.path:
 
 from decompose_2x_verdicts import (                                    # noqa: E402
     conservation_selfcheck, impostor_band, judge_hotspot_off, noise_policy,
-    verdict_h2, verdict_h4, verdict_identity, verdict_impostor, verdict_n,
+    verdict_h2, verdict_h4, verdict_identity, verdict_impostor, verdict_n, verdict_s3,
     zero_reading_ok)
 from pkt_identity import parse as pkt_parse, summarize as pkt_summarize   # noqa: E402
 
@@ -552,6 +552,7 @@ def preflight():
     f_src = "%s and ip.SrcAddr == %s" % (fb, dsrc)
     f_nsrc = "%s and ip.SrcAddr != %s" % (fb, dsrc)
     f_imp = "%s and impostor" % fb
+    f_taut = "%s and (icmp or not icmp)" % fb   # §1.6 S3-b：**恒真但写法不同**，匹配集合与 fb 相同
     f_noicmp = "ip.DstAddr == %s" % TARGET
     proofs = [compile_selfproof(d, fb, LAYER_NETWORK, True),
               compile_selfproof(d, "true", LAYER_NETWORK, True),
@@ -559,10 +560,12 @@ def preflight():
               compile_selfproof(d, f_up, LAYER_NETWORK_FORWARD, True),
               compile_selfproof(d, f_hot, LAYER_NETWORK_FORWARD, True),
               compile_selfproof(d, f_imp, LAYER_NETWORK, True),
-              compile_selfproof(d, f_src, LAYER_NETWORK_FORWARD, True)]
+              compile_selfproof(d, f_src, LAYER_NETWORK_FORWARD, True),
+              compile_selfproof(d, f_taut, LAYER_NETWORK, True)]
     if not all(proofs):
         raise SystemExit("NOT_EXECUTED：编译自证有一行不符预期（见上）⇒ 不数任何包")
-    return (d, k, dsrc, pre, dirty, fb, f_up, f_hot, f_src, f_nsrc, f_imp, f_noicmp)
+    return (d, k, dsrc, pre, dirty, fb, f_up, f_hot, f_src, f_nsrc, f_imp, f_noicmp,
+            f_taut)
 
 
 def main():
@@ -574,13 +577,15 @@ def main():
     d = pre = None
     opened_any = False
     try:
-        (d, k, dsrc, pre, dirty, fb, f_up, f_hot, f_src, f_nsrc, f_imp, f_noicmp) = preflight()
+        (d, k, dsrc, pre, dirty, fb, f_up, f_hot, f_src, f_nsrc, f_imp, f_noicmp,
+         f_taut) = preflight()
         cells = {}
         plan = [
             ("S0 仪器自证", LAYER_NETWORK, "false", lambda: None, None),
             ("S1 空闲底噪(N)", LAYER_NETWORK, fb, no_traffic, None),
             ("S2 空闲底噪(F)", LAYER_NETWORK_FORWARD, fb, no_traffic, None),
-            ("S3 两句柄自证", LAYER_NETWORK, fb, pc_ping, "true"),
+            ("S3a 同 filter 两句柄", LAYER_NETWORK, fb, pc_ping, fb),
+            ("S3b 恒真子句", LAYER_NETWORK, fb, pc_ping, f_taut),
             ("A1 复现 A", LAYER_NETWORK, fb, pc_ping, f_imp),
             ("A2 去 and icmp", LAYER_NETWORK, f_noicmp, pc_ping, None),
             ("C1 复现 C", LAYER_NETWORK_FORWARD, fb, dev_ping, f_imp),
@@ -642,11 +647,26 @@ def apply_verdicts(cells):
         print("  §4.2 H2 ⇒ %s：%s" % (h2, hw))
     else:
         print("  §4.2 H2：F1／F2／C1 有读数缺席 ⇒ 不可判")
+    s3_pass = {}
+    for sn in ("S3a", "S3b"):
+        s3 = get(sn)
+        code_s, why_s = "VOID_NO_T", "%s 格没读数" % sn
+        if s3 and s3.get("count") is not None:
+            sa = [r["icmp_seq"] for r in s3["recs"]]
+            sb = [r["icmp_seq"] for r in s3["recs_b"]]
+            code_s, why_s = verdict_s3(s3.get("T"), sa, sb)
+        s3_pass[sn] = (code_s == "PASS")
+        print("  §1.6 %s ⇒ %s：%s" % (sn, code_s, why_s))
+    s3_code = "PASS" if all(s3_pass.values()) else "FAIL"
+    print("  §1.6 两支均须过 ⇒ %s（S3a=%s S3b=%s）"
+          % (s3_code, s3_pass.get("S3a"), s3_pass.get("S3b")))
+
+
     for nm in ("A1", "C1"):
         c = get(nm)
         if c and c.get("count_b") is not None:
             ic, iw = verdict_impostor(c["count_b"], c["count"],
-                                      bool(get("S3") and get("S3").get("count")),
+                                      s3_code == "PASS",
                                       bool(c.get("same_window")), code)
             lo, hi = impostor_band(c["count"]) if c["count"] else (None, None)
             print("  §4.3 impostor（%s，n=%s，带=[%s,%s]）⇒ %s：%s"
