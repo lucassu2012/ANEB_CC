@@ -54,6 +54,9 @@ TARGET = "223.5.5.5"
 FILTER = b"ip.DstAddr == 223.5.5.5"      # 三格共用，共用才使正对照有意义
 N_PING = 20                              # 每格 20 个 ICMP
 HIT = 5                                  # 判「>0」的门槛（判据 §3，看到计数之前定死）
+ROUND_DIR = "c_forward_layer_probe_20260912"   # 本轮证据目录（stdout 逐字副本写这里）
+# ⚠ 重写本脚本时**必须同时改它**：目录名对当前用途是对的，
+# 换成 2× 分解探针那一刻就错了。提成常量就是为了别靠记性。
 
 # P2（判据 §0b）：出口必须走 PC 热点，否则设备的包**根本不经过 PC**。
 # ⚠ **只认 `dev wlan0` 不够** —— 设备连别的 WiFi 时同样是 `wlan0`，那一格**分不开两张网**；
@@ -206,7 +209,7 @@ class _Tee(object):
 def _open_tee():
     """→ (_Tee 或 None, 说明)。写不进去就如实说，**不因为留不下记录而不跑**。"""
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    d = os.path.join(root, "evidence", "c_forward_layer_probe_20260912")
+    d = os.path.join(root, "evidence", ROUND_DIR)
     try:
         if not os.path.isdir(d):
             os.makedirs(d)
@@ -222,28 +225,68 @@ def driver_rc():
                           encoding="utf-8", errors="replace").returncode
 
 
-def teardown(opened_any):
-    """判据 §5 的收尾，**标签跟着值走**。
+def teardown_labels(rc, opened_any, pre_state):
+    """→ (服务状态句, 「句柄关闭是否已触发 stop」句)。**纯函数，专为可被合成门钉住而抽出。**
 
-    🔴 **这一行原来是错的，错法留在代码里**：原文把「1060 ＝ 已卸载，符合判据 §5」
-    **写死在格式串里**，于是 `rc=0`（服务仍在）也照印「已卸载，符合判据」。
-    **一个固定标签焊在变量旁边，读起来就像结果。** 那行输出直接传进了转述、再进了裁定
-    （见 `evidence/c_forward_layer_probe_20260912/README.md` §1b）。
-    ⇒ **凡把读数与解释印在同一行，解释必须由读数算出来，不许先写死。**
+    🔴 **本文件第二次犯同一形状，所以这个算法必须是纯函数 + 有门**：
+    `teardown` 原先把「1060 ＝ 已卸载，符合判据 §5」**写死在格式串里**，`rc=0` 也照印
+    「已卸载」。那次修法只把标签改成由 `rc` 算——**只落实了一半**：
+
+    | 世界 | `rc` | 「已卸载」 | 「句柄关闭已触发 stop」 |
+    |---|---|---|---|
+    | 装过、句柄关掉后自停自删 | 1060 | 真 | 真 |
+    | **一个句柄都没开成**（非提权轮实测 err=5 ×3） | 1060 | **假**——没装过，哪来的卸 | **假**——没有句柄被关 |
+
+    ⇒ 「已卸载」与「已触发 stop」断言的是**一段历史**，`rc` 单独承不起它。
+    ⚠ 而下面 `teardown` 自述的承重发现正是「最后一个句柄关掉即自停自删**本机实测不成立**」
+    ——非提权轮里那一行会给这句话印出一个 `是`，**即它在反驳本文件自己那条发现**，
+    走的还是同一条「输出 → 转述 → 裁定」的路（那条路已兑现过一次，见 README §1b）。
+
+    ⇒ 判「本轮卸干净了」需要三个读数，不是一个：`rc`（此刻在不在）、`opened_any`
+    （本轮有没有开成句柄）、`pre_state`（**跑格之前**服务在不在）。少任何一个就只能
+    如实说「无从归因」——**缺读数时退回不归因，不退回一句好听的话。**
+    """
+    if rc != 1060:
+        return ("服务仍在（判据 §5 FAIL：驱动未卸）", "否（需手动 stop）")
+    if not opened_any:
+        return ("1060 服务不存在；**本轮一个句柄都没开成 ⇒ 本轮没装过它**，"
+                "这个 1060 说的是它本来就不在，与本轮收尾无关",
+                "**无从判断**——本轮没有「句柄关闭」这件事可归因")
+    if pre_state == 1060:
+        return ("1060 服务不存在；跑格前 rc=1060 且本轮有句柄开成 ⇒ "
+                "**本轮装的、本轮已卸干净，判据 §5 达成**",
+                "是（无需手动）")
+    return ("1060 服务不存在；但跑格前 rc=%s（非 1060 或未读）⇒ 服务**不是本轮装的**，"
+            "它为何消失本脚本无从归因，如实记" % (pre_state,),
+            "**无从判断**——服务非本轮所装，不能把它的消失记在本轮句柄头上")
+
+
+def teardown(opened_any, pre_state=None):
+    """判据 §5 的收尾，**标签跟着值走**——两行标签一律由 `teardown_labels` 算出。
+
+    `pre_state` 默认 `None`：**漏传时退化成「不归因」，不退化成一句假的「已卸载」。**
 
     另：WinDivert「最后一个句柄关掉即自停自删」**本机实测不成立**（至少那一次没发生），
     故收尾要主动清，而且**只清本脚本自己装的那一份**。
     """
     rc = driver_rc()
-    print("-- 收尾：sc query WinDivert rc=%d ⇒ %s --"
-          % (rc, "1060 服务不存在（已卸载，判据 §5 达成）" if rc == 1060
-                 else "服务仍在（判据 §5 FAIL：驱动未卸）"))
-    # 「要不要手动 stop」本身是一个读数：它说的是「句柄关闭有没有触发 stop」。
-    print("   句柄关闭是否已触发 stop：%s" % ("是（无需手动）" if rc == 1060 else "否（需手动 stop）"))
+    state, stop_read = teardown_labels(rc, opened_any, pre_state)
+    print("-- 收尾：sc query WinDivert rc=%d ⇒ %s --" % (rc, state))
+    print("   句柄关闭是否已触发 stop：%s" % stop_read)
     if rc == 1060:
         return
     if not opened_any:
         print("   本次一个句柄都没开成 ⇒ **这不是本脚本装的**，不动它，如实报人处理")
+        return
+    # ⬆ 上面那道闸只答「本轮有没有开成句柄」。
+    # 🔴 **在一个已存在的服务上开句柄同样会让 `opened_any` 为真**
+    # ⇒ 它分不开「本轮装的」与「别人装的、本轮只是搭了个车」。
+    # 下面的 `tasklist` 只认 BeanNetworkTester 一个名字，clumsy、整形器自己那份
+    # 都不在它里 ⇒ 通用的读数是 `pre_state`。漏传（None）也落这里：
+    # **拒绝动手是安全的那个失败方向。**
+    if pre_state != 1060:
+        print("   跑格前服务就已在（pre rc=%s）⇒ **不是本脚本装的，不停不删**，"
+              "如实报人处理" % (pre_state,))
         return
     busy = subprocess.run(["tasklist", "/FI", "IMAGENAME eq BeanNetworkTester.exe"],
                           capture_output=True, encoding="utf-8", errors="replace")
@@ -305,6 +348,11 @@ if __name__ == "__main__":
             "     是**根本没有流量经过 PC** —— 一个漂亮、可复现、完全错误的结论。\n"
             "  修法：先开 PC 移动热点（共享源＝以太网）并把 P40 连上，再跑本脚本。"
             % (HOTSPOT_GW, HOTSPOT_NET, raw0 or "（无输出）"))
+    print("-- 跑格前先读一次服务态（归因靠它，不靠“应该不在”）--")
+    _pre = driver_rc()
+    print("   sc query WinDivert rc=%d ⇒ %s"
+          % (_pre, "1060 服务不在 ⇒ 本轮若开成句柄，那就是本轮装的" if _pre == 1060
+                else "服务已在 ⇒ **不是本轮装的**，收尾不得归因给本轮，也不得停它"))
     print("-- 加载前哈希比对 --")
     preflight()
     d = load()
@@ -327,7 +375,7 @@ if __name__ == "__main__":
         print("  🔴 VOID：出口在跑动中变了或已不在热点上 ⇒ 三格计数不可用，不得据此判任何事")
     else:
         print("  " + verdict(a, b, c))
-    teardown(opened_any=any(x is not None for x in (a, b, c)))
+    teardown(opened_any=any(x is not None for x in (a, b, c)), pre_state=_pre)
     print("⚠ 本探针只判**可见性**，不判可整形性：可见 != 可整（整还要能改包并重注入）。")
     if _tee is not None:
         print("⇒ 请把上面那个 stdout 副本文件交出去（它是逐字的）；"
