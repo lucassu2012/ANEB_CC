@@ -191,6 +191,8 @@ def teardown(opened_any):
     print("-- 收尾：sc query WinDivert rc=%d ⇒ %s --"
           % (rc, "1060 服务不存在（已卸载，判据 §5 达成）" if rc == 1060
                  else "服务仍在（判据 §5 FAIL：驱动未卸）"))
+    # 「要不要手动 stop」本身是一个读数：它说的是「句柄关闭有没有触发 stop」。
+    print("   句柄关闭是否已触发 stop：%s" % ("是（无需手动）" if rc == 1060 else "否（需手动 stop）"))
     if rc == 1060:
         return
     if not opened_any:
@@ -201,10 +203,24 @@ def teardown(opened_any):
     if "BeanNetworkTester" in (busy.stdout or ""):
         print("   ⚠ BeanNetworkTester 正在跑 ⇒ **不停服务**（会掐掉别人的整形），如实报人处理")
         return
-    print("   本脚本开过句柄 ⇒ 只收拾自己装的那一份")
-    for cmd in (["sc.exe", "stop", "WinDivert"], ["sc.exe", "delete", "WinDivert"]):
-        rr = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
-        print("   %-24s -> rc=%d" % (" ".join(cmd), rr.returncode))
+    # `sc stop` 才是清理的实质；实测 stop 一执行，WinDivert 就自己把服务条目删掉了
+    # ⇒ 「自删」那一半是活的，缺的只是「句柄关闭 → stop」那一半。
+    rs = subprocess.run(["sc.exe", "stop", "WinDivert"], capture_output=True,
+                        encoding="utf-8", errors="replace")
+    print("   sc stop   -> rc=%d" % rs.returncode)
+    q = driver_rc()
+    print("   stop 后 sc query rc=%d ⇒ %s"
+          % (q, "1060 服务条目已消失（WinDivert 自删生效）" if q == 1060 else "服务仍在"))
+    if q != 1060:
+        # 只有 stop 没清掉时才 delete。⚠ 此处 1060 是「已自删」不是失败——
+        # 把一个真成功印成看起来像失败，与「静态括注」同形、方向相反。
+        rd = subprocess.run(["sc.exe", "delete", "WinDivert"], capture_output=True,
+                            encoding="utf-8", errors="replace")
+        print("   sc delete -> rc=%d ⇒ %s"
+              % (rd.returncode,
+                 "0 已删除" if rd.returncode == 0
+                 else ("1060 服务已不存在 ⇒ **已自删，不是失败**" if rd.returncode == 1060
+                       else "未预期的 rc，如实记")))
     rc2 = driver_rc()
     print("-- 收尾复核：rc=%d ⇒ %s --"
           % (rc2, "已清干净" if rc2 == 1060 else "仍未清掉，需人处理（判据 §5 FAIL）"))
