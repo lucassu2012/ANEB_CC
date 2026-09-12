@@ -169,6 +169,47 @@ def cell(d, label, layer, traffic):
     return n[0]
 
 
+def driver_rc():
+    """`sc query WinDivert` 的退出码：1060 ＝ 服务不存在（已卸载）；0 ＝ 服务仍在。"""
+    return subprocess.run(["sc.exe", "query", "WinDivert"], capture_output=True,
+                          encoding="utf-8", errors="replace").returncode
+
+
+def teardown(opened_any):
+    """判据 §5 的收尾，**标签跟着值走**。
+
+    🔴 **这一行原来是错的，错法留在代码里**：原文把「1060 ＝ 已卸载，符合判据 §5」
+    **写死在格式串里**，于是 `rc=0`（服务仍在）也照印「已卸载，符合判据」。
+    **一个固定标签焊在变量旁边，读起来就像结果。** 那行输出直接传进了转述、再进了裁定
+    （见 `evidence/c_forward_layer_probe_20260912/README.md` §1b）。
+    ⇒ **凡把读数与解释印在同一行，解释必须由读数算出来，不许先写死。**
+
+    另：WinDivert「最后一个句柄关掉即自停自删」**本机实测不成立**（至少那一次没发生），
+    故收尾要主动清，而且**只清本脚本自己装的那一份**。
+    """
+    rc = driver_rc()
+    print("-- 收尾：sc query WinDivert rc=%d ⇒ %s --"
+          % (rc, "1060 服务不存在（已卸载，判据 §5 达成）" if rc == 1060
+                 else "服务仍在（判据 §5 FAIL：驱动未卸）"))
+    if rc == 1060:
+        return
+    if not opened_any:
+        print("   本次一个句柄都没开成 ⇒ **这不是本脚本装的**，不动它，如实报人处理")
+        return
+    busy = subprocess.run(["tasklist", "/FI", "IMAGENAME eq BeanNetworkTester.exe"],
+                          capture_output=True, encoding="utf-8", errors="replace")
+    if "BeanNetworkTester" in (busy.stdout or ""):
+        print("   ⚠ BeanNetworkTester 正在跑 ⇒ **不停服务**（会掐掉别人的整形），如实报人处理")
+        return
+    print("   本脚本开过句柄 ⇒ 只收拾自己装的那一份")
+    for cmd in (["sc.exe", "stop", "WinDivert"], ["sc.exe", "delete", "WinDivert"]):
+        rr = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
+        print("   %-24s -> rc=%d" % (" ".join(cmd), rr.returncode))
+    rc2 = driver_rc()
+    print("-- 收尾复核：rc=%d ⇒ %s --"
+          % (rc2, "已清干净" if rc2 == 1060 else "仍未清掉，需人处理（判据 §5 FAIL）"))
+
+
 def verdict(a, b, c):
     if a is None or b is None or c is None:
         return "VOID：有格没跑成（见上），整轮作废"
@@ -218,7 +259,5 @@ if __name__ == "__main__":
         print("  🔴 VOID：出口在跑动中变了或已不在热点上 ⇒ 三格计数不可用，不得据此判任何事")
     else:
         print("  " + verdict(a, b, c))
-    r = subprocess.run(["sc.exe", "query", "WinDivert"], capture_output=True,
-                       encoding="utf-8", errors="replace")
-    print("-- 收尾：sc query WinDivert rc=%d（1060 ＝ 已卸载，符合判据 §5）--" % r.returncode)
+    teardown(opened_any=any(x is not None for x in (a, b, c)))
     print("⚠ 本探针只判**可见性**，不判可整形性：可见 != 可整（整还要能改包并重注入）。")
