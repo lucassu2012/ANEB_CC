@@ -63,6 +63,36 @@ def _menu_entries():
     return entries
 
 
+def _menu_block_lines():
+    text = _shaper_text()
+    m = re.search(r"\$MENU\s*=\s*@\{(.*?)\n\}", text, re.S)
+    assert m, "找不到 $MENU = @{ ... } 块 —— 先怀疑脚本结构变了"
+    return m.group(1).splitlines()
+
+
+def test_every_menu_value_is_on_one_line():
+    """菜单值必须写在**一行**里 —— 因为本文件的解析**只看菜单键所在那一行**。
+
+    🔴 **实测的覆盖缺口（2026-09-12）**：把一档写成跨两行，`_menu_entries()` 对它只解析出
+    `['--filter','--dst-ip']`，**第二行的 `--up`／`--buffer` 完全没被看见**。
+    ⇒ 若有人把 `--rst-prob 100` 放在第二行，上面那条「只含允许旗标」的断言**看不见它**。
+
+    **与其实现多行解析，不如让缺口不可达**：单行是可机械判定的，而「记得写单行」是靠记性
+    ——**说不出名字的守卫就是没有守卫**。
+    判法＝该行圆括号配平（`@(` 与 `)` 同数）；不配平即值跨行。
+    """
+    bad = []
+    for line in _menu_block_lines():
+        m = re.match(r"\s*'([^']+)'\s*=", line)
+        if not m:
+            continue
+        if line.count("(") != line.count(")"):
+            bad.append(m.group(1))
+    assert not bad, (
+        "这些菜单值跨了行，而解析只看首行 ⇒ 后续行的旗标不受检查：%s"
+        "\n改成单行（可以长，但要完整）。" % bad)
+
+
 def test_menu_is_not_empty_and_covers_three_families():
     entries = _menu_entries()
     assert entries, "菜单解析为空 —— 先怀疑量法坏了，别当成没有档位"
