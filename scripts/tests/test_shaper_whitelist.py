@@ -42,9 +42,14 @@ def _shaper_text():
         return fh.read()
 
 
-def _menu_entries():
-    """→ {档名: [该行里出现的所有 --flag]}。含 $TARGET 展开（TARGET 里的旗标也算）。"""
-    text = _shaper_text()
+def _menu_entries(text=None):
+    """→ {档名: [该行里出现的所有 --flag]}。含 $TARGET 展开（TARGET 里的旗标也算）。
+
+    text 可喲合成源码：干净仓上「真命中」与「假命中」只能一起看见，
+    抽成函数才能各自下断言（这个做法在本仓已有先例）。
+    """
+    if text is None:
+        text = _shaper_text()
     m = re.search(r"\$MENU\s*=\s*@\{(.*?)\n\}", text, re.S)
     assert m, "找不到 $MENU = @{ ... } 块 —— 先怀疑脚本结构变了，别当成没有菜单"
     block = m.group(1)
@@ -57,7 +62,9 @@ def _menu_entries():
         if not m2:
             continue
         flags = re.findall(r"--[a-z][a-z-]*", line)
-        if "$TARGET" in line:
+        # 整词匹配：子串匹配会把 `$TARGET_X` 当成 `$TARGET`，把另一个目标的
+        # 作用域旗标错并进来 ⇒ 作用域断言会假绿。反例见下面具名测试。
+        if re.search(r"\$TARGET\b", line):
             flags = target_flags + flags
         entries[m2.group(1)] = flags
     return entries
@@ -121,6 +128,35 @@ def test_every_menu_value_pins_scope():
     for name, flags in _menu_entries().items():
         assert ("--dst-ip" in flags or "--dst-port" in flags), (
             "档 %s 未显式限定作用域 ⇒ 会影响全机流量（§三-C）" % name)
+
+
+def test_target_prefix_collision_must_not_be_merged():
+    """反例：`$TARGET_X` 不得被当成 `$TARGET`。
+
+    🔴 为何这条有区分力：解析器靠「行内是否出现 $TARGET」决定要不要并入作用域旗标。
+    子串匹配下，`$TARGET_E01 + @(...)` 那一行会被**错并**进 `$TARGET` 的 `--dst-ip`
+    ⇒ `test_every_menu_value_pins_scope` 就对一个**根本没写作用域**的档假绿。
+
+    两个方向各下一条断言，缺一不可：
+     - **假命中方向**：`uses_target_x` 必须**拿不到** `--dst-ip`（旧子串匹配下它会拿到 1 个）；
+     - **真命中方向**：`uses_target` 必须**仍然拿到** `--dst-ip`。
+    后一条不是对称装饰：**收紧判据自带把工具推进「根本不匹配」的风险**，
+    而那个方向**不会被前一条断言顺带确认**（判据收成永不匹配时它同样为真）。
+    """
+    src = (
+        "$TARGET = @('--filter', 'out', '--dst-ip', '1.1.1.1')"
+        "\n$TARGET_X = @('--filter', 'out', '--dst-ip', '2.2.2.2')"
+        "\n$MENU = @{"
+        "\n    'uses_target'   = $TARGET + @('--latency', '10')"
+        "\n    'uses_target_x' = $TARGET_X + @('--latency', '20')"
+        "\n}\n")
+    e = _menu_entries(src)
+    assert set(e) == {"uses_target", "uses_target_x"}, e
+    assert e["uses_target"].count("--dst-ip") == 1, (
+        "真命中方向坏了：$TARGET 的作用域旗标没并进来 ⇒ 收紧把工具推成了根本不匹配：%r" % e)
+    assert e["uses_target_x"].count("--dst-ip") == 0, (
+        "前缀碰撞：$TARGET_X 那行被当成 $TARGET，把另一个目标的 --dst-ip 错并了进来 "
+        "⇒ 作用域断言会对没写作用域的档假绿：%r" % e)
 
 
 # ---------------------------------------------------------------- 行为反例（需 powershell）
