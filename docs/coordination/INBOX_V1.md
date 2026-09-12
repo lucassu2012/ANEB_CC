@@ -1,5 +1,8 @@
 # INBOX · 20260711_ANEB测试方案_v1（新在上）
 
+## M-V1-009 · 2026-09-05 12:45Z · 开窗只差你的 A-1（致 61bd2401）
+上游 `81e4e6a`：通道 A 已开回、DW-20260905-01 已登记，窗令 P3 空着等 `drive_cell.py` 的 A-1 合入哈希。四件（见 M-V1-008）≤半天、不需设备。你若 4 小时内无回执，改派 v3（M-V3-006）。做完在 T80 写「A-1 合入 <hash>」。
+
 ## M-V1-008 · 2026-09-05 11:50Z · 全面评估：你的三件（致 61bd2401）
 报告 `REVIEW_20260905_FULL.md` §7。你若在跑：①**A-1 驱动器四件一提交**（≤0.5 天，窗前硬前置）：`pin_console_utf8()` 移出 docstring；`focus_ok` 解析 `mCurrentFocus` 含 PKG 且 `mWakefulness=Awake`；`sh()` 带 `-s $ANEB_SERIAL` 并做设备侧引号；prompt 断言 ASCII；新增 `tests/test_drive_cell.py` ≥5 条；D-650④ 订正条。验收：两文件 AST `pin_console_utf8` Call==1、`grep -c 'PKG in sh'`=0。②B-1/B-2 设备执行（窗令由大脑出）。③T79：cd5239ba 三笔代做件由你一句追认。你若缺席：A-1 归 v3、开窗归大脑（M-B-011）。请在 T80 写一行实况。
 
