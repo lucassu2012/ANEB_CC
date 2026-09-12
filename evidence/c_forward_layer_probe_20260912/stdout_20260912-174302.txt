@@ -1,0 +1,26 @@
+WinDivert 两层可见性探针 —— 只数不改（SNIFF|RECV_ONLY），零参数
+本轮 stdout 逐字副本（UTF-8，不经控制台代码页）：E:\C Project\ANEB\evidence\c_forward_layer_probe_20260912\stdout_20260912-174302.txt
+filter = ip.DstAddr == 223.5.5.5   每格 20 个 ICMP   判据门槛 >=5
+-- P2-pre：设备出口（判据 §0b；不满足即 NOT_EXECUTED，此前不碰驱动）--
+   223.5.5.5 via 192.168.137.1 dev wlan0 table 1040 src 192.168.137.129 uid 2000
+-- 加载前哈希比对 --
+  WinDivert64.dll  sha256=c1e060ee19444a25... OK
+  WinDivert64.sys  sha256=8da085332782708d... OK
+-- A：NETWORK 层 + PC 打（正对照，>0 才证明这条链是活的）--
+  [A NETWORK   / PC ] 打开句柄失败 err=5 拒绝访问 —— 没有管理员权限
+-- B：NETWORK 层 + P40 打 --
+  [B NETWORK   / P40] 打开句柄失败 err=5 拒绝访问 —— 没有管理员权限
+-- C：NETWORK_FORWARD 层 + P40 打 --
+  [C FORWARD   / P40] 打开句柄失败 err=5 拒绝访问 —— 没有管理员权限
+-- P2-post：再查一次出口（承 D-880：随动作变化的量要前后各查）--
+   223.5.5.5 via 192.168.137.1 dev wlan0 table 1040 src 192.168.137.129 uid 2000
+-- 汇总：计数与前提**并印**（读者不必相信我们，自己就能看出前提在不在）--
+   A=None  B=None  C=None
+   P2-pre : 223.5.5.5 via 192.168.137.1 dev wlan0 table 1040 src 192.168.137.129 uid 2000
+   P2-post: 223.5.5.5 via 192.168.137.1 dev wlan0 table 1040 src 192.168.137.129 uid 2000
+-- 判定（判据 §3，跑前写死）--
+  VOID：有格没跑成（见上），整轮作废
+-- 收尾：sc query WinDivert rc=1060 ⇒ 1060 服务不存在（已卸载，判据 §5 达成） --
+   句柄关闭是否已触发 stop：是（无需手动）
+⚠ 本探针只判**可见性**，不判可整形性：可见 != 可整（整还要能改包并重注入）。
+⇒ 请把上面那个 stdout 副本文件交出去（它是逐字的）；**控制台里复制的那份只作旁证**——实测两者曾差一个字。

@@ -28,6 +28,7 @@
 """
 import ctypes
 import hashlib
+import io
 import os
 import subprocess
 import sys
@@ -169,6 +170,52 @@ def cell(d, label, layer, traffic):
     return n[0]
 
 
+class _Tee(object):
+    """把 stdout 同时写进证据目录里的一个 UTF-8 文件。
+
+    🔴 **为什么这不是「顺手留个日志」**：实测发现「PO 贴来的原文」与**脚本真正印出的字节**
+    不同——末行脚本是 `可见 != 可整`，贴来的是 `可见 != 与可整`。差异进在
+    **stdout → 控制台 → 复制粘贴**这一跳（控制台编码／IME／选区）。
+    ⇒ **「PO 原文」离 stdout 还有一跳，它不是原文。**
+    本文件用 **UTF-8 直写**，不经控制台代码页 ⇒ **`⚠` 之类不会被降级成 `?`**，
+    这一份才是逐字的；PO 的粘贴自此降为**旁证**。
+    今天差别落在一个无害的「与」上，**下次可能落在一个数字上。**
+    """
+
+    def __init__(self, stream, path):
+        self._s = stream
+        self._f = io.open(path, "w", encoding="utf-8", newline="\n")
+        self.path = path
+
+    def write(self, s):
+        self._s.write(s)
+        self._f.write(s)
+        return len(s)
+
+    def flush(self):
+        self._s.flush()
+        self._f.flush()
+
+    def close(self):
+        try:
+            self._f.close()
+        except Exception:
+            pass
+
+
+def _open_tee():
+    """→ (_Tee 或 None, 说明)。写不进去就如实说，**不因为留不下记录而不跑**。"""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    d = os.path.join(root, "evidence", "c_forward_layer_probe_20260912")
+    try:
+        if not os.path.isdir(d):
+            os.makedirs(d)
+        p = os.path.join(d, "stdout_%s.txt" % time.strftime("%Y%m%d-%H%M%S"))
+        return _Tee(sys.stdout, p), p
+    except Exception as e:
+        return None, "写不进证据目录（%s）⇒ 本轮只有控制台输出，如实记" % e
+
+
 def driver_rc():
     """`sc query WinDivert` 的退出码：1060 ＝ 服务不存在（已卸载）；0 ＝ 服务仍在。"""
     return subprocess.run(["sc.exe", "query", "WinDivert"], capture_output=True,
@@ -239,7 +286,12 @@ def verdict(a, b, c):
 
 
 if __name__ == "__main__":
+    _tee, _note = _open_tee()
+    if _tee is not None:
+        sys.stdout = _tee
     print("WinDivert 两层可见性探针 —— 只数不改（SNIFF|RECV_ONLY），零参数")
+    print("本轮 stdout 逐字副本（UTF-8，不经控制台代码页）：%s"
+          % (_tee.path if _tee is not None else _note))
     print("filter = %s   每格 %d 个 ICMP   判据门槛 >=%d" % (FILTER.decode(), N_PING, HIT))
     print("-- P2-pre：设备出口（判据 §0b；不满足即 NOT_EXECUTED，此前不碰驱动）--")
     ok0, via0, src0, raw0 = egress()
@@ -277,3 +329,8 @@ if __name__ == "__main__":
         print("  " + verdict(a, b, c))
     teardown(opened_any=any(x is not None for x in (a, b, c)))
     print("⚠ 本探针只判**可见性**，不判可整形性：可见 != 可整（整还要能改包并重注入）。")
+    if _tee is not None:
+        print("⇒ 请把上面那个 stdout 副本文件交出去（它是逐字的）；"
+              "**控制台里复制的那份只作旁证**——实测两者曾差一个字。")
+        sys.stdout = _tee._s
+        _tee.close()
