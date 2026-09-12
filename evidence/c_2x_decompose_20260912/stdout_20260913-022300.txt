@@ -1,0 +1,14 @@
+本轮 stdout 逐字副本（UTF-8，不经控制台代码页）：E:\C Project\ANEB\evidence\c_2x_decompose_20260912\stdout_20260913-022300.txt
+2× 分解探针 —— 12 格，只数不改（SNIFF|RECV_ONLY），零参数
+WORKTREE_CLEAN：该文件无未提交改动 ⇒ 下面那个提交哈希就是运行字节
+  本脚本 SHA256 = 3d9bcf938f60c41b24cc81a0cea8e91e72bd3bf072cb0d3c25858e745cd30d10
+  git rev-parse HEAD = 9db7e992135d28b33128723ab988fa8fd9be585e
+  git status --porcelain -- <本文件> = ''
+主 filter = ip.DstAddr == 223.5.5.5 and icmp   每格 20 个 ICMP   空闲格 20s
+-- P2-pre：设备出口三态（§5-5；UNREADABLE 两个方向都不满足前提）--
+   ON_HOTSPOT：via=192.168.137.1 src=192.168.137.129 ⇒ 在 PC 热点上（原样 '223.5.5.5 via 192.168.137.1 dev wlan0 table 1040 src 192.168.137.129 uid 2000 \n    cache'，rc=0）
+-- §2 常量现场推导（六条，由脚本自己做）--
+   热点腿原样='1|13' 上游腿原样='9|10.10.8.9' 邻居='192.168.137.255'
+   NOT_EXECUTED —— ③双侧不同意：PC 侧邻居 '192.168.137.255' != 设备侧 src '192.168.137.129'
+🔴 中止：SystemExit('NOT_EXECUTED：§2 六条未过 ⇒ 不数任何包') ⇒ 未跑完的格一律 NOT_EXECUTED，不得据已跑的格外推
+⇒ 请把上面那个 stdout 副本文件交出去（它是逐字的）；**控制台里复制的那份只作旁证**——实测两者曾差一个字。

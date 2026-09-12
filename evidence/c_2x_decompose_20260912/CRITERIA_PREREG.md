@@ -16,8 +16,14 @@
 > （提交署名 `Co-Authored-By: Claude Opus 5`；**用提交哈希而不用会话标题认身份**——标题会漂）。
 > 已落地：身份解析器 `scripts/diag/pkt_identity.py` ＋ 合成门 `scripts/tests/test_pkt_identity.py`（`bed0d9cf`）；
 > 收尾标签纯函数 `forward_layer_probe.teardown_labels` ＋ 合成门 `scripts/tests/test_forward_probe_teardown_labels.py`（`2e3ba583`）。
-> 🔴 **12 格主脚本尚未重写** ⇒ 本判据此刻**没有**与之完整对应的仪器；
-> 重写落地后其提交哈希写进**本抬头与 §1.5 两处**。
+> ✅ **12 格主脚本已落地**：`scripts/diag/decompose_2x_probe.py`（`6eb51401`），**只做 IO**；
+> 判定层 `scripts/diag/decompose_2x_verdicts.py`（`fa4bfa94` → `dc2924fa`），门 `scripts/tests/test_decompose_2x_verdicts.py` 26 条；
+> 纯函数门 `scripts/tests/test_decompose_2x_probe_pure.py` 17 条。突变审计 9＋5＋7 全咬。
+> 🔴 **脚本自身不承载任何判词**——判词全在判定层，**那里有门**；
+> 理由：「跑前写死」只有在**跑之前能被检验**时才成立，而开句柄那部分永远只能在真机上跑一次。
+> **非提权烟测已跑**：`stdout_20260913-023615.txt`（本目录）——`WORKTREE_CLEAN` ＋ SHA256 ＋ HEAD 三件齐印；
+> 11 格全部 `err=5` ⇒ 一律 `NOT_EXECUTED`（**无管理员权限时拒绝给出任何计数**）；
+> 编译自证 7/7 含负对照 `nonsense_field == 1 → False`。
 
 ## 0. 三条贯穿全份的纪律（v1 已立，保留）
 
@@ -158,6 +164,9 @@ S0 用 `false` filter ⇒ **解析路径零次执行** ⇒ 偏移写错不会被
 （或跑前先提交、脏树直接拒跑）。理由是实事：复审 v2 第 7 条当时读到的盘上脚本正是
 ` M` 未提交态 ⇒ **那个哈希对应的字节不是正在跑的字节**。
 ⚠ 该目录名在实现侧已提成常量 `ROUND_DIR`（`2e3ba583`）——写死在函数里靠的是「重写时记得改」。
+✅ **实现侧落点**：`decompose_2x_probe.self_id_lines`（`6eb51401`），配门 4 条（`WORKTREE_DIRTY` 必在第一行、干净时必说干净、纯空白不算脏、三件都要印）；
+突变 P1（DIRTY 不在第一行）与 P2（不做 strip）各被其中一条咬住。
+⚠ 实测两个方向都见过了：脏树那次印`WORKTREE_DIRTY`、干净树那次印 `WORKTREE_CLEAN` ＋ `HEAD=6eb51401`。
 
 ### 1.6 S3：两个 SNIFF 句柄能否看见同一个包（仪器自证，与 S0 同级）
 
