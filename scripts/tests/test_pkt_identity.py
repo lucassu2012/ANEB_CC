@@ -39,15 +39,21 @@ PAY = {60: 32, 84: 56}          # 总长 -> ICMP 负载长度（20 IP + 8 ICMP +
 
 
 def mk(total, src="192.168.137.129", dst="223.5.5.5", ip_id=0x1234,
-       icmp_type=8, icmp_id=0x0001, seq=1, ttl=64):
+       icmp_type=8, icmp_id=0x0001, seq=1, ttl=64, ihl_words=5):
     """合成一个 IPv4+ICMP 包。校验和留 0——解析器不校验校验和，本门测的是**偏移**。"""
     payload = bytes((0x61 + (i % 23)) for i in range(PAY[total]))
     icmp = struct.pack("!BBHHH", icmp_type, 0, 0, icmp_id, seq) + payload
-    ip = (struct.pack("!BBHHHBBH", 0x45, 0, 20 + len(icmp), ip_id, 0, ttl, 1, 0)
+    opt_len = (ihl_words - 5) * 4
+    assert opt_len >= 0 and opt_len % 4 == 0, ihl_words
+    # IHL != 5 时塞 opt_len 字节 IP 选项(NOP...EOL)。**把 ihl 写死成 20 的解析器**
+    # 会从选项里读 icmp_type、从 ICMP 校验和里读 seq —— 第 5 组专抓这个。
+    opts = (bytes([1]) * (opt_len - 1) + bytes([0])) if opt_len else bytes()
+    ver_ihl = 0x40 | ihl_words
+    ip = (struct.pack("!BBHHHBBH", ver_ihl, 0, 20 + opt_len + len(icmp), ip_id, 0, ttl, 1, 0)
           + bytes(int(x) for x in src.split("."))
-          + bytes(int(x) for x in dst.split(".")))
+          + bytes(int(x) for x in dst.split(".")) + opts)
     p = ip + icmp
-    assert len(p) == total, (len(p), total)
+    assert len(p) == total + opt_len, (len(p), total, opt_len)
     return p
 
 
@@ -148,3 +154,35 @@ def test_parser_refuses_what_it_cannot_read():
     not_icmp = bytearray(mk(60)); not_icmp[9] = 6              # protocol=TCP
     assert parse(bytes(not_icmp), 60) is None
     assert parse(mk(60), 999) is None                          # recv_len 大于缓冲
+
+
+def test_group5_ihl_not_five_catches_a_hardcoded_header_length():
+    """🔴 ⑤ IHL ≠ 5（带 4 字节 IP 选项）⇒ 抓「把 `ihl` 写死成 20」的实现。
+
+    **前四组对这个缺陷完全失明**：60 B 与 84 B 两种形态 IHL 同为 5
+    ⇒ `ihl = 20` 与 `ihl = (b[0] & 0x0F) * 4` 逐字节等价。
+    实测突变「`ihl = 20`」在只有前四组时 **7/7 全绿**。
+    ⇒ **CAUGHT 是真的、覆盖可以是假的**：先前那四个突变全落在
+    「键含哪些字段」与「ICMP 内偏移」这一维，**没有一个碰头长计算**。
+
+    IHL=6 的布局：`0..19` IP 头、`20..23` 选项、`24` type、`25` code、
+    `26..27` 校验和、`28..29` id、`30..31` seq。
+    把 `ihl` 写死成 20 的解析器于是**从选项里读 type（得 1，不是 8）、
+    从 ICMP 校验和里读 seq（恒 0）** ⇒ 只让 seq 变的那一组塌成去重 1。
+    """
+    N = 9
+    for total in (60, 84):
+        one = mk(total, ihl_words=6)
+        assert (one[0] & 0x0F) == 6, "夹具本身不是 IHL=6,本条会恒过"
+        r = parse(one, len(one))
+        assert r is not None, "IHL=6 的合法包被判 None"
+        assert r["ihl"] == 24, "IHL 没按低四位×4 算：ihl=%s" % r["ihl"]
+        assert r["icmp_type"] == 8, (
+            "icmp_type=%s（期望 8）⇒ ICMP 偏移没随 IHL 走,很可能写死了 20" % r["icmp_type"])
+        recs = _recs([mk(total, ip_id=0x6666, icmp_id=0x00DD, seq=i + 1, ihl_words=6)
+                      for i in range(N)])
+        s = summarize(recs)
+        assert s["n_distinct_keys"] == N, (
+            "去重 %s != %d ⇒ seq 偏移没随 IHL 走(读到的很可能是 ICMP 校验和)：%s"
+            % (s["n_distinct_keys"], N, s))
+        assert s["seq_min"] == 1 and s["seq_max"] == N, s
