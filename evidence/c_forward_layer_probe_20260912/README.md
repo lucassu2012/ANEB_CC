@@ -31,6 +31,36 @@ C（NETWORK_FORWARD, P40 打）= 40
 🔴 **写出来是因为**：今天已有多条链是「转述→裁定→派单」，而**摘要与原文的差别恰好落在
 判定字段上**时，摘要读起来一样可信。
 
+## 1b. 🔴 那处矛盾已由 PC 侧独立证据解开（16:2x 追记；§1 原文照留）
+
+不靠转述，查 Windows System 日志里 WinDivert 的装载/卸载事件（SCM 7045 ＋ 驱动自报 12589）：
+
+```
+14:31:49  7045 服务已安装 WinDivert（映像＝部署目录里那份） + 12589 LOAD (processId=21340)
+14:36:55  12589 UNLOAD (processId=4)
+16:16:01  7045 服务已安装 WinDivert                          + 16:16:02 LOAD (processId=17532)
+          ……此后无任何 UNLOAD 事件
+```
+
+三条结论：
+
+1. **14:31:49 那次 LOAD 的 `processId=21340` 与干跑证据里记的 `PID=21340` 逐位相同**
+   ⇒ 干跑的驱动生命周期独立可核，且 14:36:55 干净卸载。
+2. **16:16:02 有一次 LOAD（pid 17532），映像正是被哈希钉死的那份 2.2.2** ⇒ **PO 确实跑过探针**。
+   这是**不依赖任何转述**的独立佐证；三格计数的可信度因此提高（但计数本身仍未见原文）。
+3. 🔴 **`rc=0（1060）` 那处矛盾解开了：真实读数是 `rc=0`，「1060」是期望不是读数。**
+   ⇒ **判据 §5 的收尾未达成——驱动至今仍 `STATE 4 RUNNING`**（我此刻实测；且无任何进程持有它）。
+   §1 原写「不可判」，**现订正为「未达成，已定」**；原句照留以见当时的证据状态。
+
+**成因也清楚了，而且它是我判据的缺陷不是 PO 的操作问题**：干跑那次的 UNLOAD 来自
+`shaper_stop.ps1` 调用的 `BeanNetworkTester --cleanup-driver`；**探针没有任何等价机制**。
+⇒ **判据 §5 写了一个脚本无从达成的期望**——与干跑那份 §6-1「判据自身两句不一致」同族：
+**判据在描述一个它没有要求任何人去实现的状态。**
+按 §5 原文「若仍 RUNNING，如实记并报，不得自行 `--cleanup-driver`」⇒ **已如实记，未自行清理。**
+
+⚠ **仍需 PO 原文的部分没有被本节替代**：三格计数与 P2 两次的原文。SCM 日志证明「跑过」，
+**证不了「跑出了什么」**。
+
 ## 2. 前提（P2，判据 §0b）
 
 转述称 P2-pre 与 P2-post **均为** `via 192.168.137.1 dev wlan0 table 1040 src 192.168.137.129`
@@ -59,6 +89,46 @@ C（NETWORK_FORWARD, P40 打）= 40
 ⚠ **我对 H3 的先验是「不该成立」**（回程包的 `ip.DstAddr` 是 `192.168.137.129`，不是目标 IP），
 **但先验不是读数**——H3 照样进表，且它若成立，说明我对 filter 字段方向语义的理解是错的，
 那会连带影响「可整」脚本里每一条 filter。
+
+## 3b. H3 **已判死**，且不占设备窗、不提权、不加载驱动（16:2x）
+
+部署的 `WinDivert64.dll` 导出 `WinDivertHelperEvalFilter`／`CompileFilter`／`CalcChecksums`
+——**这些是纯用户态辅助函数，不开句柄、不装驱动**（实测：跑完 `sc query` 状态未因它改变）。
+⇒ 把两个**合成包**喂给**同一条 filter 字符串**即可判 H3：
+
+```
+REQ = ICMP echo request  src=192.168.137.129  dst=223.5.5.5   (IPv4+ICMP, 32 字节负载, 60 B)
+REP = ICMP echo reply    src=223.5.5.5        dst=192.168.137.129
+校验和由 WinDivertHelperCalcChecksums 填,两包均 True
+
+filter                           REQ   want   REP   want   作用
+true                             True  True   True  True   正对照: 必匹配
+false                            False False  False False  负对照: 必不匹配
+ip                               True  True   True  True   解析对照
+icmp                             True  True   True  True   解析对照
+icmp.Type == 8                   True  True   False False  类型分辨
+icmp.Type == 0                   False False  True  True   类型分辨(补)
+ip.SrcAddr == 192.168.137.129    True  True   False False  源地址方向
+ip.SrcAddr == 223.5.5.5          False False  True  True   源地址方向(补)
+ip.DstAddr == 192.168.137.129    False False  True  True   目的地址方向(补)
+ip.DstAddr == 223.5.5.5          True  True   False  --    *** H3 待判
+
+方向语义自证(验证我对 WINDIVERT_ADDRESS 布局的猜测):
+  outbound 对 A_OUT = True(期望 True) / 对 A_IN = False(期望 False) / inbound 对 A_IN = True
+```
+
+**九条对照行逐行如预期，方向语义三行亦如预期** ⇒ 台架可信 ⇒ **H3 读数成立：**
+**echo reply 对 `ip.DstAddr == 223.5.5.5` ＝ `False`** ⇒ **H3 排除**（回程包不进那 40）。
+⚠ 先验与读数一致**不是**本节的价值——价值在于**先验被独立量过**；
+若没量而直接排除 H3，那就是「把没跑过的判断当跑过的」。
+
+🔴 **bonus，且它改掉了 H4 的测法**：`WinDivertHelperCompileFilter("outbound", …)` 在
+`NETWORK` 层**编译通过**，在 `NETWORK_FORWARD` 层**编译失败** ⇒ **转发层没有方向概念**。
+⇒ H4 原设计「A 格加 `outbound`」只对 A 格可用，**C 格无法用方向分解**；C 的 2× 只能靠
+`ip.SrcAddr`（H1／H2 那一对）去分。**判据里那一格要改，不能照抄。**
+
+⚠ **本节的边界（写在结论旁边，不写在脚注）**：EvalFilter 只答「**这条 filter 会不会匹配这个包**」，
+**答不了「协议栈把同一个包呈现了几次」** ⇒ **H1／H2 完全不受本节影响，仍须实跑。**
 
 ## 4. 边界（**不得外推**）
 
