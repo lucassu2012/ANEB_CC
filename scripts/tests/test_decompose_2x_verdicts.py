@@ -217,3 +217,62 @@ def test_no_static_labels():
     for name, a, b in pairs:
         assert a[0] == b[0], "%s: 两组输入应落同一分支,实得 %s / %s" % (name, a[0], b[0])
         assert a[1] != b[1], "%s: 同分支两组不同输入给出**逐字相同**的说明 ⇒ 那句话是写死的" % name
+
+
+LIVE = dict(n_hot=0, ctrl_upstream_count=1, svc_state="Stopped",
+            route_ifindex=9, upstream_ifindex=9)
+
+
+def _hot(**kw):
+    from decompose_2x_verdicts import judge_hotspot_off
+    d = dict(LIVE)
+    d.update(kw)
+    return judge_hotspot_off(**d)
+
+
+def test_hotspot_off_true_when_all_three_hold_and_controls_live():
+    state, why = _hot()
+    assert state == "TRUE", (state, why)
+
+
+def test_hotspot_on_must_be_false_not_true_and_not_not_executed():
+    """🔴 正对照用例（判据 §5-4 点名要这一条）：热点**开着**时必须判 FALSE。
+
+    没有它,一个恒 FALSE 或恒 NOT_EXECUTED 的实现也能把整门跑绿
+    ——那正是本树今日对抗面板 25 条存活 0 条的形状。
+    """
+    state, why = _hot(n_hot=1, svc_state="Running")
+    assert state == "FALSE", (state, why)
+    assert "Running" in why and "1 块接口" in why, why
+
+
+def test_each_condition_alone_makes_it_false():
+    assert _hot(n_hot=1)[0] == "FALSE"
+    assert _hot(svc_state="Running")[0] == "FALSE"
+    assert _hot(route_ifindex=13)[0] == "FALSE"
+
+
+def test_unreadable_is_not_executed_never_false_never_true():
+    """读不到 ⇒ NOT_EXECUTED。**不得并进 FALSE**:处置不同。"""
+    for kw in (dict(n_hot=None), dict(upstream_ifindex=None), dict(route_ifindex=None)):
+        state, why = _hot(**kw)
+        assert state == "NOT_EXECUTED", (kw, state, why)
+
+
+def test_dead_positive_control_is_not_executed_even_when_conditions_look_satisfied():
+    """🔴 三项看起来全满足,但正对照不活 ⇒ NOT_EXECUTED。
+
+    这是本函数存在的理由:`n_hot == 0` 与「这条命令根本没执行」是同一个读数。
+    """
+    for kw in (dict(ctrl_upstream_count=0), dict(ctrl_upstream_count=2),
+               dict(svc_state=""), dict(svc_state="Get-Service : 找不到任何服务")):
+        state, why = _hot(**kw)
+        assert state == "NOT_EXECUTED", (kw, state, why)
+        assert "正对照" in why, why
+
+
+def test_hotspot_reasons_are_computed_not_static():
+    a = _hot(n_hot=1)
+    b = _hot(n_hot=3)
+    assert a[0] == b[0] == "FALSE"
+    assert a[1] != b[1], "两组不同输入给出逐字相同的理由 ⇒ 那句话是写死的"

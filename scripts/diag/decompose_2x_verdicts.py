@@ -267,3 +267,53 @@ def zero_reading_ok(count, shutting_down, thread_exited):
         return (True, "计数 0 且 shutting_down=True 且读线程已退出 ⇒ 这个 0 成立")
     return (False, "计数 0 而 shutting_down=%s 线程已退出=%s ⇒ 该格 NOT_EXECUTED"
                    "(分不开「仪器没跑」与「真的是 0」)" % (shutting_down, thread_exited))
+
+
+# `SharedAccess` 的已知服务状态集(§5-2 的 H2 正对照)。集合外(空串、错误文本)⇒ 量法不活。
+SVC_STATES = ("Running", "Stopped", "StartPending", "StopPending",
+              "Paused", "PausePending", "ContinuePending")
+
+
+def judge_hotspot_off(n_hot, ctrl_upstream_count, svc_state, route_ifindex, upstream_ifindex):
+    """§5-1..4「热点已关」的三态谓词。→ `(state, 逐项原因)`,`state ∈ TRUE/FALSE/NOT_EXECUTED`。
+
+    🔴 **为什么必须有正对照**:三项在目标状态下**全是缺席形**(接口不存在、地址查不到、
+    腿不见了)⇒ 「命令没跑／cmdlet 名写错／powershell 不在 PATH」与「已关」在输出上**逐字相同**。
+    正对照回答的不是「热点关了吗」,是「**这个量法此刻在工作吗**」:
+
+    | 项 | 条件 | 正对照 |
+    |---|---|---|
+    | H1 | 持有 192.168.137.1 的接口数 == 0 | 同一 cmdlet 查**上游腿自己的地址**须返回恰好 1 |
+    | H2 | SharedAccess != Running | 状态串须 ∈ `SVC_STATES` |
+    | H3 | PC 到目标的路由在上游腿 | 路由查询须返回非空 ifIndex |
+
+    ⚠ **读不到 ⇒ NOT_EXECUTED,不得并进 FALSE**:前者要重跑量法,后者要 PO 再动一次手。
+    ⚠ 上游腿地址与索引**取自 §2 同一次读数**,不写死(常量此刻正确 ≠ 跑的时候正确)。
+    """
+    dead = []
+    if ctrl_upstream_count != 1:
+        dead.append("H1 正对照:查上游腿自己的地址得 %s(须恰好 1)⇒ 这个 cmdlet 此刻没在工作"
+                    % (ctrl_upstream_count,))
+    if svc_state not in SVC_STATES:
+        dead.append("H2 正对照:状态串 %r 不在已知集内 ⇒ 服务查询没在工作(空串/错误文本同形)"
+                    % (svc_state,))
+    if route_ifindex in (None, "", 0):
+        dead.append("H3 正对照:路由查询返回 %r ⇒ 没在工作" % (route_ifindex,))
+    if n_hot is None:
+        dead.append("H1 读数缺席:持有热点地址的接口数读不到")
+    if upstream_ifindex in (None, "", 0):
+        dead.append("§2 的上游腿索引读不到 ⇒ H3 无从比较")
+    if dead:
+        return ("NOT_EXECUTED", "缺席不等于通过 —— " + "；".join(dead))
+    fails = []
+    if n_hot != 0:
+        fails.append("H1 不满足:仍有 %d 块接口持有 192.168.137.1" % n_hot)
+    if svc_state == "Running":
+        fails.append("H2 不满足:SharedAccess 状态为 Running")
+    if route_ifindex != upstream_ifindex:
+        fails.append("H3 不满足:PC 到目标的路由在 ifIndex=%s,而上游腿是 %s"
+                     % (route_ifindex, upstream_ifindex))
+    if fails:
+        return ("FALSE", "热点未关(该格 NOT_EXECUTED,需 PO 再动手)—— " + "；".join(fails))
+    return ("TRUE", "H1 接口数 0、H2 状态 %s、H3 路由在上游腿 ifIndex=%s,三项皆满足且三个正对照皆活"
+            % (svc_state, route_ifindex))
