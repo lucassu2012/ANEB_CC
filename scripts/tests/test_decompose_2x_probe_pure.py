@@ -15,7 +15,8 @@ if _DIAG not in sys.path:
     sys.path.insert(0, _DIAG)
 
 from decompose_2x_probe import (                                   # noqa: E402
-    _sent_count, constants_verdict, judge_device_egress, same_window, self_id_lines)
+    _sent_count, constants_verdict, filter_neighbors, judge_device_egress,
+    same_window, self_id_lines)
 
 
 def test_worktree_dirty_must_be_the_first_line():
@@ -109,11 +110,12 @@ def test_sent_count_reads_three_locales_and_refuses_when_absent():
 def test_constants_verdict_requires_two_sided_agreement():
     """§2-3 双侧必须同意；不等 ⇒ NOT_EXECUTED（不是「用 PC 侧那个」）。"""
     good = dict(hot_count=1, hot_ifidx=13, up_ifidx=9, up_addr="10.10.8.9",
-                up_raw="9|10.10.8.9", neighbor="192.168.137.129")
+                up_raw="9|10.10.8.9", nb_kept=["192.168.137.129"],
+                nb_dropped=[("192.168.137.255", "广播地址")])
     ok, why = constants_verdict(good, "192.168.137.129")
     assert ok is True, why
     bad = dict(good)
-    bad["neighbor"] = "192.168.137.55"
+    bad["nb_kept"] = ["192.168.137.55"]
     ok2, why2 = constants_verdict(bad, "192.168.137.129")
     assert ok2 is False and "双侧不同意" in why2, why2
 
@@ -122,13 +124,49 @@ def test_constants_verdict_rejects_hot_count_not_exactly_one():
     """§2-2 `count != 1` ⇒ NOT_EXECUTED。两个方向都钉:0 与 2 都不行。"""
     for n in (0, 2, None):
         d = dict(hot_count=n, hot_ifidx=13, up_ifidx=9, up_addr="10.10.8.9",
-                 up_raw="9|10.10.8.9", neighbor="192.168.137.129")
+                 up_raw="9|10.10.8.9", nb_kept=["192.168.137.129"], nb_dropped=[])
         ok, why = constants_verdict(d, "192.168.137.129")
         assert ok is False, (n, why)
 
 
 def test_constants_verdict_refuses_when_device_src_missing():
     d = dict(hot_count=1, hot_ifidx=13, up_ifidx=9, up_addr="10.10.8.9",
-             up_raw="9|10.10.8.9", neighbor="192.168.137.129")
+             up_raw="9|10.10.8.9", nb_kept=["192.168.137.129"], nb_dropped=[])
     ok, why = constants_verdict(d, None)
     assert ok is False and "src token" in why, why
+
+
+def test_filter_neighbors_drops_the_broadcast_that_actually_broke_the_smoke_run():
+    """🔴 夹具是**非提权烟测真实抓到的**那一组：热点腿邻居表里同时有广播与网关。
+
+    原实现用 `-like '192.168.137*'` ＋ `Select -First 1` 挑中了 `192.168.137.255`
+    ⇒ §2-3 报「双侧不同意」,而两侧其实一致 —— **是匹配器挑错了**。
+    ⚠ 不用「跑一次看它红不红」:反例会自己消失(邻居表顺序会变),故钉成夹具。
+    """
+    kept, dropped = filter_neighbors(
+        ["192.168.137.255", "192.168.137.1", "192.168.137.129"])
+    assert kept == ["192.168.137.129"], (kept, dropped)
+    reasons = dict(dropped)
+    assert "广播" in reasons["192.168.137.255"], reasons
+    assert "PC" in reasons["192.168.137.1"], reasons
+
+
+def test_filter_neighbors_keeps_more_than_one_client_and_never_silently_drops():
+    """多个客户端都要留；且**每条被丢的都带理由**——凡报「丢了 N 条」就要能说出是哪些。"""
+    kept, dropped = filter_neighbors(
+        ["192.168.137.129", "192.168.137.130", "10.10.8.9", "garbage", ""])
+    assert kept == ["192.168.137.129", "192.168.137.130"], kept
+    assert len(dropped) == 3, dropped
+    for a, why in dropped:
+        assert why.strip(), (a, why)
+
+
+def test_filter_neighbors_is_octetwise_not_a_string_prefix():
+    """按四段结构判,不按字符串前缀 —— 「没锚定的匹配器会匹配到超集」。"""
+    kept, dropped = filter_neighbors(["192.168.13.129", "192.168.1.137", "1.192.168.137"])
+    assert kept == [], (kept, dropped)
+
+
+def test_filter_neighbors_empty_input_is_empty_not_a_crash():
+    kept, dropped = filter_neighbors([])
+    assert kept == [] and dropped == []

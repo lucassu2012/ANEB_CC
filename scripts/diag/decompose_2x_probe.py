@@ -45,7 +45,11 @@ FILTER_BASE = "ip.DstAddr == %s and icmp" % TARGET   # §3 共用主 filter（�
 N_PING = 20
 GRACE_S = 2.0                              # 收尾宽限
 HOTSPOT_IP = "192.168.137.1"
-MCAST_CIDR = "224.0.0.0/4"                 # §2-5：按 /4 判，不按 224.*
+MCAST_CIDR = "224.0.0.0/4"                 # §2-5 的多播口径（按 /4 而非 224.*）
+# ⚠ **本轮它不在执行路径上**：主 filter 钉死了单个 `ip.DstAddr == 223.5.5.5` ⇒ 多播本就匹配不上；
+# 邻居表也不会有多播项（热点 /24 内的地址永远不是 224-239）。
+# 故不给它写守卫：**不可达的守卫是一个邀请**（它写着一个错的世界模型）。
+# 换目标或放宽 filter 时，§2-5 要在**filter 构造**那侧兑现，不在这里。
 
 LAYER_NETWORK = 0
 LAYER_NETWORK_FORWARD = 1
@@ -151,6 +155,34 @@ def device_egress():
     return (code, why, src, raw, rc)
 
 
+def filter_neighbors(addrs, hotspot_ip=None):
+    """从热点腿邻居表里挑出**可能是设备**的那些。→ `(kept, dropped)`。
+
+    🔴 **实测踩过**：原实现用 `-like '192.168.137*'` ＋ `Select -First 1`，
+    挑中的是**广播地址 192.168.137.255** ⇒ §2-3 报「双侧不同意」，
+    而两侧其实一致，**是匹配器挑错了**。形状＝「没锚定的匹配器会匹配到超集」
+    （那个模式还会命中 PC 自己的 `192.168.137.1`）。
+    ⚠ 修法**不能**改成「按设备 src 去查邻居」——那样 §2-3 由构造保证成立，
+    这道检查变成同义反复。故：枚举全部、按规则排除、再要求设备 src 在其中。
+    ⚠ `dropped` 带理由一起返回并印出——凡报「丢了 N 条」就要能说出丢的是哪些。
+    """
+    hot = hotspot_ip or HOTSPOT_IP
+    pre = hot.rsplit(".", 1)[0].split(".")
+    kept, dropped = [], []
+    for a in addrs:
+        o = a.split(".")
+        if len(o) != 4 or not all(x.isdigit() for x in o):
+            dropped.append((a, "不是 IPv4 四段形")); continue
+        if o[:3] != pre:
+            dropped.append((a, "不在热点 /24 内")); continue
+        if o[3] == "255":
+            dropped.append((a, "广播地址")); continue
+        if a == hot:
+            dropped.append((a, "PC 自己的热点地址")); continue
+        kept.append(a)
+    return (kept, dropped)
+
+
 def derive_constants():
     """§2 六条，**由脚本自己做并把读数逐行印进逐字副本**。→ `dict`。
 
@@ -174,12 +206,12 @@ def derive_constants():
     up = d["up_raw"].split("|")
     d["up_ifidx"] = int(up[0]) if up and up[0].strip().isdigit() else None
     d["up_addr"] = up[1].strip() if len(up) > 1 and up[1].strip() else None
-    # ③ 双侧必须同意：PC 侧邻居 IP 等于设备侧 src
+    # ③ 双侧必须同意：枚举热点腿**全部**邻居，排除后要求设备 src 在其中。
     rc, out, _ = ps("(Get-NetNeighbor -InterfaceIndex %s -ErrorAction SilentlyContinue | "
-                    "Where-Object {$_.IPAddress -like '%s*'} | "
-                    "Select-Object -First 1).IPAddress"
-                    % (d["hot_ifidx"], HOTSPOT_IP.rsplit(".", 1)[0]))
-    d["neighbor"] = out.strip() or None
+                    "Select-Object -ExpandProperty IPAddress) -join ','" % d["hot_ifidx"])
+    d["nb_raw"] = (out or "").strip()
+    d["nb_kept"], d["nb_dropped"] = filter_neighbors(
+        [x.strip() for x in d["nb_raw"].split(",") if x.strip()])
     return d
 
 
@@ -194,12 +226,14 @@ def constants_verdict(d, device_src):
         bad.append("上游腿自身地址读不到 ⇒ §5 的 H1 正对照无从取得")
     if not device_src:
         bad.append("①设备侧 src token 读不到 ⇒ ip.SrcAddr 无从取值")
-    elif d.get("neighbor") != device_src:
-        bad.append("③双侧不同意：PC 侧邻居 %r != 设备侧 src %r" % (d.get("neighbor"), device_src))
+    elif device_src not in (d.get("nb_kept") or []):
+        bad.append("③双侧不同意：设备侧 src %r 不在热点腿邻居表（排除后）%r 中；被排除的 %r" % (device_src, d.get("nb_kept"), d.get("nb_dropped")))
     if bad:
         return (False, "NOT_EXECUTED —— " + "；".join(bad))
-    return (True, "②接口数 1、③双侧同意于 %s、上游腿 ifIndex=%s 地址=%s"
-            % (device_src, d["up_ifidx"], d["up_addr"]))
+    return (True, "②接口数 1、③设备 src %s 在邻居表（留 %d 项，排除 %d 项）中、上游腿 ifIndex=%s 地址=%s"
+            % (device_src, len(d.get("nb_kept") or []), len(d.get("nb_dropped") or []),
+               d["up_ifidx"], d["up_addr"]))
+    # ⚠ 排除明细不在这里重复：它已在 preflight 里逐项印过一次（凡报「丢了 N 条」就要能说出是哪些）。
 
 
 # 收尾标签复用已有纯函数（`2e3ba583` 落地，7 条合成门）——**不重写一份**：
@@ -495,7 +529,10 @@ def preflight():
 
     print("-- §2 常量现场推导（六条，由脚本自己做）--")
     k = derive_constants()
-    print("   热点腿原样=%r 上游腿原样=%r 邻居=%r" % (k["hot_raw"], k["up_raw"], k["neighbor"]))
+    print("   热点腿原样=%r 上游腿原样=%r 邻居原样=%r"
+          % (k["hot_raw"], k["up_raw"], k["nb_raw"]))
+    print("   邻居筛选：留 %r；排除 %r"
+          % (k["nb_kept"], k["nb_dropped"]))
     ok2, why2 = constants_verdict(k, dsrc)
     print("   %s" % why2)
     if not ok2:
