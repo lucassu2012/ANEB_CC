@@ -286,3 +286,63 @@ def test_dump_records_on_empty_prints_nothing():
     finally:
         _sys.stdout = old
     assert buf.getvalue() == "", buf.getvalue()
+
+
+# ── 第一道门与空闲窗长（终审后新增；2026-09-13／09-18 实测驱动）──────────────
+DEV_OK = "PING 223.5.5.5 (223.5.5.5) 56(84) bytes of data.\n" \
+         "64 bytes from 223.5.5.5: icmp_seq=1 ttl=51 time=31.2 ms\n" \
+         "--- 223.5.5.5 ping statistics ---\n" \
+         "3 packets transmitted, 3 received, 0% packet loss, time 2041ms\n"
+DEV_DEAD = "PING 223.5.5.5 (223.5.5.5) 56(84) bytes of data.\n" \
+           "--- 223.5.5.5 ping statistics ---\n" \
+           "3 packets transmitted, 0 received, 100% packet loss, time 2039ms\n"
+
+
+def test_first_hop_requires_a_reply_not_rc_zero():
+    """🔴 承重条：判据是**收到回复**。
+
+    2026-09-13 实测：关联在、RSSI −18、网关 ARP REACHABLE，而 ICMP 与 TCP 一个包都不过；
+    当时四个前提读数全绿且**同源**（都派生自配置而非往返）⇒ 一致不构成互证。
+    """
+    from decompose_2x_probe import judge_first_hop
+    assert judge_first_hop(0, DEV_OK)[0] == "OK"
+    code, why = judge_first_hop(1, DEV_DEAD)
+    assert code == "NO_REPLY", (code, why)
+    # 失败文本只许印读数,不许印解释(那次「设备不在热点上」恰好是错的)
+    assert "3 发 0 收" in why, why
+    assert "热点" not in why, "失败文本印了解释而不是读数：%s" % why
+
+
+def test_first_hop_unreadable_is_its_own_code():
+    """读不到 ⇒ 第三态。**不等于不通，也不等于通。**"""
+    from decompose_2x_probe import judge_first_hop
+    for out in ("", "error: device offline", "adb: no devices/emulators found"):
+        assert judge_first_hop(None, out)[0] == "UNREADABLE", out
+
+
+def test_first_hop_rc_zero_with_zero_replies_still_fails():
+    """反向对照：`rc==0` 而 0 收 ⇒ 仍须 NO_REPLY（rc 不是判据）。"""
+    from decompose_2x_probe import judge_first_hop
+    assert judge_first_hop(0, DEV_DEAD)[0] == "NO_REPLY"
+
+
+def test_idle_seconds_is_derived_and_beats_the_measured_target_window():
+    """🔴 空闲格必须**长于**目标格：用 09-18 实测的那组数。
+
+    实测 `ping -c 20 -i 1` wall=29.56s（ping 自报 19.445s，差约 10s 是 adb 开销）
+    ⇒ 目标格 ≈31.6s。原写死的 20.0（＋2 宽限＝22s）**短于它** ⇒ 底噪全不可用。
+    """
+    from decompose_2x_probe import derive_idle_seconds
+    secs, why = derive_idle_seconds(probe_wall_s=12.0, probe_n=3, n_ping=20)
+    assert secs > 29.56, "推出的空闲窗 %.2f 仍短于实测目标格 29.56s" % secs
+    assert "adb 开销" in why and "12.00" in why, why
+    # 写死 20.0 的老值必须被本条判为不够 —— 证明本门有区分力
+    assert 20.0 < 29.56
+
+
+def test_idle_seconds_scales_with_measured_overhead():
+    """开销越大空闲窗越长 —— 否则它不是由实测推出的。"""
+    from decompose_2x_probe import derive_idle_seconds
+    a, _ = derive_idle_seconds(probe_wall_s=5.0, probe_n=3, n_ping=20)
+    b, _ = derive_idle_seconds(probe_wall_s=25.0, probe_n=3, n_ping=20)
+    assert b - a == 20.0, (a, b)

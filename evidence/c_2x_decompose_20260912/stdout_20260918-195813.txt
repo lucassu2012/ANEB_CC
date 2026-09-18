@@ -1,0 +1,13 @@
+本轮 stdout 逐字副本（UTF-8，不经控制台代码页）：E:\C Project\ANEB\evidence\c_2x_decompose_20260912\stdout_20260918-195813.txt
+2× 分解探针 —— 12 格，只数不改（SNIFF|RECV_ONLY），零参数
+WORKTREE_DIRTY：**提交哈希不代表运行字节**（git status 原样：'M scripts/diag/decompose_2x_probe.py'）
+  本脚本 SHA256 = 8cd7a53593cd2da97e61108eedc5c471a37ea04b862d233bc497402adb0c1aa6
+  git rev-parse HEAD = 02013d1533e87bd4dd26a4f8134546581934d541
+  git status --porcelain -- <本文件> = ' M scripts/diag/decompose_2x_probe.py\n'
+主 filter = ip.DstAddr == 223.5.5.5 and icmp   每格 20 个 ICMP
+-- 第一跳往返（**排在 ip route get 之前**；判据＝收到回复，不是 rc==0）--
+   NO_REPLY：第一跳不通：223.5.5.5 3 发 0 收 ⇒ NOT_EXECUTED。**不加载驱动、不开句柄、不数任何包**（wall=12.19s）
+🔴 中止：SystemExit('NOT_EXECUTED：第一跳不通：223.5.5.5 3 发 0 收 ⇒ NOT_EXECUTED。**不加载驱动、不开句柄、不数任何包**\n  ⚠ 这一条**先于**路由／邻居／服务态三项 —— 那三项曾在\n     「关联在、RSSI −18dBm、网关 ARP REACHABLE 而一个包都不过」时**全部判绿**，\n     且它们**同源**（都派生自配置而非往返）⇒ 一致不构成互证。\n  ⇒ 此刻开跑，五个 FORWARD 格会全读 0，而那会被读成「转发层看不见转发包」。') ⇒ 未跑完的格一律 NOT_EXECUTED，不得据已跑的格外推
+-- 收尾（§6-2：只清本轮自己装的那一份）--
+   sc query WinDivert rc=1060；但跑格前的服务态未取到 ⇒ **无从归因，不动它**，如实报人处理
+⇒ 请把上面那个 stdout 副本文件交出去（它是逐字的）；**控制台里复制的那份只作旁证**——实测两者曾差一个字。

@@ -197,6 +197,66 @@ def device_egress():
     return (code, why, src, raw, rc)
 
 
+PING_RECV = re.compile(r"(\d+)\s*packets transmitted,\s*(\d+)\s*(?:packets\s*)?received", re.I)
+
+
+def judge_first_hop(rc, out):
+    """**第一道门**：设备到目标的 ICMP 往返须**收到 ≥1 个回复** → `(code, 说明)`。
+
+    🔴 **为什么它必须排在 `ip route get` 之前，而且必须是「收到回复」**（2026-09-13 实测）：
+    设备曾在**关联仍在、信号 −18dBm、网关 ARP `REACHABLE`** 的情况下，
+    ICMP 与 TCP **一个包都过不去**。当时四个前提读数**全部判绿**——
+    `ip route get` 报 `ON_HOTSPOT`（路由是**配着的**，不是测出来的）、
+    设备 `src` 仍绑着、PC 邻居项是 ICS 钉的 `Permanent`、于是「双侧必须同意」**也一致**。
+    🔴 **那道交叉核对的两个读数同源**（都派生自同一份配置）⇒ **它们的一致不构成互证**。
+    在那个状态下开跑，五个 FORWARD 格会全读 0，而判据自己警告过那会被读成
+    「转发层看不见转发包」——一个漂亮、可复现、完全错误的结论。
+
+    ⚠ **判据是「收到回复」，不是 `rc == 0`、不是路由存在、不是邻居项在。**
+    ⚠ 也**不能**改成 ping 热点网关：PC 完全可以合法地不回 ICMP echo（Public profile 默认就不回）
+    而转发一切正常 ⇒ 那样的正对照会把好环境判成坏的。**测实验真正依赖的那条路径、用同一个协议。**
+    ⚠ 失败文本只印**读数**（「3 发 0 收」），**不印解释**（「设备不在热点上」）——
+    2026-09-13 那次，那句解释恰好是错的。
+    """
+    t = out or ""
+    m = PING_RECV.search(t)
+    if m is None:
+        return ("UNREADABLE",
+                "第一跳：ping 摘要行读不到（rc=%s，原样 %r）⇒ NOT_EXECUTED。"
+                "**读不到不等于不通，也不等于通**" % (rc, t.strip()[:120]))
+    sent, recv = int(m.group(1)), int(m.group(2))
+    if recv >= 1:
+        return ("OK", "第一跳：%s %d 发 %d 收 ⇒ 往返成立，同协议同路径" % (TARGET, sent, recv))
+    return ("NO_REPLY",
+            "第一跳不通：%s %d 发 %d 收 ⇒ NOT_EXECUTED。**不加载驱动、不开句柄、不数任何包**"
+            % (TARGET, sent, recv))
+
+
+def derive_idle_seconds(probe_wall_s, probe_n, n_ping, margin_s=3.0):
+    """空闲格时长**由实测推出**，不写死 → `(秒, 推导说明)`。
+
+    🔴 原来这里是我拍的一个 `20.0`，而**我从没测过它要压住的那个时长**（终审 K13）：
+    `adb shell ping -c 20 -i 1` 的 **wall 实测 29.56 s**（ping 自报 `time=19445ms`，
+    差的约 10 s 是 adb 开销），⇒ 目标格窗长约 31.6 s，而 20+2=22 s **短于它**
+    ⇒ `noise_policy` 对同层各格必返 `SHORT_WINDOW_NO_PASS`
+    ⇒ **FORWARD 那半的底噪全部不可用**，而那正是回答本问题的那半。
+
+    推导：第一跳那次 `ping -c probe_n` 的 wall 里，纯等待是 `probe_n − 1` 秒
+    （`-i 1`，最后一个包不等）⇒ **adb 开销 ≈ `probe_wall_s − (probe_n − 1)`**；
+    目标格纯等待是 `n_ping − 1` 秒 ⇒ 目标格 wall ≈ 开销 ＋ `n_ping − 1`。
+    空闲格取它再加 `margin_s`。
+
+    ⚠ 本函数只是**让默认值落在对的量级**；最终仍由 `noise_policy` 拿**两边的实测窗长**判——
+    推导错了它会红，**不是靠这个推导兜底**。
+    """
+    overhead = max(0.0, float(probe_wall_s) - (probe_n - 1))
+    target = overhead + (n_ping - 1)
+    secs = target + margin_s
+    return (secs, "由实测推出：第一跳 %d 包 wall=%.2fs ⇒ adb 开销≈%.2fs；"
+                  "目标格 %d 包 ⇒ wall≈%.2fs；空闲格取 %.2fs（＋%.1fs 余量）"
+            % (probe_n, probe_wall_s, overhead, n_ping, target, secs, margin_s))
+
+
 def filter_neighbors(addrs, hotspot_ip=None):
     """从热点腿邻居表里挑出**可能是设备**的那些。→ `(kept, dropped)`。
 
@@ -500,7 +560,9 @@ def report_cell(c):
     return s
 
 
-IDLE_SLEEP_S = 20.0        # 空闲格的观测时长（§4.6 要求不短于同层目标格；实际由 noise_policy 判）
+# 🔴 `IDLE_SLEEP_S` 常量已退役（终审 K13）：它是我拍的一个数，而**我从没测过它要压住的
+# 那个时长**。现由 `derive_idle_seconds()` 从第一跳那次 ping 的实测 wall 推出，
+# 并仍由 `noise_policy` 拿两边的实测窗长最终判——推导错了它会红，不靠推导兜底。
 REPO = os.path.dirname(os.path.dirname(_HERE))
 
 
@@ -551,8 +613,8 @@ def dev_ping():
     return t
 
 
-def no_traffic():
-    time.sleep(IDLE_SLEEP_S)
+def no_traffic(secs):
+    time.sleep(secs)
     return 0      # 空闲格确实发了 0 个包；T=0 是读数不是缺席
 
 
@@ -581,7 +643,26 @@ def hotspot_readings(up_addr, up_ifidx):
 def preflight():
     print("2× 分解探针 —— 12 格，只数不改（SNIFF|RECV_ONLY），零参数")
     dirty = print_self_id()
-    print("主 filter = %s   每格 %d 个 ICMP   空闲格 %.0fs" % (FILTER_BASE, N_PING, IDLE_SLEEP_S))
+    print("主 filter = %s   每格 %d 个 ICMP" % (FILTER_BASE, N_PING))
+
+    # 🔴 **第一道门，排在一切之前**：同协议同路径的往返（见 `judge_first_hop` 的来历）。
+    # 它之前那四个读数**全部对「流量是否真的过得去」盲，而且同源** ⇒ 一致不构成互证。
+    print("-- 第一跳往返（**排在 ip route get 之前**；判据＝收到回复，不是 rc==0）--")
+    _t0 = time.time()
+    frc, fout, ferr = run([ADB, "shell", "ping", "-c", "3", "-i", "1", TARGET], timeout=90)
+    _wall = time.time() - _t0
+    fcode, fwhy = judge_first_hop(frc, fout or ferr)
+    print("   %s：%s（wall=%.2fs）" % (fcode, fwhy, _wall))
+    if fcode != "OK":
+        raise SystemExit(
+            "NOT_EXECUTED：%s\n"
+            "  ⚠ 这一条**先于**路由／邻居／服务态三项 —— 那三项曾在\n"
+            "     「关联在、RSSI −18dBm、网关 ARP REACHABLE 而一个包都不过」时**全部判绿**，\n"
+            "     且它们**同源**（都派生自配置而非往返）⇒ 一致不构成互证。\n"
+            "  ⇒ 此刻开跑，五个 FORWARD 格会全读 0，而那会被读成「转发层看不见转发包」。" % fwhy)
+
+    idle_s, idle_why = derive_idle_seconds(_wall, 3, N_PING)
+    print("   空闲格时长 %.1fs ← %s" % (idle_s, idle_why))
 
     print("-- P2-pre：设备出口三态（§5-5；UNREADABLE 两个方向都不满足前提）--")
     dc, dwhy, dsrc, draw, drc = device_egress()
@@ -630,7 +711,7 @@ def preflight():
     if not all(proofs):
         raise SystemExit("NOT_EXECUTED：编译自证有一行不符预期（见上）⇒ 不数任何包")
     return (d, k, dsrc, pre, dirty, fb, f_up, f_hot, f_src, f_nsrc, f_imp, f_noicmp,
-            f_taut)
+            f_taut, idle_s)
 
 
 def main():
@@ -652,12 +733,12 @@ def main():
     opened_any = False
     try:
         (d, k, dsrc, pre, dirty, fb, f_up, f_hot, f_src, f_nsrc, f_imp, f_noicmp,
-         f_taut) = preflight()
+         f_taut, idle_s) = preflight()
         cells = {}
         plan = [
             ("S0 仪器自证", LAYER_NETWORK, "false", lambda: None, None),
-            ("S1 空闲底噪(N)", LAYER_NETWORK, fb, no_traffic, None),
-            ("S2 空闲底噪(F)", LAYER_NETWORK_FORWARD, fb, no_traffic, None),
+            ("S1 空闲底噪(N)", LAYER_NETWORK, fb, lambda: no_traffic(idle_s), None),
+            ("S2 空闲底噪(F)", LAYER_NETWORK_FORWARD, fb, lambda: no_traffic(idle_s), None),
             ("S3a 同 filter 两句柄", LAYER_NETWORK, fb, pc_ping, fb),
             ("S3b 恒真子句", LAYER_NETWORK, fb, pc_ping, f_taut),
             ("A1 复现 A", LAYER_NETWORK, fb, pc_ping, f_imp),
