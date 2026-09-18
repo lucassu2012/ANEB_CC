@@ -16,10 +16,10 @@
 > （提交署名 `Co-Authored-By: Claude Opus 5`；**用提交哈希而不用会话标题认身份**——标题会漂）。
 > 已落地：身份解析器 `scripts/diag/pkt_identity.py` ＋ 合成门 `scripts/tests/test_pkt_identity.py`（`bed0d9cf`）；
 > 收尾标签纯函数 `forward_layer_probe.teardown_labels` ＋ 合成门 `scripts/tests/test_forward_probe_teardown_labels.py`（`2e3ba583`）。
-> ✅ **12 格主脚本已落地**：`scripts/diag/decompose_2x_probe.py`（**首次落地** `6eb51401`），**只做 IO**；
+> ✅ **12 格主脚本已落地**：`scripts/diag/decompose_2x_probe.py`（**首次落地** `9db7e992`），**只做 IO**；
 > 判定层 `scripts/diag/decompose_2x_verdicts.py`（**首次落地** `fa4bfa94`），门 `scripts/tests/test_decompose_2x_verdicts.py`
 > （**条数不在此写**——以 `pytest` 与全域门为权威。一个描述另一个文件的计数保证会过期：本文件已在这一点上过期两次）；
-> 纯函数门 `scripts/tests/test_decompose_2x_probe_pure.py` 17 条。突变审计 9＋5＋7 全咬。
+> 纯函数门 `scripts/tests/test_decompose_2x_probe_pure.py`（**条数与突变审计的次数同样不在此写**：同一条理由——「一个描述另一个文件的计数保证会过期」）。
 > 🔴 **本抬头不追「最新」哈希，追了必过期**（本文件今天已在这一点上过期一次）：
 > 上面那些是**首次落地**的提交（不可变）；**当前正在跑的字节由脚本自己印**（§1.5 三件）。
 > ⇒ 要知道某一轮跑的是哪些字节，**读那一轮的 stdout 副本，不读本文件**。
@@ -27,7 +27,9 @@
 > 理由：「跑前写死」只有在**跑之前能被检验**时才成立，而开句柄那部分永远只能在真机上跑一次。
 > **非提权烟测已跑**：`stdout_20260913-023615.txt`（本目录）——`WORKTREE_CLEAN` ＋ SHA256 ＋ HEAD 三件齐印；
 > 11 格全部 `err=5` ⇒ 一律 `NOT_EXECUTED`（**无管理员权限时拒绝给出任何计数**）；
-> 编译自证 7/7 含负对照 `nonsense_field == 1 → False`。
+> 编译自证 7/7 含负对照 `nonsense_field == 1 → False`
+> （**`stdout_20260913-023615.txt` 那一轮的读数，是史实不是现态**：此后补了恒真子句一行
+> ⇒ 现在是 8 行。**此处不改那个 7**——改它就是把一条自洽的假历史写进证据）。
 
 ## 0. 三条贯穿全份的纪律（v1 已立，保留）
 
@@ -143,7 +145,11 @@ S0 用 `false` filter ⇒ **解析路径零次执行** ⇒ 偏移写错不会被
 `src` 的组内一致性由 `summarize()` 作为**返回字段** `src_same_within_key` 与去重数**一起给出**
 ——做成字段而非两处文字，**它就不可能只挂在判定表的一行下**。
 
-**跑中结构自检（仅适用于「全捕获格」：S1／S2／A1／A2／C1／A-off）**：
+**跑中结构自检（仅适用于「全捕获格」：A1／A2／C1／A-off）**：
+🔴 **S1／S2 已从本条移出（终审 X3，2026-09-18）**：被引裁定原话是「只对全量格（`A1/A2/C1/A3`）适用，**窄格与空闲格另立判词**」，我把空闲格塞了进来。
+后果不是「多一道检查」而是**方向相反**：空闲格 `T=0` ⇒「`seq` 落在 `1..T` 内」是**空集**
+⇒ **一抓到底噪包就 `NOT_EXECUTED`**——恰在那格唯一有话说的时候把它作废。
+空闲格的判词在 §4.6（`noise_policy`），不在这里。
 观测到的 `seq` 多重集须落在 `1..T` 内且覆盖 **≥ T−2** 个不同值；不满足 ⇒ 该格身份判 `NOT_EXECUTED`。
 🔴 **窄 filter 格（A1′／C1′／F1／F2／N1／N2）按构造恒不满足这一条，故一律不适用**
 ——把它套上去等于**把合法的零恒判成 NOT_EXECUTED**（裁定 v2 第 4 条）。
@@ -168,7 +174,7 @@ S0 用 `false` filter ⇒ **解析路径零次执行** ⇒ 偏移写错不会被
 （或跑前先提交、脏树直接拒跑）。理由是实事：复审 v2 第 7 条当时读到的盘上脚本正是
 ` M` 未提交态 ⇒ **那个哈希对应的字节不是正在跑的字节**。
 ⚠ 该目录名在实现侧已提成常量 `ROUND_DIR`（`2e3ba583`）——写死在函数里靠的是「重写时记得改」。
-✅ **实现侧落点**：`decompose_2x_probe.self_id_lines`（`6eb51401`），配门 4 条（`WORKTREE_DIRTY` 必在第一行、干净时必说干净、纯空白不算脏、三件都要印）；
+✅ **实现侧落点**：`decompose_2x_probe.self_id_lines`（**首次落地** `9db7e992`），配门 4 条（`WORKTREE_DIRTY` 必在第一行、干净时必说干净、纯空白不算脏、三件都要印）；
 突变 P1（DIRTY 不在第一行）与 P2（不做 strip）各被其中一条咬住。
 ⚠ 实测两个方向都见过了：脏树那次印`WORKTREE_DIRTY`、干净树那次印 `WORKTREE_CLEAN` ＋ `HEAD=6eb51401`。
 
@@ -215,6 +221,9 @@ S0 用 `false` filter ⇒ **解析路径零次执行** ⇒ 偏移写错不会被
 `impostor` 那一对读数不一致时，这两种成因**歧义**。
 
 **编译性已自量（零提权、不加载驱动，带正负对照）**：
+🔴 **本表的来源与证据等级（终审 X6，2026-09-18 自核）**：仓内**没有任何一份仪器输出对应这张表**——七份 stdout 的编译行**全是单层**，且**从未编译过 `outbound`**。
+⇒ 抬头那个「7/7」指的是探针 `compile_selfproof()` 的**调用数**（`023615` 印 7、`024746` 印 8），**不是这张表**；本表的 `FORWARD` 列**无处可查**。
+⇒ 本表按**未复核的整理**读，不按实测读。要用它必须先跑一轮双层编译并把输出落进证据。
 
 ```
 filter                                          NETWORK  FORWARD
@@ -267,7 +276,8 @@ ip.DstAddr == 223.5.5.5 and ifIdx == 9 / == 13  True     True
 | S0 | NETWORK | `false` | 无 | 仪器自证（§1.1） |
 | S1 | NETWORK | 无 | 无人 | 空闲对照：A 底噪 |
 | S2 | FORWARD | 无 | 无人 | 空闲对照：C 底噪 |
-| **S3** | NETWORK | **并开两句柄**（a：同 filter；b：恒真改写） | PC | 仪器自证：配对法成不成立（§1.6） |
+| **S3a** | NETWORK | **并开两句柄**，b ＝ **与 a 完全相同**的 filter | PC | 仪器自证：两句柄能否看见同一个包（§1.6） |
+| **S3b** | NETWORK | **并开两句柄**，b ＝ 主 filter **加恒真子句** `and (icmp or not icmp)` | PC | 仪器自证：差异来自 filter 内容还是来自开了两个句柄（§1.6） |
 | A1 | NETWORK | 无 | PC | 复现 A |
 | A2 | NETWORK | 去 `and icmp` | PC | `A2 − A1` ＝ 背景非 ICMP 贡献 |
 | C1 | FORWARD | 无 | P40 | 复现 C |
