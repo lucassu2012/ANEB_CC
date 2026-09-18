@@ -364,3 +364,42 @@ def test_s3_tol_and_skew_drive_different_branches():
     finally:
         m.TOL, m.SKEW = tol0, skew0
     assert (m.TOL, m.SKEW) == (tol0, skew0), "还原失败"
+
+
+def test_h2_absent_premise_must_not_fail_open():
+    """🔴 终审 HIGH #3：三个 T 全 `None` 时**不得放行**。
+
+    `None == None == None` 在 `==` 链上为真 ⇒ 原实现把**缺席当成相等**,
+    随后拿调用方传来的 T 当区间基,实调返回 `H2_HOLDS`。
+    ⚠ 这是「读数取法坏了,看到的是『前提已满足』」的教科书形态。
+    """
+    code, why = verdict_h2(T, 20, 20, 40, None, None, None, "TWICE")
+    assert code == "VOID_T_MISSING", (code, why)
+    assert code != "H2_HOLDS"
+    # 单个缺席同样要拦(不是只拦"全缺")
+    for trio in ((None, 20, 20), (20, None, 20), (20, 20, None)):
+        c2, _ = verdict_h2(T, 20, 20, 40, trio[0], trio[1], trio[2], "TWICE")
+        assert c2 == "VOID_T_MISSING", (trio, c2)
+
+
+def test_h2_foreign_interval_base_is_void():
+    """🔴 终审 HIGH #2：区间基 `T` 不等于本层实测 `T_C1` ⇒ VOID（跨层外推，D-885 禁止）。
+
+    原调用方把 **A1（NETWORK／PC 侧）的 T** 当 FORWARD 三格的区间基。
+    本条不靠「调用方自觉」,靠函数自己拒收。
+    """
+    code, why = verdict_h2(20, 5, 5, 10, 5, 5, 5, "TWICE")
+    assert code == "VOID_T_FOREIGN", (code, why)
+    assert "20" in why and "5" in why, why
+    # 正对照:同层时照常判,守卫不得把正确调用也拦掉
+    ok, _ = verdict_h2(5, 5, 5, 10, 5, 5, 5, "TWICE")
+    assert ok == "H2_HOLDS", ok
+
+
+def test_h2_three_t_guards_are_three_distinct_codes():
+    """三道前提各有各的码 —— 处置不同：重取读数 vs 查分母 vs 改调用方。"""
+    miss = verdict_h2(20, 20, 20, 40, None, None, None, "TWICE")[0]
+    mism = verdict_h2(20, 20, 20, 40, 20, 19, 20, "TWICE")[0]
+    frgn = verdict_h2(20, 5, 5, 10, 5, 5, 5, "TWICE")[0]
+    assert (miss, mism, frgn) == ("VOID_T_MISSING", "VOID_T_MISMATCH", "VOID_T_FOREIGN")
+    assert len({miss, mism, frgn}) == 3

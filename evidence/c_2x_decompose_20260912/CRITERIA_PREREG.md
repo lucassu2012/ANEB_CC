@@ -17,7 +17,8 @@
 > 已落地：身份解析器 `scripts/diag/pkt_identity.py` ＋ 合成门 `scripts/tests/test_pkt_identity.py`（`bed0d9cf`）；
 > 收尾标签纯函数 `forward_layer_probe.teardown_labels` ＋ 合成门 `scripts/tests/test_forward_probe_teardown_labels.py`（`2e3ba583`）。
 > ✅ **12 格主脚本已落地**：`scripts/diag/decompose_2x_probe.py`（**首次落地** `6eb51401`），**只做 IO**；
-> 判定层 `scripts/diag/decompose_2x_verdicts.py`（`fa4bfa94` → `dc2924fa`），门 `scripts/tests/test_decompose_2x_verdicts.py` 26 条；
+> 判定层 `scripts/diag/decompose_2x_verdicts.py`（**首次落地** `fa4bfa94`），门 `scripts/tests/test_decompose_2x_verdicts.py`
+> （**条数不在此写**——以 `pytest` 与全域门为权威。一个描述另一个文件的计数保证会过期：本文件已在这一点上过期两次）；
 > 纯函数门 `scripts/tests/test_decompose_2x_probe_pure.py` 17 条。突变审计 9＋5＋7 全咬。
 > 🔴 **本抬头不追「最新」哈希，追了必过期**（本文件今天已在这一点上过期一次）：
 > 上面那些是**首次落地**的提交（不可变）；**当前正在跑的字节由脚本自己印**（§1.5 三件）。

@@ -2,7 +2,9 @@
 """2× 分解探针 —— 12 格，**只数不改**（`SNIFF|RECV_ONLY`），零参数。
 
 - 判据：`evidence/c_2x_decompose_20260912/CRITERIA_PREREG.md`
-- 判定：`scripts/diag/decompose_2x_verdicts.py`（纯函数 ＋ 26 条合成门，零设备可跑）
+- 判定：`scripts/diag/decompose_2x_verdicts.py`（纯函数，零设备可跑）；
+  门：`scripts/tests/test_decompose_2x_verdicts.py`（**条数以 `pytest` 与全域门为准，此处不写数**
+  ——写死的跨文件计数保证会过期，且**印在运行时输出里的会落进不可追改的证据**）
 - 身份：`scripts/diag/pkt_identity.py`（八字段解析，8 条合成门含 IHL≠5）
 
 🔴 **本文件只做 IO，不承载任何判词**：自我标识、常量现场推导、开句柄、数包、每包日志、
@@ -16,6 +18,7 @@
 import ctypes
 import hashlib
 import io
+import locale
 import os
 import re
 import subprocess
@@ -110,13 +113,52 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def run(args, timeout=180):
-    """→ `(rc, stdout, stderr)`。**父侧两件必给**：`encoding` ＋ `errors`
-    （不给 `encoding` 时 `text=True` 会让 stdout 静默变 `None`，本仓害红过一次）。"""
+def _decode(raw):
+    """→ `(text, 说明)`。**先严格、后回退，并把走了哪条路说出来。**
+
+    🔴 **原实现写死 `encoding="utf-8"` ＋ `errors="replace"`，而本机 ACP＝cp936**
+    （终审 HIGH #1，2026-09-18 实调）：`ping.exe` 的摘要行「已发送 = 20」被解成
+    一串 U+FFFD ⇒ `_sent_count` 的正则永不命中 ⇒ **所有 PC 打的格 `T=None`**
+    ⇒ `apply_verdicts` 早退 ⇒ **判定块一行都不印，整个提权窗白烧**。
+    实测 `ping.exe -n 1 127.0.0.1`：utf-8 解得 **48 个 U+FFFD、正则命中 `None`**；
+    cp936 解得 **0 个替换符、命中 `1`**。
+
+    ⚠ **`errors="replace"` 是这条坑的放大器**：它把解码失败变成一串**合法字符**，
+    于是失败长得像数据——没有异常、没有空串、没有非零 rc，只有一个安静的 `None`。
+    ⇒ 先 `utf-8` 严格，失败再按本机 ACP 严格，两者都不成才 `replace`，
+    **且非 utf-8 路一律印出来**（stdout 有副本 ⇒ 这句话会进证据）。
+
+    ⚠ 残余风险显名记：少数字节串在两种编码下**都合法**而语义不同，本函数取先命中的那条
+    ⇒ 说明里写清用了哪条，读者可自行复核。
+    """
+    if not raw:
+        return ("", None)
+    acp = locale.getpreferredencoding(False) or "cp936"
     try:
-        p = subprocess.run(args, capture_output=True, encoding="utf-8",
-                           errors="replace", timeout=timeout)
-        return (p.returncode, p.stdout or "", p.stderr or "")
+        return (raw.decode("utf-8"), None)
+    except (UnicodeDecodeError, LookupError):
+        pass
+    try:
+        return (raw.decode(acp), "按 %s 解（utf-8 严格解码失败）" % acp)
+    except (UnicodeDecodeError, LookupError):
+        t = raw.decode(acp, errors="replace")
+        return (t, "🔴 两种严格解码都失败，按 %s replace 解，含 %d 个替换符 "
+                   "⇒ **由此得出的读数不可信**" % (acp, t.count("�")))
+
+
+def run(args, timeout=180):
+    """→ `(rc, stdout, stderr)`。**不写死编码**，解码路径见 `_decode`（终审 HIGH #1）。
+
+    ⚠ 仍不得用 `text=True` 而不给 `encoding=`：那会让 stdout 静默变 `None`（本仓害红过一次）。
+    这里改成**拿裸字节自己解**，把「用什么编码」从一个写死的常量变成一个**有说明的读数**。
+    """
+    try:
+        p = subprocess.run(args, capture_output=True, timeout=timeout)
+        out, note = _decode(p.stdout)
+        err, _ = _decode(p.stderr)
+        if note:
+            print("       ⚠ 解码：%s ← %s" % (note, os.path.basename(str(args[0]))))
+        return (p.returncode, out, err)
     except Exception as e:
         return (None, "", "调用失败：%r" % (e,))
 
@@ -623,7 +665,9 @@ def main():
 
 def apply_verdicts(cells):
     """把判定层套到读数上。**每条判词都带它自己的前提**，前提取不到就印「取不到」。"""
-    print("-- 判定（判据 §4，跑前写死；判定逻辑在 decompose_2x_verdicts，26 条门）--")
+    # ⚠ 这一行**不许印门的条数**：它会进逐字副本，而证据不可追改
+    # ——五份旧 stdout 里的「26 条门」有一份印出来那一刻就已经是假的。
+    print("-- 判定（判据 §4，跑前写死；判定逻辑在 decompose_2x_verdicts，门见其同名测试）--")
     get = lambda n: cells.get(n)
     a1, a2, c1 = get("A1"), get("A2"), get("C1")
     out = {}
@@ -636,15 +680,25 @@ def apply_verdicts(cells):
                                  a1["summary"]["multiplicity_hist"], a2c)
     out["identity"] = code
     print("  §4.1 身份（T=%s，A2 计数=%s）⇒ %s：%s" % (T, a2c, code, why))
+    # 🔴 **FORWARD 层的判词只许用 FORWARD 层自己的前提**（终审 HIGH #2，D-885 禁止跨层外推）。
+    # 原先 `cc` 算完只印不用，而 §4.2／§4.3／§4.5 一律拿 A1（NETWORK／PC 侧）的 `T` 与 `code`
+    # ⇒ 实调：同一组读数 `code='TWICE'` → `H2_HOLDS`，换 `'DIFFERENT'` → `UNDECIDABLE_IDENTITY`，
+    # **结论随传错的那个码反转**。⇒ `cc` 提到条件之外，本层的判词一律喂 `c1["T"]` 与 `cc`。
+    cc = None
     if c1 and c1.get("summary") and c1.get("T"):
         cc, cw = verdict_identity(c1["T"], c1["summary"]["n_distinct_keys"],
                                   c1["summary"]["multiplicity_hist"], None)
         print("  §4.1 身份（C1，T=%s）⇒ %s：%s" % (c1["T"], cc, cw))
+    else:
+        print("  §4.1 身份（C1）：读数或 T 取不到 ⇒ **FORWARD 层没有自己的前提**，"
+              "本层各判词一律不可判（**不得借用 A1 的**）")
     f1, f2 = get("F1"), get("F2")
     if f1 and f2 and c1 and None not in (f1.get("count"), f2.get("count"), c1.get("count")):
-        h2, hw = verdict_h2(T, f1["count"], f2["count"], c1["count"],
-                            f1.get("T"), f2.get("T"), c1.get("T"), code)
-        print("  §4.2 H2 ⇒ %s：%s" % (h2, hw))
+        # 区间基传 `c1["T"]` 而非 `T`；`verdict_h2` 内另有一道 `T != T_C1 ⇒ VOID_T_FOREIGN`
+        # 的守卫兜底 —— 调用点改对与函数拒收**两道都要**，前者会被后人改回去，后者不会。
+        h2, hw = verdict_h2(c1.get("T"), f1["count"], f2["count"], c1["count"],
+                            f1.get("T"), f2.get("T"), c1.get("T"), cc)
+        print("  §4.2 H2（前提取自 C1：T=%s code=%s）⇒ %s：%s" % (c1.get("T"), cc, h2, hw))
     else:
         print("  §4.2 H2：F1／F2／C1 有读数缺席 ⇒ 不可判")
     s3_pass = {}
@@ -662,22 +716,30 @@ def apply_verdicts(cells):
           % (s3_code, s3_pass.get("S3a"), s3_pass.get("S3b")))
 
 
-    for nm in ("A1", "C1"):
+    # 每格喂**它自己那一层**的身份判词：A1 用 `code`，C1 用 `cc`（终审 HIGH #2）。
+    for nm, own_code in (("A1", code), ("C1", cc)):
         c = get(nm)
         if c and c.get("count_b") is not None:
             ic, iw = verdict_impostor(c["count_b"], c["count"],
                                       s3_code == "PASS",
-                                      bool(c.get("same_window")), code)
+                                      bool(c.get("same_window")), own_code)
             lo, hi = impostor_band(c["count"]) if c["count"] else (None, None)
             print("  §4.3 impostor（%s，n=%s，带=[%s,%s]）⇒ %s：%s"
                   % (nm, c["count"],
                      "%.3f" % lo if lo is not None else "N/A",
                      "%.3f" % hi if hi is not None else "N/A", ic, iw))
     n1, n2 = get("N1"), get("N2")
+    # 🔴 N1／N2 是**设备侧**两格 ⇒ 区间基只能是它们自己的 T，不是 A1 的（终审 HIGH #2）。
+    # 两格各跑一次 ping ⇒ 两个 T 必须相等才谈得上共用一个区间基；不等或缺席即不可判。
     if n1 and n2 and None not in (n1.get("count"), n2.get("count")):
+        tn1, tn2 = n1.get("T"), n2.get("T")
         same = c1["summary"]["src_same_within_key"] if (c1 and c1.get("summary")) else None
-        nc, nw = verdict_n(T, n1["count"], n2["count"], same)
-        print("  §4.5 N1／N2 ⇒ %s：%s" % (nc, nw))
+        if tn1 is None or tn2 is None or tn1 != tn2:
+            print("  §4.5 N1／N2：T 缺席或两格不等（N1:%s N2:%s）⇒ 不可判"
+                  "（**不得借用 A1 的 T 当区间基**）" % (tn1, tn2))
+        else:
+            nc, nw = verdict_n(tn1, n1["count"], n2["count"], same)
+            print("  §4.5 N1／N2（T=%s，取自本层）⇒ %s：%s" % (tn1, nc, nw))
     for sn, tn in (("S1", "A1"), ("S2", "C1")):
         s, t = get(sn), get(tn)
         if s and s.get("count") is not None and t and t.get("window_s"):

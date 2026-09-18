@@ -170,3 +170,57 @@ def test_filter_neighbors_is_octetwise_not_a_string_prefix():
 def test_filter_neighbors_empty_input_is_empty_not_a_crash():
     kept, dropped = filter_neighbors([])
     assert kept == [] and dropped == []
+
+
+# ── `_decode` 的门（终审 HIGH #1）────────────────────────────────────────────
+# 夹具用**真实抓到的那一行**：本机 ping.exe 的摘要行，按 cp936 编码——
+# 这正是 `ping.exe -n 1 127.0.0.1` 实际吐出的字节形态（ACP=cp936 实测）。
+PING_ZH = "数据包: 已发送 = 20，已接收 = 20，丢失 = 0 (0% 丢失)，"
+PING_EN = "    Packets: Sent = 20, Received = 20, Lost = 0 (0% loss),"
+
+
+def test_decode_cp936_bytes_are_readable_not_replacement_chars():
+    """🔴 承重条：cp936 字节必须解得出来，且**不含替换符**。
+
+    原实现写死 `encoding="utf-8"` ＋ `errors="replace"` ⇒ 这一行变成一串 U+FFFD，
+    `_sent_count` 的正则永不命中 ⇒ 所有 PC 打的格 T=None ⇒ 判定块一行不印。
+    """
+    from decompose_2x_probe import _decode
+    raw = PING_ZH.encode("cp936")
+    text, note = _decode(raw)
+    assert chr(65533) not in text, "解出替换符 ⇒ 又走回 utf-8 那条路了：%r" % text
+    assert "已发送 = 20" in text, text
+    assert note and "cp936" in note, "非 utf-8 路必须把用了哪条编码说出来：%r" % (note,)
+
+
+def test_decode_cp936_bytes_feed_the_sent_count_regex():
+    """把 `_decode` 与 `_sent_count` 串起来测 —— 单测任一半都看不见这条链断没断。"""
+    from decompose_2x_probe import _decode, _sent_count
+    text, _ = _decode(PING_ZH.encode("cp936"))
+    assert _sent_count(text) == 20, "T 取不到 ⇒ HIGH #1 复发：%r" % text
+    # 反向:若按 utf-8 replace 解(旧实现),同一批字节必须取不到 —— 证明本门有区分力
+    broken = PING_ZH.encode("cp936").decode("utf-8", errors="replace")
+    assert _sent_count(broken) is None, "旧实现居然也能取到 ⇒ 本门无区分力"
+
+
+def test_decode_utf8_and_ascii_take_the_strict_path_silently():
+    """正对照：utf-8 与纯 ASCII 走严格路，**不得打印噪音说明**。"""
+    from decompose_2x_probe import _decode
+    t1, n1 = _decode("设备侧 20 packets transmitted".encode("utf-8"))
+    assert "packets transmitted" in t1 and n1 is None, (t1, n1)
+    t2, n2 = _decode(PING_EN.encode("ascii"))
+    assert "Sent = 20" in t2 and n2 is None, (t2, n2)
+
+
+def test_decode_reports_when_both_strict_paths_fail():
+    """两种严格解码都失败 ⇒ 必须明说读数不可信，**不得静默 replace**。"""
+    from decompose_2x_probe import _decode
+    bad = bytes([0x81, 0x40, 0xFF, 0xFE, 0x80])
+    text, note = _decode(bad)
+    assert note is not None and "不可信" in note, (text, note)
+
+
+def test_decode_empty_is_not_an_error():
+    from decompose_2x_probe import _decode
+    assert _decode(b"") == ("", None)
+    assert _decode(None) == ("", None)

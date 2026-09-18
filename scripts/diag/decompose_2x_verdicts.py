@@ -98,11 +98,33 @@ def verdict_h2(T, F1, F2, C1, T_F1, T_F2, T_C1, identity_code):
     🔴 守恒式在 H2 真假两个世界里**都成立**(H2 真 F1=F2=T 和 2T;H2 假同腿 clone F1=2T
     F2=0 和同样 2T)⇒ 它连主命题都分不开。下面前两条退化支**满足守恒式**,
     所以守恒式必须最后跑,否则会给它们发通行证。
+
+    🔴 **T 前提有三道,不是一道**(终审 HIGH #2／#3,2026-09-18 实调确认):
+
+    1. **缺席**:`if not (T_F1 == T_F2 == T_C1)` 单独用会 **fail-open**——三个全 `None` 时
+       `None == None == None` 为真,守卫放行,随后用调用方传来的 `T` 当区间基。
+       实调 `verdict_h2(20,20,20,40,None,None,None,'TWICE')` → **`H2_HOLDS`**。
+       ⚠ 这正是那条孪生规矩的样子:**读数取法坏了,看到的是「前提已满足」**。
+    2. **同值**:三格实测 T 须相等(原有那条)。
+    3. 🔴 **同层**:区间基 `T` 须**等于本层实测的 `T_C1`**。原先 `T` 由调用方自由传入,
+       而调用方传的是 **A1（NETWORK／PC 侧）的 T**,`identity_code` 也是 A1 的
+       ⇒ **FORWARD 格的判词拿了 NETWORK 格的前提**,是 D-885 明令禁止的跨层外推。
+       实调:同一组读数 `code='TWICE'` → `H2_HOLDS`,换 `'DIFFERENT'` → `UNDECIDABLE_IDENTITY`
+       ⇒ **结论随传错的那个码反转**。守卫拦不住「传错的 code」(函数看不到来源),
+       但**拦得住「传错的 T」**——而两者在本案里是同一次错误,拦住后者就会当场暴露前者。
     """
+    if None in (T_F1, T_F2, T_C1):
+        return ("VOID_T_MISSING",
+                "T 缺席(F1:%s F2:%s C1:%s)⇒ 前提取不到,VOID。**缺席不是相等**:三个 None "
+                "在 `==` 链上为真,会让本节拿调用方的 T 继续算" % (T_F1, T_F2, T_C1))
     if not (T_F1 == T_F2 == T_C1):
         return ("VOID_T_MISMATCH",
                 "T 不等(F1:%s F2:%s C1:%s)⇒ 这不是守恒式,是三个不同分母的裸相加,本节 VOID"
                 % (T_F1, T_F2, T_C1))
+    if T != T_C1:
+        return ("VOID_T_FOREIGN",
+                "区间基 T=%s 不等于本层实测 T_C1=%s ⇒ **拿了别层的前提**(D-885 禁止的跨层外推),"
+                "本节 VOID。本层的区间基只能是本层自己数出来的那个 T" % (T, T_C1))
     near_c1 = lambda x: C1 - TOL <= x <= C1
     if near_c1(F1) and F2 == 0:
         return ("DEGENERATE_UPSTREAM_ONLY",
