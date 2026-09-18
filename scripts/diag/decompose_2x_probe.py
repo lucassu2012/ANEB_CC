@@ -280,7 +280,7 @@ def constants_verdict(d, device_src):
 
 # 收尾标签复用已有纯函数（`2e3ba583` 落地，7 条合成门）——**不重写一份**：
 # 同一形状在那里犯过两次，重写一份等于把它请回来。
-from forward_layer_probe import driver_rc, teardown_labels               # noqa: E402
+from forward_layer_probe import driver_rc, teardown               # noqa: E402
 
 
 def load():
@@ -453,6 +453,27 @@ def _open_tee():
         return None, "写不进证据目录（%r）⇒ 本轮只有控制台输出，如实记" % (e,)
 
 
+def _dump_records(tag, recs):
+    """§1.2：**每包一行印进逐字副本**，不只印汇总（终审 X13）。
+
+    🔴 **为什么汇总不够**：§4.1 的 `src` 拆支与「事后查询」都建立在每包记录上，
+    而原实现只把 `recs` 喂给 `pkt_summarize()` 后就让它留在内存里
+    ⇒ **stdout 里没有数据源** ⇒ 判据写的「按每包日志事后查询」无物可查，
+    读者也无从复核汇总数是不是从这些包算出来的。
+
+    ⚠ **此处禁止截断**：截断会静默丢掉恰恰要被查询的那几行。
+    条数多本身就是信息（正常一格 ≤ `2T`），故先印条数再印全部。
+    """
+    if not recs:
+        return
+    print("       ── %s 每包记录（%d 条，§1.2 逐行；**不截断**）──" % (tag, len(recs)))
+    for i, r in enumerate(recs):
+        print("       #%03d len=%-4d id=0x%04x ttl=%-3d src=%-15s dst=%-15s ihl=%d "
+              "type=%d icmp_id=0x%04x seq=%d"
+              % (i, r["recv_len"], r["ip_id"], r["ttl"], r["src"], r["dst"],
+                 r["ihl"], r["icmp_type"], r["icmp_id"], r["icmp_seq"]))
+
+
 def report_cell(c):
     """印一格的读数 ＋ §1.1-6 全格通则的判定。**并印前提与计数**。"""
     if c["count"] is None:
@@ -474,6 +495,8 @@ def report_cell(c):
     if c["count_b"] is not None:
         print("       句柄 b：count=%d term_err=%s 线程已退出=%s；%s"
               % (c["count_b"], c["term_err_b"], c["thread_exited_b"], c["same_window_why"]))
+    _dump_records("句柄 a", c["recs"])
+    _dump_records("句柄 b", c["recs_b"])
     return s
 
 
@@ -613,8 +636,17 @@ def preflight():
 def main():
     """12 格 ＋ 判定 ＋ 收尾。**整段 `try/except BaseException/finally`（含 Ctrl+C）。**
 
-    本轮 12 格、其中 8 格打 adb ⇒ **中止机会比上一轮翻四倍**，而上一轮已实证
-    **句柄关闭不会触发 stop** ⇒ `finally` 无条件调收尾。
+    本轮 `plan` 12 格 ＋ `A-off` 另一格；打 adb 的是 `C1/F1/F2/N1/N2` **5 格**
+    （数自 `plan`，2026-09-18）。⚠ 此处原写「8 格打 adb ⇒ 中止机会翻四倍」，
+    **那个 8 从来没对过**（拆 S3 之前也是 5），按 5 对 2 是 2.5 倍。
+    **结论不变**（`finally` 该要还是该要），**但理由是错的，而理由会被单独抄走独立生效**。
+
+    🔴 收尾必须**真的清**，不只是印标签（终审 X1）：原实现只调 `teardown_labels()` 算两句话，
+    而真正做 `sc stop`／`delete` 的 `forward_layer_probe.teardown()` **从未被调用**
+    ⇒ 提权轮跑完 WinDivert 仍留在装载态。⚠ 这在我做过的每一轮里都不可见——
+    非提权轮一个句柄都没开成 ⇒ 什么都没装 ⇒ 收尾无事可做。
+    **这个缺陷只在我还没做过的那种运行里出现。**
+    ⚠ 它违反的正是判据自己那条「**每个目标状态必须点名由谁达成，否则只是期望**」。
     """
     d = pre = None
     opened_any = False
@@ -655,12 +687,17 @@ def main():
         print("🔴 中止：%r ⇒ 未跑完的格一律 NOT_EXECUTED，不得据已跑的格外推" % (e,))
         raise
     finally:
-        if pre is not None:
-            print("-- 收尾（§6-2：只清本轮自己装的那一份）--")
+        print("-- 收尾（§6-2：只清本轮自己装的那一份）--")
+        if pre is None:
+            # `pre` 没取到 ⇒ 连「服务是不是本轮装的」都无从判 ⇒ **不动它**，但要说出来。
             rc = driver_rc()
-            state, stop_read = teardown_labels(rc, opened_any, pre)
-            print("   sc query WinDivert rc=%d ⇒ %s" % (rc, state))
-            print("   句柄关闭是否已触发 stop：%s" % stop_read)
+            print("   sc query WinDivert rc=%d；但跑格前的服务态未取到 ⇒ **无从归因，不动它**，"
+                  "如实报人处理" % rc)
+        else:
+            # 🔴 调**真的收尾**，不是只算标签（终审 X1）。`teardown` 内三道闸依次是：
+            # rc==1060 已干净 ／ `not opened_any` 不是本轮装的 ／ `pre_state != 1060` 服务先前已在
+            # ／ `BeanNetworkTester` 在跑 —— 任一命中即不停不删，只如实报。
+            teardown(opened_any, pre)
 
 
 def apply_verdicts(cells):

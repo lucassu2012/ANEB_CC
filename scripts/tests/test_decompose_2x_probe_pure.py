@@ -224,3 +224,65 @@ def test_decode_empty_is_not_an_error():
     from decompose_2x_probe import _decode
     assert _decode(b"") == ("", None)
     assert _decode(None) == ("", None)
+
+
+# ── `_dump_records` 的门（终审 X13）──────────────────────────────────────────
+def _rec(seq, src="192.168.137.129"):
+    return {"recv_len": 84, "ip_id": 0x1000 + seq, "ttl": 64, "src": src,
+            "dst": "223.5.5.5", "ihl": 20, "icmp_type": 8, "icmp_id": 0x0001,
+            "icmp_seq": seq}
+
+
+def test_dump_records_prints_one_line_per_packet_and_never_truncates():
+    """🔴 承重条：**不许截断**。
+
+    §4.1 的 `src` 拆支与「事后查询」都建立在这些行上；截断会静默丢掉恰要被查询的那几行。
+    本条钉「行数 == 记录数」,所以任何 `[:N]` 都会当场红。
+    """
+    from decompose_2x_probe import _dump_records
+    import io as _io
+    import sys as _sys
+    recs = [_rec(i) for i in range(45)]
+    buf = _io.StringIO()
+    old = _sys.stdout
+    _sys.stdout = buf
+    try:
+        _dump_records("句柄 a", recs)
+    finally:
+        _sys.stdout = old
+    lines = [l for l in buf.getvalue().splitlines() if l.strip()]
+    body = [l for l in lines if "seq=" in l]
+    assert len(body) == 45, "印了 %d 行而记录有 45 条 ⇒ 被截断了" % len(body)
+    assert "45 条" in lines[0], lines[0]
+
+
+def test_dump_records_carries_every_field_needed_by_the_src_split():
+    """每行必须带 §4.1 拆支要用的字段 —— 少一个,拆支就只能靠汇总那一行的布尔值。"""
+    from decompose_2x_probe import _dump_records
+    import io as _io
+    import sys as _sys
+    buf = _io.StringIO()
+    old = _sys.stdout
+    _sys.stdout = buf
+    try:
+        _dump_records("句柄 a", [_rec(7, src="10.10.8.9")])
+    finally:
+        _sys.stdout = old
+    line = [l for l in buf.getvalue().splitlines() if "seq=" in l][0]
+    for token in ("len=84", "id=0x1007", "ttl=64", "src=10.10.8.9",
+                  "dst=223.5.5.5", "ihl=20", "type=8", "icmp_id=0x0001", "seq=7"):
+        assert token in line, "缺字段 %s：%s" % (token, line)
+
+
+def test_dump_records_on_empty_prints_nothing():
+    from decompose_2x_probe import _dump_records
+    import io as _io
+    import sys as _sys
+    buf = _io.StringIO()
+    old = _sys.stdout
+    _sys.stdout = buf
+    try:
+        _dump_records("句柄 b", [])
+    finally:
+        _sys.stdout = old
+    assert buf.getvalue() == "", buf.getvalue()
