@@ -346,3 +346,61 @@ def test_idle_seconds_scales_with_measured_overhead():
     a, _ = derive_idle_seconds(probe_wall_s=5.0, probe_n=3, n_ping=20)
     b, _ = derive_idle_seconds(probe_wall_s=25.0, probe_n=3, n_ping=20)
     assert b - a == 20.0, (a, b)
+
+
+# ── §2-1(c)：UTF-8 模式那个世界，**同进程内跑不出来** ──────────────────────
+_CHILD = ("import sys; sys.path.insert(0, sys.argv[1]); "
+          "import decompose_2x_probe as P; "
+          "raw = bytes.fromhex(sys.argv[2]); t, note = P._decode(raw); "
+          "print(P._acp(), P._sent_count(t), sys.flags.utf8_mode)")
+
+
+def _run_child(*flags):
+    import subprocess
+    import sys as _s
+    diag = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "diag")
+    hexed = PING_ZH.encode("cp936").hex()
+    r = subprocess.run([_s.executable] + list(flags) + ["-c", _CHILD, diag, hexed],
+                       capture_output=True, encoding="utf-8", errors="replace", timeout=120)
+    assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
+    return r.stdout.split()
+
+
+def test_decode_survives_python_utf8_mode():
+    """🔴 终审 §2-1(c)：**同进程内跑不出这个世界**，必须起子进程。
+
+    `locale.getpreferredencoding(False)` 在 UTF-8 模式下返回 `'utf-8'` ⇒ 旧实现两条严格路
+    退化成同一条 ⇒ `_sent_count` 恒 `None`，而**所有 PC 打的格 `T` 由它来**。
+    ⚠ 本文件其它 `_decode` 用例**全在默认 locale 的同进程里**，一条都看不见这个世界
+    ——「我测过」在这一族上是**反向证据**：正因为它在我的环境里绿，我才停在了那里。
+    """
+    acp0, sent0, mode0 = _run_child()
+    acp1, sent1, mode1 = _run_child("-X", "utf8")
+    assert (mode0, mode1) == ("0", "1"), "子进程没进 UTF-8 模式,本条就没测到那个世界"
+    # 期望值**从夹具算出来**，不写死一个描述别处的数
+    # （本条首次跑就咬住了我写死的 3）。
+    want = str(_sent_count(PING_ZH))
+    assert want == "20", "夹具自身变了：%s" % want
+    assert sent0 == want, (acp0, sent0, want)
+    assert sent1 == want, "UTF-8 模式下取不到发包数 ⇒ 回归 A 复发：acp=%s sent=%s 期望=%s" % (acp1, sent1, want)
+
+
+def test_acp_does_not_come_from_locale():
+    """🔴 判别量：`_acp()` 在 UTF-8 模式下**仍须给出 ACP**，不得跟着解释器变。
+
+    这一条才是「把常量换成查询」那个坑的守卫——它钉的不是解码结果，是**那个查询的来源**。
+    """
+    acp0 = _run_child()[0]
+    acp1 = _run_child("-X", "utf8")[0]
+    assert acp0 == acp1, "两种模式下 _acp() 不一致（%s vs %s）⇒ 它又取自 locale 了" % (acp0, acp1)
+    assert "utf" not in acp1.lower(), acp1
+    # 反向对照:locale 那条路在两模式下**确实**不一致 —— 证明本门钉的是真差异
+    import subprocess
+    import sys as _s
+    out = []
+    for flags in ([], ["-X", "utf8"]):
+        r = subprocess.run([_s.executable] + flags +
+                           ["-c", "import locale; print(locale.getpreferredencoding(False))"],
+                           capture_output=True, encoding="utf-8", errors="replace", timeout=60)
+        out.append(r.stdout.strip())
+    assert out[0] != out[1], "locale 在两模式下一致 ⇒ 本机复现不出该坑,本门无区分力：%s" % (out,)

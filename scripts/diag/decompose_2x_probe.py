@@ -113,6 +113,33 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def _acp():
+    """→ 本机 ANSI 代码页名（如 `"cp936"`），**取自 OS 而不是 Python 的 locale**。
+
+    🔴 **`locale.getpreferredencoding(False)` 在 Python UTF-8 模式下返回 `'utf-8'`**
+    （本机实测：默认 `'cp936'`、`python -X utf8` `'utf-8'`）⇒ 拿它当「ACP 严格解码」那一路，
+    会与 utf-8 那一路**退化成同一条**，HIGH #1 原样复发；`or "cp936"` 救不了（`'utf-8'` 是真值）。
+    实测同一批 cp936 字节：默认模式 `sent=3`、`-X utf8` 下 `sent=None`。
+
+    ⚠ **形状（终审 §2-1）：把写死的常量换成一个查询，而那个查询会返回我正要避开的那个常量。**
+    它在我跑的环境里确实自适应，**所以测出来是绿的**——只在我没跑过的那个环境里失效。
+    ⇒ 追问句：**那个查询在什么环境下会返回我正要避开的那个值？**
+    ⚠ 判别量 `sys.flags.utf8_mode` 一直就在手边，上一版一次都没读。
+
+    `GetACP()` 是 **OS 的**代码页：实测 `-X utf8` 下仍返回 936，不随解释器模式变。
+    """
+    try:
+        cp = int(ctypes.windll.kernel32.GetACP())
+    except Exception as e:
+        raise SystemExit("NOT_EXECUTED：取不到 GetACP（%r）⇒ 无从确定回退编码，拒跑。"
+                         "**不退回 locale**——那正是本条要绕开的东西" % (e,))
+    name = "cp%d" % cp
+    if "utf" in name.lower():
+        raise SystemExit("NOT_EXECUTED：GetACP 给出 %r（含 'utf'）⇒ 两条严格解码路会退化成"
+                         "同一条，本轮读数不可信，拒跑" % name)
+    return name
+
+
 def _decode(raw):
     """→ `(text, 说明)`。**先严格、后回退，并把走了哪条路说出来。**
 
@@ -133,7 +160,7 @@ def _decode(raw):
     """
     if not raw:
         return ("", None)
-    acp = locale.getpreferredencoding(False) or "cp936"
+    acp = _acp()          # **不用 locale**：它在 UTF-8 模式下返回 'utf-8'（终审 §2-1）
     try:
         return (raw.decode("utf-8"), None)
     except (UnicodeDecodeError, LookupError):
@@ -642,7 +669,38 @@ def hotspot_readings(up_addr, up_ifidx):
 
 def preflight():
     print("2× 分解探针 —— 12 格，只数不改（SNIFF|RECV_ONLY），零参数")
+    # 🔴 **自我标识排在一切门之前**：它零成本，而且是这份证据**能否被归属到字节**的根据。
+    # ⚠ 我初版把两道零秒门插在了它之前 ⇒ 提权门一拒跑，那份 stdout 就**说不出跑的是哪些字节**，直接违反 §1.5。
     dirty = print_self_id()
+
+    # 🔴 **两道零秒门，排在一切之前**（终审 §2-10 与 §2-1(b)）。
+    # 两条失败都会让整轮**无声报废**，而且都已经发生过：
+    #   未提权 ⇒ 12 格全 err=5（stdout_20260918-194103.txt 里 12 次，判定块只剩一行）；
+    #   量法在本解释器上不工作 ⇒ 所有 PC 打的格 T=None ⇒ 判定块早退。
+    # 两者加起来把「白烧六分钟」压成「立即拒跑」。
+    try:
+        _admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception as e:
+        _admin = None
+        print("   ⚠ 提权检查本身失败（%r）" % (e,))
+    print("-- 提权门：IsUserAnAdmin() = %s --" % (_admin,))
+    if _admin is not True:
+        raise SystemExit(
+            "NOT_EXECUTED：未提权（IsUserAnAdmin=%s）⇒ 12 格必然全 err=5。\n"
+            "  这不是预防性拒跑：stdout_20260918-194103.txt 已经是这么死的一次。" % (_admin,))
+
+    # 量法自证：本解释器上 ping.exe 的摘要行解不出来就立即拒跑。
+    # ⚠ 它只看「已发送」，所以 loopback 的 ICMP 被挡也不影响它（本机实测 1 发 0 收，照样取到 1）。
+    _, _sp_out, _ = run(["ping.exe", "-n", "1", "127.0.0.1"], timeout=30)
+    _sp = _sent_count(_sp_out)
+    print("-- 量法自证：ping.exe -n 1 127.0.0.1 ⇒ 取到「已发送」= %s（ACP=%s，utf8_mode=%s）--"
+          % (_sp, _acp(), sys.flags.utf8_mode))
+    if _sp != 1:
+        raise SystemExit(
+            "NOT_EXECUTED：_sent_count 在本解释器上取不到发包数（得 %s，期望 1）\n"
+            "  ⇒ 所有 PC 打的格 T=None ⇒ 判定块会早退，整窗白烧。\n"
+            "  最可能的成因：解释器处于 UTF-8 模式（utf8_mode=%s）或 ACP 与实际输出不符（ACP=%s）。" % (_sp, sys.flags.utf8_mode, _acp()))
+
     print("主 filter = %s   每格 %d 个 ICMP" % (FILTER_BASE, N_PING))
 
     # 🔴 **第一道门，排在一切之前**：同协议同路径的往返（见 `judge_first_hop` 的来历）。
