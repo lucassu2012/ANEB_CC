@@ -408,6 +408,52 @@ def compile_selfproof(d, filt, layer, expect=True):
     return ok == expect
 
 
+BUCKETS = ("icmp_unparsed", "non_icmp", "unclassifiable")
+
+
+def classify_unparsed(raw, n):
+    """一个**未能 full parse** 的包落哪一桶 → `BUCKETS` 之一。**兜底是 `unclassifiable`。**
+
+    🔴 为什么要分桶（终审 V4 §2-5）：原实现把所有 parse 失败的包一律丢进 `unparsed`，
+    而 `count = len(recs)` ⇒ **`count` 用「解析成功」定义了「匹配」**。A2 的 filter 特意去掉了
+    `and icmp`，它存在的全部意义就是**把背景非 ICMP 数进来**——而计数器恰好把它们排除了
+    ⇒ `A2 ≈ A1` ⇒ 判据 §4.1 第 5 行 `NO_2X_BACKGROUND` **结构上够不到**，落进孪生行
+    「原 A=40 连原 filter 都不复现」，一个自信的错结论。
+
+    ⚠ `pkt_identity.parse` 的五条拒收里**只有最后一条是「是不是 ICMP」**，前四条是
+    「解析得动不动」⇒ 判「是不是 ICMP」只需两次读：`b[0]>>4 == 4` 且 `b[9] == 1`，
+    **严格弱于 full parse**。
+    ⚠ **兜底定义**（大脑复核时指出）：原先写成「IPv4 且 b[9]!=1」与「短到读不到 b[9]」两桶，
+    漏了「长度够但不是 IPv4」那一格 ⇒ 改成凡不落前两桶者一律 `unclassifiable`。
+    """
+    b = bytes(raw[:n]) if (raw is not None and n) else b""
+    if len(b) >= 10 and (b[0] >> 4) == 4:
+        return "icmp_unparsed" if b[9] == 1 else "non_icmp"
+    return "unclassifiable"
+
+
+def bucket_counts(n_parsed, classes):
+    """→ dict：四桶计数 ＋ `count_all`（**该格 filter 的匹配总数**）＋ `icmp_all`。
+
+    两道自检各防一件事：
+    - **未知桶名直接抛**：防分类器日后多出一个没人数的类——**分区完备性由断言保证，
+      而不是由分类规则的正确性保证**（写漏一个分支时这里会炸，而不是静默少一个包）；
+    - **和式核对**：`count_all == n_parsed + len(classes)`，防日后重构让某一类不再进任何计数。
+    """
+    c = dict((k, 0) for k in BUCKETS)
+    for k in classes:
+        if k not in c:
+            raise ValueError("未知桶 %r —— 分类器写漏了分支，该包不会进任何计数" % (k,))
+        c[k] += 1
+    c["parsed"] = int(n_parsed)
+    c["count_all"] = c["parsed"] + sum(c[k] for k in BUCKETS)
+    if c["count_all"] != c["parsed"] + len(classes):
+        raise AssertionError("四桶之和 %d != 收到的总条数 %d"
+                             % (c["count_all"], c["parsed"] + len(classes)))
+    c["icmp_all"] = c["parsed"] + c["icmp_unparsed"]
+    return c
+
+
 def _reader(d, h, recs, unparsed, errbox):
     """读线程：每包按 §1.2 取八字段。错误码**同线程立刻取**（§1.1-2）。"""
     pkt = ctypes.create_string_buffer(0xFFFF)
@@ -416,7 +462,7 @@ def _reader(d, h, recs, unparsed, errbox):
     while d.WinDivertRecv(h, pkt, 0xFFFF, ctypes.byref(rlen), addr):
         r = pkt_parse(pkt.raw, rlen.value)
         if r is None:
-            unparsed.append(rlen.value)
+            unparsed.append((rlen.value, classify_unparsed(pkt.raw, rlen.value)))
         else:
             recs.append(r)
     errbox.append(ctypes.get_last_error())
@@ -425,7 +471,8 @@ def _reader(d, h, recs, unparsed, errbox):
 def _blank_cell(label, layer, filt, filt_b):
     return {"label": label, "layer": layer, "filter": filt, "filter_b": filt_b,
             "count": None, "count_b": None, "recs": [], "recs_b": [],
-            "unparsed": [], "unparsed_b": [], "term_err": None, "term_err_b": None,
+            "unparsed": [], "unparsed_b": [], "buckets": None, "buckets_b": None,
+            "term_err": None, "term_err_b": None,
             "shutting_down": False, "thread_exited": None, "thread_exited_b": None,
             "t": {}, "window_s": None, "same_window": None, "same_window_why": None,
             "T": None}
@@ -498,9 +545,11 @@ def cell(d, label, layer, filt, traffic, filt_b=None, opened=None):
                 print("  [%s] ⚠ 读线程 b 未退出 ⇒ 不 Close" % label)
             out["t"]["close_b"] = time.time()
     out["count"] = len(out["recs"])
+    out["buckets"] = bucket_counts(out["count"], [k for _, k in out["unparsed"]])
     out["term_err"] = ea[0] if ea else None
     if hb is not None:
         out["count_b"] = len(out["recs_b"])
+        out["buckets_b"] = bucket_counts(out["count_b"], [k for _, k in out["unparsed_b"]])
         out["term_err_b"] = eb[0] if eb else None
         out["same_window"], out["same_window_why"] = same_window(
             out["t"]["open_a"], out["t"]["open_b"], out["t"]["traffic_start"],
@@ -579,9 +628,12 @@ def report_cell(c):
     print("  [%s] count=%d shutting_down=%s term_err=%s 线程已退出=%s 未解析=%d 窗长=%.1fs"
           % (c["label"], c["count"], c["shutting_down"], c["term_err"],
              c["thread_exited"], len(c["unparsed"]), c["window_s"] or 0.0))
+    bk = c.get("buckets")
+    if bk is not None:
+        print("       匹配总数=%d（ICMP 解出 %d ＋ ICMP 解不动 %d ＋ 非 ICMP %d ＋ 无法分类 %d）" % (bk["count_all"], bk["parsed"], bk["icmp_unparsed"], bk["non_icmp"], bk["unclassifiable"]))
     if c["unparsed"]:
         print("       ⚠ 未解析 %d 条（长度 %s）—— **不静默丢**：它们不进身份统计，"
-              "但可能与被统计的那些同源" % (len(c["unparsed"]), c["unparsed"][:8]))
+              "但已按桶计入匹配总数" % (len(c["unparsed"]), [n for n, _ in c["unparsed"][:8]]))
     if s is not None:
         print("       去重=%d 重数分布=%s distinct_seq=%d seq=[%s..%s] src 组内一致=%s"
               % (s["n_distinct_keys"], s["multiplicity_hist"], s["distinct_seq"],
@@ -859,11 +911,20 @@ def apply_verdicts(cells):
         print("  §4.1 A1：读数或 T 取不到 ⇒ 全部不可判（T 取实测发包数，不退回名义值）")
         return out
     T = a1["T"]
-    a2c = a2["count"] if (a2 and a2.get("count") is not None) else None
+    # 🔴 A2 喂**匹配总数**，不喂 `count`（终审 V4 §2-5）。`count` 只含解析成功的 ICMP，
+    # 而 A2 的 filter 特意去掉了 `and icmp`，它的全部意义就是把背景非 ICMP 数进来
+    # ⇒ 用 `count` 时 A2 ≈ A1，§4.1 第 5 行 NO_2X_BACKGROUND **结构上够不到**，
+    # 落进孪生行「原 A=40 连原 filter 都不复现」——一个自信的错结论。
+    a2bk = a2.get("buckets") if a2 else None
+    a2c = a2bk["count_all"] if a2bk is not None else None
     code, why = verdict_identity(T, a1["summary"]["n_distinct_keys"],
                                  a1["summary"]["multiplicity_hist"], a2c)
     out["identity"] = code
-    print("  §4.1 身份（T=%s，A2 计数=%s）⇒ %s：%s" % (T, a2c, code, why))
+    print("  §4.1 身份（T=%s，A2 匹配总数=%s ＝ ICMP %s ＋ 非 ICMP %s ＋ 其余 %s）⇒ %s：%s"
+          % (T, a2c,
+             a2bk["icmp_all"] if a2bk else None,
+             a2bk["non_icmp"] if a2bk else None,
+             a2bk["unclassifiable"] if a2bk else None, code, why))
     # 🔴 **FORWARD 层的判词只许用 FORWARD 层自己的前提**（终审 HIGH #2，D-885 禁止跨层外推）。
     # 原先 `cc` 算完只印不用，而 §4.2／§4.3／§4.5 一律拿 A1（NETWORK／PC 侧）的 `T` 与 `code`
     # ⇒ 实调：同一组读数 `code='TWICE'` → `H2_HOLDS`，换 `'DIFFERENT'` → `UNDECIDABLE_IDENTITY`，

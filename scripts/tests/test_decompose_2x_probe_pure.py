@@ -479,3 +479,104 @@ def test_a_off_stage_refuses_loudly_so_naive_wiring_cannot_rebuild_regression_b(
     step1 = msg[msg.index("(1)"):msg.index("(2)")]
     for need in ("teardown", "finally"):
         assert need in step1, "步骤 (1) 里缺「%s」⇒ 接线的人不知道先做什么：%s" % (need, step1)
+
+
+# ── 批三：§2-5 A2 计数只数 ICMP（四桶分类 ＋ 完备性）──────────────────────────
+import struct as _struct
+
+
+def _ip(proto, total, ident, payload=b""):
+    """最小 IPv4 头（IHL=5）＋载荷；校验和留 0（解析器不校验）。"""
+    hdr = _struct.pack("!BBHHHBBH", 0x45, 0, total, ident, 0, 64, proto, 0)
+    hdr += bytes([192, 168, 137, 129]) + bytes([223, 5, 5, 5])
+    body = payload.ljust(total - 20, b"\x00")[:total - 20]
+    return hdr + body
+
+
+def _icmp(seq):
+    icmp = _struct.pack("!BBHHH", 8, 0, 0, 1, seq) + bytes(32)
+    return _ip(1, 60, 0x1000 + seq, icmp)
+
+
+def _tcp(i):
+    return _ip(6, 40, 0x2000 + i)
+
+
+def _through_reader(pkts):
+    """走与 _reader 相同的那条路：parse 成功进 recs，否则按 classify_unparsed 入桶。"""
+    from decompose_2x_probe import classify_unparsed, pkt_parse, bucket_counts
+    recs, classes = [], []
+    for p in pkts:
+        r = pkt_parse(p, len(p))
+        if r is None:
+            classes.append(classify_unparsed(p, len(p)))
+        else:
+            recs.append(r)
+    return recs, bucket_counts(len(recs), classes)
+
+
+def test_a2_background_world_reaches_no_2x_background():
+    """🔴 承重条：「20 个 ICMP ＋ 20 个背景 TCP」——MECHANISM_SWEEP 实测过的那个世界。
+
+    新口径（匹配总数 40）必须到 `NO_2X_BACKGROUND`；旧口径（只数解析成功的 ICMP，20）
+    必须落进 `NO_2X_NOT_REPRODUCED` —— 后一条证明本门**有区分力**：它钉的正是那次回归。
+    """
+    from decompose_2x_verdicts import verdict_identity
+    pkts = [_icmp(s) for s in range(1, 21)] + [_tcp(i) for i in range(20)]
+    recs, bk = _through_reader(pkts)
+    assert bk["parsed"] == 20 and bk["non_icmp"] == 20, bk
+    assert bk["count_all"] == 40 and bk["icmp_all"] == 20, bk
+    a1_hist = {1: 20}                         # A1：20 个键各一次
+    new = verdict_identity(20, 20, a1_hist, bk["count_all"])[0]
+    old = verdict_identity(20, 20, a1_hist, bk["parsed"])[0]
+    assert new == "NO_2X_BACKGROUND", new
+    assert old == "NO_2X_NOT_REPRODUCED", "旧口径居然也到了 BACKGROUND ⇒ 本门无区分力：%s" % old
+
+
+def test_classify_unparsed_covers_the_gap_the_brain_found():
+    """四桶的兜底：「长度够但不是 IPv4」必须落 unclassifiable（原两桶定义漏了这一格）。"""
+    from decompose_2x_probe import classify_unparsed
+    trunc_icmp = _icmp(1)[:24]                # IPv4、proto=1、但 ICMP 头不全
+    assert classify_unparsed(trunc_icmp, len(trunc_icmp)) == "icmp_unparsed"
+    assert classify_unparsed(_tcp(0), 40) == "non_icmp"
+    v6 = bytes([0x60]) + bytes(39)            # 长度够、version=6
+    assert classify_unparsed(v6, len(v6)) == "unclassifiable"
+    assert classify_unparsed(b"\x45\x00", 2) == "unclassifiable"
+    assert classify_unparsed(None, 0) == "unclassifiable"
+
+
+def test_bucket_counts_refuses_an_unknown_bucket():
+    """分区完备性由断言保证：分类器日后多出一个没人数的类 ⇒ 必须炸，不得静默少一个包。"""
+    from decompose_2x_probe import bucket_counts
+    ok = bucket_counts(3, ["non_icmp", "icmp_unparsed", "unclassifiable"])
+    assert ok["count_all"] == 6 and ok["icmp_all"] == 4, ok
+    raised = False
+    try:
+        bucket_counts(1, ["non_icmp", "ipv6_new_class"])
+    except ValueError:
+        raised = True
+    assert raised, "未知桶名被静默吞掉 ⇒ 那一类包不会进任何计数"
+
+
+def test_apply_verdicts_actually_feeds_a2_the_matched_total():
+    """🔴 上一条直接喂 verdict_identity，**证明不了 apply_verdicts 真的在喂匹配总数**
+    ——而 §2-5 的回归恰恰出在 apply_verdicts 里（喂的是只含 ICMP 的 count）。
+    本条走 apply_verdicts 本身：A1 = 20 个键各一次，A2 = 20 ICMP ＋ 20 背景。
+    """
+    import io as _io
+    from decompose_2x_probe import apply_verdicts
+    pkts = [_icmp(s) for s in range(1, 21)] + [_tcp(i) for i in range(20)]
+    _, bk = _through_reader(pkts)
+    a1 = {"summary": {"n_distinct_keys": 20, "multiplicity_hist": {1: 20},
+                      "src_same_within_key": True},
+          "T": 20, "count": 20, "count_b": None, "window_s": 30.0}
+    a2 = {"buckets": bk, "count": bk["parsed"], "count_b": None}
+    buf = _io.StringIO()
+    old = sys.stdout
+    sys.stdout = buf
+    try:
+        out = apply_verdicts({"A1": a1, "A2": a2})
+    finally:
+        sys.stdout = old
+    assert out.get("identity") == "NO_2X_BACKGROUND", (
+        "apply_verdicts 判成 %r ⇒ 它喂给 A2 的不是匹配总数\n%s" % (out.get("identity"), buf.getvalue()))
