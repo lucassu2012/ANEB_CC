@@ -87,15 +87,28 @@ adb shell pm list packages | grep -i gnirehtet            # 正面判据:须命�
 
 ---
 
-## 3. 步 3：出口判据 —— `ip route get 120.79.148.0`
+## 3. 步 3：出口判据 —— `ip route get $DST`
 
 **这是段 C 的核心判据：证明设备流量真的改走了 USB 反向 tether，而不是「装了但没生效」。**
 
+**`$DST` 的定义（全链只在这里定义一次，别处一律指向本节）**：
+**本次整形档位所针对的那个目的 IP**——从本次档位定义本身取
+（`scripts/shaper/shaper.ps1` 档位表里该档的 `--dst-ip`，或 clumsy 过滤器 `current.args` 里的 `ip.DstAddr`），
+**不得在本文件或任何卡上另抄一个 IP**。
+若本次档位**不针对单一目的 IP**（例如过滤器是 `outbound and !loopback`），
+则 `$DST` 取任一稳定可达的外部 IP，**并把取的是哪个写进段 C 实录**。
+
+⚠ **为什么这样定义**：出口判据本身只要求 `$DST` 在设备默认路由之外——任何外部 IP 都满足；
+但《第一小时执行序》**G3** 要在出口变 `tun` 之后起一档延迟、**对同一目标**测 RTT 抬升，
+那一步**必须**与档位针对同一个 IP——否则过滤器不命中、RTT 不抬，会被误判成「整形没命中 tun」。
+⇒ **两步共用一个目标是 G3 的需要；从档位定义里取而不另抄，是为了档位一变它跟着变。**
+
 ```bash
+# 3.0 先取 $DST:从本次档位定义里读,不手填
 # 3.1 起 gnirehtet 之前
-adb shell ip route get 120.79.148.0        # 期望 dev wlan0 或 rmnet0
+adb shell ip route get $DST        # 期望 dev wlan0 或 rmnet0
 # 3.2 起 gnirehtet 并授权之后
-adb shell ip route get 120.79.148.0        # 期望 dev tun0(或 gnirehtet 的 tun 名)
+adb shell ip route get $DST        # 期望 dev tun0(或 gnirehtet 的 tun 名)
 ```
 
 | 观察 | 判定 |
@@ -109,8 +122,13 @@ adb shell ip route get 120.79.148.0        # 期望 dev tun0(或 gnirehtet 的 t
 **过滤器写错时 clumsy 安静地什么都不做，「没报错」不算过**。
 gnirehtet 同理：**进程活着 ≠ 流量改道**。
 
-⚠ **`120.79.148.0` 是 E-01 公网 IP**，选它是因为它**在设备默认路由之外**、
-且段 B 已用它做过 PC 侧基线 ⇒ **两段用同一个目标，出口差异才可比**。
+⚠ **订正（2026-09-26）：本节初版把目标写死成 E-01 的点分公网 IP**，理由是
+「在设备默认路由之外、且段 B 已用它做过 PC 侧基线 ⇒ 两段用同一个目标，出口差异才可比」。
+**E-01 迁址（PO 09-25 交来的服务器切换说明）暴露了这是一个派生量被写成了独立常量**：
+段 B 其实有**两个**目标——延迟／丢包档的 `$TARGET` 与限速档 `cap_up_1mbit_e01` 各打一个，
+**只有限速档依赖 E-01**；初版那句「段 B 已用它做过基线」对的是**限速档**那条线，
+**而段 C 与限速档并不在同一次跑里**。
+⇒ 改为从本次档位定义取（见上方 `$DST` 定义）。**毛病不是那个 IP 过期，是它根本不该由本文件写。**
 
 ---
 
@@ -124,7 +142,7 @@ adb reverse --remove-all
 # 4.3 复验:tun 无残留
 adb shell ip link | grep -E "tun|ppp"                # 正面判据:须为空
 # 4.4 复验:出口回到原路
-adb shell ip route get 120.79.148.0                  # 须回 wlan0/rmnet0
+adb shell ip route get $DST                          # 须回 wlan0/rmnet0($DST 同 §3)
 # 4.5 复验:PC 侧驱动已停
 #     sc query WinDivert                             # 须 STOPPED 或查无此服务
 # 4.6 回桌面并复核
