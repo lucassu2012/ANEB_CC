@@ -431,12 +431,18 @@ def _blank_cell(label, layer, filt, filt_b):
             "T": None}
 
 
-def cell(d, label, layer, filt, traffic, filt_b=None):
+def cell(d, label, layer, filt, traffic, filt_b=None, opened=None):
     """一格。`filt_b` 非空 ⇒ **同窗两句柄**（§4.3 的分母／分子）。
 
     `try/finally` 保 `Shutdown`；**`Close` 仅当 `is_alive()` 为假**
     （§1.1-5 与 §6-1 的联立：v2 原写「finally 无条件 Shutdown+Close」与那条打架，
     而 995／6 恰是「读线程还阻塞时句柄被关」的产物）。
+
+    🔴 `opened`（可变 dict）**在句柄 a 开成的那一刻**置 `opened["any"] = True`（终审 V4 §3-4）。
+    原实现由调用方在 `cell()` **返回之后**才记 ⇒ 驱动在 `WinDivertOpen` 成功那一刻就已装上，
+    而中间隔着 `traffic()` 与宽限——那段里 Ctrl+C 或任何异常都会跳过那次赋值
+    ⇒ 收尾拿到 `False` ⇒ 印「**这不是本脚本装的**，不动它」
+    ⇒ **驱动留在机器上，而证据里写着本轮没装过它**；下一轮 `pre_state` 读到 0，也不敢碰。
     """
     out = _blank_cell(label, layer, filt, filt_b)
     ha = d.WinDivertOpen(filt.encode(), layer, 0, FLAG_SNIFF | FLAG_RECV_ONLY)
@@ -447,6 +453,8 @@ def cell(d, label, layer, filt, traffic, filt_b=None):
                 577: "驱动签名被拒"}.get(e, "")
         print("  [%s] 打开句柄 a 失败 err=%d %s" % (label, e, hint))
         return out
+    if opened is not None:
+        opened["any"] = True          # 驱动此刻已装——记账不能等 cell() 返回（§3-4）
     hb = None
     if filt_b:
         hb = d.WinDivertOpen(filt_b.encode(), layer, 0, FLAG_SNIFF | FLAG_RECV_ONLY)
@@ -788,7 +796,8 @@ def main():
     ⚠ 它违反的正是判据自己那条「**每个目标状态必须点名由谁达成，否则只是期望**」。
     """
     d = pre = None
-    opened_any = False
+    # 可变 dict：由 cell() 在句柄开成那一刻写入，**异常中途退出也保得住**（§3-4）。
+    opened = {"any": False}
     try:
         (d, k, dsrc, pre, dirty, fb, f_up, f_hot, f_src, f_nsrc, f_imp, f_noicmp,
          f_taut, idle_s) = preflight()
@@ -810,8 +819,7 @@ def main():
         for label, layer, filt, traf, filt_b in plan:
             print("-- %s（layer=%d filter=%s%s）--"
                   % (label, layer, filt, "  ＋第二句柄 " + filt_b if filt_b else ""))
-            c = cell(d, label, layer, filt, traf, filt_b)
-            opened_any = opened_any or (c["count"] is not None)
+            c = cell(d, label, layer, filt, traf, filt_b, opened=opened)
             c["summary"] = report_cell(c)
             cells[label.split()[0]] = c
             if layer == LAYER_NETWORK_FORWARD:
@@ -821,7 +829,7 @@ def main():
                 if not ok2 or k2.get("hot_ifidx") != k.get("hot_ifidx"):
                     print("   🔴 §2-6 前后不一致 ⇒ 该格 VOID")
                     c["void_constants"] = True
-        return cells, pre, opened_any
+        return cells, pre, opened["any"]
     except BaseException as e:
         print("🔴 中止：%r ⇒ 未跑完的格一律 NOT_EXECUTED，不得据已跑的格外推" % (e,))
         raise
@@ -836,7 +844,7 @@ def main():
             # 🔴 调**真的收尾**，不是只算标签（终审 X1）。`teardown` 内三道闸依次是：
             # rc==1060 已干净 ／ `not opened_any` 不是本轮装的 ／ `pre_state != 1060` 服务先前已在
             # ／ `BeanNetworkTester` 在跑 —— 任一命中即不停不删，只如实报。
-            teardown(opened_any, pre)
+            teardown(opened["any"], pre)
 
 
 def apply_verdicts(cells):
@@ -924,14 +932,32 @@ def apply_verdicts(cells):
     return out
 
 
+A_OFF_NOT_THIS_ROUND = (
+    "a_off_stage() 本轮不执行（终审 V4 §2-7，大脑裁定选 (b)，D-915）。\n"
+    "  🔴 不要把它直接接进 __main__——那会原样重建回归 B：teardown 在 main() 的 finally 里，\n"
+    "     到这里时驱动已 sc stop、句柄已关、pre_state 已随进程作废，而重开进程又必撞\n"
+    "     第一跳门与 ON_HOTSPOT 那道 SystemExit（热点一关必中）。\n"
+    "  接线前须先做三件事：(1) 把 teardown 挪出 main() 的 finally，挪到 A-off 之后；\n"
+    "  (2) 让驱动句柄 d 与 §2 常量活过 apply_verdicts；(3) 格前格后各印 hotspot_readings 与\n"
+    "  device_egress，并按 §3-14 焊进关热点之后的恢复段（第四行必须是往返）。\n"
+    "  做完这三件、且根命题（§4.1 身份）的拦窗项已清，再删掉本守卫。")
+
+
 def a_off_stage(d, cells, identity_code, up_addr, up_ifidx, fb):
     """§5 那个干预。**两道闸，任一不过即不跑**——不跑不是失败，是省掉 PO 一次动手。
 
     闸一（§5 抬头 ／ §4.4 前提）：`A1` 判 `TWICE`。否则 2× 本就不存在，无物可归因。
     闸二（§5-1..4）：`HOTSPOT_OFF == TRUE`。`FALSE` ⇒ 该格 `NOT_EXECUTED`（需 PO 再动手）；
     `NOT_EXECUTED` ⇒ 量法没活，**两者处置不同，不得并成一句**。
+
+    🔴 **本轮不执行，入口即抛**（终审 V4 §2-7：选 (b)，D-915）。设计原样保留，但**不许被
+    天真地接上**：一个完整却无调用的函数是一个邀请（本树「死代码是一个邀请」），后人最自然
+    的动作是把它接进 `__main__`，而那恰好重建回归 B。⇒ 让「天真接线」**第一次调用就响亮失败**，
+    而不是静默重建那个回归。选 (a) 的条件与步骤见 `A_OFF_NOT_THIS_ROUND`。
+    ⚠ 用 `RuntimeError` 而非 `SystemExit`：这是**接线契约**被违反，不是环境拒跑。
     """
-    print("-- §5 那个干预（A-off）：先判两道闸 --")
+    raise RuntimeError(A_OFF_NOT_THIS_ROUND)
+    print("-- §5 那个干预（A-off）：先判两道闸 --")   # 以下保留为设计；接线前不可达
     if identity_code != "TWICE":
         print("   闸一不过：§4.1 判 %s 而非 TWICE ⇒ **本格不必跑**，H4 本轮不可判。"
               "PO 不必关热点，也不必承担「关了之后 FORWARD 格不得再跑」那条硬顺序"
@@ -963,8 +989,11 @@ if __name__ == "__main__":
         _cells, _pre, _opened = main()
         _v = apply_verdicts(_cells)
         print("⚠ 本探针只判**构成**，不判可整形性：可见 != 可整（整还要能改包并重注入）。")
-        print("⚠ §5 的 A-off 未在本入口自动跑 —— 它要 PO 亲手关热点，且必须排在所有 "
-              "FORWARD 格之后。跑法：拿本轮 §4.1 的判词调 a_off_stage()。")
+        # 🔴 原句「跑法：拿本轮 §4.1 的判词调 a_off_stage()」**点名了一个调不出来的函数**
+        # （终审 V4 §2-7）——一条不可执行的指令比没有指令更贵。改成如实说明。
+        print("⚠ §5 的 A-off **本轮不执行**（终审 V4 §2-7，选 (b)，D-915）⇒ **H4 本轮不判**。\n"
+              "  这不是永久放弃 H4：选项 (a)（同一进程内、驱动仍在时阻塞等 PO 关热点）保留为\n"
+              "  **根命题（§4.1 身份）拦窗项清掉之后**的后续选项；届时要连同 PO 单子改动一起给 PO 看。")
     finally:
         if _tee is not None:
             print("⇒ 请把上面那个 stdout 副本文件交出去（它是逐字的）；"

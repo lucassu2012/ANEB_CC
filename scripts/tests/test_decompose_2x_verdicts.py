@@ -346,7 +346,9 @@ def test_s3_tolerates_the_skew_it_declares():
 def test_s3_tol_and_skew_drive_different_branches():
     """🔴 `TOL` 与 `SKEW` **今天值相同（都是 2）**,所以「混用」在数值上完全测不出来。
 
-    判据 §1.6 明写两者**来历不同、不得混用同一个理由**。本条用 monkeypatch 证明
+    判据 §1.6 明写两者**来历不同、不得混用同一个理由**。本条用**手工打补丁**
+    （直接改模块属性、`finally` 还原；**不是** pytest 的 `monkeypatch` 夹具——本文件也被
+    不注入夹具的全域门 `run_all.py` 直接调用，用夹具会 TypeError）证明
     **各自驱动各自那条分支**:改 SKEW 只动偏移支,改 TOL 只动活性/配对支。
     ⚠ 没有这一条,把 `SKEW` 换成 `TOL` 的实现会全绿,而下一次有人改 TOL 时 S3 会静默跟着变。
     """

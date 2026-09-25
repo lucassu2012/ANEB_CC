@@ -94,3 +94,59 @@ def test_every_world_is_reported_rather_than_silently_dropped():
         state, stop = teardown_labels(*w)
         assert isinstance(state, str) and state.strip(), w
         assert isinstance(stop, str) and stop.strip(), w
+
+
+# ── teardown() 本身的门（终审 V4 §3-3）─────────────────────────────────────
+# 此前只有 teardown_labels（纯函数）有门，teardown()（IO）一条都没有
+# ⇒ 「成功跑也印一行 §5 FAIL」这个缺陷一直无门可红。
+def _run_teardown(rc_seq):
+    """手工存还而**不用 pytest 的 `monkeypatch` 夹具**。
+
+    ⚠ 本文件有**两只跑器**：pytest 与全域门 `run_all.py`。后者直接调测试函数、不注入夹具
+    ⇒ 首版用 `monkeypatch` 夹具的两条门在 pytest 下绿、在全域门下 `TypeError`
+    （本树记过「谁在跑这个检查——同一测试两只跑器」，我写门时没想到）。
+    """
+    import io as _io
+    import forward_layer_probe as F
+    seq = iter(rc_seq)
+
+    class _R(object):
+        def __init__(self, rc=0, out=""):
+            self.returncode, self.stdout = rc, out
+
+    saved_rc, saved_run = F.driver_rc, F.subprocess.run
+    F.driver_rc = lambda: next(seq)
+    F.subprocess.run = lambda args, **kw: _R(0, "")
+    buf = _io.StringIO()
+    old = sys.stdout
+    sys.stdout = buf
+    try:
+        F.teardown(True, 1060)
+    finally:
+        sys.stdout = old
+        F.driver_rc, F.subprocess.run = saved_rc, saved_run
+    assert F.driver_rc is saved_rc and F.subprocess.run is saved_run, "还原失败"
+    return buf.getvalue()
+
+
+def test_teardown_success_prints_no_premature_section5_fail():
+    """🔴 承重条：成功的提权跑，收尾前那一刻必然 rc==0（服务在跑），
+    原实现立刻印「判据 §5 FAIL：驱动未卸」——**随后**清理成功。
+    driver_rc 序列：收尾前 0 → stop 后 1060（自删生效）→ 复核 1060。
+    """
+    out = _run_teardown([0, 1060, 1060])
+    assert "\u00a75 FAIL" not in out, "成功跑的证据里出现了 §5 FAIL：\n%s" % out
+    assert "\u00a75 \u8fbe\u6210" in out, "成功跑没有给出终局达成：\n%s" % out
+
+
+def test_teardown_failure_says_fail_only_on_the_final_line():
+    """反向对照：清理真失败时 §5 FAIL **必须出现**，且只出现在终局那一行，
+    不得出现在「收尾前」快照那一行。driver_rc 序列：0 → 0（stop 无效）→ 0（delete 后仍在）。
+    """
+    out = _run_teardown([0, 0, 0])
+    lines = out.splitlines()
+    pre = [l for l in lines if "\u6536\u5c3e\u524d" in l]
+    fin = [l for l in lines if "\u6536\u5c3e\u7ec8\u5c40" in l]
+    assert len(pre) == 1 and len(fin) == 1, "收尾前／终局各须恰好一行：\n%s" % out
+    assert "\u00a75 FAIL" not in pre[0], "快照那一行印成了终局断言：%s" % pre[0]
+    assert "\u00a75 FAIL" in fin[0], "真失败而终局没说 FAIL：%s" % fin[0]

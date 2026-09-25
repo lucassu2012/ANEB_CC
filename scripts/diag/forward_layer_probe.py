@@ -268,15 +268,32 @@ def teardown(opened_any, pre_state=None):
 
     另：WinDivert「最后一个句柄关掉即自停自删」**本机实测不成立**（至少那一次没发生），
     故收尾要主动清，而且**只清本脚本自己装的那一份**。
+
+    🔴 **判据级那一行只许用「最终」读数算**（终审 V4 §3-3）：原实现在清理**开始前**就
+    `teardown_labels(rc, …)` 并立刻印出，而一次**成功**的提权跑在那一刻必然 `rc == 0`
+    （服务在跑）⇒ 逐字副本里先印一行「**判据 §5 FAIL：驱动未卸**」，**随后**清理成功。
+    X1 之前这句是对的（那时本函数根本没被调用）；X1 把它接上之后，它成了**清理前的快照
+    却印成判据级终局断言**——而且印进的是不可追改的证据。
+    ⚠ 原实现末尾还有**第二对写死的标签**（「已清干净」／「仍未清掉…§5 FAIL」），
+    与 `teardown_labels` 是两处真相来源 ⇒ 一并删掉，**终局标签只由 `teardown_labels` 给**。
+    ⇒ 清理前只印裸读数；**每个出口**用那一刻的最终读数算一次终局。
+    「句柄关闭是否已触发 stop」本身**就是**清理前的事实，故仍由清理前的 `rc` 算。
     """
     rc = driver_rc()
-    state, stop_read = teardown_labels(rc, opened_any, pre_state)
-    print("-- 收尾：sc query WinDivert rc=%d ⇒ %s --" % (rc, state))
+    _, stop_read = teardown_labels(rc, opened_any, pre_state)
+    print("-- 收尾前：sc query WinDivert rc=%d（**清理开始前的快照，不是终局**）--" % rc)
     print("   句柄关闭是否已触发 stop：%s" % stop_read)
+
+    def _final(rc_final, how):
+        state, _ = teardown_labels(rc_final, opened_any, pre_state)
+        print("-- 收尾终局：sc query WinDivert rc=%d ⇒ %s（%s）--" % (rc_final, state, how))
+
     if rc == 1060:
+        _final(rc, "未做任何清理动作")
         return
     if not opened_any:
         print("   本次一个句柄都没开成 ⇒ **这不是本脚本装的**，不动它，如实报人处理")
+        _final(rc, "未做任何清理动作")
         return
     # ⬆ 上面那道闸只答「本轮有没有开成句柄」。
     # 🔴 **在一个已存在的服务上开句柄同样会让 `opened_any` 为真**
@@ -287,11 +304,13 @@ def teardown(opened_any, pre_state=None):
     if pre_state != 1060:
         print("   跑格前服务就已在（pre rc=%s）⇒ **不是本脚本装的，不停不删**，"
               "如实报人处理" % (pre_state,))
+        _final(rc, "未做任何清理动作")
         return
     busy = subprocess.run(["tasklist", "/FI", "IMAGENAME eq BeanNetworkTester.exe"],
                           capture_output=True, encoding="utf-8", errors="replace")
     if "BeanNetworkTester" in (busy.stdout or ""):
         print("   ⚠ BeanNetworkTester 正在跑 ⇒ **不停服务**（会掐掉别人的整形），如实报人处理")
+        _final(rc, "未做任何清理动作")
         return
     # `sc stop` 才是清理的实质；实测 stop 一执行，WinDivert 就自己把服务条目删掉了
     # ⇒ 「自删」那一半是活的，缺的只是「句柄关闭 → stop」那一半。
@@ -312,8 +331,7 @@ def teardown(opened_any, pre_state=None):
                  else ("1060 服务已不存在 ⇒ **已自删，不是失败**" if rd.returncode == 1060
                        else "未预期的 rc，如实记")))
     rc2 = driver_rc()
-    print("-- 收尾复核：rc=%d ⇒ %s --"
-          % (rc2, "已清干净" if rc2 == 1060 else "仍未清掉，需人处理（判据 §5 FAIL）"))
+    _final(rc2, "清理之后")
 
 
 def verdict(a, b, c):

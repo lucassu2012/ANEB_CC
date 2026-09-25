@@ -404,3 +404,78 @@ def test_acp_does_not_come_from_locale():
                            capture_output=True, encoding="utf-8", errors="replace", timeout=60)
         out.append(r.stdout.strip())
     assert out[0] != out[1], "locale 在两模式下一致 ⇒ 本机复现不出该坑,本门无区分力：%s" % (out,)
+
+
+# ── 批二：§3-4 驱动记账时机、§2-7 A-off 拒跑 ────────────────────────────────
+class _FakeDriver(object):
+    """最小假驱动：开句柄成功、Recv 立即 FALSE（读线程随即退出）。无 IO、无提权。"""
+
+    def __init__(self, handle=4242):
+        self.handle = handle
+
+    def WinDivertOpen(self, *a):
+        return self.handle
+
+    def WinDivertRecv(self, *a):
+        return False
+
+    def WinDivertShutdown(self, *a):
+        return True
+
+    def WinDivertClose(self, *a):
+        return True
+
+
+def test_cell_records_open_before_traffic_can_raise():
+    """🔴 终审 V4 §3-4：驱动在句柄开成那一刻就已装上 ⇒ **记账不能等 cell() 返回**。
+
+    原实现由调用方在 cell() 返回之后才记 `opened_any`；中间隔着 traffic() 与宽限，
+    那段里 Ctrl+C 会跳过赋值 ⇒ 收尾拿到 False ⇒ 印「这不是本脚本装的，不动它」
+    ⇒ **驱动留在机器上，而证据写着本轮没装过它**。
+    """
+    from decompose_2x_probe import cell
+    opened = {"any": False}
+
+    def boom():
+        raise KeyboardInterrupt("模拟 PO 在宽限里按了 Ctrl+C")
+
+    raised = False
+    try:
+        cell(_FakeDriver(), "X", 0, "true", boom, None, opened=opened)
+    except KeyboardInterrupt:
+        raised = True
+    assert raised, "traffic() 抛的异常被 cell() 吞了"
+    assert opened["any"] is True, "句柄已开成而记账没发生 ⇒ §3-4 复发"
+
+
+def test_cell_does_not_record_when_open_fails():
+    """反向对照：句柄没开成 ⇒ 不得记账（否则收尾会去停一个不是本轮装的服务）。"""
+    from decompose_2x_probe import cell, INVALID
+    opened = {"any": False}
+    cell(_FakeDriver(handle=INVALID), "X", 0, "true", lambda: None, None, opened=opened)
+    assert opened["any"] is False
+
+
+def test_a_off_stage_refuses_loudly_so_naive_wiring_cannot_rebuild_regression_b():
+    """🔴 终审 V4 §2-7（选 (b)，D-915）：完整却无调用的函数是一个邀请。
+
+    天真地把它接进 __main__ 恰好重建回归 B（teardown 在判词之前卸驱动）。
+    ⇒ 入口即抛,且报错必须说出**接线前要先做什么**,否则拒跑本身又成了一句不可执行的话。
+    所有入参传 None：守卫必须在碰任何入参之前就触发。
+    """
+    from decompose_2x_probe import a_off_stage
+    msg = None
+    try:
+        a_off_stage(None, {}, "TWICE", None, None, None)
+    except RuntimeError as e:
+        msg = str(e)
+    assert msg is not None, "a_off_stage 没有拒跑 ⇒ 天真接线会静默重建回归 B"
+    assert "D-915" in msg, msg
+    # 🔴 **锚到可执行的那一步本身**，不锚到「这个词出现过」。
+    # 首版写的是 `"teardown" in msg`，突变审计 M4 把步骤 (1) 里的指引删掉仍全绿——
+    # 因为报错里另一句（「teardown 在 main() 的 finally 里」）**顺带**提到了它。
+    # ⇒ 没锚定的匹配器匹配到了超集（本树记过的形状）。改成只在 (1)…(2) 之间找。
+    assert "(1)" in msg and "(2)" in msg and "(3)" in msg, "三步编号缺失：%s" % msg
+    step1 = msg[msg.index("(1)"):msg.index("(2)")]
+    for need in ("teardown", "finally"):
+        assert need in step1, "步骤 (1) 里缺「%s」⇒ 接线的人不知道先做什么：%s" % (need, step1)
