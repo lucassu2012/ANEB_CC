@@ -1,0 +1,301 @@
+[
+ {
+  "ts": "2026-09-26T14:14:10",
+  "layer": "PC",
+  "item": "单播计数器自检",
+  "argv": [
+   "（进程内 ctypes/psutil 调用）"
+  ],
+  "channel": "python ctypes → iphlpapi.GetIfEntry2 → MIB_IF_ROW2 原值（rc＝函数返回码，0＝NO_ERROR）；psutil.net_io_counters；--selftest 另调 PowerShell Get-NetAdapterStatistics",
+  "rc": 0,
+  "verdict": "通",
+  "prereg": "replies=3; bg_max=2; d_reply=[2,4]; d_bg=[-1,1]; disc_reply=[2,4]; disc_zero=[0,1]",
+  "sizeof": 1352,
+  "nic": "本地连接* 10",
+  "ifindex_by_ip": [
+   13
+  ],
+  "getifentry2_rc": 0,
+  "alias": "本地连接* 10",
+  "row_ifindex": 13,
+  "psutil_sandwich": {
+   "sent": [
+    15605,
+    15605,
+    15605
+   ],
+   "recv": [
+    5339,
+    5339,
+    5339
+   ],
+   "bytes_sent": [
+    21229562,
+    21229562,
+    21229562
+   ],
+   "bytes_recv": [
+    523414,
+    523414,
+    523414
+   ]
+  },
+  "out_ucast_nonzero": true,
+  "ifindex": 13
+ },
+ {
+  "ts": "2026-09-26T14:14:10",
+  "layer": "P40",
+  "item": "设备在线",
+  "argv": [
+   "adb",
+   "devices"
+  ],
+  "channel": "adb → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "通"
+ },
+ {
+  "ts": "2026-09-26T14:14:11",
+  "layer": "P40",
+  "item": "开跑前设备态与冲突门（D-918）",
+  "argv": [
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "power",
+    "（只取 mWakefulness）"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "window",
+    "（只取 mCurrentFocus/mFocusedApp/isKeyguardShowing）"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "ps",
+    "-A",
+    "-o",
+    "NAME"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "ip",
+    "link",
+    "（只取 tun/ppp 接口名）"
+   ]
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "verdict": "通",
+  "wakefulness": "Awake",
+  "current_focus": "com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher",
+  "focused_app": "com.huawei.android.launcher/.unihome.UniHomeLauncher",
+  "keyguard": "false",
+  "aneb_procs": [],
+  "tun_ppp_up": []
+ },
+ {
+  "ts": "2026-09-26T14:14:18",
+  "layer": "P40+PC",
+  "item": "run6 第一跳：手机 ping 网关（辅助，不出判词）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cat /proc/net/dev | grep wlan0; ping -c 3 -W 2 192.168.137.1; echo PING_RC=$?; cat /proc/net/dev | grep wlan0"
+  ],
+  "channel": "adb shell（计数/ping/计数同一条命令）；PC 计数 psutil 与 python ctypes → iphlpapi.GetIfEntry2 → MIB_IF_ROW2 原值（rc＝函数返回码，0＝NO_ERROR） 紧贴 adb 前后读（本地连接* 10）；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "不通",
+  "replies_from_target": 0,
+  "ping_rc_inside_shell": 1,
+  "pc_recv_delta": 3,
+  "pc_sent_delta": 0,
+  "stderr": "",
+  "phone_rx_delta": 0,
+  "phone_tx_delta": 3,
+  "phone_tx_drop_delta": 0,
+  "phone_rx_drop_delta": 0,
+  "psutil_reset_in_window": false,
+  "window_s": 4.76,
+  "uc_rc": [
+   0,
+   0
+  ],
+  "reset_in_window": [],
+  "pc_ucast_sent_delta": 0,
+  "pc_ucast_recv_delta": 3,
+  "pc_out_discards_delta": 0,
+  "bg_ts": "2026-09-26T14:14:23",
+  "bg_window_s": 4.76,
+  "bg_reset_in_window": [],
+  "bg_ucast_sent_delta": 1,
+  "bg_ucast_recv_delta": 1,
+  "bg_out_discards_delta": 0,
+  "assoc_before": {
+   "ts": "2026-09-26T14:14:18",
+   "supplicant": "COMPLETED",
+   "inet": "192.168.137.48/24",
+   "ifindex": [
+    13
+   ],
+   "pc_link": {
+    "rc": 0,
+    "oper": 1,
+    "media": 1
+   }
+  },
+  "assoc_after": {
+   "ts": "2026-09-26T14:14:29",
+   "supplicant": "COMPLETED",
+   "inet": "192.168.137.48/24",
+   "ifindex": [
+    13
+   ],
+   "pc_link": {
+    "rc": 0,
+    "oper": 1,
+    "media": 1
+   }
+  },
+  "assoc_changed": [],
+  "d": -1,
+  "disc": 0
+ },
+ {
+  "ts": "2026-09-26T14:14:29",
+  "layer": "P40+PC",
+  "item": "run6 方向判别：手机 ping 上游目标",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cat /proc/net/dev | grep wlan0; ping -c 3 -W 2 223.5.5.5; echo PING_RC=$?; cat /proc/net/dev | grep wlan0"
+  ],
+  "channel": "adb shell（计数/ping/计数同一条命令）；PC 计数 psutil 与 python ctypes → iphlpapi.GetIfEntry2 → MIB_IF_ROW2 原值（rc＝函数返回码，0＝NO_ERROR） 紧贴 adb 前后读（本地连接* 10）；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "通",
+  "replies_from_target": 3,
+  "ping_rc_inside_shell": 0,
+  "pc_recv_delta": 3,
+  "pc_sent_delta": 3,
+  "stderr": "",
+  "phone_rx_delta": 3,
+  "phone_tx_delta": 3,
+  "phone_tx_drop_delta": 0,
+  "phone_rx_drop_delta": 0,
+  "psutil_reset_in_window": false,
+  "window_s": 2.92,
+  "uc_rc": [
+   0,
+   0
+  ],
+  "reset_in_window": [],
+  "pc_ucast_sent_delta": 3,
+  "pc_ucast_recv_delta": 3,
+  "pc_out_discards_delta": 0,
+  "bg_ts": "2026-09-26T14:14:32",
+  "bg_window_s": 2.92,
+  "bg_reset_in_window": [],
+  "bg_ucast_sent_delta": 0,
+  "bg_ucast_recv_delta": 0,
+  "bg_out_discards_delta": 0,
+  "assoc_before": {
+   "ts": "2026-09-26T14:14:29",
+   "supplicant": "COMPLETED",
+   "inet": "192.168.137.48/24",
+   "ifindex": [
+    13
+   ],
+   "pc_link": {
+    "rc": 0,
+    "oper": 1,
+    "media": 1
+   }
+  },
+  "assoc_after": {
+   "ts": "2026-09-26T14:14:37",
+   "supplicant": "COMPLETED",
+   "inet": "192.168.137.48/24",
+   "ifindex": [
+    13
+   ],
+   "pc_link": {
+    "rc": 0,
+    "oper": 1,
+    "media": 1
+   }
+  },
+  "assoc_changed": [],
+  "d": 3,
+  "disc": 0,
+  "judgement": "手机已收到回复（通），计数只作一致性核对：d=3≈回复数：PC 向手机发出了回复 ⇒ 排除「纯 H2」（共享源错且 PC 不回差错）"
+ },
+ {
+  "ts": "2026-09-26T14:14:37",
+  "layer": "PC",
+  "item": "热点客户端数（整轮前后，WinRT 全局态）",
+  "argv": [
+   "powershell",
+   "（脚本内 clients() 原样）"
+  ],
+  "channel": "PowerShell 5.1 → JSON → python；rc＝powershell.exe 的 python returncode",
+  "rc": [
+   0,
+   0
+  ],
+  "verdict": "—",
+  "before": {
+   "ts": "2026-09-26T14:14:13",
+   "rc": 0,
+   "state": "On",
+   "clients": 1
+  },
+  "after": {
+   "ts": "2026-09-26T14:14:37",
+   "rc": 0,
+   "state": "On",
+   "clients": 1
+  },
+  "changed": false
+ },
+ {
+  "ts": "2026-09-26T14:14:42",
+  "layer": "P40",
+  "item": "屏幕态（本跑收尾）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "power",
+   "（只取 mWakefulness）"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "wakefulness": "Awake"
+ }
+]
