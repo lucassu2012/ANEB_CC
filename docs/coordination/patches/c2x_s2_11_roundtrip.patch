@@ -1,0 +1,389 @@
+diff --git a/scripts/diag/decompose_2x_probe.py b/scripts/diag/decompose_2x_probe.py
+index 9b57050..20bf448 100644
+--- a/scripts/diag/decompose_2x_probe.py
++++ b/scripts/diag/decompose_2x_probe.py
+@@ -178,6 +178,11 @@ def run(args, timeout=180):
+ 
+     ⚠ 仍不得用 `text=True` 而不给 `encoding=`：那会让 stdout 静默变 `None`（本仓害红过一次）。
+     这里改成**拿裸字节自己解**，把「用什么编码」从一个写死的常量变成一个**有说明的读数**。
++
++    🔴 **超时单独接、当场印**（终审 V4 §8-17）：原实现 `except Exception` 把
++    `TimeoutExpired` 一并吞成 `(None, '', '调用失败：…')`，而调用方从不印 `err`
++    ⇒ adb ping 挂死 180 s 时 PO 面前只有一个不动的光标，事后证据里**没有一行**说原因是超时。
++    ⚠ 仍然**不抛**：抛了就绕过调用方「缺读数就拒给 T」那条已有路径；由调用方据 `err` 决定。
+     """
+     try:
+         p = subprocess.run(args, capture_output=True, timeout=timeout)
+@@ -186,6 +191,10 @@ def run(args, timeout=180):
+         if note:
+             print("       ⚠ 解码：%s ← %s" % (note, os.path.basename(str(args[0]))))
+         return (p.returncode, out, err)
++    except subprocess.TimeoutExpired:
++        print("       ⚠ %s 超时 %ds ⇒ 本次调用无读数（调 ping 的格 T 将缺席）"
++              % (os.path.basename(str(args[0])), timeout))
++        return (None, "", "超时：%ds" % timeout)
+     except Exception as e:
+         return (None, "", "调用失败：%r" % (e,))
+ 
+@@ -682,22 +691,76 @@ def _sent_count(text):
+     return None
+ 
+ 
+-def pc_ping():
++PING_ECHO_WIN = re.compile(r"TTL=\d+", re.I)
++
++
++def ping_roundtrip(side, out, err):
++    """→ `{"sent", "recv", "T", "why"}`。**`T` 只在「发了且至少收到一个回显」时给**（终审 V4 §2-11）。
++
++    🔴 原实现 `T` 只取「已发送」⇒ 发了 20 个、一个没过去也得 `T=20`，
++    而收数只作原文印一行、无人消费。设备在关联仍在、路由仍配着时一个包都过不去
++    （2026-09-13 实测，见 `judge_first_hop`）——那时 FORWARD 格全读 0，
++    判据自己警告过会被读成「转发层看不见转发包」。第一道门只在 preflight 跑一次，
++    其后 12 格约 6 分钟没有任何往返复查 ⇒ **收数就是那道复查**，不新增一次设备调用。
++
++    ⚠ `T` 仍取**已发送**（§3），收数只作前提：部分丢包（20 发 3 收）照给 `T=20`。
++    ⚠ **PC 侧不信摘要行的收数**：Windows ping 把网关回的「无法访问目标主机」也记作
++    「已接收」⇒ 上游断了照样可以「20 发 20 收」。只数**带 `TTL=` 且来自目标的回显行**
++    （中英文回显行都有 `TTL=`，与 locale 无关）。设备侧（Android ping，iputils 系）的 `received`
++    不含 ICMP 差错（差错单列 `+N errors`），用第一道门的同一条 `PING_RECV`。
++    ⚠ 三种缺席**各有说法**，一律拒给 `T`：发包数读不到／收数读不到／0 收。
++    """
++    sent = _sent_count(out)
++    if sent is None:
++        return {"sent": None, "recv": None, "T": None,
++                "why": "发包数读不到（%s）⇒ T 缺席" % ((err or "").strip() or "无摘要行")}
++    if side == "pc":
++        recv = len([l for l in (out or "").splitlines()
++                    if TARGET in l and PING_ECHO_WIN.search(l)])
++    else:
++        m = PING_RECV.search(out or "")
++        recv = int(m.group(2)) if m else None
++    if recv is None:
++        return {"sent": sent, "recv": None, "T": None,
++                "why": "收数读不到 ⇒ 往返未确认 ⇒ T 缺席"}
++    if recv == 0:
++        return {"sent": sent, "recv": 0, "T": None,
++                "why": "本格往返 %d 发 0 收 ⇒ T 缺席（计数照印，不进判词）" % sent}
++    return {"sent": sent, "recv": recv, "T": sent,
++            "why": "本格往返 %d 发 %d 收" % (sent, recv)}
++
++
++def roundtrip_streak(streak, acq):
++    """连续「未见往返」的**打包格**数（终审 V4 §2-11 ＋ Stop rule 5）。
++
++    `acq` 为空（空闲格／S0，不打包）⇒ **原样返回**：不计也不清零，否则
++    「A2 断、S 格插在中间、C1 断」会被一格空闲洗掉。有往返 ⇒ 清零。
++    """
++    if not acq:
++        return streak
++    return 0 if acq.get("T") is not None else streak + 1
++
++
++def pc_ping(acq=None):
+     rc, out, err = run(["ping.exe", "-n", str(N_PING), "-w", "1000", TARGET], timeout=120)
+-    t = _sent_count(out)
++    r = ping_roundtrip("pc", out, err)
+     tail = [l for l in (out or "").splitlines() if ("=" in l and ("Sent" in l or "已发送" in l))]
+-    print("       PC 侧 ping 自述：%s ⇒ T=%s"
+-          % (tail[0].strip() if tail else "（无摘要行）", t))
+-    return t
++    print("       PC 侧 ping 自述：%s ⇒ T=%s（%s）"
++          % (tail[0].strip() if tail else "（无摘要行）", r["T"], r["why"]))
++    if acq is not None:
++        acq.update(r)
++    return r["T"]
+ 
+ 
+-def dev_ping():
++def dev_ping(acq=None):
+     rc, out, err = run([ADB, "shell", "ping", "-c", str(N_PING), "-i", "1", TARGET], timeout=180)
+     tail = [l for l in (out or "").splitlines() if "packets transmitted" in l]
+-    t = _sent_count(out)
+-    print("       设备侧 ping 自述：%s ⇒ T=%s"
+-          % (tail[0].strip() if tail else "（无 summary 行）", t))
+-    return t
++    r = ping_roundtrip("dev", out, err)
++    print("       设备侧 ping 自述：%s ⇒ T=%s（%s）"
++          % (tail[0].strip() if tail else "（无 summary 行）", r["T"], r["why"]))
++    if acq is not None:
++        acq.update(r)
++    return r["T"]
+ 
+ 
+ def no_traffic(secs):
+@@ -868,10 +931,15 @@ def main():
+             ("N1 src==设备", LAYER_NETWORK_FORWARD, f_src, dev_ping, None),
+             ("N2 src!=设备", LAYER_NETWORK_FORWARD, f_nsrc, dev_ping, None),
+         ]
++        streak = 0      # 连续「未见往返」的打包格数（终审 V4 §2-11）
+         for label, layer, filt, traf, filt_b in plan:
+             print("-- %s（layer=%d filter=%s%s）--"
+                   % (label, layer, filt, "  ＋第二句柄 " + filt_b if filt_b else ""))
++            acq = {}
++            if traf in (pc_ping, dev_ping):
++                traf = (lambda f=traf, a=acq: f(a))      # cell() 只认零参 traffic()
+             c = cell(d, label, layer, filt, traf, filt_b, opened=opened)
++            c["acq"] = acq or None
+             c["summary"] = report_cell(c)
+             cells[label.split()[0]] = c
+             if layer == LAYER_NETWORK_FORWARD:
+@@ -881,6 +949,13 @@ def main():
+                 if not ok2 or k2.get("hot_ifidx") != k.get("hot_ifidx"):
+                     print("   🔴 §2-6 前后不一致 ⇒ 该格 VOID")
+                     c["void_constants"] = True
++            streak = roundtrip_streak(streak, c["acq"])
++            if streak >= 2:
++                # 走 BaseException 分支 ⇒ finally 照常收尾；已跑的格随之作废，不外推。
++                raise SystemExit(
++                    "NOT_EXECUTED：连续 %d 个打包格未见往返（最近 [%s]：%s）⇒ 设备或上游已掉线，"
++                    "余下格不跑——再跑每格都读 0，而那个 0 会被读成「转发层看不见转发包」"
++                    "（终审 V4 §2-11／Stop rule 5）" % (streak, label, c["acq"]["why"]))
+         return cells, pre, opened["any"]
+     except BaseException as e:
+         print("🔴 中止：%r ⇒ 未跑完的格一律 NOT_EXECUTED，不得据已跑的格外推" % (e,))
+diff --git a/scripts/tests/test_decompose_2x_roundtrip.py b/scripts/tests/test_decompose_2x_roundtrip.py
+new file mode 100644
+index 0000000..db5291f
+--- /dev/null
++++ b/scripts/tests/test_decompose_2x_roundtrip.py
+@@ -0,0 +1,239 @@
++# -*- coding: utf-8 -*-
++"""终审 V4 §2-11 ＋ §8-17：`T` 的前提是**往返**，不是「发了」；超时必须当场印。
++
++🔴 §2-11：原实现 `T` 只取「已发送」⇒ 发了 20 个、一个没过去也得 `T=20`；第一道门只在
++preflight 跑一次，其后 12 格约 6 分钟没有任何往返复查 ⇒ 设备掉线后每格读 0，
++而那个 0 会被读成「转发层看不见转发包」。
++🔴 §8-17：`run()` 把 `TimeoutExpired` 与别的异常一起吞掉、从不印 ⇒ 180 s 静默等待，
++事后证据里没有一行说原因是超时。
++
++本文件的门**两个方向都钉**：有往返 ⇒ 必须给 `T`（部分丢包照给，`T` 取已发送）；
++没往返（0 收／收数读不到／发包数读不到／超时）⇒ 必须拒给并说出是哪一种；
++连续两个打包格没往返 ⇒ `main()` 必须中止**且照常收尾**；只断一格 ⇒ 不得中止。
++
++全部零参（`run_all.py` 以 `fn()` 调用，不支持 fixture）；打桩一律 try/finally 还原。
++"""
++import contextlib
++import io
++import os
++import re
++import subprocess
++import sys
++
++_DIAG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "diag")
++if _DIAG not in sys.path:
++    sys.path.insert(0, _DIAG)
++
++import decompose_2x_probe as P                                       # noqa: E402
++from decompose_2x_probe import ping_roundtrip, roundtrip_streak       # noqa: E402
++
++TGT = P.TARGET
++
++PC_ZH_OK = ("正在 Ping %s 具有 32 字节的数据:\n" % TGT
++            + "".join("来自 %s 的回复: 字节=32 时间=12ms TTL=116\n" % TGT for _ in range(20))
++            + "\n%s 的 Ping 统计信息:\n    数据包: 已发送 = 20，已接收 = 20，丢失 = 0 (0%% 丢失)，\n"
++            % TGT)
++# Windows 的已知行为：网关回的「无法访问目标主机」也记作 Received。
++PC_EN_UNREACH = ("Pinging %s with 32 bytes of data:\n" % TGT
++                 + "".join("Reply from 192.168.1.1: Destination host unreachable.\n"
++                           for _ in range(20))
++                 + "\nPing statistics for %s:\n    Packets: Sent = 20, Received = 20, "
++                   "Lost = 0 (0%% loss),\n" % TGT)
++PC_EN_TIMEOUT = ("Pinging %s with 32 bytes of data:\n" % TGT
++                 + "Request timed out.\n" * 20
++                 + "\nPing statistics for %s:\n    Packets: Sent = 20, Received = 0, "
++                   "Lost = 20 (100%% loss),\n" % TGT)
++
++
++def _dev(sent, recv, errors=None):
++    tail = ", +%d errors" % errors if errors else ""
++    return ("PING %s (%s) 56(84) bytes of data.\n" % (TGT, TGT)
++            + "".join("64 bytes from %s: icmp_seq=%d ttl=116 time=12.3 ms\n" % (TGT, i + 1)
++                      for i in range(recv))
++            + "\n--- %s ping statistics ---\n%d packets transmitted, %d received%s, "
++              "%d%% packet loss, time 19027ms\n"
++            % (TGT, sent, recv, tail, 100 * (sent - recv) // sent))
++
++
++@contextlib.contextmanager
++def _patched(obj, **attrs):
++    orig = {k: getattr(obj, k) for k in attrs}
++    for k, v in attrs.items():
++        setattr(obj, k, v)
++    try:
++        yield
++    finally:
++        for k, v in orig.items():
++            setattr(obj, k, v)
++
++
++# ---------- ping_roundtrip：纯函数 ----------
++
++def test_pc_echo_replies_give_T_equal_to_sent():
++    r = ping_roundtrip("pc", PC_ZH_OK, "")
++    assert (r["sent"], r["recv"], r["T"]) == (20, 20, 20), r
++
++
++def test_pc_unreachable_that_windows_counts_as_received_is_not_a_roundtrip():
++    """🔴 摘要行写着「Received = 20」——照它读就是往返成立。那 20 个全是网关回的差错。"""
++    assert re.search(r"Received = 20", PC_EN_UNREACH), "夹具必须复现 Windows 的那个假收数"
++    r = ping_roundtrip("pc", PC_EN_UNREACH, "")
++    assert r["recv"] == 0 and r["T"] is None, r
++    assert "20 发 0 收" in r["why"], r["why"]
++
++
++def test_pc_echo_lines_from_another_host_are_not_a_roundtrip_to_the_target():
++    other = ("Pinging %s with 32 bytes of data:\n" % TGT
++             + "Reply from 10.9.9.9: bytes=32 time=1ms TTL=64\n" * 20
++             + "\nPing statistics for %s:\n    Packets: Sent = 20, Received = 20, "
++               "Lost = 0 (0%% loss),\n" % TGT)
++    r = ping_roundtrip("pc", other, "")
++    assert r["recv"] == 0 and r["T"] is None, r
++
++
++def test_pc_all_timeouts_refuse_T():
++    r = ping_roundtrip("pc", PC_EN_TIMEOUT, "")
++    assert (r["sent"], r["recv"], r["T"]) == (20, 0, None), r
++
++
++def test_partial_loss_still_gives_T_as_sent_not_recv():
++    """§3：`T` 取**已发送**；收数只作前提。20 发 3 收 ⇒ `T=20`，不是 3。"""
++    r = ping_roundtrip("dev", _dev(20, 3), "")
++    assert (r["recv"], r["T"]) == (3, 20), r
++
++
++def test_dev_zero_received_refuses_T_and_says_so():
++    r = ping_roundtrip("dev", _dev(20, 0, errors=20), "")
++    assert (r["sent"], r["recv"], r["T"]) == (20, 0, None), r
++    assert "本格往返 20 发 0 收" in r["why"], r["why"]
++
++
++def test_dev_all_received_gives_T():
++    r = ping_roundtrip("dev", _dev(20, 20), "")
++    assert (r["sent"], r["recv"], r["T"]) == (20, 20, 20), r
++
++
++def test_recv_unreadable_is_not_zero_and_not_a_roundtrip():
++    """发包数读得到、收数读不到 ⇒ `recv` 是 None 不是 0，且拒给 T——两种缺席分开说。"""
++    r = ping_roundtrip("dev", "20 packets transmitted, garbled", "")
++    assert r["sent"] == 20 and r["recv"] is None and r["T"] is None, r
++    assert "收数读不到" in r["why"], r["why"]
++
++
++def test_sent_unreadable_carries_the_err_text_forward():
++    """超时后 `run()` 回 `(None, '', '超时：180s')` ⇒ 缺席的**原因**要进说明，不只是「无摘要行」。"""
++    r = ping_roundtrip("dev", "", "超时：180s")
++    assert r["sent"] is None and r["T"] is None, r
++    assert "超时：180s" in r["why"], r["why"]
++
++
++# ---------- run()：超时单独接、当场印 ----------
++
++def test_run_prints_timeout_and_returns_a_distinct_err():
++    def boom(*a, **k):
++        raise subprocess.TimeoutExpired(cmd=a[0], timeout=k.get("timeout"))
++    buf = io.StringIO()
++    with _patched(P.subprocess, run=boom), contextlib.redirect_stdout(buf):
++        rc, out, err = P.run(["adb.exe", "shell", "ping"], timeout=180)
++    assert (rc, out) == (None, "") and err == "超时：180s", (rc, out, err)
++    assert "超时 180s" in buf.getvalue(), "超时必须当场印出来：%r" % buf.getvalue()
++
++
++def test_run_other_failures_keep_their_old_shape():
++    def boom(*a, **k):
++        raise FileNotFoundError("no adb")
++    buf = io.StringIO()
++    with _patched(P.subprocess, run=boom), contextlib.redirect_stdout(buf):
++        rc, out, err = P.run(["adb.exe"], timeout=5)
++    assert rc is None and err.startswith("调用失败："), err
++    assert "超时" not in buf.getvalue()
++
++
++# ---------- pc_ping／dev_ping：零参照旧可调，带 acq 时回填 ----------
++
++def test_ping_helpers_fill_acq_and_print_the_reason():
++    buf = io.StringIO()
++    acq = {}
++    with _patched(P, run=lambda *a, **k: (1, _dev(20, 0, errors=20), "")), \
++            contextlib.redirect_stdout(buf):
++        t = P.dev_ping(acq)
++        t0 = P.dev_ping()
++    assert t is None and t0 is None
++    assert acq["T"] is None and acq["recv"] == 0, acq
++    assert "本格往返 20 发 0 收" in buf.getvalue(), buf.getvalue()
++
++
++# ---------- roundtrip_streak ----------
++
++def test_streak_idle_cells_neither_count_nor_reset():
++    bad, good = {"T": None, "why": "x"}, {"T": 20, "why": "y"}
++    s = 0
++    for acq in (bad, None, {}, bad):
++        s = roundtrip_streak(s, acq)
++    assert s == 2, "空闲格插在两格断之间不得把连续数洗掉"
++    assert roundtrip_streak(s, good) == 0
++
++
++def test_streak_one_blip_between_roundtrips_stays_at_one():
++    bad, good = {"T": None, "why": "x"}, {"T": 20, "why": "y"}
++    s = 0
++    for acq in (bad, good, bad):
++        s = roundtrip_streak(s, acq)
++    assert s == 1
++
++
++# ---------- main()：接线 ----------
++
++def _run_main(dev_outcomes):
++    """PC 格全通；设备格按 `dev_outcomes` 依次给 `(rc, out, err)`。→ (结果或异常, 跑过的格, 收尾次数, stdout)。"""
++    ran, torn = [], []
++    dev = list(dev_outcomes)
++
++    def fake_run(args, timeout=180):
++        if args[0] == "ping.exe":
++            return (0, PC_ZH_OK, "")
++        return dev.pop(0)
++
++    def fake_cell(d, label, layer, filt, traffic, filt_b=None, opened=None):
++        ran.append(label.split()[0])
++        return {"label": label, "layer": layer, "T": traffic(), "count": 0}
++
++    pre_tuple = (None, {"hot_ifidx": 7}, "dsrc", 1060, False, "fb", "fu", "fh", "fs", "fn",
++                 "fi", "fx", "ft", 0)
++    buf = io.StringIO()
++    res = None
++    with _patched(P, run=fake_run, cell=fake_cell, preflight=lambda: pre_tuple,
++                  report_cell=lambda c: None, no_traffic=lambda s: 0,
++                  derive_constants=lambda: {"hot_ifidx": 7},
++                  constants_verdict=lambda k, s: (True, "ok"),
++                  teardown=lambda any_, pre: torn.append((any_, pre))), \
++            contextlib.redirect_stdout(buf):
++        try:
++            res = P.main()
++        except SystemExit as e:
++            res = e
++    return res, ran, torn, buf.getvalue()
++
++
++def test_main_aborts_on_second_consecutive_dead_ping_cell_and_still_tears_down():
++    """C1 0 收、F1 adb 超时 ⇒ 在 F1 之后中止；F2/N1/N2 不跑；收尾照做一次。"""
++    res, ran, torn, out = _run_main([(1, _dev(20, 0, errors=20), ""),
++                                     (None, "", "超时：180s")])
++    assert isinstance(res, SystemExit), "连续两格没往返必须中止，得 %r" % (res,)
++    msg = str(res.code)
++    assert msg.startswith("NOT_EXECUTED") and "[F1" in msg and "超时：180s" in msg, msg
++    assert ran[-1] == "F1" and "F2" not in ran and "N2" not in ran, ran
++    assert len(torn) == 1, "中止也必须走收尾：%r" % torn
++
++
++def test_main_single_blip_does_not_abort_and_attaches_acq():
++    res, ran, torn, out = _run_main([(1, _dev(20, 0, errors=20), ""), (0, _dev(20, 20), ""),
++                                     (1, _dev(20, 0, errors=20), ""), (0, _dev(20, 19), ""),
++                                     (0, _dev(20, 20), "")])
++    assert isinstance(res, tuple), "断一格不得中止，得 %r" % (res,)
++    cells = res[0]
++    assert ran[-1] == "N2", ran
++    assert cells["C1"]["T"] is None and cells["C1"]["acq"]["recv"] == 0, cells["C1"]
++    assert cells["F1"]["T"] == 20 and cells["N1"]["acq"]["recv"] == 19, cells["N1"]
++    assert cells["S1"]["acq"] is None, "空闲格没有往返读数，acq 必须是 None 而不是空 dict"
++    assert len(torn) == 1

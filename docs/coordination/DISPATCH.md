@@ -33,7 +33,7 @@
 | §2-6 | 🔴 仍开 |  | A | `verdicts.py:344-346 SKEW=2` |
 | §2-8 | 🔴 仍开 | **⚠ 会白烧** | B | `verdicts.py:32/54-59 verdict_identity` |
 | §2-9 | 🔴 仍开 | **⚠ 会白烧** | C | `probe.py _reader:457-466` |
-| §2-11 | 🔴 仍开 | **⚠ 会白烧** | C | `probe.py pc_ping:685-692 与 dev_ping:694-700 只取 _sent_count` |
+| §2-11 | 🔴 仍开（**补丁已备**） | **⚠ 会白烧** | C | `probe.py pc_ping:685-692 与 dev_ping:694-700 只取 _sent_count` ⇒ `patches/c2x_s2_11_roundtrip.patch` |
 | §8-6 | 🔴 仍开 |  | other | `verdicts.py verdict_h2:128-138` |
 | §8-7 | 🔴 仍开 |  | other | `probe.py derive_idle_seconds:262-285` |
 | §8-8 | 🟡 部分 |  | other | `已修的一半：probe.py cell():503-504 在开成那刻记账，main :852/874/899` |
@@ -45,7 +45,7 @@
 | §8-14 | 🔴 仍开 |  | other | `probe.py apply_verdicts:967` |
 | §8-15 | 🔴 仍开 |  | other | `verdicts.py verdict_impostor:169-181` |
 | §8-16 | 🔴 仍开 |  | other | `只落判据文档 evidence/c_2x_decompose_20260912/CRITERIA_PREREG.md：①缺 §1.7 第一道` |
-| §8-17 | 🔴 仍开 | **⚠ 会白烧** | C | `probe.py run():176-190` |
+| §8-17 | 🔴 仍开（**补丁已备**，与 §2-11 同一份） | **⚠ 会白烧** | C | `probe.py run():176-190` |
 | §8-18 | ⚪ 本轮不可达 |  | other | `verdicts.py judge_hotspot_off:335/340-341` |
 | §8-19 | 🔴 仍开 | **⚠ 会白烧** | B | `probe.py apply_verdicts:910-912，A1 缺 summary 或 T 时 return out 早退，把 C1/` |
 | §8-20 | ⚪ 本轮不可达 |  | other | `a_off_stage()` |
@@ -54,7 +54,7 @@
 **派工分簇（仍开 21 条）**：
 - **A（`verdict_s3`）2 条**：§2-2 ＋ §2-6——同一函数的单位与目击数，门里 FULL 夹具须改成「每 seq 两次」。一人一笔。
 - **B（`verdict_identity` 签名＋ probe 两个调用点）4 条**：§2-4 ＋ §2-8 ＋ §8-12 ＋ §8-19。一人一笔。
-- **C（采集与零读数路径）3 条**：§2-9（**补丁已备**）＋ §2-11 ＋ §8-17。§8-11 的 S0 半边也挂在 `zero_reading_ok` 上。
+- **C（采集与零读数路径）3 条**：§2-9（**补丁已备**）＋ §2-11 ＋ §8-17（**补丁已备**，09-26 20:37Z 巡）⇒ **簇 C 代码侧两份补丁全覆盖、互不依赖、两种顺序都能落**；余判据文本（见 §2-11 补丁 README §5）。§8-11 的 S0 半边也挂在 `zero_reading_ok` 上。
 - **other 12 条，可再并**：impostor 子簇（§2-3 ＋ §8-14 ＋ §8-15，同在 `apply_verdicts` impostor 循环与 `verdict_impostor` 签名）；teardown 子簇（§8-8 ＋ §8-9 残余）；纯判据文档（§8-16，另 §8-17 顺带改 CRITERIA:615）；单条 §8-6／§8-7／§8-10／§8-11／§8-13／§8-21。
 
 ⚠ **冲突预警（已处置）**：协调侧 #9 补丁 v1 有一条门把 §8-19 的缺陷钉成了期望，核状态工作流指出后已改为 v2 并实证不再钉住（见补丁 README 抬头）。
@@ -110,7 +110,8 @@ ssh -i ~/.ssh/aneb_e01 root@120.79.148.0 'echo "== date -u =="; date -u; echo "=
 
 > **2026-09-26 已交一件（PO 令「加速推进」）**：拦窗 #9 的修法＋门，做成**未落树的补丁**放在 `docs/coordination/patches/`——在自己容器的隔离工作树上完成，**共享树 `scripts/` 一个字节没碰**。这样既不越 D-582（没点名不动共享树），又把「点名即交」变成「点名即落」：属主 `git apply` 一条命令。详见补丁 README。
 
-- **簇 C 的判词侧**：`zero_reading_ok` 的三态化与 `shutting_down` 去常量化（#9），含会红的门与夹具。
+- **簇 C 的判词侧**：`zero_reading_ok` 的三态化与 `shutting_down` 去常量化（#9），含会红的门与夹具。**已交**（`c2x_s2_9_zero_reading.patch` v2）。
+- **簇 C 的采集侧**：§2-11 往返前提 ＋ §8-17 超时当场印（`c2x_s2_11_roundtrip.patch`，16 门、突变 15／15、与 #9 合落回归 8 败／984 过、失败集合与基线逐名相同）。**已交**。
 - **§6 步 0 判据文字改按内容判**（上面第三节第 1 条）。
 - ⚠ **点名即交，未点名前不碰 `scripts/`**（承 D-582）。协调侧不自派。
 
