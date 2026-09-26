@@ -29,7 +29,7 @@
 | — | #5 A2 计数 | filter 匹配总数＋四桶 | 🟢 已修（第三批） |
 | **A** | **#2 S4** ＋ **#6 S6** | `verdicts:349 verdict_s3`（**同一函数**） | 🔴 未见处理 |
 | **B** | **#4 S3** ＋ **#8 a2_count** ＋ **#3 S5** | `verdicts:32 verdict_identity`（签名加 src）→ 牵动 C1 调用点与 `verdict_impostor` 放行链 | 🔴 未见处理 |
-| **C** | **#9 零读数判别量** ＋ **#11 T 取已发送** | `probe:528 cell()` 的 `shutting_down`、`verdicts:280 zero_reading_ok`、`probe` 的 `dev_ping/pc_ping` | 🔴 #9 协调侧实测仍开；#11 ⚪ 未核 |
+| **C** | **#9 零读数判别量** ＋ **#11 T 取已发送** | `probe:528 cell()` 的 `shutting_down`、`verdicts:280 zero_reading_ok`、`probe` 的 `dev_ping/pc_ping` | 🟡 **#9 补丁已备、未落树**：`docs/coordination/patches/c2x_s2_9_zero_reading.patch`（基准 `df78728`，`git apply` 即落；16 门、突变 10/11 被抓、全量回归零新增失败）；#11 ⚪ 未核 |
 
 📌 **为什么能并行**：A 全在 `verdict_s3` 一个函数内；B 要改 `verdict_identity` 签名并顺着调用点走；C 在 probe 的 IO／采集层与 `zero_reading_ok`。**三簇的文件落点与函数落点都不重叠**，按 O-5 的 `git commit <pathspec>` 纪律可同树并行。
 ⚠ **不可拆的两处**：#2 与 #6 必须同一人（同一函数，分开做必撞）；#4／#8／#3 必须同一人（签名改会级联）。
@@ -82,6 +82,8 @@ ssh -i ~/.ssh/aneb_e01 root@120.79.148.0 'echo "== date -u =="; date -u; echo "=
 **交付**：该 stdout 文件路径 ＋ 按上面判据的一行结论（三选一），入 `evidence/e01_migration_20260926/README.md`；不改任何线上东西。
 
 ## 五、协调侧可立即承接（纯 Python，不占本地窗口、不碰设备／提权）
+
+> **2026-09-26 已交一件（PO 令「加速推进」）**：拦窗 #9 的修法＋门，做成**未落树的补丁**放在 `docs/coordination/patches/`——在自己容器的隔离工作树上完成，**共享树 `scripts/` 一个字节没碰**。这样既不越 D-582（没点名不动共享树），又把「点名即交」变成「点名即落」：属主 `git apply` 一条命令。详见补丁 README。
 
 - **簇 C 的判词侧**：`zero_reading_ok` 的三态化与 `shutting_down` 去常量化（#9），含会红的门与夹具。
 - **§6 步 0 判据文字改按内容判**（上面第三节第 1 条）。
