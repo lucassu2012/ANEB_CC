@@ -1,0 +1,609 @@
+[
+ {
+  "ts": "2026-09-26T12:18:50",
+  "layer": "PC",
+  "item": "网卡清单",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { Get-NetAdapter | Select-Object Name,InterfaceIndex,Status,InterfaceDescription,InterfaceGuid } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": null,
+  "verdict": "—",
+  "n": 0,
+  "err": "timeout 90s"
+ },
+ {
+  "ts": "2026-09-26T12:20:22",
+  "layer": "PC",
+  "item": "IPv4 地址",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceIndex,InterfaceAlias,IPAddress,PrefixLength } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "InterfaceIndex": 45,
+    "InterfaceAlias": "vEthernet (WSL (Hyper-V firewall))",
+    "IPAddress": "192.168.144.1",
+    "PrefixLength": 20
+   },
+   {
+    "InterfaceIndex": 24,
+    "InterfaceAlias": "vEthernet (Default Switch)",
+    "IPAddress": "172.18.128.1",
+    "PrefixLength": 20
+   },
+   {
+    "InterfaceIndex": 13,
+    "InterfaceAlias": "本地连接* 10",
+    "IPAddress": "192.168.137.1",
+    "PrefixLength": 24
+   },
+   {
+    "InterfaceIndex": 11,
+    "InterfaceAlias": "本地连接* 1",
+    "IPAddress": "169.254.23.9",
+    "PrefixLength": 16
+   },
+   {
+    "InterfaceIndex": 9,
+    "InterfaceAlias": "以太网",
+    "IPAddress": "10.10.8.9",
+    "PrefixLength": 21
+   },
+   {
+    "InterfaceIndex": 4,
+    "InterfaceAlias": "WLAN",
+    "IPAddress": "169.254.219.25",
+    "PrefixLength": 16
+   },
+   {
+    "InterfaceIndex": 1,
+    "InterfaceAlias": "Loopback Pseudo-Interface 1",
+    "IPAddress": "127.0.0.1",
+    "PrefixLength": 8
+   }
+  ],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:21:09",
+  "layer": "PC",
+  "item": "默认路由（含接口跃点）",
+  "argv": [
+   [
+    "powershell",
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' | Select-Object ifIndex,InterfaceAlias,NextHop,RouteMetric } | ConvertTo-Json -Depth 4 -Compress"
+   ],
+   [
+    "powershell",
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { Get-NetIPInterface -AddressFamily IPv4 | Select-Object ifIndex,InterfaceAlias,InterfaceMetric,ConnectionState } | ConvertTo-Json -Depth 4 -Compress"
+   ]
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "ifIndex": 9,
+    "InterfaceAlias": "以太网",
+    "NextHop": "10.10.8.1",
+    "RouteMetric": 0,
+    "InterfaceMetric": 25
+   },
+   {
+    "ifIndex": 4,
+    "InterfaceAlias": "WLAN",
+    "NextHop": "10.10.0.1",
+    "RouteMetric": 0,
+    "InterfaceMetric": 55
+   }
+  ],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:21:46",
+  "layer": "PC",
+  "item": "ICS 共享配置（HNetCfg）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { $m=New-Object -ComObject HNetCfg.HNetShare; foreach($c in $m.EnumEveryConnection){ $p=$m.NetConnectionProps.Invoke($c); $s=$m.INetSharingConfigurationForINetConnection.Invoke($c); [pscustomobject]@{Name=$p.Name;Guid=$p.Guid;SharingEnabled=$s.SharingEnabled;SharingType=$s.SharingConnectionType} } } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [],
+  "source": [],
+  "private": [],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:21:52",
+  "layer": "PC",
+  "item": "移动热点状态（WinRT，按连接逐个问）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { $null=[Windows.Networking.Connectivity.NetworkInformation,Windows.Networking.Connectivity,ContentType=WindowsRuntime]; $null=[Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager,Windows.Networking.NetworkOperators,ContentType=WindowsRuntime]; foreach($pr in [Windows.Networking.Connectivity.NetworkInformation]::GetConnectionProfiles()){ $aid=$null; try{$aid=$pr.NetworkAdapter.NetworkAdapterId.ToString()}catch{}; if(-not $aid){continue}; $st=$null;$cc=$null;$e=$null; try{$tm=[Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($pr); $st=$tm.TetheringOperationalState.ToString(); $cc=$tm.ClientCount}catch{$e=$_.Exception.GetType().Name}; [pscustomobject]@{AdapterId=$aid;State=$st;Clients=$cc;Err=$e} } } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   },
+   {
+    "State": "On",
+    "Clients": 1,
+    "Err": null,
+    "Adapter": null
+   }
+  ],
+  "source": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:22:17",
+  "layer": "PC",
+  "item": "热点虚拟卡 ifIndex（现场推导）",
+  "argv": [
+   "（由上两项推出）"
+  ],
+  "channel": "由「IPv4 地址」与「ICS 共享配置」两条读数推出",
+  "rc": 0,
+  "verdict": "—",
+  "by_ip": [
+   {
+    "ifIndex": 13,
+    "alias": "本地连接* 10"
+   }
+  ],
+  "by_ics": []
+ },
+ {
+  "ts": "2026-09-26T12:22:17",
+  "layer": "PC",
+  "item": "源地址 ping 上游（vEthernet (WSL (Hyper-V firewall))）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "192.168.144.1",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 1,
+  "verdict": "不通",
+  "ifIndex": 45,
+  "replies_from_target": 0,
+  "raw": "Pinging 223.5.5.5 from 192.168.144.1 with 32 bytes of data:\r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 0, Lost = 3 (100% loss),"
+ },
+ {
+  "ts": "2026-09-26T12:22:20",
+  "layer": "PC",
+  "item": "源地址 ping 上游（vEthernet (Default Switch)）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "172.18.128.1",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 1,
+  "verdict": "不通",
+  "ifIndex": 24,
+  "replies_from_target": 0,
+  "raw": "Pinging 223.5.5.5 from 172.18.128.1 with 32 bytes of data:\r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 0, Lost = 3 (100% loss),"
+ },
+ {
+  "ts": "2026-09-26T12:22:24",
+  "layer": "PC",
+  "item": "源地址 ping 上游（本地连接* 10）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "192.168.137.1",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "通",
+  "ifIndex": 13,
+  "replies_from_target": 3,
+  "raw": "Pinging 223.5.5.5 from 192.168.137.1 with 32 bytes of data:\r\nReply from 223.5.5.5: bytes=32 time=17ms TTL=112\r\nReply from 223.5.5.5: bytes=32 time=15ms TTL=112\r\nReply from 223.5.5.5: bytes=32 time=17ms TTL=112\r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 3, Lost = 0 (0% loss),\r\nApproximate round trip times in milli-seconds:\r\n    Minimum = 15ms, Maximum = 17ms, Average = 16ms"
+ },
+ {
+  "ts": "2026-09-26T12:22:28",
+  "layer": "PC",
+  "item": "源地址 ping 上游（以太网）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "10.10.8.9",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "通",
+  "ifIndex": 9,
+  "replies_from_target": 3,
+  "raw": "Pinging 223.5.5.5 from 10.10.8.9 with 32 bytes of data:\r\nReply from 223.5.5.5: bytes=32 time=17ms TTL=113\r\nReply from 223.5.5.5: bytes=32 time=13ms TTL=113\r\nReply from 223.5.5.5: bytes=32 time=13ms TTL=113\r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 3, Lost = 0 (0% loss),\r\nApproximate round trip times in milli-seconds:\r\n    Minimum = 13ms, Maximum = 17ms, Average = 14ms"
+ },
+ {
+  "ts": "2026-09-26T12:22:32",
+  "layer": "PC",
+  "item": "不指定源 ping 上游（对照）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "通",
+  "replies_from_target": 3,
+  "raw": "Pinging 223.5.5.5 with 32 bytes of data:\r\nReply from 223.5.5.5: bytes=32 time=17ms TTL=113\r\nReply from 223.5.5.5: bytes=32 time=25ms TTL=113\r\nReply from 223.5.5.5: bytes=32 time=14ms TTL=113\r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 3, Lost = 0 (0% loss),\r\nApproximate round trip times in milli-seconds:\r\n    Minimum = 14ms, Maximum = 25ms, Average = 18ms"
+ },
+ {
+  "ts": "2026-09-26T12:22:35",
+  "layer": "P40",
+  "item": "设备在线",
+  "argv": [
+   "adb",
+   "devices"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 0,
+  "verdict": "通",
+  "devices": 1,
+  "serial": "8MY0221126002537"
+ },
+ {
+  "ts": "2026-09-26T12:22:37",
+  "layer": "P40",
+  "item": "前台焦点（P40 流程第 1 步）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "window",
+   "（只取 mCurrentFocus）"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 0,
+  "verdict": "—",
+  "focus": "NotificationShade",
+  "is_launcher": false
+ },
+ {
+  "ts": "2026-09-26T12:22:39",
+  "layer": "P40",
+  "item": "ANEB 进程（只读）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "ps",
+   "-A",
+   "-o",
+   "NAME"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 0,
+  "verdict": "—",
+  "names": []
+ },
+ {
+  "ts": "2026-09-26T12:22:42",
+  "layer": "P40",
+  "item": "VPN/隧道接口（只取接口名）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "ip",
+   "link"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 0,
+  "verdict": "—",
+  "tun_ppp_up": []
+ },
+ {
+  "ts": "2026-09-26T12:22:44",
+  "layer": "P40",
+  "item": "屏幕与锁屏态（只读）",
+  "argv": [
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "power",
+    "（只取 mWakefulness）"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "window",
+    "（只取 mFocusedApp/isKeyguardShowing）"
+   ]
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 0,
+  "verdict": "—",
+  "wakefulness": "Asleep",
+  "focused_app": "com.huawei.android.launcher/.unihome.UniHomeLauncher",
+  "keyguard": "true"
+ },
+ {
+  "ts": "2026-09-26T12:22:49",
+  "layer": "P40",
+  "item": "邻居表（配置派生，旁证；lladdr 不落）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "ip",
+   "neigh",
+   "show"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "ip": "192.168.137.1",
+    "dev": "wlan0",
+    "state": "STALE"
+   }
+  ]
+ },
+ {
+  "ts": "2026-09-26T12:22:52",
+  "layer": "P40",
+  "item": "ip route get（配置派生，旁证，不作门）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "ip",
+   "route",
+   "get",
+   "223.5.5.5"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 0,
+  "verdict": "—",
+  "via": "192.168.137.1",
+  "dev": "wlan0",
+  "raw": "223.5.5.5 via 192.168.137.1 dev wlan0 table 1040 src 192.168.137.129 uid 2000 \r\n    cache"
+ },
+ {
+  "ts": "2026-09-26T12:22:55",
+  "layer": "P40",
+  "item": "ping 网关（第一跳，门）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "ping",
+   "-c",
+   "3",
+   "-W",
+   "2",
+   "192.168.137.1"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 1,
+  "verdict": "不通",
+  "replies_from_target": 0,
+  "raw": "PING 192.168.137.1 (192.168.137.1) 56(84) bytes of data.\r\n\r\n--- 192.168.137.1 ping statistics ---\r\n3 packets transmitted, 0 received, 100% packet loss, time 2030ms"
+ },
+ {
+  "ts": "2026-09-26T12:23:02",
+  "layer": "P40",
+  "item": "ping 上游目标（门）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "ping",
+   "-c",
+   "3",
+   "-W",
+   "2",
+   "223.5.5.5"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）",
+  "rc": 1,
+  "verdict": "不通",
+  "replies_from_target": 0,
+  "raw": "PING 223.5.5.5 (223.5.5.5) 56(84) bytes of data.\r\n\r\n--- 223.5.5.5 ping statistics ---\r\n3 packets transmitted, 0 received, 100% packet loss, time 2049ms"
+ },
+ {
+  "ts": "2026-09-26T12:23:07",
+  "layer": "P40",
+  "item": "dumpsys connectivity 默认网络与 VALIDATED（旁证，只落派生字段）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "connectivity"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode（shell v2 透传远端退出码）；原文只在内存解析、不落盘",
+  "rc": 0,
+  "verdict": "通",
+  "default_network": "243",
+  "transport": "WIFI",
+  "VALIDATED": true,
+  "INTERNET": true,
+  "PARTIAL_CONNECTIVITY": false,
+  "CAPTIVE_PORTAL": false
+ }
+]

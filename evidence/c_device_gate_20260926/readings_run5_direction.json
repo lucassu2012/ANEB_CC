@@ -1,0 +1,76 @@
+[
+ {
+  "ts": "2026-09-26T12:44:05",
+  "layer": "P40+PC",
+  "item": "第一跳方向判别：手机 ping 网关",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cat /proc/net/dev | grep wlan0; ping -c 3 -W 2 192.168.137.1; echo PING_RC=$?; cat /proc/net/dev | grep wlan0"
+  ],
+  "channel": "adb shell（计数/ping/计数同一条命令）；PC 计数 psutil.net_io_counters 紧贴 adb 前后读（本地连接* 10）；rc＝adb 的 python returncode，ping 自身退出码另记 ping_rc_inside_shell",
+  "rc": 0,
+  "verdict": "不通",
+  "replies_from_target": 0,
+  "ping_rc_inside_shell": 1,
+  "pc_window": [
+   "2026-09-26T12:44:05",
+   "2026-09-26T12:44:12"
+  ],
+  "pc_recv_delta": 5,
+  "pc_sent_delta": 1,
+  "stderr": "",
+  "phone_rx_delta": 1,
+  "phone_tx_delta": 5,
+  "phone_tx_drop_delta": 0,
+  "phone_rx_drop_delta": 0
+ },
+ {
+  "ts": "2026-09-26T12:44:12",
+  "layer": "P40+PC",
+  "item": "方向判别：手机 ping 上游目标",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cat /proc/net/dev | grep wlan0; ping -c 3 -W 2 223.5.5.5; echo PING_RC=$?; cat /proc/net/dev | grep wlan0"
+  ],
+  "channel": "adb shell（计数/ping/计数同一条命令）；PC 计数 psutil.net_io_counters 紧贴 adb 前后读（本地连接* 10）；rc＝adb 的 python returncode，ping 自身退出码另记 ping_rc_inside_shell",
+  "rc": 0,
+  "verdict": "不通",
+  "replies_from_target": 0,
+  "ping_rc_inside_shell": 1,
+  "pc_window": [
+   "2026-09-26T12:44:12",
+   "2026-09-26T12:44:18"
+  ],
+  "pc_recv_delta": 3,
+  "pc_sent_delta": 3,
+  "stderr": "",
+  "phone_rx_delta": 0,
+  "phone_tx_delta": 3,
+  "phone_tx_drop_delta": 0,
+  "phone_rx_drop_delta": 0
+ },
+ {
+  "ts": "2026-09-26T12:44:18",
+  "layer": "P40",
+  "item": "屏幕态（本跑收尾）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "power",
+   "（只取 mWakefulness）"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "wakefulness": "Asleep"
+ }
+]

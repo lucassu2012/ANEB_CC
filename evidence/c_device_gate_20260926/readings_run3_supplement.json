@@ -1,0 +1,481 @@
+[
+ {
+  "ts": "2026-09-26T12:29:45",
+  "layer": "PC",
+  "item": "网卡状态（含隐藏）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Continue'; & { Get-NetAdapter -IncludeHidden | Select-Object Name,InterfaceIndex,Status,InterfaceDescription } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "Name": "以太网(内核调试器)",
+    "InterfaceIndex": 21,
+    "Status": "Not Present",
+    "InterfaceDescription": "Microsoft Kernel Debug Network Adapter"
+   },
+   {
+    "Name": "本地连接* 9",
+    "InterfaceIndex": 19,
+    "Status": "Up",
+    "InterfaceDescription": "WAN Miniport (Network Monitor)"
+   },
+   {
+    "Name": "本地连接* 2",
+    "InterfaceIndex": 17,
+    "Status": "Disconnected",
+    "InterfaceDescription": "WAN Miniport (SSTP)"
+   },
+   {
+    "Name": "本地连接* 5",
+    "InterfaceIndex": 16,
+    "Status": "Disconnected",
+    "InterfaceDescription": "WAN Miniport (PPTP)"
+   },
+   {
+    "Name": "vEthernet (Default Switch)",
+    "InterfaceIndex": 24,
+    "Status": "Up",
+    "InterfaceDescription": "Hyper-V Virtual Ethernet Adapter"
+   },
+   {
+    "Name": "Teredo Tunneling Pseudo-Interface",
+    "InterfaceIndex": 15,
+    "Status": "Not Present",
+    "InterfaceDescription": ""
+   },
+   {
+    "Name": "本地连接* 4",
+    "InterfaceIndex": 14,
+    "Status": "Disconnected",
+    "InterfaceDescription": "WAN Miniport (L2TP)"
+   },
+   {
+    "Name": "本地连接* 10",
+    "InterfaceIndex": 13,
+    "Status": "Up",
+    "InterfaceDescription": "Microsoft Wi-Fi Direct Virtual Adapter #2"
+   },
+   {
+    "Name": "本地连接* 8",
+    "InterfaceIndex": 12,
+    "Status": "Up",
+    "InterfaceDescription": "WAN Miniport (IPv6)"
+   },
+   {
+    "Name": "本地连接* 1",
+    "InterfaceIndex": 11,
+    "Status": "Disconnected",
+    "InterfaceDescription": "Microsoft Wi-Fi Direct Virtual Adapter"
+   },
+   {
+    "Name": "以太网",
+    "InterfaceIndex": 9,
+    "Status": "Up",
+    "InterfaceDescription": "Intel(R) Ethernet Connection (7) I219-V"
+   },
+   {
+    "Name": "本地连接* 6",
+    "InterfaceIndex": 8,
+    "Status": "Disconnected",
+    "InterfaceDescription": "WAN Miniport (PPPOE)"
+   },
+   {
+    "Name": "vSwitch (Default Switch)",
+    "InterfaceIndex": 22,
+    "Status": "Up",
+    "InterfaceDescription": "Hyper-V Virtual Switch Extension Adapter"
+   },
+   {
+    "Name": "vEthernet (WSL (Hyper-V firewall))",
+    "InterfaceIndex": 45,
+    "Status": "Up",
+    "InterfaceDescription": "Hyper-V Virtual Ethernet Adapter #2"
+   },
+   {
+    "Name": "本地连接* 7",
+    "InterfaceIndex": 7,
+    "Status": "Up",
+    "InterfaceDescription": "WAN Miniport (IP)"
+   },
+   {
+    "Name": "本地连接* 3",
+    "InterfaceIndex": 6,
+    "Status": "Disconnected",
+    "InterfaceDescription": "WAN Miniport (IKEv2)"
+   },
+   {
+    "Name": "Microsoft IP-HTTPS Platform Interface",
+    "InterfaceIndex": 5,
+    "Status": "Not Present",
+    "InterfaceDescription": ""
+   },
+   {
+    "Name": "WLAN",
+    "InterfaceIndex": 4,
+    "Status": "Disconnected",
+    "InterfaceDescription": "Intel(R) Wireless-AC 9560 160MHz"
+   },
+   {
+    "Name": "vSwitch (WSL (Hyper-V firewall))",
+    "InterfaceIndex": 42,
+    "Status": "Up",
+    "InterfaceDescription": "Hyper-V Virtual Switch Extension Adapter #2"
+   },
+   {
+    "Name": "6to4 Adapter",
+    "InterfaceIndex": 2,
+    "Status": "Not Present",
+    "InterfaceDescription": ""
+   }
+  ],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:31:10",
+  "layer": "PC",
+  "item": "ICS/移动热点服务状态",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Continue'; & { Get-Service SharedAccess,icssvc | Select-Object Name,@{n='Status';e={$_.Status.ToString()}} } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "Name": "icssvc",
+    "Status": "Running"
+   },
+   {
+    "Name": "SharedAccess",
+    "Status": "Running"
+   }
+  ],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:31:18",
+  "layer": "PC",
+  "item": "ICS 共享源（读法一 WMI HomeNet）",
+  "argv": [
+   [
+    "powershell",
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Continue'; & { Get-CimInstance -Namespace root/Microsoft/HomeNet -ClassName HNet_ConnectionProperties | ForEach-Object { [pscustomobject]@{ConnRef=[string]$_.Connection; IsIcsPublic=$_.IsIcsPublic; IsIcsPrivate=$_.IsIcsPrivate} } } | ConvertTo-Json -Depth 4 -Compress"
+   ],
+   [
+    "powershell",
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Continue'; & { Get-CimInstance -Namespace root/Microsoft/HomeNet -ClassName HNet_Connection | Select-Object Guid,Name } | ConvertTo-Json -Depth 4 -Compress"
+   ]
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "未执行",
+  "rows": [],
+  "public": [],
+  "private": [],
+  "n_conn": 0,
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:31:40",
+  "layer": "PC",
+  "item": "ICS 共享源（读法二 HNetCfg，@() 展开）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Continue'; & { $m=New-Object -ComObject HNetCfg.HNetShare; $all=@($m.EnumEveryConnection); [pscustomobject]@{Count=$all.Count}; foreach($c in $all){ $p=$m.NetConnectionProps.Invoke($c); $s=$m.INetSharingConfigurationForINetConnection.Invoke($c); [pscustomobject]@{Name=$p.Name;SharingEnabled=$s.SharingEnabled;SharingType=$s.SharingConnectionType} } } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "enum_count": 1,
+  "rows": [
+   {
+    "Name": null,
+    "SharingEnabled": null,
+    "SharingType": null
+   }
+  ],
+  "public": [],
+  "private": [],
+  "err": "Exception calling \"Invoke\" with \"1\" argument(s): \"Cannot process argument because the value of argument \"arguments\" is \r\nnull. Change the value of argument \"arguments\" to a non-null value.\"\r\nAt line:1 char:223\r\n+ ... nt}; foreach($c in $all){ $p=$m.NetConnectionProps.Invoke($c); $s=$m. ...\r\n+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationException\r\n    + FullyQualifiedErrorId : PSArgumentNullException\r\n \r\nException calling \"Invoke\" with \"1\" argument(s): \"Cannot process argument because the value of argumen"
+ },
+ {
+  "ts": "2026-09-26T12:31:48",
+  "layer": "PC",
+  "item": "IPv4 地址（run3 复读）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Continue'; & { Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceIndex,InterfaceAlias,IPAddress } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "InterfaceIndex": 45,
+    "InterfaceAlias": "vEthernet (WSL (Hyper-V firewall))",
+    "IPAddress": "192.168.144.1"
+   },
+   {
+    "InterfaceIndex": 24,
+    "InterfaceAlias": "vEthernet (Default Switch)",
+    "IPAddress": "172.18.128.1"
+   },
+   {
+    "InterfaceIndex": 13,
+    "InterfaceAlias": "本地连接* 10",
+    "IPAddress": "192.168.137.1"
+   },
+   {
+    "InterfaceIndex": 11,
+    "InterfaceAlias": "本地连接* 1",
+    "IPAddress": "169.254.23.9"
+   },
+   {
+    "InterfaceIndex": 9,
+    "InterfaceAlias": "以太网",
+    "IPAddress": "10.10.8.9"
+   },
+   {
+    "InterfaceIndex": 4,
+    "InterfaceAlias": "WLAN",
+    "IPAddress": "169.254.219.25"
+   },
+   {
+    "InterfaceIndex": 1,
+    "InterfaceAlias": "Loopback Pseudo-Interface 1",
+    "IPAddress": "127.0.0.1"
+   }
+  ],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:32:04",
+  "layer": "PC",
+  "item": "源地址 ping 上游（vEthernet (WSL (Hyper-V firewall))）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "192.168.144.1",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 1,
+  "verdict": "不通",
+  "ifIndex": 45,
+  "replies_from_target": 0,
+  "raw": "Pinging 223.5.5.5 from 192.168.144.1 with 32 bytes of data:\r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 0, Lost = 3 (100% loss),"
+ },
+ {
+  "ts": "2026-09-26T12:32:07",
+  "layer": "PC",
+  "item": "源地址 ping 上游（vEthernet (Default Switch)）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "172.18.128.1",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 1,
+  "verdict": "不通",
+  "ifIndex": 24,
+  "replies_from_target": 0,
+  "raw": "Pinging 223.5.5.5 from 172.18.128.1 with 32 bytes of data:\r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 0, Lost = 3 (100% loss),"
+ },
+ {
+  "ts": "2026-09-26T12:32:11",
+  "layer": "PC",
+  "item": "源地址 ping 上游（本地连接* 10）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "192.168.137.1",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "通",
+  "ifIndex": 13,
+  "replies_from_target": 3,
+  "raw": "Pinging 223.5.5.5 from 192.168.137.1 with 32 bytes of data:\r\nReply from 223.5.5.5: bytes=32 time=17ms TTL=112\r\nReply from 223.5.5.5: bytes=32 time=18ms TTL=112\r\nReply from 223.5.5.5: bytes=32 time=14ms TTL=112\r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 3, Lost = 0 (0% loss),\r\nApproximate round trip times in milli-seconds:\r\n    Minimum = 14ms, Maximum = 18ms, Average = 16ms"
+ },
+ {
+  "ts": "2026-09-26T12:32:16",
+  "layer": "PC",
+  "item": "源地址 ping 上游（本地连接* 1）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "169.254.23.9",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 1,
+  "verdict": "不通",
+  "ifIndex": 11,
+  "replies_from_target": 0,
+  "raw": "Pinging 223.5.5.5 from 169.254.23.9 with 32 bytes of data:\r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 0, Lost = 3 (100% loss),"
+ },
+ {
+  "ts": "2026-09-26T12:32:20",
+  "layer": "PC",
+  "item": "源地址 ping 上游（以太网）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "10.10.8.9",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "通",
+  "ifIndex": 9,
+  "replies_from_target": 3,
+  "raw": "Pinging 223.5.5.5 from 10.10.8.9 with 32 bytes of data:\r\nReply from 223.5.5.5: bytes=32 time=17ms TTL=113\r\nReply from 223.5.5.5: bytes=32 time=24ms TTL=113\r\nReply from 223.5.5.5: bytes=32 time=12ms TTL=113\r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 3, Lost = 0 (0% loss),\r\nApproximate round trip times in milli-seconds:\r\n    Minimum = 12ms, Maximum = 24ms, Average = 17ms"
+ },
+ {
+  "ts": "2026-09-26T12:32:25",
+  "layer": "PC",
+  "item": "源地址 ping 上游（WLAN）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "169.254.219.25",
+   "223.5.5.5"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 1,
+  "verdict": "不通",
+  "ifIndex": 4,
+  "replies_from_target": 0,
+  "raw": "Pinging 223.5.5.5 from 169.254.219.25 with 32 bytes of data:\r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\nPING: transmit failed. General failure. \r\n\r\nPing statistics for 223.5.5.5:\r\n    Packets: Sent = 3, Received = 0, Lost = 3 (100% loss),"
+ },
+ {
+  "ts": "2026-09-26T12:32:32",
+  "layer": "P40",
+  "item": "手机 wlan0 地址（只取 inet）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "ip",
+   "-4",
+   "addr",
+   "show",
+   "wlan0"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "inet": "192.168.137.129"
+ },
+ {
+  "ts": "2026-09-26T12:32:34",
+  "layer": "PC",
+  "item": "反向第一跳 ping 手机（源＝热点虚拟卡）",
+  "argv": [
+   "ping",
+   "-n",
+   "3",
+   "-w",
+   "2000",
+   "-S",
+   "192.168.137.1",
+   "192.168.137.129"
+  ],
+  "channel": "ping.exe 原生输出（cp936 解码）→ 只数来自目标且带 TTL= 的行；rc＝ping.exe 的 python returncode",
+  "rc": 1,
+  "verdict": "不通",
+  "replies_from_target": 0,
+  "raw": "Pinging 192.168.137.129 from 192.168.137.1 with 32 bytes of data:\r\nRequest timed out.\r\nRequest timed out.\r\nRequest timed out.\r\n\r\nPing statistics for 192.168.137.129:\r\n    Packets: Sent = 3, Received = 0, Lost = 3 (100% loss),"
+ },
+ {
+  "ts": "2026-09-26T12:32:43",
+  "layer": "PC",
+  "item": "PC 侧对手机的邻居状态（配置派生，旁证）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ErrorActionPreference='Continue'; & { Get-NetNeighbor -AddressFamily IPv4 -IPAddress 192.168.137.129 -ErrorAction SilentlyContinue | Select-Object ifIndex,IPAddress,@{n='State';e={$_.State.ToString()}} } | ConvertTo-Json -Depth 4 -Compress"
+  ],
+  "channel": "PowerShell 5.1 → ConvertTo-Json → python 解析；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "rows": [
+   {
+    "ifIndex": 13,
+    "IPAddress": "192.168.137.129",
+    "State": "Permanent"
+   }
+  ],
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:33:01",
+  "layer": "P40",
+  "item": "屏幕态（与本跑同时刻）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "power",
+   "（只取 mWakefulness）"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "wakefulness": "Asleep"
+ }
+]

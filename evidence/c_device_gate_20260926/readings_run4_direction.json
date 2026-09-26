@@ -1,0 +1,100 @@
+[
+ {
+  "ts": "2026-09-26T12:37:27",
+  "layer": "PC",
+  "item": "热点虚拟卡单播计数（前）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { $i=(Get-NetIPAddress -AddressFamily IPv4 -IPAddress 192.168.137.1).InterfaceIndex; Get-NetAdapter -InterfaceIndex $i | Get-NetAdapterStatistics | Select-Object @{n='ifIndex';e={$i}},ReceivedUnicastPackets,SentUnicastPackets } | ConvertTo-Json -Compress"
+  ],
+  "channel": "PowerShell 5.1 Get-NetAdapterStatistics → JSON；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "stats": {
+   "ifIndex": 13,
+   "ReceivedUnicastPackets": 416062,
+   "SentUnicastPackets": 866052
+  },
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:39:41",
+  "layer": "P40",
+  "item": "wlan0 计数 + ping 网关 + 计数（同一 shell）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cat /sys/class/net/wlan0/operstate; cat /sys/class/net/wlan0/statistics/tx_packets /sys/class/net/wlan0/statistics/rx_packets; ping -c 3 -W 2 192.168.137.1; echo PING_RC=$?; cat /sys/class/net/wlan0/statistics/tx_packets /sys/class/net/wlan0/statistics/rx_packets; cat /proc/net/wireless"
+  ],
+  "channel": "adb shell（单条命令内读计数/ping/再读计数）→ python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "不通",
+  "operstate": "PING 192.168.137.1 (192.168.137.1) 56(84) bytes of data.",
+  "replies_from_gw": 0,
+  "ping_rc_inside_shell": 1,
+  "proc_net_wireless": {
+   "status": "0000",
+   "link": "70.",
+   "level": "-25.",
+   "noise": "-256"
+  },
+  "note": "计数行数不是 4（0），不计增量"
+ },
+ {
+  "ts": "2026-09-26T12:39:50",
+  "layer": "PC",
+  "item": "热点虚拟卡单播计数（后）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { $i=(Get-NetIPAddress -AddressFamily IPv4 -IPAddress 192.168.137.1).InterfaceIndex; Get-NetAdapter -InterfaceIndex $i | Get-NetAdapterStatistics | Select-Object @{n='ifIndex';e={$i}},ReceivedUnicastPackets,SentUnicastPackets } | ConvertTo-Json -Compress"
+  ],
+  "channel": "PowerShell 5.1 Get-NetAdapterStatistics → JSON；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "stats": {
+   "ifIndex": 13,
+   "ReceivedUnicastPackets": 416066,
+   "SentUnicastPackets": 866053
+  },
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T12:40:51",
+  "layer": "PC",
+  "item": "热点虚拟卡单播增量（前后两读之差）",
+  "argv": [
+   "（由前两项算出）"
+  ],
+  "channel": "由两次 Get-NetAdapterStatistics 读数相减",
+  "rc": 0,
+  "verdict": "—",
+  "rx_delta": 4,
+  "tx_delta": 1
+ },
+ {
+  "ts": "2026-09-26T12:40:51",
+  "layer": "P40",
+  "item": "屏幕态（本跑收尾）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "power",
+   "（只取 mWakefulness）"
+  ],
+  "channel": "adb shell（单条命令内读计数/ping/再读计数）→ python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "wakefulness": "Asleep"
+ }
+]
