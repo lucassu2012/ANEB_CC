@@ -1,0 +1,168 @@
+[
+ {
+  "ts": "2026-09-26T14:02:15",
+  "layer": "PC",
+  "item": "单播计数器自检",
+  "argv": [
+   "（进程内 ctypes/psutil 调用）"
+  ],
+  "channel": "python ctypes → iphlpapi.GetIfEntry2 → MIB_IF_ROW2 原值（rc＝函数返回码，0＝NO_ERROR）；psutil.net_io_counters；--selftest 另调 PowerShell Get-NetAdapterStatistics",
+  "rc": 0,
+  "verdict": "通",
+  "prereg": "replies=3; bg_max=2; d_reply=[2,4]; d_bg=[-1,1]; disc_reply=[2,4]; disc_zero=[0,1]",
+  "sizeof": 1352,
+  "nic": "本地连接* 10",
+  "ifindex_by_ip": [
+   13
+  ],
+  "getifentry2_rc": 0,
+  "alias": "本地连接* 10",
+  "row_ifindex": 13,
+  "psutil_sandwich": {
+   "sent": [
+    15505,
+    15505,
+    15505
+   ],
+   "recv": [
+    5246,
+    5246,
+    5246
+   ],
+   "bytes_sent": [
+    21215214,
+    21215214,
+    21215214
+   ],
+   "bytes_recv": [
+    513304,
+    513304,
+    513304
+   ]
+  },
+  "out_ucast_nonzero": true,
+  "ifindex": 13
+ },
+ {
+  "ts": "2026-09-26T14:02:15",
+  "layer": "P40",
+  "item": "设备在线",
+  "argv": [
+   "adb",
+   "devices"
+  ],
+  "channel": "adb → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "通"
+ },
+ {
+  "ts": "2026-09-26T14:02:18",
+  "layer": "P40",
+  "item": "开跑前设备态与冲突门（D-918）",
+  "argv": [
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "power",
+    "（只取 mWakefulness）"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "window",
+    "（只取 mCurrentFocus/mFocusedApp/isKeyguardShowing）"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "ps",
+    "-A",
+    "-o",
+    "NAME"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "ip",
+    "link",
+    "（只取 tun/ppp 接口名）"
+   ]
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "verdict": "不通（不发 ping）",
+  "wakefulness": "Awake",
+  "current_focus": "com.huawei.android.launcher/com.huawei.android.launcher.unihome.UniHomeLauncher",
+  "focused_app": "com.huawei.android.launcher/.unihome.UniHomeLauncher",
+  "keyguard": "false",
+  "aneb_procs": [
+   "com.aneb.experiencelab"
+  ],
+  "tun_ppp_up": []
+ },
+ {
+  "ts": "2026-09-26T14:02:27",
+  "layer": "P40+PC",
+  "item": "run6 第一跳：手机 ping 网关（辅助，不出判词）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cat /proc/net/dev | grep wlan0; ping -c 3 -W 2 192.168.137.1; echo PING_RC=$?; cat /proc/net/dev | grep wlan0"
+  ],
+  "channel": "—",
+  "rc": null,
+  "verdict": "未执行",
+  "reason": "冲突门不过"
+ },
+ {
+  "ts": "2026-09-26T14:02:27",
+  "layer": "P40+PC",
+  "item": "run6 方向判别：手机 ping 上游目标",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cat /proc/net/dev | grep wlan0; ping -c 3 -W 2 223.5.5.5; echo PING_RC=$?; cat /proc/net/dev | grep wlan0"
+  ],
+  "channel": "—",
+  "rc": null,
+  "verdict": "未执行",
+  "reason": "冲突门不过"
+ },
+ {
+  "ts": "2026-09-26T14:02:27",
+  "layer": "P40",
+  "item": "屏幕态（本跑收尾）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "power",
+   "（只取 mWakefulness）"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "wakefulness": "Awake"
+ }
+]

@@ -237,7 +237,7 @@ def main():
     R.append(dict(ts=ts, layer="P40", item="设备在线", argv=argv, channel="adb → python；rc＝adb 的 python returncode",
                   rc=p.returncode, verdict="通" if online else "不通"))
     if not online:
-        print("device offline -> %s" % write("readings_run6.json"))
+        print("device offline -> %s" % write("readings_run6_%s.json" % t_start))
         return
 
     argv, ts, rc, out = adb_sh("dumpsys", "power")
@@ -260,6 +260,22 @@ def main():
                   wakefulness=wk.group(1) if wk else None, current_focus=cf.group(1) if cf else None,
                   focused_app=fapp, keyguard=kg.group(1) if kg else None, aneb_procs=anebs, tun_ppp_up=tun))
 
+    def assoc_snap():
+        """关联稳定性（大脑 14:0x 追加，跑前入库）：手机 supplicant 态与 wlan0 地址（输出不含网络名）＋ PC 虚拟卡链路态。"""
+        o = subprocess.run(["adb", "-s", SERIAL, "shell",
+                            "cmd wifi status | grep -o 'Supplicant state: [A-Z_]*'; "
+                            "ip -4 addr show wlan0 | grep -o 'inet [0-9./]*'"],
+                           capture_output=True, timeout=60).stdout.decode("utf-8", "replace")
+        sup = re.search(r"Supplicant state: (\w+)", o)
+        ip = re.search(r"inet ([0-9./]+)", o)
+        ids = ifindex_by_ip(HOT_IP)
+        link = None
+        if ok and ids == [idx]:
+            rc_, r_ = uc_read(idx)
+            link = dict(rc=rc_, oper=r_.OperStatus, media=r_.MediaConnectState)
+        return dict(ts=now(), supplicant=sup.group(1) if sup else None, inet=ip.group(1) if ip else None,
+                    ifindex=ids, pc_link=link)
+
     def probe(dst, label, decide):
         block = ("cat /proc/net/dev | grep wlan0; ping -c 3 -W 2 %s; echo PING_RC=$?; "
                  "cat /proc/net/dev | grep wlan0" % dst)
@@ -268,6 +284,7 @@ def main():
             R.append(dict(ts=now(), layer="P40+PC", item=label, argv=argv, channel="—", rc=None, verdict="未执行",
                           reason="冲突门不过"))
             return
+        as0 = assoc_snap()
         a = psutil.net_io_counters(pernic=True)[nic]
         ua = uc_snap(idx) if ok else None
         ts = now()
@@ -315,7 +332,16 @@ def main():
                        bg_out_discards_delta=g1["out_discards"] - g0["out_discards"])
             d = rec["pc_ucast_sent_delta"] - rec["bg_ucast_sent_delta"]
             disc = rec["pc_out_discards_delta"] - rec["bg_out_discards_delta"]
-            if reset or reset_bg:
+            as1 = assoc_snap()
+            unstable = [k for k in ("supplicant", "inet", "ifindex", "pc_link") if as0[k] != as1[k]]
+            if as0["supplicant"] != "COMPLETED":
+                unstable.append("supplicant_not_completed")
+            rec.update(assoc_before=as0, assoc_after=as1, assoc_changed=unstable)
+            if unstable:
+                rec.update(d=None, disc=None, window_label="关联不稳")
+                if decide:
+                    rec["judgement"] = "判不了（关联不稳：%s 在 ping 窗与背景窗前后不一致）" % unstable
+            elif reset or reset_bg:
                 rec.update(d=None, disc=None)
                 if decide:
                     rec["judgement"] = "判不了（窗口内计数器被清零或接口号变化：ping 窗 %s，背景窗 %s）" % (reset, reset_bg)
@@ -326,15 +352,39 @@ def main():
                         verdict(P, d, disc, rec["bg_ucast_sent_delta"])
         R.append(rec)
 
+    def clients():
+        ps = ("[Console]::OutputEncoding=[Text.Encoding]::UTF8; & { "
+              "$null=[Windows.Networking.Connectivity.NetworkInformation,Windows.Networking.Connectivity,ContentType=WindowsRuntime]; "
+              "$null=[Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager,Windows.Networking.NetworkOperators,ContentType=WindowsRuntime]; "
+              "$pr=[Windows.Networking.Connectivity.NetworkInformation]::GetInternetConnectionProfile(); "
+              "$tm=[Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($pr); "
+              "[pscustomobject]@{State=$tm.TetheringOperationalState.ToString();Clients=$tm.ClientCount} } "
+              "| ConvertTo-Json -Compress")
+        t = now()
+        p = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, timeout=300)
+        try:
+            j = json.loads(p.stdout.decode("utf-8", "replace"))
+        except ValueError:
+            j = {}
+        return dict(ts=t, rc=p.returncode, state=j.get("State"), clients=j.get("Clients"))
+
+    cl0 = clients() if gate else None
     probe(HOT_IP, "run6 第一跳：手机 ping 网关（辅助，不出判词）", decide=False)
     probe("223.5.5.5", "run6 方向判别：手机 ping 上游目标", decide=True)
+    if gate:
+        cl1 = clients()
+        R.append(dict(ts=cl1["ts"], layer="PC", item="热点客户端数（整轮前后，WinRT 全局态）",
+                      argv=["powershell", "（脚本内 clients() 原样）"],
+                      channel="PowerShell 5.1 → JSON → python；rc＝powershell.exe 的 python returncode",
+                      rc=[cl0["rc"], cl1["rc"]], verdict="—", before=cl0, after=cl1,
+                      changed=(cl0["state"], cl0["clients"]) != (cl1["state"], cl1["clients"])))
 
     argv, ts, rc, out = adb_sh("dumpsys", "power")
     wk = re.search(r"mWakefulness=(\w+)", out)
     R.append(dict(ts=ts, layer="P40", item="屏幕态（本跑收尾）", argv=argv + ["（只取 mWakefulness）"],
                   channel="adb shell → python；rc＝adb 的 python returncode", rc=rc, verdict="—",
                   wakefulness=wk.group(1) if wk else None))
-    path = write("readings_run6.json")
+    path = write("readings_run6_%s.json" % t_start)
     for x in R:
         print(json.dumps({k: v for k, v in x.items() if k not in ("argv", "channel")}, ensure_ascii=False)[:1500])
     print("->", path)

@@ -1,0 +1,184 @@
+[
+ {
+  "ts": "2026-09-26T14:09:35",
+  "layer": "PC",
+  "item": "热点状态与客户端（WinRT；网络名与地址只进内存）",
+  "argv": [
+   "powershell",
+   "-NoProfile",
+   "-NonInteractive",
+   "-Command",
+   "（脚本内原样见 gate_assoc.py 的 ps 变量）"
+  ],
+  "channel": "PowerShell 5.1 → JSON → python（网络名与地址只在内存比对）；rc＝powershell.exe 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "state": "On",
+  "client_count": 1,
+  "client_list_readable": true,
+  "client_list_len": 1,
+  "hotspot_ifindex": 13,
+  "ap_name_read": true,
+  "vmac_read": true,
+  "err": ""
+ },
+ {
+  "ts": "2026-09-26T14:09:49",
+  "layer": "P40",
+  "item": "手机当前 Wi-Fi 关联（cmd wifi status；网络名与地址只进内存）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "cmd",
+   "wifi",
+   "status"
+  ],
+  "channel": "adb shell → python（原文只在内存解析，只落派生字段）；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "wifi_connected_line": true,
+  "supplicant_state": "COMPLETED",
+  "rssi": -23,
+  "frequency_mhz": 2412,
+  "ssid_read": true,
+  "bssid_read": false,
+  "mac_read": false,
+  "same_network_name_as_pc_hotspot": true,
+  "bssid_equals_pc_hotspot_adapter": null,
+  "phone_mac_in_hotspot_clients": null
+ },
+ {
+  "ts": "2026-09-26T14:09:54",
+  "layer": "P40",
+  "item": "手机 wlan0 地址、出口、无线链路（配置派生，旁证）",
+  "argv": [
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "ip",
+    "-4",
+    "addr",
+    "show",
+    "wlan0"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "ip",
+    "route",
+    "get",
+    "223.5.5.5"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "cat",
+    "/proc/net/wireless"
+   ]
+  ],
+  "channel": "adb shell → python（原文只在内存解析，只落派生字段）；rc＝adb 的 python returncode",
+  "rc": [
+   0,
+   0,
+   0
+  ],
+  "verdict": "—",
+  "inet": "192.168.137.48/24",
+  "route_via": "192.168.137.1",
+  "route_dev": "wlan0",
+  "proc_net_wireless": {
+   "status": "0000",
+   "link": "70.",
+   "level": "-23."
+  }
+ },
+ {
+  "ts": "2026-09-26T14:09:57",
+  "layer": "P40",
+  "item": "冲突门拦下的进程 com.aneb.experiencelab 的来历（只读，不停不动）",
+  "argv": [
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "package",
+    "com.aneb.experiencelab"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "ps",
+    "-A",
+    "-o",
+    "PID,USER,NAME"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "settings",
+    "get",
+    "secure",
+    "enabled_accessibility_services"
+   ],
+   [
+    "adb",
+    "-s",
+    "8MY0221126002537",
+    "shell",
+    "dumpsys",
+    "activity",
+    "services",
+    "com.aneb.experiencelab"
+   ]
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "verdict": "—",
+  "package": {
+   "versionName": "0.1.0",
+   "firstInstallTime": "2026-08-08 17:06:50",
+   "lastUpdateTime": "2026-08-08 17:06:50",
+   "installerPackageName": null
+  },
+  "processes": [],
+  "in_enabled_accessibility_services": [],
+  "running_services": []
+ },
+ {
+  "ts": "2026-09-26T14:10:00",
+  "layer": "P40",
+  "item": "屏幕态（本快照收尾）",
+  "argv": [
+   "adb",
+   "-s",
+   "8MY0221126002537",
+   "shell",
+   "dumpsys",
+   "power",
+   "（只取 mWakefulness）"
+  ],
+  "channel": "adb shell → python；rc＝adb 的 python returncode",
+  "rc": 0,
+  "verdict": "—",
+  "wakefulness": "Awake"
+ }
+]
