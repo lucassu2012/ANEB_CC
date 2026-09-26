@@ -211,10 +211,10 @@ index 95e7be7..a953454 100644
                "Paused", "PausePending", "ContinuePending")
 diff --git a/scripts/tests/test_decompose_2x_zero_reading.py b/scripts/tests/test_decompose_2x_zero_reading.py
 new file mode 100644
-index 0000000..2fa10fe
+index 0000000..fca75f3
 --- /dev/null
 +++ b/scripts/tests/test_decompose_2x_zero_reading.py
-@@ -0,0 +1,308 @@
+@@ -0,0 +1,315 @@
 +# -*- coding: utf-8 -*-
 +"""终审 V4 §2-9／§8-5：零读数通则的判别量不得是常量。
 +
@@ -448,10 +448,17 @@ index 0000000..2fa10fe
 +    assert out.index("[S1] NOT_EXECUTED") < out.index("§4.1"), "拒判必须印在任何判词之前"
 +
 +
-+def test_dead_reader_a1_refuses_everything_downstream():
++def test_dead_reader_a1_is_refused_and_no_a1_identity_verdict_is_printed():
++    """A1 读线程开跑即死 ⇒ A1 本格拒判，且**不得印出 A1 的身份判词**。
++
++    ⚠ 本门**刻意不断言**「下游全部不可判」：那是 V4 §8-19 点名的另一个缺陷——
++    `apply_verdicts` 在 A1 缺席时整段早退，把 FORWARD 层（有自己的前提）的 C1／H2／N／底噪
++    一并丢掉。首版本门断言了「全部不可判」，**把 §8-19 的缺陷钉成了期望**，谁去修 §8-19
++    都会先撞上本门变红（核状态工作流与怀疑者独立指出，2026-09-26）。本门只管本条范围。
++    """
 +    out = _run({"A1": _valid_cell(count=0, shutting_down=False, summary=None)})
 +    assert "[A1] NOT_EXECUTED" in out, out
-+    assert "全部不可判" in out, out
++    assert "§4.1 身份（T=" not in out, "A1 已被拒判却仍印出身份判词：\n" + out
 +
 +
 +def test_dead_reader_handle_b_gives_void_missing_not_zero():

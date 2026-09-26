@@ -17,22 +17,47 @@
 | MIW 云端运维 | 外部 | **托管 E-01 的平台**（`E01_PROFILE_INQUIRY_20260907.md` 抬头） | 签 RSA 测试证书 → 正式证书；提供新 IP／端口 | 外部往返，PO 转发请求 | |
 | 协调（本会话） | 云端 | 巡检／看板／代呈 | 4h 一巡；只读核查 | **不碰 `scripts/`（未点名前）** | |
 
-## 二、判据线：剩余拦窗按落点拆三簇——**互不重叠，可三人并行**
+## 二、判据线：V4 §2 拦窗 11 条 ＋ §8 从未送检 21 条的逐条现状（`df78728`；核状态工作流：每条一名读者＋对抗核查，46 代理 0 失败）
 
-11 条拦窗现状（协调侧实读盘上字节，**凡未核者标 ⚪ 不下结论**）：
+**先说结论**：
+- **§2 拦窗 11 条**：#1／#10／#5 已修、#7 已裁 (b)；**其余 7 条（#2 #3 #4 #6 #8 #9 #11）全部核实仍开**，无一被怀疑者推翻。
+- **§8 从未送检的 16 条（§8-6..21；§8-1..5 与 §2 重复）**：**14 条仍开**（含 2 条部分修）、2 条本轮不可达（§8-18／§8-20，D-915 下 A-off 不跑，缺陷潜伏）。**「未送检」不等于「没问题」。**
+- **会让一次提权窗静默白烧的共 6 条**：§2-8、§2-9、§2-11，**以及未送检堆里的 §8-11、§8-17、§8-19**——后三条若没人核，会在开窗后才冒出来。
+- **唯一的「已修」（§8-9，第二批 `0f7d771`）被两名怀疑者推翻 ⇒ 部分修，且修法引入同族回归**：`forward_layer_probe.teardown` 终局标签印「判据 §5 达成」，而 decompose 判据里 §5 是 A-off、收尾是 §6；decompose 经 import 用的是同一个 teardown；新门 `test_forward_probe_teardown_labels.py:139` 把「§5 达成」钉成了期望。
 
-| 簇 | 拦窗条 | 落点（函数／行） | 状态 |
-|---|---|---|---|
-| — | #1 S1 解码 | `probe._acp()` / `_decode()` | 🟢 已修（第一批） |
-| — | #10 提权门 | `probe:746` | 🟢 已修（第一批） |
-| — | #7 A-off | `a_off_stage` 入口即抛 | 🟢 已裁 (b)（第二批，D-915） |
-| — | #5 A2 计数 | filter 匹配总数＋四桶 | 🟢 已修（第三批） |
-| **A** | **#2 S4** ＋ **#6 S6** | `verdicts:349 verdict_s3`（**同一函数**） | 🔴 未见处理 |
-| **B** | **#4 S3** ＋ **#8 a2_count** ＋ **#3 S5** | `verdicts:32 verdict_identity`（签名加 src）→ 牵动 C1 调用点与 `verdict_impostor` 放行链 | 🔴 未见处理 |
-| **C** | **#9 零读数判别量** ＋ **#11 T 取已发送** | `probe:528 cell()` 的 `shutting_down`、`verdicts:280 zero_reading_ok`、`probe` 的 `dev_ping/pc_ping` | 🟡 **#9 补丁已备、未落树**：`docs/coordination/patches/c2x_s2_9_zero_reading.patch`（基准 `df78728`，`git apply` 即落；16 门、突变 10/11 被抓、全量回归零新增失败）；#11 ⚪ 未核 |
+| 条 | 现状 | 白烧 | 簇 | 主落点 |
+|---|---|---|---|---|
+| §2-2 | 🔴 仍开 |  | A | `scripts/diag/decompose_2x_verdicts.py:verdict_s3 (:370-384 @df78728，只有` |
+| §2-3 | 🔴 仍开 |  | other | `decompose_2x_probe.py apply_verdicts:950-959` |
+| §2-4 | 🔴 仍开 |  | B | `verdicts.py:32 verdict_identity 签名无 src 入参，:43-44 TWICE 判词写死` |
+| §2-6 | 🔴 仍开 |  | A | `verdicts.py:344-346 SKEW=2` |
+| §2-8 | 🔴 仍开 | **⚠ 会白烧** | B | `verdicts.py:32/54-59 verdict_identity` |
+| §2-9 | 🔴 仍开 | **⚠ 会白烧** | C | `probe.py _reader:457-466` |
+| §2-11 | 🔴 仍开 | **⚠ 会白烧** | C | `probe.py pc_ping:685-692 与 dev_ping:694-700 只取 _sent_count` |
+| §8-6 | 🔴 仍开 |  | other | `verdicts.py verdict_h2:128-138` |
+| §8-7 | 🔴 仍开 |  | other | `probe.py derive_idle_seconds:262-285` |
+| §8-8 | 🟡 部分 |  | other | `已修的一半：probe.py cell():503-504 在开成那刻记账，main :852/874/899` |
+| §8-9 | 🟡 部分 |  | other | `forward_layer_probe.py teardown()/teardown_labels。窄缺陷` |
+| §8-10 | 🔴 仍开 |  | other | `probe.py print_self_id:656-664` |
+| §8-11 | 🔴 仍开 | **⚠ 会白烧** | other | `主落点在 probe.py preflight():806-810，pre!=1060 只打印不 SystemExit` |
+| §8-12 | 🔴 仍开 |  | B | `CRITERIA §1.3:148/153 预登记的 seq 值域自检` |
+| §8-13 | 🔴 仍开 |  | other | `probe.py compile_selfproof:406-407` |
+| §8-14 | 🔴 仍开 |  | other | `probe.py apply_verdicts:967` |
+| §8-15 | 🔴 仍开 |  | other | `verdicts.py verdict_impostor:169-181` |
+| §8-16 | 🔴 仍开 |  | other | `只落判据文档 evidence/c_2x_decompose_20260912/CRITERIA_PREREG.md：①缺 §1.7 第一道` |
+| §8-17 | 🔴 仍开 | **⚠ 会白烧** | C | `probe.py run():176-190` |
+| §8-18 | ⚪ 本轮不可达 |  | other | `verdicts.py judge_hotspot_off:335/340-341` |
+| §8-19 | 🔴 仍开 | **⚠ 会白烧** | B | `probe.py apply_verdicts:910-912，A1 缺 summary 或 T 时 return out 早退，把 C1/` |
+| §8-20 | ⚪ 本轮不可达 |  | other | `a_off_stage()` |
+| §8-21 | 🔴 仍开 |  | other | `probe.py judge_first_hop:255-256 的 OK 文案写死「同协议同路径」` |
 
-📌 **为什么能并行**：A 全在 `verdict_s3` 一个函数内；B 要改 `verdict_identity` 签名并顺着调用点走；C 在 probe 的 IO／采集层与 `zero_reading_ok`。**三簇的文件落点与函数落点都不重叠**，按 O-5 的 `git commit <pathspec>` 纪律可同树并行。
-⚠ **不可拆的两处**：#2 与 #6 必须同一人（同一函数，分开做必撞）；#4／#8／#3 必须同一人（签名改会级联）。
+**派工分簇（仍开 21 条）**：
+- **A（`verdict_s3`）2 条**：§2-2 ＋ §2-6——同一函数的单位与目击数，门里 FULL 夹具须改成「每 seq 两次」。一人一笔。
+- **B（`verdict_identity` 签名＋ probe 两个调用点）4 条**：§2-4 ＋ §2-8 ＋ §8-12 ＋ §8-19。一人一笔。
+- **C（采集与零读数路径）3 条**：§2-9（**补丁已备**）＋ §2-11 ＋ §8-17。§8-11 的 S0 半边也挂在 `zero_reading_ok` 上。
+- **other 12 条，可再并**：impostor 子簇（§2-3 ＋ §8-14 ＋ §8-15，同在 `apply_verdicts` impostor 循环与 `verdict_impostor` 签名）；teardown 子簇（§8-8 ＋ §8-9 残余）；纯判据文档（§8-16，另 §8-17 顺带改 CRITERIA:615）；单条 §8-6／§8-7／§8-10／§8-11／§8-13／§8-21。
+
+⚠ **冲突预警（已处置）**：协调侧 #9 补丁 v1 有一条门把 §8-19 的缺陷钉成了期望，核状态工作流指出后已改为 v2 并实证不再钉住（见补丁 README 抬头）。
 
 ## 三、三条零成本但会在开窗当天咬人的
 
