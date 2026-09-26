@@ -1,0 +1,66 @@
+[
+ {
+  "ts": "2026-09-26T13:42:16",
+  "layer": "PC",
+  "item": "单播计数器自检",
+  "argv": [
+   "（进程内 ctypes/psutil 调用）"
+  ],
+  "channel": "python ctypes → iphlpapi.GetIfEntry2 → MIB_IF_ROW2 原值（rc＝函数返回码，0＝NO_ERROR）；psutil.net_io_counters；--selftest 另调 PowerShell Get-NetAdapterStatistics",
+  "rc": 0,
+  "verdict": "通",
+  "prereg": "replies=3; bg_max=2; d_reply=[2,4]; d_bg=[-1,1]; disc_reply=[2,4]; disc_zero=[0,1]",
+  "sizeof": 1352,
+  "nic": "本地连接* 10",
+  "ifindex_by_ip": [
+   13
+  ],
+  "getifentry2_rc": 0,
+  "alias": "本地连接* 10",
+  "row_ifindex": 13,
+  "psutil_sandwich": {
+   "sent": [
+    304,
+    304,
+    304
+   ],
+   "recv": [
+    171,
+    171,
+    171
+   ],
+   "bytes_sent": [
+    64556,
+    64556,
+    64556
+   ],
+   "bytes_recv": [
+    29192,
+    29192,
+    29192
+   ]
+  },
+  "out_ucast_nonzero": true,
+  "ps_rc": 0,
+  "ps_sandwich": {
+   "sent_ucast": [
+    134,
+    138,
+    138
+   ],
+   "recv_ucast": [
+    135,
+    138,
+    138
+   ]
+  },
+  "hotspot": {
+   "ts": "2026-09-26T13:42:00",
+   "rc": 0,
+   "State": "On",
+   "Clients": 1,
+   "NicStatus": "Up"
+  },
+  "ifindex": 13
+ }
+]
