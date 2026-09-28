@@ -1,0 +1,532 @@
+diff --git a/scripts/diag/decompose_2x_probe.py b/scripts/diag/decompose_2x_probe.py
+index 9b57050..669b9ff 100644
+--- a/scripts/diag/decompose_2x_probe.py
++++ b/scripts/diag/decompose_2x_probe.py
+@@ -33,7 +33,7 @@ if _HERE not in sys.path:
+ from decompose_2x_verdicts import (                                    # noqa: E402
+     conservation_selfcheck, impostor_band, judge_hotspot_off, noise_policy,
+     verdict_h2, verdict_h4, verdict_identity, verdict_impostor, verdict_n, verdict_s3,
+-    zero_reading_ok)
++    zero_reading_ok, cell_status)
+ from pkt_identity import parse as pkt_parse, summarize as pkt_summarize   # noqa: E402
+ 
+ ROUND_DIR = "c_2x_decompose_20260912"      # 本轮证据目录（§1.5）；重写换轮时必须同时改它
+@@ -454,8 +454,15 @@ def bucket_counts(n_parsed, classes):
+     return c
+ 
+ 
+-def _reader(d, h, recs, unparsed, errbox):
+-    """读线程：每包按 §1.2 取八字段。错误码**同线程立刻取**（§1.1-2）。"""
++def _reader(d, h, recs, unparsed, errbox, stopping=None, obs=None):
++    """读线程：每包按 §1.2 取八字段。错误码**同线程立刻取**（§1.1-2）。
++
++    🔴 `stopping`（`threading.Event`，主线程在 Shutdown **之前** set）在 Recv 失败的
++    **那一瞬、同一线程**里采样，与错误码、时刻一起记进 `obs`（终审 V4 §2-9／§8-5）。
++    ⇒ 读线程自己死掉（ifIdx 漂了、filter 在该层意外报错）时它看到的是 False，
++    被 Shutdown 叫停时看到的是 True ——**这就是分开「真零」与「仪器没跑」的那个量**。
++    顺序：先 `get_last_error()`（任何其他 Win32 调用都可能覆盖它），再采旗标、再取时刻。
++    """
+     pkt = ctypes.create_string_buffer(0xFFFF)
+     addr = ctypes.create_string_buffer(128)     # 2.x 需 64；给足且**从不解析**（§0-1）
+     rlen = ctypes.c_uint(0)
+@@ -465,7 +472,13 @@ def _reader(d, h, recs, unparsed, errbox):
+             unparsed.append((rlen.value, classify_unparsed(pkt.raw, rlen.value)))
+         else:
+             recs.append(r)
+-    errbox.append(ctypes.get_last_error())
++    err = ctypes.get_last_error()
++    seen = stopping.is_set() if stopping is not None else None
++    t_exit = time.time()
++    errbox.append(err)
++    if obs is not None:
++        obs["stopping_seen"] = seen
++        obs["t_exit"] = t_exit
+ 
+ 
+ def _blank_cell(label, layer, filt, filt_b):
+@@ -473,7 +486,9 @@ def _blank_cell(label, layer, filt, filt_b):
+             "count": None, "count_b": None, "recs": [], "recs_b": [],
+             "unparsed": [], "unparsed_b": [], "buckets": None, "buckets_b": None,
+             "term_err": None, "term_err_b": None,
+-            "shutting_down": False, "thread_exited": None, "thread_exited_b": None,
++            "shutting_down": None, "shutting_down_b": None,   # 读线程**自己看到的**（§2-9），未观察＝None
++            "exited_before_traffic": None, "exited_before_traffic_b": None,
++            "thread_exited": None, "thread_exited_b": None,
+             "t": {}, "window_s": None, "same_window": None, "same_window_why": None,
+             "T": None}
+ 
+@@ -510,13 +525,17 @@ def cell(d, label, layer, filt, traffic, filt_b=None, opened=None):
+             print("  [%s] 打开句柄 b 失败 err=%d ⇒ 本格比值 VOID" % (label, ctypes.get_last_error()))
+             hb = None
+     ea, eb = [], []
+-    ta = threading.Thread(target=_reader, args=(d, ha, out["recs"], out["unparsed"], ea),
++    stop_a, stop_b = threading.Event(), threading.Event()
++    obs_a, obs_b = {}, {}
++    ta = threading.Thread(target=_reader,
++                          args=(d, ha, out["recs"], out["unparsed"], ea, stop_a, obs_a),
+                           daemon=True)
+     tb = None
+     ta.start()
+     if hb is not None:
+         tb = threading.Thread(target=_reader,
+-                              args=(d, hb, out["recs_b"], out["unparsed_b"], eb), daemon=True)
++                              args=(d, hb, out["recs_b"], out["unparsed_b"], eb, stop_b, obs_b),
++                              daemon=True)
+         tb.start()
+     try:
+         out["t"]["traffic_start"] = time.time()
+@@ -525,7 +544,12 @@ def cell(d, label, layer, filt, traffic, filt_b=None, opened=None):
+     finally:
+         out["t"]["grace_end"] = time.time()
+         out["window_s"] = out["t"]["grace_end"] - out["t"]["traffic_start"]
+-        out["shutting_down"] = True
++        # 🔴 **不再**在这里写 `out["shutting_down"] = True`（终审 V4 §2-9）：那是主线程事后写的
++        # 常量，读线程从不采样它 ⇒ 判定时恒真 ⇒ 零读数通则没有区分力。改为先 set 旗标、
++        # 再 Shutdown；读线程在 Recv 失败那一瞬自己采样。**顺序不能反**：先 Shutdown 再 set，
++        # 被叫停的读线程可能先醒来、看到 False ⇒ 真零被误判 NOT_EXECUTED（门里有确定性用例）。
++        stop_a.set()
++        stop_b.set()
+         d.WinDivertShutdown(ha, SHUTDOWN_BOTH)
+         if hb is not None:
+             d.WinDivertShutdown(hb, SHUTDOWN_BOTH)
+@@ -547,10 +571,19 @@ def cell(d, label, layer, filt, traffic, filt_b=None, opened=None):
+     out["count"] = len(out["recs"])
+     out["buckets"] = bucket_counts(out["count"], [k for _, k in out["unparsed"]])
+     out["term_err"] = ea[0] if ea else None
++    ts = out["t"].get("traffic_start")
++    out["shutting_down"] = obs_a.get("stopping_seen")          # 读线程**自己看到的**；未退出＝None
++    out["t"]["exit_a"] = obs_a.get("t_exit")
++    out["exited_before_traffic"] = (None if (obs_a.get("t_exit") is None or ts is None)
++                                    else obs_a["t_exit"] < ts)
+     if hb is not None:
+         out["count_b"] = len(out["recs_b"])
+         out["buckets_b"] = bucket_counts(out["count_b"], [k for _, k in out["unparsed_b"]])
+         out["term_err_b"] = eb[0] if eb else None
++        out["shutting_down_b"] = obs_b.get("stopping_seen")
++        out["t"]["exit_b"] = obs_b.get("t_exit")
++        out["exited_before_traffic_b"] = (None if (obs_b.get("t_exit") is None or ts is None)
++                                          else obs_b["t_exit"] < ts)
+         out["same_window"], out["same_window_why"] = same_window(
+             out["t"]["open_a"], out["t"]["open_b"], out["t"]["traffic_start"],
+             out["t"]["grace_end"], out["t"]["close_a"], out["t"]["close_b"])
+@@ -624,10 +657,12 @@ def report_cell(c):
+         print("  [%s] NOT_EXECUTED：句柄没开成" % c["label"])
+         return None
+     s = pkt_summarize(c["recs"]) if c["recs"] else None
+-    ok0, why0 = zero_reading_ok(c["count"], c["shutting_down"], c["thread_exited"])
+-    print("  [%s] count=%d shutting_down=%s term_err=%s 线程已退出=%s 未解析=%d 窗长=%.1fs"
+-          % (c["label"], c["count"], c["shutting_down"], c["term_err"],
+-             c["thread_exited"], len(c["unparsed"]), c["window_s"] or 0.0))
++    ok0, why0 = cell_status(c["count"], c["shutting_down"], c["thread_exited"],
++                            c.get("exited_before_traffic"))
++    print("  [%s] count=%d shutting_down(读线程所见)=%s 先于流量退出=%s term_err=%s 线程已退出=%s "
++          "未解析=%d 窗长=%.1fs"
++          % (c["label"], c["count"], c["shutting_down"], c.get("exited_before_traffic"),
++             c["term_err"], c["thread_exited"], len(c["unparsed"]), c["window_s"] or 0.0))
+     bk = c.get("buckets")
+     if bk is not None:
+         print("       匹配总数=%d（ICMP 解出 %d ＋ ICMP 解不动 %d ＋ 非 ICMP %d ＋ 无法分类 %d）" % (bk["count_all"], bk["parsed"], bk["icmp_unparsed"], bk["non_icmp"], bk["unclassifiable"]))
+@@ -640,8 +675,12 @@ def report_cell(c):
+                  s["seq_min"], s["seq_max"], s["src_same_within_key"]))
+     print("       零读数通则：%s" % why0)
+     if c["count_b"] is not None:
+-        print("       句柄 b：count=%d term_err=%s 线程已退出=%s；%s"
+-              % (c["count_b"], c["term_err_b"], c["thread_exited_b"], c["same_window_why"]))
++        okb, whyb = cell_status(c["count_b"], c.get("shutting_down_b"), c["thread_exited_b"],
++                                c.get("exited_before_traffic_b"))
++        print("       句柄 b：count=%d shutting_down(读线程所见)=%s term_err=%s 线程已退出=%s；%s"
++              % (c["count_b"], c.get("shutting_down_b"), c["term_err_b"], c["thread_exited_b"],
++                 c["same_window_why"]))
++        print("       句柄 b 零读数通则：%s" % whyb)
+     _dump_records("句柄 a", c["recs"])
+     _dump_records("句柄 b", c["recs_b"])
+     return s
+@@ -904,6 +943,20 @@ def apply_verdicts(cells):
+     # ⚠ 这一行**不许印门的条数**：它会进逐字副本，而证据不可追改
+     # ——五份旧 stdout 里的「26 条门」有一份印出来那一刻就已经是假的。
+     print("-- 判定（判据 §4，跑前写死；判定逻辑在 decompose_2x_verdicts，门见其同名测试）--")
++    # 🔴 **在印任何判词之前**消费格级 status（终审 V4 §2-9）：不满足的格印 NOT_EXECUTED，
++    # 并**整格丢弃**——下游每个消费者都已把「缺席」处理成「不可判」
++    # （verdict_identity 的 a2=None ⇒ UNDECIDABLE；H2／N1N2 调用点有 `None not in` 守卫；
++    # verdict_impostor 分子 None ⇒ VOID_MISSING；S3 缺格 ⇒ VOID_NO_T ⇒ FAIL）。
++    # ⚠ **不是**把计数改成 None 再喂进去：verdict_h2／verdict_n 对 None 直接抛 TypeError。
++    kept = {}
++    for n, c in cells.items():
++        ok, why = cell_status(c.get("count"), c.get("shutting_down"), c.get("thread_exited"),
++                              c.get("exited_before_traffic"))
++        if ok:
++            kept[n] = c
++        else:
++            print("  [%s] NOT_EXECUTED（格级前提不满足 ⇒ 本格全部判词拒判）：%s" % (n, why))
++    cells = kept
+     get = lambda n: cells.get(n)
+     a1, a2, c1 = get("A1"), get("A2"), get("C1")
+     out = {}
+@@ -965,7 +1018,12 @@ def apply_verdicts(cells):
+     for nm, own_code in (("A1", code), ("C1", cc)):
+         c = get(nm)
+         if c and c.get("count_b") is not None:
+-            ic, iw = verdict_impostor(c["count_b"], c["count"],
++            # 🔴 句柄 b 同样过格级 status（§8-5）：不满足 ⇒ 分子喂 None ⇒ VOID_MISSING，**不是 ZERO**。
++            okb, whyb = cell_status(c["count_b"], c.get("shutting_down_b"), c.get("thread_exited_b"),
++                                    c.get("exited_before_traffic_b"))
++            if not okb:
++                print("  §4.3 impostor（%s）句柄 b：%s" % (nm, whyb))
++            ic, iw = verdict_impostor(c["count_b"] if okb else None, c["count"],
+                                       s3_code == "PASS",
+                                       bool(c.get("same_window")), own_code)
+             lo, hi = impostor_band(c["count"]) if c["count"] else (None, None)
+diff --git a/scripts/diag/decompose_2x_verdicts.py b/scripts/diag/decompose_2x_verdicts.py
+index 95e7be7..a953454 100644
+--- a/scripts/diag/decompose_2x_verdicts.py
++++ b/scripts/diag/decompose_2x_verdicts.py
+@@ -291,6 +291,28 @@ def zero_reading_ok(count, shutting_down, thread_exited):
+                    "(分不开「仪器没跑」与「真的是 0」)" % (shutting_down, thread_exited))
+ 
+ 
++def cell_status(count, shutting_down, thread_exited, exited_before_traffic):
++    """→ `(ok, why)`。§1.1-6 全格通则的**可消费**形态（终审 V4 §2-9／§8-5）。
++
++    🔴 `zero_reading_ok` 本身没错,错的是它的输入:原实现在主线程 `finally` 里**无条件**
++    `shutting_down = True`,读线程从不采样它 ⇒ 判定时恒真 ⇒ 「真零」与「读线程开跑即死」
++    在所有被判字段上逐字相同,`zero_reading_ok(0, True, True)` 恒得「这个 0 成立」。
++    现 `shutting_down` 取**读线程在 Recv 失败那一瞬自己看到的** stop 旗标(主线程在 Shutdown
++    **之前** set)⇒ 读线程自己死掉时它看到的是 False ⇒ 本函数判 NOT_EXECUTED。
++
++    `exited_before_traffic` ⇒ 该格从未在窗口内读过包 ⇒ **无论计数多少**都 NOT_EXECUTED
++    (计数非 0 也不行:那是窗口外的包)。
++    ⚠ 本函数**只**把 §1.1-6 那条零读数通则做成可消费的;「读线程窗口中途自己死掉、
++    计数非 0 但偏少」**不在本条范围**(计数非 0 时本通则不适用),另立条目再议。
++    """
++    if count is None:
++        return (False, "句柄没开成 ⇒ NOT_EXECUTED")
++    if exited_before_traffic:
++        return (False, "读线程在流量开始之前就已退出(计数 %s)⇒ 该格从未在窗口内读过包 "
++                       "⇒ NOT_EXECUTED" % (count,))
++    return zero_reading_ok(count, shutting_down, thread_exited)
++
++
+ # `SharedAccess` 的已知服务状态集(§5-2 的 H2 正对照)。集合外(空串、错误文本)⇒ 量法不活。
+ SVC_STATES = ("Running", "Stopped", "StartPending", "StopPending",
+               "Paused", "PausePending", "ContinuePending")
+diff --git a/scripts/tests/test_decompose_2x_zero_reading.py b/scripts/tests/test_decompose_2x_zero_reading.py
+new file mode 100644
+index 0000000..fca75f3
+--- /dev/null
++++ b/scripts/tests/test_decompose_2x_zero_reading.py
+@@ -0,0 +1,315 @@
++# -*- coding: utf-8 -*-
++"""终审 V4 §2-9／§8-5：零读数通则的判别量不得是常量。
++
++🔴 原实现在 `cell()` 的 `finally` 里**无条件** `shutting_down = True`，读线程从不采样它
++⇒ 判定时恒真 ⇒ 「真零」与「读线程开跑即死」在所有被判字段上逐字相同，
++`zero_reading_ok(0, True, True)` 恒得「这个 0 成立」——**房规「零必须与仪器从未跑过可分」
++由一个不可能失败的检查满足**。
++
++本文件的门**两个方向都钉**（承审阅原文「门两个方向都要」）：
++- 世界 A：读线程在第一次 Recv 就自己死掉 ⇒ 必须 NOT_EXECUTED；
++- 世界 B：读线程一直阻塞到被 Shutdown 叫停、计数 0 ⇒ 这个 0 **必须**成立。
++另钉「stop 旗标在 Shutdown **之前** set」这个顺序：假驱动的 Shutdown 放行读线程后
++故意慢返回，顺序一反，世界 B 就**确定性**变红，不靠竞态碰运气。
++
++全部零参（`run_all.py` 以 `fn()` 调用，不支持 fixture）；打桩一律 try/finally 还原。
++Linux 上无 `ctypes.get_last_error`，本文件临时补一个；Windows 上临时替换后还原。
++"""
++import contextlib
++import ctypes
++import io
++import os
++import sys
++import threading
++import time
++
++_DIAG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "diag")
++if _DIAG not in sys.path:
++    sys.path.insert(0, _DIAG)
++
++import decompose_2x_probe as P                                       # noqa: E402
++from decompose_2x_verdicts import cell_status, zero_reading_ok       # noqa: E402
++
++ERROR_NO_DATA = 232
++
++
++@contextlib.contextmanager
++def _patched(grace=0.0):
++    """临时：GRACE_S＝grace；`ctypes.get_last_error` 返回 232。退出即还原。"""
++    had = hasattr(ctypes, "get_last_error")
++    orig_gle = getattr(ctypes, "get_last_error", None)
++    orig_grace = P.GRACE_S
++    ctypes.get_last_error = lambda: ERROR_NO_DATA
++    P.GRACE_S = grace
++    try:
++        yield
++    finally:
++        P.GRACE_S = orig_grace
++        if had:
++            ctypes.get_last_error = orig_gle
++        else:
++            del ctypes.get_last_error
++
++
++class _DiesAtFirstRecv(object):
++    """世界 A：句柄开成，但第一次 Recv 就 FALSE——与 Shutdown 无关（ifIdx 漂了之类）。"""
++
++    def WinDivertOpen(self, *a):
++        return 4242
++
++    def WinDivertRecv(self, *a):
++        return False
++
++    def WinDivertShutdown(self, *a):
++        return True
++
++    def WinDivertClose(self, *a):
++        return True
++
++
++class _BlocksUntilShutdown(object):
++    """世界 B：Recv 一直阻塞，直到 Shutdown 才 FALSE（真零的形状）。
++
++    🔴 Shutdown **放行读线程之后故意慢 0.2s 才返回**：若实现把 `stop.set()` 挪到 Shutdown
++    之后，读线程必在那 0.2s 里醒来并采到 False ⇒ 本世界确定性变红。
++    `dies` 里的句柄走世界 A（用于「a 真零、b 自己死」的混合格）。
++    """
++
++    def __init__(self, dies=()):
++        self._released = threading.Event()
++        self._dies = set(dies)
++        self._n = 0
++
++    def WinDivertOpen(self, *a):
++        self._n += 1
++        return 1000 + self._n                 # a＝1001，b＝1002
++
++    def WinDivertRecv(self, h, *a):
++        if h in self._dies:
++            return False
++        self._released.wait(10)
++        return False
++
++    def WinDivertShutdown(self, *a):
++        self._released.set()
++        time.sleep(0.2)
++        return True
++
++    def WinDivertClose(self, *a):
++        return True
++
++
++def _traffic_slow():
++    time.sleep(0.3)                           # 给世界 A 的读线程充足时间在 stop 之前自己死掉
++    return 20
++
++
++# ─────────────────────────── 纯函数 cell_status ───────────────────────────
++
++def test_true_zero_still_holds():
++    """🔴 反方向：真零（读线程被叫停时看到 stop＝True、已退出、非先于流量）必须成立。
++    否则一个恒 NOT_EXECUTED 的实现也能过本文件的其余门。"""
++    ok, why = cell_status(0, True, True, False)
++    assert ok is True, why
++    assert "这个 0 成立" in why, why
++
++
++def test_reader_died_on_its_own_is_not_executed():
++    ok, why = cell_status(0, False, True, False)
++    assert ok is False, why
++    assert "NOT_EXECUTED" in why, why
++
++
++def test_exited_before_traffic_is_not_executed_even_if_nonzero():
++    """先于流量退出 ⇒ 该格从未在窗口内读过包 ⇒ 计数非 0 也不行（那是窗口外的包）。"""
++    ok, why = cell_status(5, True, True, True)
++    assert ok is False, why
++    assert "流量开始之前" in why, why
++
++
++def test_unopened_handle_is_not_executed():
++    assert cell_status(None, None, None, None)[0] is False
++
++
++def test_scope_boundary_nonzero_mid_window_death_is_not_judged_here():
++    """⚠ 钉的是**范围边界**，不是背书：读线程窗口中途自己死掉而计数非 0，
++    本通则（只管 0）不适用 ⇒ 这里仍判 ok。要收紧请另立条目并改本门——
++    改的时候本门会红，逼人意识到自己在扩范围。"""
++    assert cell_status(5, False, True, False)[0] is True
++
++
++def test_the_old_constant_input_is_exactly_what_let_the_dead_reader_through():
++    """史实对照：旧实现喂的是常量 True ⇒ 读线程死掉也得「这个 0 成立」。
++    本门钉住**为什么**输入必须来自读线程，而不是再测一遍新实现。"""
++    assert zero_reading_ok(0, True, True)[0] is True
++    assert zero_reading_ok(0, False, True)[0] is False
++
++
++# ─────────────────────────── cell() 两个世界 ───────────────────────────
++
++def test_world_a_reader_dies_at_first_recv_is_not_executed():
++    """🔴 世界 A：旧实现在这里得 shutting_down=True ⇒「这个 0 成立」。"""
++    with _patched():
++        c = P.cell(_DiesAtFirstRecv(), "F2", 0, "true", _traffic_slow)
++    assert c["count"] == 0
++    assert c["thread_exited"] is True
++    assert c["shutting_down"] is False, \
++        "读线程自己死掉却记成 shutting_down=%r ⇒ 判别量又成了常量" % (c["shutting_down"],)
++    ok, why = cell_status(c["count"], c["shutting_down"], c["thread_exited"],
++                          c["exited_before_traffic"])
++    assert ok is False, why
++
++
++def test_world_a_exited_before_traffic_is_derived_from_timestamps():
++    """派生量必须与两个时刻一致——不断言它取哪个值（那取决于线程调度），只断言它没算错。"""
++    with _patched():
++        c = P.cell(_DiesAtFirstRecv(), "F2", 0, "true", _traffic_slow)
++    assert c["t"]["exit_a"] is not None
++    assert c["exited_before_traffic"] == (c["t"]["exit_a"] < c["t"]["traffic_start"])
++    assert c["t"]["exit_a"] < c["t"]["grace_end"], "读线程应早在收尾前就已死掉"
++
++
++def test_world_b_true_zero_holds():
++    """🔴 世界 B：被 Shutdown 叫停的真零必须成立；stop 若在 Shutdown 之后才 set，本门确定性变红。"""
++    with _patched():
++        c = P.cell(_BlocksUntilShutdown(), "S0", 0, "true", lambda: 20)
++    assert c["count"] == 0
++    assert c["thread_exited"] is True
++    assert c["shutting_down"] is True, \
++        "被叫停的读线程看到 stop=%r ⇒ stop 没有在 Shutdown **之前** set" % (c["shutting_down"],)
++    assert c["exited_before_traffic"] is False
++    ok, why = cell_status(c["count"], c["shutting_down"], c["thread_exited"],
++                          c["exited_before_traffic"])
++    assert ok is True, why
++
++
++def test_handle_b_is_observed_separately():
++    """句柄 a 真零、句柄 b 自己死掉 ⇒ 两边观察值必须分开记，不能共用一个旗标。"""
++    with _patched():
++        c = P.cell(_BlocksUntilShutdown(dies=(1002,)), "A1", 0, "true", _traffic_slow,
++                   filt_b="true")
++    assert c["shutting_down"] is True, c["shutting_down"]
++    assert c["shutting_down_b"] is False, c["shutting_down_b"]
++
++
++# ─────────────────────────── apply_verdicts 消费格级 status ───────────────────────────
++
++def _valid_cell(**kw):
++    c = {"count": 20, "count_b": None, "shutting_down": True, "shutting_down_b": None,
++         "thread_exited": True, "thread_exited_b": None,
++         "exited_before_traffic": False, "exited_before_traffic_b": None,
++         "T": 20, "window_s": 3.0, "same_window": True, "recs": [], "recs_b": [],
++         "buckets": None,
++         "summary": {"n_distinct_keys": 20, "multiplicity_hist": {1: 20},
++                     "src_same_within_key": True}}
++    c.update(kw)
++    return c
++
++
++def _s3_pass_cells():
++    """impostor 先查 §1.6 S3 自证，未过即整节 VOID_S3、走不到分子 ⇒ 要测分子就得先让 S3 过。"""
++    seq = [{"icmp_seq": i} for i in range(20)]
++    return {n: _valid_cell(recs=list(seq), recs_b=list(seq), count_b=20, shutting_down_b=True,
++                           thread_exited_b=True, exited_before_traffic_b=False)
++            for n in ("S3a", "S3b")}
++
++
++def _run(cells):
++    buf = io.StringIO()
++    with contextlib.redirect_stdout(buf):
++        P.apply_verdicts(cells)
++    return buf.getvalue()
++
++
++def test_dead_reader_s1_is_refused_before_any_verdict_not_read_as_no_noise():
++    """🔴 审阅点名的错误归因情景之一：S1 读线程开跑即死、计数 0 ⇒ 旧实现印 §4.6 底噪判词
++    （NOISE_NONE 放行整层）。现在必须先印 NOT_EXECUTED，且**不得**再印 S1 的底噪判词。"""
++    out = _run({"A1": _valid_cell(),
++                "S1": _valid_cell(count=0, shutting_down=False, summary=None)})
++    assert "[S1] NOT_EXECUTED" in out, out
++    assert "§4.6 S1 底噪" not in out, out
++    assert out.index("[S1] NOT_EXECUTED") < out.index("§4.1"), "拒判必须印在任何判词之前"
++
++
++def test_dead_reader_a1_is_refused_and_no_a1_identity_verdict_is_printed():
++    """A1 读线程开跑即死 ⇒ A1 本格拒判，且**不得印出 A1 的身份判词**。
++
++    ⚠ 本门**刻意不断言**「下游全部不可判」：那是 V4 §8-19 点名的另一个缺陷——
++    `apply_verdicts` 在 A1 缺席时整段早退，把 FORWARD 层（有自己的前提）的 C1／H2／N／底噪
++    一并丢掉。首版本门断言了「全部不可判」，**把 §8-19 的缺陷钉成了期望**，谁去修 §8-19
++    都会先撞上本门变红（核状态工作流与怀疑者独立指出，2026-09-26）。本门只管本条范围。
++    """
++    out = _run({"A1": _valid_cell(count=0, shutting_down=False, summary=None)})
++    assert "[A1] NOT_EXECUTED" in out, out
++    assert "§4.1 身份（T=" not in out, "A1 已被拒判却仍印出身份判词：\n" + out
++
++
++def test_dead_reader_handle_b_gives_void_missing_not_zero():
++    """🔴 §8-5：句柄 b 不满足 ⇒ VOID_MISSING，**不是** ZERO（ZERO 会被读成「该位未置位」）。"""
++    cells = _s3_pass_cells()
++    cells["A1"] = _valid_cell(count_b=0, shutting_down_b=False, thread_exited_b=True,
++                              exited_before_traffic_b=False)
++    out = _run(cells)
++    assert "两支均须过 ⇒ PASS" in out, "夹具没让 S3 过 ⇒ 本门测不到分子：\n" + out
++    assert "VOID_MISSING" in out, out
++    assert "⇒ ZERO" not in out, out
++
++
++def test_true_zero_handle_b_is_still_judged_zero():
++    """反方向：句柄 b 真零（被叫停时看到 stop）必须仍判 ZERO，否则上一条门由一个
++    「凡 b 为 0 一律 VOID」的实现也能过。"""
++    cells = _s3_pass_cells()
++    cells["A1"] = _valid_cell(count_b=0, shutting_down_b=True, thread_exited_b=True,
++                              exited_before_traffic_b=False)
++    out = _run(cells)
++    assert "两支均须过 ⇒ PASS" in out, "夹具没让 S3 过 ⇒ 本门测不到分子：\n" + out
++    assert "⇒ ZERO" in out, out
++
++
++class _TaggingDriver(_BlocksUntilShutdown):
++    """在 Recv 里给当前读线程打上它读的句柄号，供受控时钟区分 a／b。"""
++
++    def WinDivertRecv(self, h, *a):
++        threading.current_thread()._fake_h = h
++        return _BlocksUntilShutdown.WinDivertRecv(self, h, *a)
++
++
++def test_handle_b_exited_before_traffic_uses_its_own_exit_time():
++    """🔴 句柄 b 的「先于流量退出」必须拿 **b 自己的**退出时刻比。
++
++    真实时钟下 b 读线程退出与 traffic_start 打戳之间是调度竞态，值不确定 ⇒
++    「错用 a 的时刻」这种接线错只会偶尔被抓。这里用受控时钟把时刻钉死：
++    b 读线程取时＝0、a 读线程取时＝1e9、主线程取时＝500
++    ⇒ 正确实现：exited_before_traffic_b=True、exited_before_traffic=False，**确定性**可分。
++    """
++    real_time = time.time
++
++    def fake_clock():
++        h = getattr(threading.current_thread(), "_fake_h", None)
++        return {1002: 0.0, 1001: 1e9}.get(h, 500.0)
++
++    time.time = fake_clock
++    try:
++        with _patched():
++            c = P.cell(_TaggingDriver(dies=(1002,)), "A1", 0, "true", lambda: 20,
++                       filt_b="true")
++    finally:
++        time.time = real_time
++    assert c["t"]["traffic_start"] == 500.0, c["t"]
++    assert c["t"]["exit_b"] == 0.0 and c["t"]["exit_a"] == 1e9, c["t"]
++    assert c["exited_before_traffic_b"] is True, c["exited_before_traffic_b"]
++    assert c["exited_before_traffic"] is False, c["exited_before_traffic"]
++
++
++def test_report_line_says_the_same_as_the_decision():
++    """🔴 逐字副本进证据（D-890）⇒ 格报告里印的「零读数通则」必须与 apply_verdicts
++    拒判用的是**同一个**判定。先于流量退出而计数非 0：判定层丢格，报告行若仍用旧
++    `zero_reading_ok` 就会印「计数非 0 ⇒ 本通则不适用」——证据与判定自相矛盾。"""
++    c = _valid_cell(label="F1", count=5, exited_before_traffic=True, term_err=ERROR_NO_DATA,
++                    unparsed=[], summary=None, same_window_why="")
++    buf = io.StringIO()
++    with contextlib.redirect_stdout(buf):
++        P.report_cell(c)
++    out = buf.getvalue()
++    assert "流量开始之前" in out, out
++    assert "本通则不适用" not in out, out

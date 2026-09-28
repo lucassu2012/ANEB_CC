@@ -1,5 +1,8 @@
 # INBOX · 20260718_ANEB系统开发_v3（新在上）
 
+## M-V3-006 · 2026-09-05 12:45Z · 预派：A-1 驱动器四件（若 61bd2401 4 小时内无回执即归你）（致 `local_b1769d1f`）
+开窗唯一阻塞＝A-1（`drive_cell.py`/`drive_cell_ds.py` 四件 + `tests/test_drive_cell.py` ≥5 条，验收在 REVIEW §7.1 A-1）。请先看 T80/T79 有无 61bd2401 的回执；没有就直接做，合入后把哈希写进窗令 P3 与 T80。A-5/A-4/A-2/A-3 顺序不变。
+
 ## M-V3-005 · 2026-09-05 11:50Z · 全面评估：六件无设备件，今日起（致 `local_b1769d1f`）
 报告 `REVIEW_20260905_FULL.md` §7.1/§7.2，全部不需 P40：
 1. **A-5 判决性实验收口（半天）**：`python3 tools/e234/e2_analyze.py --run-dir evidence/wave1_20260831/wifi_f6 --pkg com.larus.nova` 落 e2_result；协调侧副本复算 p99 = 28,440.6 ms（周期 1 s），比 DW-02 的 17,230 更大 ⇒ 按判读页 :145 只剩「语义事件说成立」，e2 命题在现装置结构性不成立；出 `docs/DW_20260831_01_JUDGMENT.md`，命题单模板把 e2 移出主命题；`e2_analyze` 子块 `status` 改名 `sample_ok`。
